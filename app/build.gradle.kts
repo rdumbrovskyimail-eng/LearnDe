@@ -1,8 +1,3 @@
-plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-}
-
 android {
     namespace = "com.codeextractor.app"
     compileSdk = 35
@@ -15,9 +10,20 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            // Используем debug ключ для простоты
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -36,6 +42,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
