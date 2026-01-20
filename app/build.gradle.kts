@@ -1,3 +1,8 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
 android {
     namespace = "com.codeextractor.app"
     compileSdk = 35
@@ -12,7 +17,6 @@ android {
 
     signingConfigs {
         create("release") {
-            // Используем debug ключ для простоты
             storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
