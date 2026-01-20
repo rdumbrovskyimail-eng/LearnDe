@@ -32,11 +32,23 @@ class CodeProcessor {
     )
     
     fun collectFilesFromFolder(context: Context, folderUri: Uri, selectedItems: MutableList<FileItem>): Int {
+        return collectFilesRecursive(context, folderUri, selectedItems, "")
+    }
+    
+    private fun collectFilesRecursive(
+        context: Context, 
+        folderUri: Uri, 
+        selectedItems: MutableList<FileItem>,
+        currentPath: String
+    ): Int {
         var count = 0
         try {
+            val treeDocumentId = DocumentsContract.getTreeDocumentId(folderUri)
+            val documentId = DocumentsContract.getDocumentId(folderUri)
+            
             val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
                 folderUri,
-                DocumentsContract.getTreeDocumentId(folderUri)
+                documentId
             )
             
             context.contentResolver.query(
@@ -51,16 +63,18 @@ class CodeProcessor {
                 null
             )?.use { cursor ->
                 while (cursor.moveToNext()) {
-                    val documentId = cursor.getString(0)
+                    val childDocumentId = cursor.getString(0)
                     val displayName = cursor.getString(1)
                     val mimeType = cursor.getString(2)
                     
-                    val documentUri = DocumentsContract.buildDocumentUriUsingTree(folderUri, documentId)
+                    val childUri = DocumentsContract.buildDocumentUriUsingTree(folderUri, childDocumentId)
+                    val fullPath = if (currentPath.isEmpty()) displayName else "$currentPath/$displayName"
                     
                     if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
-                        count += collectFilesFromFolder(context, documentUri, selectedItems)
+                        // Рекурсивно обходим подпапку
+                        count += collectFilesRecursive(context, childUri, selectedItems, fullPath)
                     } else if (isSupported(displayName)) {
-                        selectedItems.add(FileItem(documentUri, displayName, mimeType ?: "unknown"))
+                        selectedItems.add(FileItem(childUri, fullPath, mimeType ?: "unknown"))
                         count++
                     }
                 }
