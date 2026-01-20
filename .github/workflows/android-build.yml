@@ -20,10 +20,9 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
         
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
       
     - name: Build Debug APK
       id: build_debug
@@ -135,31 +134,49 @@ jobs:
             return null;
           }
       
-    - name: Check if APKs exist
-      id: check_apks
-      if: steps.build_debug.outputs.status == '0' || steps.build_release.outputs.status == '0'
+    - name: Find all APK files
+      id: find_apks
+      if: always()
       run: |
+        echo "🔍 Searching for APK files..."
+        find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found anywhere"
+        
         mkdir -p apk-output
         
-        DEBUG_APK=$(find app/build/outputs/apk/debug -name "*.apk" 2>/dev/null | head -1)
-        RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -1)
+        # Ищем любые APK в проекте
+        DEBUG_APKS=$(find . -path "*/debug/*.apk" -type f 2>/dev/null)
+        RELEASE_APKS=$(find . -path "*/release/*.apk" -type f 2>/dev/null)
         
-        if [ -n "$DEBUG_APK" ]; then
-          cp "$DEBUG_APK" "apk-output/app-debug-v1.0.${{ github.run_number }}.apk"
+        DEBUG_COUNT=0
+        RELEASE_COUNT=0
+        
+        if [ -n "$DEBUG_APKS" ]; then
+          echo "📦 Found Debug APKs:"
+          echo "$DEBUG_APKS"
+          for apk in $DEBUG_APKS; do
+            cp "$apk" "apk-output/app-debug-v1.0.${{ github.run_number }}-$DEBUG_COUNT.apk"
+            DEBUG_COUNT=$((DEBUG_COUNT + 1))
+          done
           echo "debug_found=true" >> $GITHUB_OUTPUT
         else
           echo "debug_found=false" >> $GITHUB_OUTPUT
         fi
         
-        if [ -n "$RELEASE_APK" ]; then
-          cp "$RELEASE_APK" "apk-output/app-release-v1.0.${{ github.run_number }}.apk"
+        if [ -n "$RELEASE_APKS" ]; then
+          echo "📦 Found Release APKs:"
+          echo "$RELEASE_APKS"
+          for apk in $RELEASE_APKS; do
+            cp "$apk" "apk-output/app-release-v1.0.${{ github.run_number }}-$RELEASE_COUNT.apk"
+            RELEASE_COUNT=$((RELEASE_COUNT + 1))
+          done
           echo "release_found=true" >> $GITHUB_OUTPUT
         else
           echo "release_found=false" >> $GITHUB_OUTPUT
         fi
         
-        if [ -n "$DEBUG_APK" ] || [ -n "$RELEASE_APK" ]; then
+        if [ $DEBUG_COUNT -gt 0 ] || [ $RELEASE_COUNT -gt 0 ]; then
           echo "any_apk=true" >> $GITHUB_OUTPUT
+          echo "✅ Total APKs found: $((DEBUG_COUNT + RELEASE_COUNT))"
           ls -lh apk-output/
         else
           echo "any_apk=false" >> $GITHUB_OUTPUT
@@ -167,7 +184,7 @@ jobs:
         fi
         
     - name: Create Release with APKs
-      if: steps.check_apks.outputs.any_apk == 'true'
+      if: steps.find_apks.outputs.any_apk == 'true'
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v1.0.${{ github.run_number }}
@@ -175,7 +192,7 @@ jobs:
         body: |
           ## 📱 Android Build - Run #${{ github.run_number }}
           
-          **Build Date:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          **Build Date:** ${{ github.event.head_commit.timestamp }}
           **Commit:** `${{ github.sha }}`
           **Branch:** `${{ github.ref_name }}`
           
@@ -184,11 +201,7 @@ jobs:
           - 🚀 Release: ${{ steps.build_release.outputs.status == '0' && '✅ Success' || '❌ Failed' }}
           
           ### 📥 Downloads
-          ${{ steps.check_apks.outputs.debug_found == 'true' && '- 🐛 `app-debug-v1.0.${{ github.run_number }}.apk` - Debug build for testing' || '' }}
-          ${{ steps.check_apks.outputs.release_found == 'true' && '- 🚀 `app-release-v1.0.${{ github.run_number }}.apk` - Release build' || '' }}
-          
-          ### 📝 Build Logs
-          [View detailed build logs →](${{ steps.gist.outputs.result }})
+          Download the APK files below
           
           ### 📲 Installation
           1. Download the APK file
@@ -201,36 +214,3 @@ jobs:
         fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Comment PR with build results
-      if: github.event_name == 'pull_request' && always()
-      uses: actions/github-script@v7
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const debugOk = '${{ steps.build_debug.outputs.status }}' === '0';
-          const releaseOk = '${{ steps.build_release.outputs.status }}' === '0';
-          const overallStatus = debugOk && releaseOk ? '✅ SUCCESS' : '⚠️ PARTIAL' ;
-          const hasApks = '${{ steps.check_apks.outputs.any_apk }}' === 'true';
-          
-          let comment = `## Build Results ${overallStatus}
-          
-          | Build Type | Status |
-          |------------|--------|
-          | 🐛 Debug | ${debugOk ? '✅ Success' : '❌ Failed'} |
-          | 🚀 Release | ${releaseOk ? '✅ Success' : '❌ Failed'} |
-          `;
-          
-          if (hasApks) {
-            comment += `\n### 📦 APKs Available\n`;
-            comment += `Check the [Releases](https://github.com/${{ github.repository }}/releases/tag/v1.0.${{ github.run_number }}) page\n`;
-          }
-          
-          comment += `\n[📝 View detailed logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
-          
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: comment
-          });
