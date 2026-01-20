@@ -29,14 +29,18 @@ jobs:
       id: build_debug
       run: |
         ./gradlew assembleDebug --stacktrace > build-debug.log 2>&1
-        echo "debug_status=$?" >> $GITHUB_OUTPUT
+        BUILD_STATUS=$?
+        echo "status=$BUILD_STATUS" >> $GITHUB_OUTPUT
+        exit 0
       continue-on-error: true
       
     - name: Build Release APK
       id: build_release
       run: |
         ./gradlew assembleRelease --stacktrace > build-release.log 2>&1
-        echo "release_status=$?" >> $GITHUB_OUTPUT
+        BUILD_STATUS=$?
+        echo "status=$BUILD_STATUS" >> $GITHUB_OUTPUT
+        exit 0
       continue-on-error: true
       
     - name: Extract compilation errors
@@ -46,34 +50,39 @@ jobs:
         echo "" >> compilation-errors.md
         echo "**Repository:** ${{ github.repository }}" >> compilation-errors.md
         echo "**Branch:** ${{ github.ref_name }}" >> compilation-errors.md
-        echo "**Commit:** ${{ github.sha }}" >> compilation-errors.md
+        echo "**Commit:** \`${{ github.sha }}\`" >> compilation-errors.md
         echo "**Date:** $(date -u)" >> compilation-errors.md
         echo "" >> compilation-errors.md
         
-        echo "## Debug Build" >> compilation-errors.md
-        if [ "${{ steps.build_debug.outputs.debug_status }}" != "0" ]; then
-          echo "❌ **Status:** FAILED" >> compilation-errors.md
-          echo '```' >> compilation-errors.md
-          grep -E "error:|FAILED|FAILURE|Exception|BUILD FAILED" build-debug.log | head -100 >> compilation-errors.md || echo "No specific errors found" >> compilation-errors.md
-          echo '```' >> compilation-errors.md
-        else
+        echo "## 🐛 Debug Build" >> compilation-errors.md
+        if [ "${{ steps.build_debug.outputs.status }}" = "0" ]; then
           echo "✅ **Status:** SUCCESS" >> compilation-errors.md
+        else
+          echo "❌ **Status:** FAILED" >> compilation-errors.md
+          echo "" >> compilation-errors.md
+          echo "### Errors:" >> compilation-errors.md
+          echo '```' >> compilation-errors.md
+          grep -A 5 -B 2 -E "error:|FAILED|FAILURE|Exception|Task.*failed" build-debug.log | head -200 >> compilation-errors.md || echo "No specific errors found" >> compilation-errors.md
+          echo '```' >> compilation-errors.md
         fi
         
         echo "" >> compilation-errors.md
-        echo "## Release Build" >> compilation-errors.md
-        if [ "${{ steps.build_release.outputs.release_status }}" != "0" ]; then
-          echo "❌ **Status:** FAILED" >> compilation-errors.md
-          echo '```' >> compilation-errors.md
-          grep -E "error:|FAILED|FAILURE|Exception|BUILD FAILED" build-release.log | head -100 >> compilation-errors.md || echo "No specific errors found" >> compilation-errors.md
-          echo '```' >> compilation-errors.md
-        else
+        echo "## 🚀 Release Build" >> compilation-errors.md
+        if [ "${{ steps.build_release.outputs.status }}" = "0" ]; then
           echo "✅ **Status:** SUCCESS" >> compilation-errors.md
+        else
+          echo "❌ **Status:** FAILED" >> compilation-errors.md
+          echo "" >> compilation-errors.md
+          echo "### Errors:" >> compilation-errors.md
+          echo '```' >> compilation-errors.md
+          grep -A 5 -B 2 -E "error:|FAILED|FAILURE|Exception|Task.*failed" build-release.log | head -200 >> compilation-errors.md || echo "No specific errors found" >> compilation-errors.md
+          echo '```' >> compilation-errors.md
         fi
         
         echo "" >> compilation-errors.md
-        echo "## Full Logs" >> compilation-errors.md
-        echo "<details><summary>Debug Build Full Log</summary>" >> compilation-errors.md
+        echo "---" >> compilation-errors.md
+        echo "## 📋 Full Logs" >> compilation-errors.md
+        echo "<details><summary>🐛 Debug Build Full Log (click to expand)</summary>" >> compilation-errors.md
         echo "" >> compilation-errors.md
         echo '```' >> compilation-errors.md
         cat build-debug.log >> compilation-errors.md
@@ -81,7 +90,7 @@ jobs:
         echo "</details>" >> compilation-errors.md
         
         echo "" >> compilation-errors.md
-        echo "<details><summary>Release Build Full Log</summary>" >> compilation-errors.md
+        echo "<details><summary>🚀 Release Build Full Log (click to expand)</summary>" >> compilation-errors.md
         echo "" >> compilation-errors.md
         echo '```' >> compilation-errors.md
         cat build-release.log >> compilation-errors.md
@@ -90,6 +99,7 @@ jobs:
         
     - name: Upload logs to GitHub Gist
       if: always()
+      id: gist
       uses: actions/github-script@v7
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -108,73 +118,115 @@ jobs:
               }
             });
             
-            console.log(`📝 Build logs available at: ${gist.data.html_url}`);
-            core.summary.addHeading('Build Logs', 2);
-            core.summary.addLink('View Full Build Logs', gist.data.html_url);
+            console.log(`📝 Build logs: ${gist.data.html_url}`);
+            
+            core.summary.addHeading('📊 Build Summary', 2);
+            core.summary.addRaw(`
+            - 🐛 Debug Build: ${'${{ steps.build_debug.outputs.status }}' === '0' ? '✅ SUCCESS' : '❌ FAILED'}
+            - 🚀 Release Build: ${'${{ steps.build_release.outputs.status }}' === '0' ? '✅ SUCCESS' : '❌ FAILED'}
+            `);
+            core.summary.addLink('📝 View Full Build Logs', gist.data.html_url);
             await core.summary.write();
+            
+            return gist.data.html_url;
           } catch (error) {
-            console.log('Failed to create gist, logs available in job output');
+            console.log('⚠️ Failed to create gist');
             console.log(content);
+            return null;
           }
       
-    - name: Get version info
-      id: version
-      run: |
-        VERSION="1.0.${{ github.run_number }}"
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "date=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-        
-    - name: Prepare APK files
-      if: success()
+    - name: Check if APKs exist
+      id: check_apks
+      if: steps.build_debug.outputs.status == '0' || steps.build_release.outputs.status == '0'
       run: |
         mkdir -p apk-output
-        find app/build/outputs/apk/debug -name "*.apk" -exec cp {} apk-output/app-debug-${{ steps.version.outputs.version }}.apk \; || true
-        find app/build/outputs/apk/release -name "*.apk" -exec cp {} apk-output/app-release-${{ steps.version.outputs.version }}.apk \; || true
+        
+        DEBUG_APK=$(find app/build/outputs/apk/debug -name "*.apk" 2>/dev/null | head -1)
+        RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -1)
+        
+        if [ -n "$DEBUG_APK" ]; then
+          cp "$DEBUG_APK" "apk-output/app-debug-v1.0.${{ github.run_number }}.apk"
+          echo "debug_found=true" >> $GITHUB_OUTPUT
+        else
+          echo "debug_found=false" >> $GITHUB_OUTPUT
+        fi
+        
+        if [ -n "$RELEASE_APK" ]; then
+          cp "$RELEASE_APK" "apk-output/app-release-v1.0.${{ github.run_number }}.apk"
+          echo "release_found=true" >> $GITHUB_OUTPUT
+        else
+          echo "release_found=false" >> $GITHUB_OUTPUT
+        fi
+        
+        if [ -n "$DEBUG_APK" ] || [ -n "$RELEASE_APK" ]; then
+          echo "any_apk=true" >> $GITHUB_OUTPUT
+          ls -lh apk-output/
+        else
+          echo "any_apk=false" >> $GITHUB_OUTPUT
+          echo "⚠️ No APK files found"
+        fi
         
     - name: Create Release with APKs
-      if: success()
-      uses: softprops/action-gh-release@v1
+      if: steps.check_apks.outputs.any_apk == 'true'
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ steps.version.outputs.version }}
-        name: Release v${{ steps.version.outputs.version }}
+        tag_name: v1.0.${{ github.run_number }}
+        name: Release v1.0.${{ github.run_number }}
         body: |
-          ## 📱 Android Build
+          ## 📱 Android Build - Run #${{ github.run_number }}
           
-          **Build Date:** ${{ steps.version.outputs.date }}
-          **Commit:** ${{ github.sha }}
-          **Branch:** ${{ github.ref_name }}
+          **Build Date:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          **Commit:** `${{ github.sha }}`
+          **Branch:** `${{ github.ref_name }}`
           
-          ### Downloads
-          - 🐛 Debug APK - for testing
-          - 🚀 Release APK - for production
+          ### 📊 Build Status
+          - 🐛 Debug: ${{ steps.build_debug.outputs.status == '0' && '✅ Success' || '❌ Failed' }}
+          - 🚀 Release: ${{ steps.build_release.outputs.status == '0' && '✅ Success' || '❌ Failed' }}
           
-          ### Installation
+          ### 📥 Downloads
+          ${{ steps.check_apks.outputs.debug_found == 'true' && '- 🐛 `app-debug-v1.0.${{ github.run_number }}.apk` - Debug build for testing' || '' }}
+          ${{ steps.check_apks.outputs.release_found == 'true' && '- 🚀 `app-release-v1.0.${{ github.run_number }}.apk` - Release build' || '' }}
+          
+          ### 📝 Build Logs
+          [View detailed build logs →](${{ steps.gist.outputs.result }})
+          
+          ### 📲 Installation
           1. Download the APK file
-          2. Enable "Install from unknown sources" on your device
-          3. Install the APK
+          2. Enable "Install from unknown sources" in Android settings
+          3. Open the APK file to install
           
         files: apk-output/*.apk
         draft: false
         prerelease: false
+        fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Comment PR with build results
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && always()
       uses: actions/github-script@v7
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const buildStatus = '${{ steps.build_debug.outputs.debug_status }}' === '0' && 
-                             '${{ steps.build_release.outputs.release_status }}' === '0' 
-                             ? '✅ SUCCESS' : '❌ FAILED';
+          const debugOk = '${{ steps.build_debug.outputs.status }}' === '0';
+          const releaseOk = '${{ steps.build_release.outputs.status }}' === '0';
+          const overallStatus = debugOk && releaseOk ? '✅ SUCCESS' : '⚠️ PARTIAL' ;
+          const hasApks = '${{ steps.check_apks.outputs.any_apk }}' === 'true';
           
-          const comment = `## Build Results ${buildStatus}
+          let comment = `## Build Results ${overallStatus}
           
-          **Debug Build:** ${'${{ steps.build_debug.outputs.debug_status }}' === '0' ? '✅' : '❌'}
-          **Release Build:** ${'${{ steps.build_release.outputs.release_status }}' === '0' ? '✅' : '❌'}
+          | Build Type | Status |
+          |------------|--------|
+          | 🐛 Debug | ${debugOk ? '✅ Success' : '❌ Failed'} |
+          | 🚀 Release | ${releaseOk ? '✅ Success' : '❌ Failed'} |
+          `;
           
-          [View detailed logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+          if (hasApks) {
+            comment += `\n### 📦 APKs Available\n`;
+            comment += `Check the [Releases](https://github.com/${{ github.repository }}/releases/tag/v1.0.${{ github.run_number }}) page\n`;
+          }
+          
+          comment += `\n[📝 View detailed logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
           
           github.rest.issues.createComment({
             issue_number: context.issue.number,
