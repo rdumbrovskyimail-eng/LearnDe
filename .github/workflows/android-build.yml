@@ -29,18 +29,30 @@ jobs:
       
     - name: Build Release APK
       run: gradle assembleRelease --stacktrace
-      continue-on-error: true
       
-    - name: Upload Debug APK
-      uses: actions/upload-artifact@v4
-      if: success()
+    - name: Rename APKs
+      run: |
+        mkdir -p apks
+        cp app/build/outputs/apk/debug/app-debug.apk apks/app-debug-${{ github.run_number }}.apk
+        cp app/build/outputs/apk/release/app-release-unsigned.apk apks/app-release-${{ github.run_number }}.apk
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      if: github.event_name == 'push'
       with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
-        
-    - name: Upload Release APK
-      uses: actions/upload-artifact@v4
-      if: success()
-      with:
-        name: app-release
-        path: app/build/outputs/apk/release/app-release-unsigned.apk
+        tag_name: v1.0.${{ github.run_number }}
+        name: Release v1.0.${{ github.run_number }}
+        body: |
+          ## 📱 Build #${{ github.run_number }}
+          
+          **Commit:** `${{ github.sha }}`
+          **Branch:** `${{ github.ref_name }}`
+          
+          ### Downloads
+          - `app-debug-${{ github.run_number }}.apk` - Debug version
+          - `app-release-${{ github.run_number }}.apk` - Release version (unsigned)
+        files: apks/*.apk
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
