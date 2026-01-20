@@ -14,80 +14,67 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+    
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
-        
-    - name: Validate Gradle wrapper
-      uses: gradle/wrapper-validation-action@v2
-        
-    - name: Make gradlew executable
-      run: chmod +x gradlew
-      
-    - name: Build with Gradle Wrapper
-      run: ./gradlew tasks || echo "Gradle wrapper check failed"
-      
+    
+    - name: Install Gradle
+      run: |
+        wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip
+        unzip -q gradle-8.5-bin.zip
+        echo "$PWD/gradle-8.5/bin" >> $GITHUB_PATH
+    
     - name: Build Debug APK
       id: build_debug
       run: |
-        ./gradlew assembleDebug --stacktrace > build-debug.log 2>&1 || true
-        BUILD_STATUS=$?
-        echo "status=$BUILD_STATUS" >> $GITHUB_OUTPUT
+        gradle assembleDebug --stacktrace > build-debug.log 2>&1
+        echo "status=$?" >> $GITHUB_OUTPUT
       continue-on-error: true
-      
+    
     - name: Build Release APK
       id: build_release
       run: |
-        ./gradlew assembleRelease --stacktrace > build-release.log 2>&1 || true
-        BUILD_STATUS=$?
-        echo "status=$BUILD_STATUS" >> $GITHUB_OUTPUT
+        gradle assembleRelease --stacktrace > build-release.log 2>&1
+        echo "status=$?" >> $GITHUB_OUTPUT
       continue-on-error: true
-      
-    - name: Extract compilation errors
+    
+    - name: Create build report
       if: always()
       run: |
-        cat > compilation-errors.md << 'EOF'
-        # Build Logs - Run #${{ github.run_number }}
+        cat > build-report.md << 'EOFMARKER'
+        # Build Report - Run #${{ github.run_number }}
         
         **Repository:** ${{ github.repository }}
         **Branch:** ${{ github.ref_name }}
-        **Commit:** `${{ github.sha }}`
-        **Date:** $(date -u)
+        **Commit:** ${{ github.sha }}
         
-        ## 🐛 Debug Build
-        EOF
+        ## Debug Build
+        EOFMARKER
         
         if [ "${{ steps.build_debug.outputs.status }}" = "0" ]; then
-          echo "✅ **Status:** SUCCESS" >> compilation-errors.md
+          echo "✅ SUCCESS" >> build-report.md
         else
-          echo "❌ **Status:** FAILED" >> compilation-errors.md
-          echo "" >> compilation-errors.md
-          echo "### Errors:" >> compilation-errors.md
-          echo '```' >> compilation-errors.md
-          cat build-debug.log | head -100 >> compilation-errors.md
-          echo '```' >> compilation-errors.md
+          echo "❌ FAILED" >> build-report.md
+          echo '```' >> build-report.md
+          head -100 build-debug.log >> build-report.md
+          echo '```' >> build-report.md
         fi
         
-        cat >> compilation-errors.md << 'EOF'
-        
-        ## 🚀 Release Build
-        EOF
+        echo "" >> build-report.md
+        echo "## Release Build" >> build-report.md
         
         if [ "${{ steps.build_release.outputs.status }}" = "0" ]; then
-          echo "✅ **Status:** SUCCESS" >> compilation-errors.md
+          echo "✅ SUCCESS" >> build-report.md
         else
-          echo "❌ **Status:** FAILED" >> compilation-errors.md
-          echo "" >> compilation-errors.md
-          echo "### Errors:" >> compilation-errors.md
-          echo '```' >> compilation-errors.md
-          cat build-release.log | head -100 >> compilation-errors.md
-          echo '```' >> compilation-errors.md
+          echo "❌ FAILED" >> build-report.md
+          echo '```' >> build-report.md
+          head -100 build-release.log >> build-report.md
+          echo '```' >> build-report.md
         fi
-        
+    
     - name: Upload logs to Gist
       if: always()
       uses: actions/github-script@v7
@@ -95,64 +82,77 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
-          const content = fs.readFileSync('compilation-errors.md', 'utf8');
+          const content = fs.readFileSync('build-report.md', 'utf8');
           
           try {
             const gist = await github.rest.gists.create({
-              description: `Build logs - Run #${context.runNumber}`,
+              description: `Build #${context.runNumber} - ${context.repo.repo}`,
               public: false,
-              files: {
-                'build-log.md': { content: content }
-              }
+              files: { 'build-report.md': { content } }
             });
             
-            console.log(`📝 Logs: ${gist.data.html_url}`);
-            core.summary.addLink('View Build Logs', gist.data.html_url);
+            console.log(`📝 Build report: ${gist.data.html_url}`);
+            core.summary.addLink('📝 View Build Report', gist.data.html_url);
             await core.summary.write();
           } catch (error) {
-            console.log('Failed to create gist');
-            console.log(content);
+            console.log('Failed to create gist:', error.message);
           }
-      
-    - name: Find APKs
-      id: find_apks
+    
+    - name: Find and prepare APKs
+      id: apks
       if: always()
       run: |
-        mkdir -p apk-output
+        echo "Searching for APK files..."
         find . -name "*.apk" -type f
         
-        DEBUG_APK=$(find . -path "*/debug/*.apk" | head -1)
-        RELEASE_APK=$(find . -path "*/release/*.apk" | head -1)
+        mkdir -p release-apks
         
-        if [ -n "$DEBUG_APK" ]; then
-          cp "$DEBUG_APK" "apk-output/app-debug.apk"
-          echo "debug_found=true" >> $GITHUB_OUTPUT
+        DEBUG=$(find . -path "*/build/outputs/apk/debug/*.apk" -type f | head -1)
+        RELEASE=$(find . -path "*/build/outputs/apk/release/*.apk" -type f | head -1)
+        
+        HAS_APK=false
+        
+        if [ -n "$DEBUG" ]; then
+          echo "Found debug APK: $DEBUG"
+          cp "$DEBUG" "release-apks/app-debug-v${{ github.run_number }}.apk"
+          HAS_APK=true
         fi
         
-        if [ -n "$RELEASE_APK" ]; then
-          cp "$RELEASE_APK" "apk-output/app-release.apk"
-          echo "release_found=true" >> $GITHUB_OUTPUT
+        if [ -n "$RELEASE" ]; then
+          echo "Found release APK: $RELEASE"
+          cp "$RELEASE" "release-apks/app-release-v${{ github.run_number }}.apk"
+          HAS_APK=true
         fi
         
-        if [ -n "$DEBUG_APK" ] || [ -n "$RELEASE_APK" ]; then
-          echo "any_apk=true" >> $GITHUB_OUTPUT
-          ls -lh apk-output/
+        if [ "$HAS_APK" = "true" ]; then
+          echo "found=true" >> $GITHUB_OUTPUT
+          ls -lh release-apks/
         else
-          echo "any_apk=false" >> $GITHUB_OUTPUT
+          echo "found=false" >> $GITHUB_OUTPUT
+          echo "No APK files found"
         fi
-        
-    - name: Create Release
-      if: steps.find_apks.outputs.any_apk == 'true'
+    
+    - name: Create GitHub Release
+      if: steps.apks.outputs.found == 'true'
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v1.0.${{ github.run_number }}
         name: Release v1.0.${{ github.run_number }}
         body: |
-          ## 📱 Build #${{ github.run_number }}
+          ## 📱 Android Build v1.0.${{ github.run_number }}
           
           **Commit:** `${{ github.sha }}`
           **Branch:** `${{ github.ref_name }}`
-        files: apk-output/*.apk
+          
+          ### Build Status
+          - Debug: ${{ steps.build_debug.outputs.status == '0' && '✅' || '❌' }}
+          - Release: ${{ steps.build_release.outputs.status == '0' && '✅' || '❌' }}
+          
+          ### Installation
+          1. Download APK
+          2. Enable "Unknown sources" in Android settings
+          3. Install APK
+        files: release-apks/*.apk
         fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
