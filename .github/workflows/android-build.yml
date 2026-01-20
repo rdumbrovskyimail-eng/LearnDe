@@ -26,25 +26,50 @@ jobs:
       run: chmod +x gradlew
       
     - name: Build Debug APK
-      run: ./gradlew assembleDebug --stacktrace
+      run: |
+        ./gradlew assembleDebug --stacktrace 2>&1 | tee build-debug.log
+      continue-on-error: true
       
     - name: Build Release APK
-      run: ./gradlew assembleRelease --stacktrace
+      run: |
+        ./gradlew assembleRelease --stacktrace 2>&1 | tee build-release.log
+      continue-on-error: true
       
+    - name: Extract compilation errors
+      if: always()
+      run: |
+        echo "=== Debug Build Errors ===" > compilation-errors.txt
+        grep -E "error:|FAILED|FAILURE|Exception" build-debug.log >> compilation-errors.txt || echo "No errors found in debug build" >> compilation-errors.txt
+        echo "" >> compilation-errors.txt
+        echo "=== Release Build Errors ===" >> compilation-errors.txt
+        grep -E "error:|FAILED|FAILURE|Exception" build-release.log >> compilation-errors.txt || echo "No errors found in release build" >> compilation-errors.txt
+        
+    - name: Upload build logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: |
+          build-debug.log
+          build-release.log
+          compilation-errors.txt
+        
     - name: Upload Debug APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: code-extractor-debug
         path: app/build/outputs/apk/debug/*.apk
         
     - name: Upload Release APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: code-extractor-release
         path: app/build/outputs/apk/release/*.apk
         
     - name: Create Release
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && success()
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v1.0.${{ github.run_number }}
