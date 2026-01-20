@@ -88,11 +88,11 @@ class CodeProcessor {
                 val writer = output.bufferedWriter()
                 
                 items.forEachIndexed { index, item ->
-                    writer.write("=" * 80)
+                    writer.write("=".repeat(80))
                     writer.newLine()
                     writer.write("ФАЙЛ: ${item.name}")
                     writer.newLine()
-                    writer.write("=" * 80)
+                    writer.write("=".repeat(80))
                     writer.newLine()
                     writer.newLine()
                     
@@ -138,6 +138,4 @@ class CodeProcessor {
         val extension = fileName.substringAfterLast('.', "").lowercase()
         return extension in supportedExtensions && !fileName.endsWith(".jar")
     }
-    
-    private operator fun String.times(count: Int): String = this.repeat(count)
 }
