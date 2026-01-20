@@ -1,158 +1,31 @@
-name: Android Build
+name: Android CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ "main" ]
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
     
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
-    
-    - name: Install Gradle
-      run: |
-        wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip
-        unzip -q gradle-8.5-bin.zip
-        echo "$PWD/gradle-8.5/bin" >> $GITHUB_PATH
-    
-    - name: Build Debug APK
-      id: build_debug
-      run: |
-        gradle assembleDebug --stacktrace > build-debug.log 2>&1
-        echo "status=$?" >> $GITHUB_OUTPUT
-      continue-on-error: true
-    
-    - name: Build Release APK
-      id: build_release
-      run: |
-        gradle assembleRelease --stacktrace > build-release.log 2>&1
-        echo "status=$?" >> $GITHUB_OUTPUT
-      continue-on-error: true
-    
-    - name: Create build report
-      if: always()
-      run: |
-        cat > build-report.md << 'EOFMARKER'
-        # Build Report - Run #${{ github.run_number }}
-        
-        **Repository:** ${{ github.repository }}
-        **Branch:** ${{ github.ref_name }}
-        **Commit:** ${{ github.sha }}
-        
-        ## Debug Build
-        EOFMARKER
-        
-        if [ "${{ steps.build_debug.outputs.status }}" = "0" ]; then
-          echo "✅ SUCCESS" >> build-report.md
-        else
-          echo "❌ FAILED" >> build-report.md
-          echo '```' >> build-report.md
-          head -100 build-debug.log >> build-report.md
-          echo '```' >> build-report.md
-        fi
-        
-        echo "" >> build-report.md
-        echo "## Release Build" >> build-report.md
-        
-        if [ "${{ steps.build_release.outputs.status }}" = "0" ]; then
-          echo "✅ SUCCESS" >> build-report.md
-        else
-          echo "❌ FAILED" >> build-report.md
-          echo '```' >> build-report.md
-          head -100 build-release.log >> build-report.md
-          echo '```' >> build-report.md
-        fi
-    
-    - name: Upload logs to Gist
-      if: always()
-      uses: actions/github-script@v7
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const fs = require('fs');
-          const content = fs.readFileSync('build-report.md', 'utf8');
-          
-          try {
-            const gist = await github.rest.gists.create({
-              description: `Build #${context.runNumber} - ${context.repo.repo}`,
-              public: false,
-              files: { 'build-report.md': { content } }
-            });
-            
-            console.log(`📝 Build report: ${gist.data.html_url}`);
-            core.summary.addLink('📝 View Build Report', gist.data.html_url);
-            await core.summary.write();
-          } catch (error) {
-            console.log('Failed to create gist:', error.message);
-          }
-    
-    - name: Find and prepare APKs
-      id: apks
-      if: always()
-      run: |
-        echo "Searching for APK files..."
-        find . -name "*.apk" -type f
-        
-        mkdir -p release-apks
-        
-        DEBUG=$(find . -path "*/build/outputs/apk/debug/*.apk" -type f | head -1)
-        RELEASE=$(find . -path "*/build/outputs/apk/release/*.apk" -type f | head -1)
-        
-        HAS_APK=false
-        
-        if [ -n "$DEBUG" ]; then
-          echo "Found debug APK: $DEBUG"
-          cp "$DEBUG" "release-apks/app-debug-v${{ github.run_number }}.apk"
-          HAS_APK=true
-        fi
-        
-        if [ -n "$RELEASE" ]; then
-          echo "Found release APK: $RELEASE"
-          cp "$RELEASE" "release-apks/app-release-v${{ github.run_number }}.apk"
-          HAS_APK=true
-        fi
-        
-        if [ "$HAS_APK" = "true" ]; then
-          echo "found=true" >> $GITHUB_OUTPUT
-          ls -lh release-apks/
-        else
-          echo "found=false" >> $GITHUB_OUTPUT
-          echo "No APK files found"
-        fi
-    
-    - name: Create GitHub Release
-      if: steps.apks.outputs.found == 'true'
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: v1.0.${{ github.run_number }}
-        name: Release v1.0.${{ github.run_number }}
-        body: |
-          ## 📱 Android Build v1.0.${{ github.run_number }}
-          
-          **Commit:** `${{ github.sha }}`
-          **Branch:** `${{ github.ref_name }}`
-          
-          ### Build Status
-          - Debug: ${{ steps.build_debug.outputs.status == '0' && '✅' || '❌' }}
-          - Release: ${{ steps.build_release.outputs.status == '0' && '✅' || '❌' }}
-          
-          ### Installation
-          1. Download APK
-          2. Enable "Unknown sources" in Android settings
-          3. Install APK
-        files: release-apks/*.apk
-        fail_on_unmatched_files: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+      
+    - name: Build with Gradle
+      run: ./gradlew build
+      
+    - name: Run tests
+      run: ./gradlew test
