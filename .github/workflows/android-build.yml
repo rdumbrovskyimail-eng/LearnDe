@@ -26,56 +26,159 @@ jobs:
       run: chmod +x gradlew
       
     - name: Build Debug APK
+      id: build_debug
       run: |
-        ./gradlew assembleDebug --stacktrace 2>&1 | tee build-debug.log
+        ./gradlew assembleDebug --stacktrace > build-debug.log 2>&1
+        echo "debug_status=$?" >> $GITHUB_OUTPUT
       continue-on-error: true
       
     - name: Build Release APK
+      id: build_release
       run: |
-        ./gradlew assembleRelease --stacktrace 2>&1 | tee build-release.log
+        ./gradlew assembleRelease --stacktrace > build-release.log 2>&1
+        echo "release_status=$?" >> $GITHUB_OUTPUT
       continue-on-error: true
       
     - name: Extract compilation errors
       if: always()
       run: |
-        echo "=== Debug Build Errors ===" > compilation-errors.txt
-        grep -E "error:|FAILED|FAILURE|Exception" build-debug.log >> compilation-errors.txt || echo "No errors found in debug build" >> compilation-errors.txt
-        echo "" >> compilation-errors.txt
-        echo "=== Release Build Errors ===" >> compilation-errors.txt
-        grep -E "error:|FAILED|FAILURE|Exception" build-release.log >> compilation-errors.txt || echo "No errors found in release build" >> compilation-errors.txt
+        echo "# Build Logs - Run #${{ github.run_number }}" > compilation-errors.md
+        echo "" >> compilation-errors.md
+        echo "**Repository:** ${{ github.repository }}" >> compilation-errors.md
+        echo "**Branch:** ${{ github.ref_name }}" >> compilation-errors.md
+        echo "**Commit:** ${{ github.sha }}" >> compilation-errors.md
+        echo "**Date:** $(date -u)" >> compilation-errors.md
+        echo "" >> compilation-errors.md
         
-    - name: Upload build logs
+        echo "## Debug Build" >> compilation-errors.md
+        if [ "${{ steps.build_debug.outputs.debug_status }}" != "0" ]; then
+          echo "❌ **Status:** FAILED" >> compilation-errors.md
+          echo '```' >> compilation-errors.md
+          grep -E "error:|FAILED|FAILURE|Exception|BUILD FAILED" build-debug.log | head -100 >> compilation-errors.md || echo "No specific errors found" >> compilation-errors.md
+          echo '```' >> compilation-errors.md
+        else
+          echo "✅ **Status:** SUCCESS" >> compilation-errors.md
+        fi
+        
+        echo "" >> compilation-errors.md
+        echo "## Release Build" >> compilation-errors.md
+        if [ "${{ steps.build_release.outputs.release_status }}" != "0" ]; then
+          echo "❌ **Status:** FAILED" >> compilation-errors.md
+          echo '```' >> compilation-errors.md
+          grep -E "error:|FAILED|FAILURE|Exception|BUILD FAILED" build-release.log | head -100 >> compilation-errors.md || echo "No specific errors found" >> compilation-errors.md
+          echo '```' >> compilation-errors.md
+        else
+          echo "✅ **Status:** SUCCESS" >> compilation-errors.md
+        fi
+        
+        echo "" >> compilation-errors.md
+        echo "## Full Logs" >> compilation-errors.md
+        echo "<details><summary>Debug Build Full Log</summary>" >> compilation-errors.md
+        echo "" >> compilation-errors.md
+        echo '```' >> compilation-errors.md
+        cat build-debug.log >> compilation-errors.md
+        echo '```' >> compilation-errors.md
+        echo "</details>" >> compilation-errors.md
+        
+        echo "" >> compilation-errors.md
+        echo "<details><summary>Release Build Full Log</summary>" >> compilation-errors.md
+        echo "" >> compilation-errors.md
+        echo '```' >> compilation-errors.md
+        cat build-release.log >> compilation-errors.md
+        echo '```' >> compilation-errors.md
+        echo "</details>" >> compilation-errors.md
+        
+    - name: Upload logs to GitHub Gist
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/github-script@v7
       with:
-        name: build-logs
-        path: |
-          build-debug.log
-          build-release.log
-          compilation-errors.txt
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const content = fs.readFileSync('compilation-errors.md', 'utf8');
+          
+          try {
+            const gist = await github.rest.gists.create({
+              description: `Build logs for ${context.repo.owner}/${context.repo.repo} - Run #${context.runNumber}`,
+              public: false,
+              files: {
+                'build-log.md': {
+                  content: content
+                }
+              }
+            });
+            
+            console.log(`📝 Build logs available at: ${gist.data.html_url}`);
+            core.summary.addHeading('Build Logs', 2);
+            core.summary.addLink('View Full Build Logs', gist.data.html_url);
+            await core.summary.write();
+          } catch (error) {
+            console.log('Failed to create gist, logs available in job output');
+            console.log(content);
+          }
+      
+    - name: Get version info
+      id: version
+      run: |
+        VERSION="1.0.${{ github.run_number }}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "date=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
         
-    - name: Upload Debug APK
+    - name: Prepare APK files
       if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: code-extractor-debug
-        path: app/build/outputs/apk/debug/*.apk
+      run: |
+        mkdir -p apk-output
+        find app/build/outputs/apk/debug -name "*.apk" -exec cp {} apk-output/app-debug-${{ steps.version.outputs.version }}.apk \; || true
+        find app/build/outputs/apk/release -name "*.apk" -exec cp {} apk-output/app-release-${{ steps.version.outputs.version }}.apk \; || true
         
-    - name: Upload Release APK
+    - name: Create Release with APKs
       if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: code-extractor-release
-        path: app/build/outputs/apk/release/*.apk
-        
-    - name: Create Release
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && success()
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.0.${{ github.run_number }}
-        name: Release v1.0.${{ github.run_number }}
-        files: |
-          app/build/outputs/apk/debug/*.apk
-          app/build/outputs/apk/release/*.apk
+        tag_name: v${{ steps.version.outputs.version }}
+        name: Release v${{ steps.version.outputs.version }}
+        body: |
+          ## 📱 Android Build
+          
+          **Build Date:** ${{ steps.version.outputs.date }}
+          **Commit:** ${{ github.sha }}
+          **Branch:** ${{ github.ref_name }}
+          
+          ### Downloads
+          - 🐛 Debug APK - for testing
+          - 🚀 Release APK - for production
+          
+          ### Installation
+          1. Download the APK file
+          2. Enable "Install from unknown sources" on your device
+          3. Install the APK
+          
+        files: apk-output/*.apk
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Comment PR with build results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const buildStatus = '${{ steps.build_debug.outputs.debug_status }}' === '0' && 
+                             '${{ steps.build_release.outputs.release_status }}' === '0' 
+                             ? '✅ SUCCESS' : '❌ FAILED';
+          
+          const comment = `## Build Results ${buildStatus}
+          
+          **Debug Build:** ${'${{ steps.build_debug.outputs.debug_status }}' === '0' ? '✅' : '❌'}
+          **Release Build:** ${'${{ steps.build_release.outputs.release_status }}' === '0' ? '✅' : '❌'}
+          
+          [View detailed logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
