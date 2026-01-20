@@ -27,3 +27,9 @@ local.properties
 proguard/
 *.log
 *.hprof
+
+# Ignore all jar files
+*.jar
+
+# But keep the gradle wrapper jar
+!gradle/wrapper/gradle-wrapper.jar
