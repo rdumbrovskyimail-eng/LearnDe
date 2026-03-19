@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
     private var recordInterval: Job? = null
 
     private val MODEL = "models/gemini-2.0-flash-exp"
-    private val API_KEY = "YOUR_API_KEY_HERE" // Вставь свой ключ из AI Studio
+    private val API_KEY = "AIzaSyDFxs8iKlunr6kT8f8hsqKJP3LyBeCkWvs" // Вставь свой ключ из AI Studio
     private val HOST = "generativelanguage.googleapis.com"
     private val URL = "wss://$HOST/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=$API_KEY"
 
