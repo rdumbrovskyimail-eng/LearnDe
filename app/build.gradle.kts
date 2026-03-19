@@ -1,6 +1,8 @@
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    kotlin("plugin.serialization") version "2.1.0"
 }
 
 android {
@@ -38,6 +40,12 @@ android {
         viewBinding = true
         buildConfig = true
     }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
 }
 
 dependencies {
@@ -47,4 +55,7 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.2.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
+    implementation("org.java-websocket:Java-WebSocket:1.5.3")
+    implementation("org.json:json:20231013")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 }
