@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
     private var pcmData = mutableListOf<Short>()
     private var recordInterval: Job? = null
 
-    private val MODEL = "models/gemini-2.5-flash-preview-native-audio-dialog"
+    private val MODEL = "models/gemini-live-2.5-flash-native-audio"
     private val API_KEY = "AIzaSyDFxs8iKlunr6kT8f8hsqKJP3LyBeCkWvs"
     private val HOST = "generativelanguage.googleapis.com"
     private val URL = "wss://$HOST/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$API_KEY"
@@ -109,18 +109,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.startButton.setOnClickListener {
-            checkRecordAudioPermission()
-        }
-
-        binding.stopButton.setOnClickListener {
-            stopAudioInput()
-        }
+        binding.startButton.setOnClickListener { checkRecordAudioPermission() }
+        binding.stopButton.setOnClickListener { stopAudioInput() }
 
         connect()
     }
-
-    // region Camera
 
     private val surfaceTextureListener = object : TextureView.SurfaceTextureListener {
         override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
@@ -139,9 +132,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startCameraPreview() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), CAMERA_REQUEST_CODE)
         } else {
             openCameraForPreview()
@@ -166,13 +157,9 @@ class MainActivity : AppCompatActivity() {
             val characteristics = cameraManager.getCameraCharacteristics(cameraId)
             val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) ?: return
             previewSize = map.getOutputSizes(SurfaceTexture::class.java)[0]
-
-            imageReader = android.media.ImageReader.newInstance(
-                MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION, ImageFormat.JPEG, 2
-            ).apply {
+            imageReader = android.media.ImageReader.newInstance(MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION, ImageFormat.JPEG, 2).apply {
                 setOnImageAvailableListener(imageAvailableListener, cameraHandler)
             }
-
             cameraManager.openCamera(cameraId, cameraStateCallback, cameraHandler)
         } catch (e: CameraAccessException) {
             Log.e("Camera", "Error opening camera", e)
@@ -182,38 +169,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val cameraStateCallback = object : CameraDevice.StateCallback() {
-        override fun onOpened(camera: CameraDevice) {
-            cameraDevice = camera
-            createCameraPreviewSession()
-        }
-        override fun onDisconnected(camera: CameraDevice) {
-            cameraDevice?.close(); cameraDevice = null
-        }
-        override fun onError(camera: CameraDevice, error: Int) {
-            cameraDevice?.close(); cameraDevice = null
-            Log.e("Camera", "Camera error: $error")
-        }
+        override fun onOpened(camera: CameraDevice) { cameraDevice = camera; createCameraPreviewSession() }
+        override fun onDisconnected(camera: CameraDevice) { cameraDevice?.close(); cameraDevice = null }
+        override fun onError(camera: CameraDevice, error: Int) { cameraDevice?.close(); cameraDevice = null }
     }
 
     private fun createCameraPreviewSession() {
         try {
-            val surfaceTexture = binding.textureView.surfaceTexture?.apply {
-                setDefaultBufferSize(previewSize.width, previewSize.height)
-            }
+            val surfaceTexture = binding.textureView.surfaceTexture?.apply { setDefaultBufferSize(previewSize.width, previewSize.height) }
             val previewSurface = Surface(surfaceTexture)
-
             captureRequestBuilder = cameraDevice?.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)?.apply {
                 addTarget(previewSurface)
                 addTarget(imageReader!!.surface)
             }
-
-            cameraDevice?.createCaptureSession(
-                listOf(previewSurface, imageReader!!.surface),
-                cameraCaptureSessionCallback, cameraHandler
-            )
-        } catch (e: CameraAccessException) {
-            Log.e("Camera", "Error creating preview session", e)
-        }
+            cameraDevice?.createCaptureSession(listOf(previewSurface, imageReader!!.surface), cameraCaptureSessionCallback, cameraHandler)
+        } catch (e: CameraAccessException) { Log.e("Camera", "Error creating preview session", e) }
     }
 
     private val cameraCaptureSessionCallback = object : CameraCaptureSession.StateCallback() {
@@ -222,13 +192,8 @@ class MainActivity : AppCompatActivity() {
             if (cameraDevice == null) return
             captureRequestBuilder?.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
             val thread = HandlerThread("UpdatePreview").apply { start() }
-            try {
-                cameraCaptureSession?.setRepeatingRequest(
-                    captureRequestBuilder?.build()!!, null, Handler(thread.looper)
-                )
-            } catch (e: CameraAccessException) {
-                Log.e("Camera", "Error starting repeating request", e)
-            }
+            try { cameraCaptureSession?.setRepeatingRequest(captureRequestBuilder?.build()!!, null, Handler(thread.looper)) }
+            catch (e: CameraAccessException) { Log.e("Camera", "Error", e) }
         }
         override fun onConfigureFailed(session: CameraCaptureSession) {
             Toast.makeText(this@MainActivity, "Camera configuration failed", Toast.LENGTH_SHORT).show()
@@ -268,8 +233,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scaleBitmap(bitmap: Bitmap, maxDimension: Int): Bitmap {
-        val w = bitmap.width
-        val h = bitmap.height
+        val w = bitmap.width; val h = bitmap.height
         if (w <= maxDimension && h <= maxDimension) return bitmap
         return if (w > h) {
             val ratio = w.toFloat() / maxDimension
@@ -280,10 +244,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // endregion
-
-    // region WebSocket
-
     private fun connect() {
         val headers = mutableMapOf("Content-Type" to "application/json")
         webSocket = object : WebSocketClient(URI(URL), Draft_6455(), headers) {
@@ -292,17 +252,16 @@ class MainActivity : AppCompatActivity() {
                 updateStatusIndicator()
                 sendInitialSetupMessage()
             }
-            override fun onMessage(message: String?) {
-                receiveMessage(message)
-            }
+            override fun onMessage(message: String?) { receiveMessage(message) }
             override fun onMessage(bytes: ByteBuffer?) {
                 bytes?.let { receiveMessage(String(it.array(), Charsets.UTF_8)) }
             }
             override fun onClose(code: Int, reason: String?, remote: Boolean) {
+                Log.e("WebSocket", "Closed: code=$code reason=$reason")
                 isConnected = false
                 updateStatusIndicator()
                 runOnUiThread {
-                    Toast.makeText(this@MainActivity, "Connection closed: $reason", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Connection closed: $reason", Toast.LENGTH_LONG).show()
                 }
             }
             override fun onError(ex: Exception?) {
@@ -318,8 +277,8 @@ class MainActivity : AppCompatActivity() {
         val setupMessage = JSONObject().apply {
             put("setup", JSONObject().apply {
                 put("model", MODEL)
-                put("generation_config", JSONObject().apply {
-                    put("response_modalities", org.json.JSONArray().apply { put("AUDIO") })
+                put("generationConfig", JSONObject().apply {
+                    put("responseModalities", org.json.JSONArray().apply { put("AUDIO") })
                 })
             })
         }
@@ -351,9 +310,7 @@ class MainActivity : AppCompatActivity() {
             val parts = serverContent.getJSONObject("modelTurn").optJSONArray("parts") ?: return
             for (i in 0 until parts.length()) {
                 val part = parts.getJSONObject(i)
-                if (part.has("text")) {
-                    displayMessage("GEMINI: ${part.getString("text")}")
-                }
+                if (part.has("text")) displayMessage("GEMINI: ${part.getString("text")}")
                 if (part.has("inlineData")) {
                     val inlineData = part.getJSONObject("inlineData")
                     if (inlineData.optString("mimeType") == "audio/pcm;rate=24000") {
@@ -366,14 +323,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // endregion
-
-    // region Audio Input
-
     private fun checkRecordAudioPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_REQUEST_CODE)
         } else {
             startAudioInput()
@@ -383,13 +334,9 @@ class MainActivity : AppCompatActivity() {
     private fun startAudioInput() {
         if (isRecording) return
         isRecording = true
-        audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-            AUDIO_SAMPLE_RATE, AUDIO_CHANNEL_CONFIG, AUDIO_ENCODING, AUDIO_BUFFER_SIZE
-        )
+        audioRecord = AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, AUDIO_SAMPLE_RATE, AUDIO_CHANNEL_CONFIG, AUDIO_ENCODING, AUDIO_BUFFER_SIZE)
         if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-            Log.e("Audio", "AudioRecord init failed")
-            return
+            Log.e("Audio", "AudioRecord init failed"); return
         }
         audioRecord?.startRecording()
         isSpeaking = true
@@ -427,10 +374,6 @@ class MainActivity : AppCompatActivity() {
         updateStatusIndicator()
     }
 
-    // endregion
-
-    // region Audio Output
-
     private fun injestAudioChunkToPlay(base64AudioChunk: String?) {
         if (base64AudioChunk == null) return
         GlobalScope.launch(Dispatchers.IO) {
@@ -438,9 +381,7 @@ class MainActivity : AppCompatActivity() {
                 val bytes = Base64.decode(base64AudioChunk, Base64.DEFAULT)
                 synchronized(audioQueue) { audioQueue.add(bytes) }
                 if (!isPlaying) playNextAudioChunk()
-            } catch (e: Exception) {
-                Log.e("AudioChunk", "Error processing chunk", e)
-            }
+            } catch (e: Exception) { Log.e("AudioChunk", "Error", e) }
         }
     }
 
@@ -454,45 +395,29 @@ class MainActivity : AppCompatActivity() {
                 playAudio(chunk)
             }
             isPlaying = false
-            synchronized(audioQueue) {
-                if (audioQueue.isNotEmpty()) playNextAudioChunk()
-            }
+            synchronized(audioQueue) { if (audioQueue.isNotEmpty()) playNextAudioChunk() }
         }
     }
 
     private fun playAudio(byteArray: ByteArray) {
         if (audioTrack == null) {
             audioTrack = AudioTrack(
-                android.media.AudioManager.STREAM_MUSIC,
-                RECEIVE_SAMPLE_RATE,
-                AudioFormat.CHANNEL_OUT_MONO,
-                AudioFormat.ENCODING_PCM_16BIT,
-                AudioTrack.getMinBufferSize(
-                    RECEIVE_SAMPLE_RATE,
-                    AudioFormat.CHANNEL_OUT_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT
-                ),
+                android.media.AudioManager.STREAM_MUSIC, RECEIVE_SAMPLE_RATE,
+                AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
+                AudioTrack.getMinBufferSize(RECEIVE_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT),
                 AudioTrack.MODE_STREAM
             )
         }
         audioTrack?.write(byteArray, 0, byteArray.size)
         audioTrack?.play()
         GlobalScope.launch(Dispatchers.IO) {
-            while (audioTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) {
-                delay(10)
-            }
+            while (audioTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) { delay(10) }
             audioTrack?.stop()
         }
     }
 
-    // endregion
-
-    // region UI
-
     private fun displayMessage(message: String) {
-        runOnUiThread {
-            binding.chatLog.text = "${binding.chatLog.text}\n$message"
-        }
+        runOnUiThread { binding.chatLog.text = "${binding.chatLog.text}\n$message" }
     }
 
     private fun updateStatusIndicator() {
@@ -514,24 +439,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // endregion
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
-    ) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
             CAMERA_REQUEST_CODE -> {
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                    startCameraPreview()
-                else
-                    Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) startCameraPreview()
+                else Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
             }
             AUDIO_REQUEST_CODE -> {
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                    startAudioInput()
-                else
-                    Toast.makeText(this, "Audio permission denied", Toast.LENGTH_SHORT).show()
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) startAudioInput()
+                else Toast.makeText(this, "Audio permission denied", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -544,4 +461,4 @@ class MainActivity : AppCompatActivity() {
         webSocket?.close()
         audioTrack?.release()
     }
-}
+    }
