@@ -1,4 +1,3 @@
-
 package com.codeextractor.app
 
 import android.Manifest
@@ -49,10 +48,10 @@ class MainActivity : AppCompatActivity() {
     private var pcmData = mutableListOf<Short>()
     private var recordInterval: Job? = null
 
-    private val MODEL = "models/gemini-2.0-flash-exp"
-    private val API_KEY = "AIzaSyDFxs8iKlunr6kT8f8hsqKJP3LyBeCkWvs" // Вставь свой ключ из AI Studio
+    private val MODEL = "models/gemini-2.5-flash-preview-native-audio-dialog"
+    private val API_KEY = "AIzaSyDFxs8iKlunr6kT8f8hsqKJP3LyBeCkWvs"
     private val HOST = "generativelanguage.googleapis.com"
-    private val URL = "wss://$HOST/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=$API_KEY"
+    private val URL = "wss://$HOST/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$API_KEY"
 
     private val CAMERA_REQUEST_CODE = 100
     private val AUDIO_REQUEST_CODE = 200
@@ -303,7 +302,7 @@ class MainActivity : AppCompatActivity() {
                 isConnected = false
                 updateStatusIndicator()
                 runOnUiThread {
-                    Toast.makeText(this@MainActivity, "Connection closed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Connection closed: $reason", Toast.LENGTH_SHORT).show()
                 }
             }
             override fun onError(ex: Exception?) {
