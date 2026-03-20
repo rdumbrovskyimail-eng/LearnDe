@@ -1,30 +1,31 @@
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    kotlin("plugin.serialization") version "2.1.0"
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
     namespace = "com.codeextractor.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.codeextractor.app"
-        minSdk = 26
-        targetSdk = 35
+        minSdk = 26          // Android 8.0 — AudioTrack.Builder, WebSocket стабильны
+        targetSdk = 36       // Android 16 — edge-to-edge принудительный
         versionCode = 1
         versionName = "1.0"
-        buildConfigField("String", "GEMINI_API_KEY", "\"AIzaSyDFxs8iKlunr6kT8f8hsqKJP3LyBeCkWvs\"")
+
+        // API ключ из local.properties → BuildConfig.GEMINI_API_KEY
+        buildConfigField(
+            "String",
+            "GEMINI_API_KEY",
+            "\"${project.findProperty("GEMINI_API_KEY") ?: ""}\""
+        )
     }
 
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
+    buildFeatures {
+        viewBinding = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -35,27 +36,23 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-
-    buildFeatures {
-        viewBinding = true
-        buildConfig = true
-    }
-
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.2.0")
-    implementation("androidx.activity:activity-ktx:1.9.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // AndroidX Core
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.activity.ktx)        // enableEdgeToEdge(), OnBackPressedDispatcher
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.material)
+    implementation(libs.androidx.constraintlayout)
+
+    // WebSocket
+    implementation(libs.okhttp)
+
+    // JSON — сериализация сообщений Gemini Live API
+    implementation(libs.kotlinx.serialization.json)
+
+    // Coroutines
+    implementation(libs.kotlinx.coroutines.android)
 }
