@@ -2,6 +2,7 @@ package com.codeextractor.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.AudioTrack
@@ -13,15 +14,26 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.codeextractor.app.databinding.ActivityMainBinding
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.*
-import org.java_websocket.client.WebSocketClient
-import org.java_websocket.drafts.Draft_6455
-import org.java_websocket.handshake.ServerHandshake
-import org.json.JSONObject
-import java.net.URI
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonArray
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -29,86 +41,100 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
-    private var webSocket: WebSocketClient? = null
+    // Сеть
+    private val client = OkHttpClient()
+    private var webSocket: WebSocket? = null
+    
+    // Состояние
     private var isRecording = false
-    private var audioRecord: AudioRecord? = null
-    private var recordInterval: Job? = null
+    private var isConnected = false
     private var isSetupComplete = false
 
+    // Аудио Ввод (Микрофон)
+    private var audioRecord: AudioRecord? = null
+    private var recordJob: Job? = null
+    
+    // Аудио Вывод (Динамик)
+    private var audioTrack: AudioTrack? = null
+    private val audioChannel = Channel<ByteArray>(Channel.UNLIMITED)
+    private var playbackJob: Job? = null
+
+    // Константы
     private val MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
-    private val API_KEY = "AIzaSyDFxs8iKlunr6kT8f8hsqKJP3LyBeCkWvs"
+    // TODO: Убедись, что BuildConfig.GEMINI_API_KEY настроен в build.gradle
+    private val API_KEY = BuildConfig.GEMINI_API_KEY 
     private val HOST = "generativelanguage.googleapis.com"
     private val URL = "wss://$HOST/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$API_KEY"
 
     private val AUDIO_REQUEST_CODE = 200
-    private val AUDIO_INPUT_SAMPLE_RATE = 16000
-    private val AUDIO_OUTPUT_SAMPLE_RATE = 24000
-    private val AUDIO_CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
-    private val AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT
-    private val AUDIO_BUFFER_SIZE = AudioRecord.getMinBufferSize(
-        AUDIO_INPUT_SAMPLE_RATE, AUDIO_CHANNEL_CONFIG, AUDIO_ENCODING
-    )
+    private val INPUT_SAMPLE_RATE = 16000
+    private val OUTPUT_SAMPLE_RATE = 24000
 
-    private val audioQueue = mutableListOf<ByteArray>()
-    private var isPlaying = false
-    private var audioTrack: AudioTrack? = null
-    private var isConnected = false
-    private var isSpeaking = false
+    private val jsonSerializer = Json { ignoreUnknownKeys = true }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        updateStatusIndicator()
-
-        binding.startButton.setOnClickListener { checkRecordAudioPermission() }
-        binding.stopButton.setOnClickListener { stopAudioInput() }
-
-        connect()
+        setupUI()
+        startAudioPlaybackLoop() // Запускаем слушатель очереди воспроизведения
+        connectWebSocket()
     }
 
-    // region WebSocket
+    private fun setupUI() {
+        updateStatusIndicator()
+        binding.startButton.setOnClickListener { checkRecordAudioPermission() }
+        binding.stopButton.setOnClickListener { stopAudioInput() }
+    }
 
-    private fun connect() {
-        val headers = mutableMapOf("Content-Type" to "application/json")
-        webSocket = object : WebSocketClient(URI(URL), Draft_6455(), headers) {
-            override fun onOpen(handshakedata: ServerHandshake?) {
+    // ==========================================
+    // 1. WEBSOCKET & OKHTTP
+    // ==========================================
+
+    private fun connectWebSocket() {
+        val request = Request.Builder().url(URL).build()
+        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
                 isConnected = true
                 updateStatusIndicator()
                 sendInitialSetupMessage()
             }
-            override fun onMessage(message: String?) { receiveMessage(message) }
-            override fun onMessage(bytes: ByteBuffer?) {
-                bytes?.let { receiveMessage(String(it.array(), Charsets.UTF_8)) }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                handleIncomingMessage(text)
             }
-            override fun onClose(code: Int, reason: String?, remote: Boolean) {
-                Log.e("WebSocket", "Closed: code=$code reason=$reason")
-                isConnected = false
-                isSetupComplete = false
-                updateStatusIndicator()
-                runOnUiThread {
-                    Toast.makeText(this@MainActivity, "Connection closed: $reason", Toast.LENGTH_LONG).show()
-                }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                handleDisconnect("Closed: $reason")
             }
-            override fun onError(ex: Exception?) {
-                Log.e("WebSocket", "Error: ${ex?.message}")
-                isConnected = false
-                updateStatusIndicator()
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
+                handleDisconnect("Error: ${t.message}")
             }
+        })
+    }
+
+    private fun handleDisconnect(reason: String) {
+        Log.e("WebSocket", reason)
+        isConnected = false
+        isSetupComplete = false
+        stopAudioInput()
+        updateStatusIndicator()
+        lifecycleScope.launch(Dispatchers.Main) {
+            Toast.makeText(this@MainActivity, "Connection lost", Toast.LENGTH_SHORT).show()
         }
-        webSocket?.connect()
     }
 
     private fun sendInitialSetupMessage() {
-        val setupMessage = JSONObject().apply {
-            put("setup", JSONObject().apply {
+        val setupMsg = buildJsonObject {
+            put("setup", buildJsonObject {
                 put("model", MODEL)
-                put("generation_config", JSONObject().apply {
-                    put("response_modalities", org.json.JSONArray().apply { put("AUDIO") })
-                    put("speech_config", JSONObject().apply {
-                        put("voice_config", JSONObject().apply {
-                            put("prebuilt_voice_config", JSONObject().apply {
+                put("generation_config", buildJsonObject {
+                    put("response_modalities", buildJsonArray { add("AUDIO") })
+                    put("speech_config", buildJsonObject {
+                        put("voice_config", buildJsonObject {
+                            put("prebuilt_voice_config", buildJsonObject {
                                 put("voice_name", "Kore")
                             })
                         })
@@ -116,58 +142,54 @@ class MainActivity : AppCompatActivity() {
                 })
             })
         }
-        webSocket?.send(setupMessage.toString())
+        webSocket?.send(jsonSerializer.encodeToString(setupMsg))
         Log.d("WebSocket", "Setup sent")
     }
 
-    private fun sendMediaChunk(b64Data: String, mimeType: String) {
+    private fun sendMediaChunk(b64Data: String) {
         if (!isConnected || !isSetupComplete) return
         val msg = buildJsonObject {
             put("realtimeInput", buildJsonObject {
                 put("mediaChunks", buildJsonArray {
                     add(buildJsonObject {
-                        put("mimeType", mimeType)
+                        put("mimeType", "audio/pcm;rate=$INPUT_SAMPLE_RATE")
                         put("data", b64Data)
                     })
                 })
             })
         }
-        webSocket?.send(Json { prettyPrint = false }.encodeToString(msg))
+        webSocket?.send(jsonSerializer.encodeToString(msg))
     }
 
-    private fun receiveMessage(message: String?) {
-        if (message == null) return
-        Log.d("WebSocket", "Received: $message")
+    private fun handleIncomingMessage(message: String) {
         try {
-            val root = JSONObject(message)
+            val root = jsonSerializer.parseToJsonElement(message).jsonObject
 
-            if (root.has("setupComplete")) {
+            if (root.containsKey("setupComplete")) {
                 isSetupComplete = true
                 Log.d("WebSocket", "Setup complete!")
                 return
             }
 
-            if (!root.has("serverContent")) return
-            val serverContent = root.getJSONObject("serverContent")
+            val serverContent = root["serverContent"]?.jsonObject ?: return
 
-            if (serverContent.has("inputTranscription")) {
-                val text = serverContent.getJSONObject("inputTranscription").optString("text")
-                if (text.isNotEmpty()) displayMessage("USER: $text")
-            }
-            if (serverContent.has("outputTranscription")) {
-                val text = serverContent.getJSONObject("outputTranscription").optString("text")
-                if (text.isNotEmpty()) displayMessage("GEMINI: $text")
-            }
-
-            if (!serverContent.has("modelTurn")) return
-            val parts = serverContent.getJSONObject("modelTurn").optJSONArray("parts") ?: return
-            for (i in 0 until parts.length()) {
-                val part = parts.getJSONObject(i)
-                if (part.has("text")) displayMessage("GEMINI: ${part.getString("text")}")
-                if (part.has("inlineData")) {
-                    val inlineData = part.getJSONObject("inlineData")
-                    if (inlineData.optString("mimeType").startsWith("audio/pcm")) {
-                        injestAudioChunkToPlay(inlineData.getString("data"))
+            // Парсинг текста (Транскрипция)
+            serverContent["modelTurn"]?.jsonObject?.let { modelTurn ->
+                val parts = modelTurn["parts"]?.jsonArray ?: return
+                for (part in parts) {
+                    val partObj = part.jsonObject
+                    partObj["text"]?.jsonPrimitive?.content?.let { text ->
+                        displayMessage("GEMINI: $text")
+                    }
+                    partObj["inlineData"]?.jsonObject?.let { inlineData ->
+                        val mime = inlineData["mimeType"]?.jsonPrimitive?.content ?: ""
+                        if (mime.startsWith("audio/pcm")) {
+                            val base64Data = inlineData["data"]?.jsonPrimitive?.content
+                            if (base64Data != null) {
+                                val audioBytes = Base64.decode(base64Data, Base64.DEFAULT)
+                                audioChannel.trySend(audioBytes) // Отправляем в канал воспроизведения
+                            }
+                        }
                     }
                 }
             }
@@ -176,14 +198,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // endregion
-
-    // region Audio Input
+    // ==========================================
+    // 2. AUDIO INPUT (Микрофон)
+    // ==========================================
 
     private fun checkRecordAudioPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_REQUEST_CODE)
         } else {
             startAudioInput()
@@ -192,109 +212,103 @@ class MainActivity : AppCompatActivity() {
 
     private fun startAudioInput() {
         if (isRecording) return
-        isRecording = true
-        audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-            AUDIO_INPUT_SAMPLE_RATE, AUDIO_CHANNEL_CONFIG, AUDIO_ENCODING, AUDIO_BUFFER_SIZE
-        )
-        if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-            Log.e("Audio", "AudioRecord init failed"); return
-        }
-        audioRecord?.startRecording()
-        isSpeaking = true
-        updateStatusIndicator()
-        recordInterval = GlobalScope.launch(Dispatchers.IO) {
-            while (isRecording) {
-                val buffer = ShortArray(AUDIO_BUFFER_SIZE)
-                val readSize = audioRecord?.read(buffer, 0, buffer.size) ?: 0
-                if (readSize > 0) {
-                    val byteBuffer = ByteBuffer.allocate(readSize * 2).order(ByteOrder.LITTLE_ENDIAN)
-                    buffer.take(readSize).forEach { byteBuffer.putShort(it) }
-                    val base64 = Base64.encodeToString(byteBuffer.array(), Base64.DEFAULT or Base64.NO_WRAP)
-                    sendMediaChunk(base64, "audio/pcm;rate=16000")
+        val minBuffer = AudioRecord.getMinBufferSize(INPUT_SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+
+        try {
+            audioRecord = AudioRecord(
+                MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                INPUT_SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minBuffer
+            )
+            
+            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                throw IllegalStateException("AudioRecord init failed")
+            }
+
+            audioRecord?.startRecording()
+            isRecording = true
+            updateStatusIndicator()
+
+            // Читаем звук в фоновом потоке, привязанном к Activity
+            recordJob = lifecycleScope.launch(Dispatchers.IO) {
+                val buffer = ShortArray(minBuffer)
+                while (isActive && isRecording) {
+                    val readSize = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+                    if (readSize > 0) {
+                        val byteBuffer = ByteBuffer.allocate(readSize * 2).order(ByteOrder.LITTLE_ENDIAN)
+                        for (i in 0 until readSize) { byteBuffer.putShort(buffer[i]) }
+                        val base64 = Base64.encodeToString(byteBuffer.array(), Base64.NO_WRAP)
+                        sendMediaChunk(base64)
+                    }
                 }
             }
+        } catch (e: SecurityException) {
+            Log.e("Audio", "Permission denied", e)
+        } catch (e: Exception) {
+            Log.e("Audio", "Microphone error", e)
         }
     }
 
     private fun stopAudioInput() {
         isRecording = false
-        recordInterval?.cancel()
+        recordJob?.cancel()
         audioRecord?.stop()
         audioRecord?.release()
         audioRecord = null
-        isSpeaking = false
         updateStatusIndicator()
     }
 
-    // endregion
+    // ==========================================
+    // 3. AUDIO OUTPUT (Динамик)
+    // ==========================================
 
-    // region Audio Output
+    private fun startAudioPlaybackLoop() {
+        playbackJob = lifecycleScope.launch(Dispatchers.IO) {
+            val minBuffer = AudioTrack.getMinBufferSize(OUTPUT_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+            
+            // Современный Builder (API 26+)
+            audioTrack = AudioTrack.Builder()
+                .setAudioAttributes(AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build())
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(OUTPUT_SAMPLE_RATE)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build())
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .setBufferSizeInBytes(minBuffer)
+                .build()
 
-    private fun injestAudioChunkToPlay(base64AudioChunk: String?) {
-        if (base64AudioChunk == null) return
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                val bytes = Base64.decode(base64AudioChunk, Base64.DEFAULT)
-                synchronized(audioQueue) { audioQueue.add(bytes) }
-                if (!isPlaying) playNextAudioChunk()
-            } catch (e: Exception) { Log.e("AudioChunk", "Error", e) }
-        }
-    }
+            audioTrack?.play() // Вызываем play() ОДИН раз
 
-    private fun playNextAudioChunk() {
-        GlobalScope.launch(Dispatchers.IO) {
-            while (true) {
-                val chunk = synchronized(audioQueue) {
-                    if (audioQueue.isNotEmpty()) audioQueue.removeAt(0) else null
-                } ?: break
-                isPlaying = true
-                playAudio(chunk)
+            // Бесконечно читаем данные из канала и скармливаем их AudioTrack
+            for (audioChunk in audioChannel) {
+                if (!isActive) break
+                audioTrack?.write(audioChunk, 0, audioChunk.size)
             }
-            isPlaying = false
-            synchronized(audioQueue) { if (audioQueue.isNotEmpty()) playNextAudioChunk() }
         }
     }
 
-    private fun playAudio(byteArray: ByteArray) {
-        if (audioTrack == null) {
-            audioTrack = AudioTrack(
-                android.media.AudioManager.STREAM_MUSIC,
-                AUDIO_OUTPUT_SAMPLE_RATE,
-                AudioFormat.CHANNEL_OUT_MONO,
-                AudioFormat.ENCODING_PCM_16BIT,
-                AudioTrack.getMinBufferSize(
-                    AUDIO_OUTPUT_SAMPLE_RATE,
-                    AudioFormat.CHANNEL_OUT_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT
-                ),
-                AudioTrack.MODE_STREAM
-            )
-        }
-        audioTrack?.write(byteArray, 0, byteArray.size)
-        audioTrack?.play()
-        GlobalScope.launch(Dispatchers.IO) {
-            while (audioTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) { delay(10) }
-            audioTrack?.stop()
-        }
-    }
-
-    // endregion
-
-    // region UI
+    // ==========================================
+    // 4. UI & LIFECYCLE
+    // ==========================================
 
     private fun displayMessage(message: String) {
-        runOnUiThread { binding.chatLog.text = "${binding.chatLog.text}\n$message" }
+        lifecycleScope.launch(Dispatchers.Main) {
+            val currentText = binding.chatLog.text.toString()
+            binding.chatLog.text = if (currentText.isEmpty()) message else "$currentText\n$message"
+        }
     }
 
     private fun updateStatusIndicator() {
-        runOnUiThread {
+        lifecycleScope.launch(Dispatchers.Main) {
             when {
                 !isConnected -> {
                     binding.statusIndicator.setImageResource(android.R.drawable.presence_busy)
                     binding.statusIndicator.setColorFilter(android.graphics.Color.RED)
                 }
-                isSpeaking -> {
+                isRecording -> {
                     binding.statusIndicator.setImageResource(android.R.drawable.presence_audio_online)
                     binding.statusIndicator.setColorFilter(android.graphics.Color.GREEN)
                 }
@@ -306,22 +320,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // endregion
-
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == AUDIO_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 startAudioInput()
-            else
-                Toast.makeText(this, "Audio permission denied", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Audio permission is required", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         stopAudioInput()
-        webSocket?.close()
+        playbackJob?.cancel()
+        audioTrack?.stop()
         audioTrack?.release()
+        audioChannel.close()
+        webSocket?.close(1000, "Activity destroyed")
+        client.dispatcher.executorService.shutdown()
     }
 }
