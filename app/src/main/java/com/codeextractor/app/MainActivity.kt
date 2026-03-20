@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "GeminiLive"
-        private const val MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
+        private const val MODEL = "models/gemini-2.5-flash"
         private const val HOST = "generativelanguage.googleapis.com"
         private const val WS_PATH =
             "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
@@ -84,7 +84,7 @@ class MainActivity : AppCompatActivity() {
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .pingInterval(20, TimeUnit.SECONDS)
+        // Убрали pingInterval(20, TimeUnit.SECONDS), чтобы избежать обрыва связи по таймауту Pong
         .build()
 
     private var webSocket: WebSocket? = null
@@ -344,28 +344,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ====================================================================
-    //  2. SETUP — вариант 2: ключ "config", плоская структура
+    //  2. SETUP
     // ====================================================================
 
     private fun sendSetup() {
         val msg = buildJsonObject {
-            put("config", buildJsonObject {
+            put("setup", buildJsonObject {
                 put("model", MODEL)
-                put("responseModalities", buildJsonArray {
-                    add(JsonPrimitive("AUDIO"))
-                })
-                put("speechConfig", buildJsonObject {
-                    put("voiceConfig", buildJsonObject {
-                        put("prebuiltVoiceConfig", buildJsonObject {
-                            put("voiceName", "Kore")
+                put("generationConfig", buildJsonObject {
+                    put("responseModalities", buildJsonArray {
+                        add(JsonPrimitive("AUDIO"))
+                    })
+                    put("speechConfig", buildJsonObject {
+                        put("voiceConfig", buildJsonObject {
+                            put("prebuiltVoiceConfig", buildJsonObject {
+                                put("voiceName", "Aoede") // Доступные голоса: Aoede, Charon, Kore, Fenrir, Puck
+                            })
                         })
                     })
                 })
-                put("inputAudioTranscription", buildJsonObject {})
-                put("outputAudioTranscription", buildJsonObject {})
             })
         }
-        val raw = json.encodeToString(msg)
+        // ИСПОЛЬЗУЕМ .toString() вместо json.encodeToString()
+        val raw = msg.toString()
         log("SETUP → (${raw.length} chars)")
         webSocket?.send(raw)
     }
@@ -376,13 +377,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendAudioChunk(b64: String) {
         if (sessionState.value != SessionState.Recording) return
-        val raw = """{"realtimeInput":{"audio":{"data":"$b64","mimeType":"audio/pcm;rate=$INPUT_SAMPLE_RATE"}}}"""
+
+        // ВАЖНО: Gemini ждет массив "mediaChunks", а не объект "audio"
+        val raw = """{"realtimeInput":{"mediaChunks":[{"data":"$b64","mimeType":"audio/pcm;rate=$INPUT_SAMPLE_RATE"}]}}"""
         webSocket?.send(raw)
     }
 
     private fun sendTextMessage(text: String) {
         val state = sessionState.value
         if (state != SessionState.Ready && state != SessionState.Recording) return
+
         val msg = buildJsonObject {
             put("clientContent", buildJsonObject {
                 put("turns", buildJsonArray {
@@ -396,7 +400,9 @@ class MainActivity : AppCompatActivity() {
                 put("turnComplete", true)
             })
         }
-        val raw = json.encodeToString(msg)
+
+        // ИСПОЛЬЗУЕМ .toString() вместо json.encodeToString()
+        val raw = msg.toString()
         log("TEXT → $raw")
         webSocket?.send(raw)
     }
@@ -613,9 +619,17 @@ class MainActivity : AppCompatActivity() {
     private fun sendAudioStreamEnd() {
         val state = sessionState.value
         if (state != SessionState.Ready && state != SessionState.Recording) return
-        val raw = """{"realtimeInput":{"audioStreamEnd":true}}"""
+
+        // ВАЖНО: Поля "audioStreamEnd" в API не существует.
+        // Чтобы передать ход модели после остановки микрофона, отправляем turnComplete
+        val msg = buildJsonObject {
+            put("clientContent", buildJsonObject {
+                put("turnComplete", true)
+            })
+        }
+        val raw = msg.toString()
         webSocket?.send(raw)
-        log("→ audioStreamEnd")
+        log("→ turnComplete (audio stream stopped)")
     }
 
     // ====================================================================
