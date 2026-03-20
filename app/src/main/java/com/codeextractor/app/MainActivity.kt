@@ -57,67 +57,47 @@ import java.util.concurrent.TimeUnit
 
 /**
  * ============================================================================
- *  ЭТАЛОННАЯ РЕАЛИЗАЦИЯ v5 (FINAL) — Gemini Live API Raw WebSocket (Android/Kotlin)
+ *  ТЕСТОВЫЙ СТЕНД v6 — 12 вариантов подключения к Gemini Live API
  * ============================================================================
  *
- *  Синтез: Claude Opus, Grok, Gemini 3.1, DeepSeek (5 раундов, 19 анализов)
- *  Дата: 20 марта 2026
+ *  Цель: определить какой формат setup-сообщения принимает сервер.
  *
- *  v5 CHANGELOG (поверх v4):
+ *  ┌──────┬────────────┬───────────┬──────────────┬──────────────┬──────────┬─────────┐
+ *  │      │ Root key   │ Structure │ speechConfig │ Transcripts  │ Modality │ Ping    │
+ *  ├──────┼────────────┼───────────┼──────────────┼──────────────┼──────────┼─────────┤
+ *  │ V1   │ "setup"    │ nested    │ ✅ Aoede     │ ✅ {}        │ AUDIO    │ ❌      │
+ *  │ V2   │ "config"   │ flat      │ ✅ Aoede     │ ✅ {}        │ AUDIO    │ ❌      │
+ *  │ V3   │ "setup"    │ nested    │ ❌           │ ❌           │ AUDIO    │ ❌      │
+ *  │ V4   │ "config"   │ flat      │ ❌           │ ❌           │ AUDIO    │ ❌      │
+ *  │ V5   │ "setup"    │ nested    │ ✅ Aoede     │ ❌           │ AUDIO    │ ❌      │
+ *  │ V6   │ "setup"    │ nested    │ ❌           │ ✅ {}        │ AUDIO    │ ❌      │
+ *  │ V7   │ "config"   │ flat      │ ❌           │ ✅ {}        │ A+T      │ ❌      │
+ *  │ V8   │ "setup"    │ nested    │ ❌           │ ❌           │ A+T      │ ❌      │
+ *  │ V9   │ "setup"    │ nested    │ ❌           │ ❌           │ AUDIO    │ ✅ 15s  │
+ *  │ V10  │ "config"   │ flat      │ ❌           │ ❌           │ AUDIO    │ ✅ 15s  │
+ *  │ V11  │ "setup"    │ nested    │ ❌           │ ❌           │ AUDIO    │ ❌ BARE │
+ *  │ V12  │ "setup"    │ nested    │ ❌           │ ❌           │ AUDIO    │ ✅ BARE │
+ *  └──────┴────────────┴───────────┴──────────────┴──────────────┴──────────┴─────────┘
  *
- *  [БАГФИКС] #20  Jitter deadlock: receive() → withTimeoutOrNull(150ms)
- *                  (Gemini 3.1: при коротких ответах "Ок" — только 2 чанка,
- *                  receive() зависал навечно ожидая 3-й. Теперь timeout 150мс
- *                  гарантирует: если чанк не пришёл — играем что есть.)
+ *  V1–V8: без pingInterval.  V9–V12: с pingInterval(15s).
+ *  V3/V9 и V4/V10 — одинаковый JSON, разница только в ping.
+ *  V11/V12 — абсолютный минимум (только model + AUDIO, без VAD).
  *
- *  [БАГФИКС] #21  Audio bleed при barge-in: isFirstBatch вынесен на уровень
- *                  класса + сбрасывается в flushPlaybackQueue()
- *                  (Gemini 3.1: при interrupted висящий receive() просыпался
- *                  на чанке НОВОЙ фразы и клеил его к остаткам СТАРОЙ →
- *                  глитч/искажение. Сброс isFirstBatch = true в flush
- *                  гарантирует чистый pre-buffer для новой генерации.)
- *
- *  v4 CHANGELOG (поверх v3):
- *
- *  [БАГФИКС] #16  Jitter pre-buffer: tryReceive() → receive()
- *                  (Gemini 3.1: tryReceive() — non-blocking, pre-buffer
- *                  всегда получал только 1 чанк вместо 3. Теперь suspend
- *                  receive() честно ждёт следующие чанки из сети.)
- *
- *  [NEW]     #17  Объявление tools в setup
- *                  (DeepSeek: без tools в setup toolCall никогда не придёт,
- *                  весь handler #12 был мёртвым кодом. Теперь tools
- *                  объявляются через TOOL_DECLARATIONS.)
- *
- *  [NEW]     #18  Восстановление контекста после reconnect
- *                  (DeepSeek: после переподключения история терялась.
- *                  Теперь последние MAX_CONTEXT_MESSAGES хранятся и
- *                  реинжектятся через clientContent при новой сессии.)
- *
- *  [NEW]     #19  Диагностика кодов закрытия WebSocket
- *                  (DeepSeek: расшифровка стандартных кодов + Gemini-
- *                  специфичных для отладки.)
- *
- *  Полный список v1→v2→v3→v4→v5 (21 исправление):
- *  ─────────────────────────────────────────────────────────
- *  v1→v2:  #1 setup+generationConfig  #2 audio format  #3 flush
- *          #4 GC  #5 model pin  #6 transcriptions  #7 VAD
- *          #8 AEC  #9 binary frames  #10 text via realtimeInput
- *          #11 channel 256
- *  v2→v3:  #12 toolCall handler  #13 smooth turnComplete
- *          #14 24kHz check  #15 jitter pre-buffer
- *  v3→v4:  #16 jitter fix (receive)  #17 tools in setup
- *          #18 context restore  #19 WS close diagnostics
- *  v4→v5:  #20 jitter timeout (deadlock fix)
- *          #21 audio bleed fix (isFirstBatch reset)
+ *  Логика диагностики:
+ *  ─────────────────────
+ *  V1 зависает, V3 работает → speechConfig или transcriptions{} ломают native audio
+ *  V5 зависает, V3 работает → speechConfig — виновник
+ *  V6 зависает, V3 работает → transcriptions{} — виновник
+ *  V3 зависает, V4 работает → "setup" не принимается, нужен "config"
+ *  V3 зависает, V9 работает → нужен pingInterval (балансировщик рвёт)
+ *  V3 зависает, V11 работает → VAD (realtimeInputConfig) — виновник
+ *  V11 зависает → проблема в model/API key/сети
  */
 class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "GeminiLive"
-
         private const val MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
-
         private const val HOST = "generativelanguage.googleapis.com"
         private const val WS_PATH =
             "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
@@ -128,11 +108,8 @@ class MainActivity : AppCompatActivity() {
         private const val MAX_RECONNECT_ATTEMPTS = 5
         private const val RECONNECT_BASE_DELAY_MS = 2_000L
         private val COLOR_READY = android.graphics.Color.parseColor("#4CAF50")
-
         private const val PLAYBACK_QUEUE_CAPACITY = 256
         private const val JITTER_PRE_BUFFER_CHUNKS = 3
-
-        // #18: Максимум сообщений для восстановления контекста после reconnect
         private const val MAX_CONTEXT_MESSAGES = 10
     }
 
@@ -150,11 +127,21 @@ class MainActivity : AppCompatActivity() {
 
     private val sessionState = MutableStateFlow<SessionState>(SessionState.Disconnected)
 
+    /** Текущий активный вариант подключения (0 = не выбран) */
+    private var activeVariant = 0
+
     private lateinit var binding: ActivityMainBinding
     private val json = Json { ignoreUnknownKeys = true }
 
+    // Без ping — для V1–V8
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
+
+    // С ping — для V9–V12 (Gemini рекомендация: удерживает WS через балансировщики)
+    private val clientWithPing = OkHttpClient.Builder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .pingInterval(15, TimeUnit.SECONDS)
         .build()
 
     private var webSocket: WebSocket? = null
@@ -170,10 +157,6 @@ class MainActivity : AppCompatActivity() {
 
     @Volatile
     private var awaitingPlaybackDrain = false
-
-    // #21: Вынесен на уровень класса (был локальной переменной в playback loop).
-    // Gemini 3.1: при barge-in висящий receive() просыпался на чанке НОВОЙ фразы
-    // и клеил его к остаткам СТАРОЙ → глитч. Сброс в flushPlaybackQueue() это чинит.
     @Volatile
     private var isFirstBatch = true
 
@@ -187,65 +170,33 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.CreateDocument("text/plain")
     ) { uri: Uri? -> uri?.let { saveLogToUri(it) } }
 
-    // ═══════════════════════════════════════════════════════════════
-    //  #18: История разговора для восстановления контекста
-    //  Хранит последние MAX_CONTEXT_MESSAGES пар (role, text)
-    //  и реинжектит через clientContent после reconnect.
-    // ═══════════════════════════════════════════════════════════════
     private data class ConversationMessage(val role: String, val text: String)
-
     private val conversationHistory = ArrayDeque<ConversationMessage>(MAX_CONTEXT_MESSAGES + 2)
 
     private fun addToHistory(role: String, text: String) {
         synchronized(conversationHistory) {
             conversationHistory.addLast(ConversationMessage(role, text))
-            while (conversationHistory.size > MAX_CONTEXT_MESSAGES) {
-                conversationHistory.removeFirst()
-            }
+            while (conversationHistory.size > MAX_CONTEXT_MESSAGES) conversationHistory.removeFirst()
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    //  #17: Объявление инструментов (tools / function declarations)
-    //
-    //  Без этого массива в setup toolCall НИКОГДА не придёт от сервера.
-    //  Добавляйте свои функции сюда. Пустой список = tools отключены.
-    //
-    //  Формат: FunctionDeclaration(name, description, parameters)
-    // ═══════════════════════════════════════════════════════════════
-    private data class ToolParameter(
-        val name: String,
-        val type: String,         // "string", "integer", "boolean", "number"
-        val description: String,
-        val required: Boolean = true
-    )
+    // ====================================================================
+    //  VARIANT DESCRIPTIONS (для UI)
+    // ====================================================================
 
-    private data class FunctionDeclaration(
-        val name: String,
-        val description: String,
-        val parameters: List<ToolParameter> = emptyList()
-    )
-
-    /**
-     * Список объявленных функций.
-     * Пустой список → tools не отправляются в setup → toolCall не приходит.
-     * Добавьте свои функции для активации function calling.
-     */
-    private val toolDeclarations: List<FunctionDeclaration> = listOf(
-        // Пример: раскомментируйте для активации
-        // FunctionDeclaration(
-        //     name = "get_current_time",
-        //     description = "Returns the current date and time in the user's timezone",
-        //     parameters = emptyList()
-        // ),
-        // FunctionDeclaration(
-        //     name = "get_weather",
-        //     description = "Returns weather information for a given city",
-        //     parameters = listOf(
-        //         ToolParameter("city", "string", "City name, e.g. 'Berlin'"),
-        //         ToolParameter("units", "string", "Temperature units: 'celsius' or 'fahrenheit'", required = false)
-        //     )
-        // ),
+    private val variantDescriptions = mapOf(
+        1 to "V1: setup + nested + speechConfig(Aoede) + transcriptions{} + VAD",
+        2 to "V2: config + flat + speechConfig(Aoede) + transcriptions{} + VAD",
+        3 to "V3: setup + nested + NO speech + NO transcriptions + VAD",
+        4 to "V4: config + flat + NO speech + NO transcriptions + VAD",
+        5 to "V5: setup + nested + speechConfig(Aoede) + NO transcriptions + VAD",
+        6 to "V6: setup + nested + NO speech + transcriptions{} + VAD",
+        7 to "V7: config + flat + NO speech + AUDIO+TEXT + transcriptions{} + VAD",
+        8 to "V8: setup + nested + NO speech + AUDIO+TEXT + NO transcriptions + VAD",
+        9 to "V9: =V3 + pingInterval🏓 (setup minimal + ping)",
+        10 to "V10: =V4 + pingInterval🏓 (config minimal + ping)",
+        11 to "V11: BARE MIN — setup + AUDIO only + nothing else",
+        12 to "V12: BARE MIN + pingInterval🏓 — setup + AUDIO only + ping",
     )
 
     // ====================================================================
@@ -260,12 +211,12 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupEdgeToEdgeInsets()
-        log("=== APP STARTED ===")
+        log("=== APP STARTED === (select V1–V8 to connect)")
 
         setupUI()
         observeState()
         startAudioPlaybackLoop()
-        connectWebSocket()
+        // НЕ подключаемся автоматически — ждём выбор варианта
     }
 
     override fun onDestroy() {
@@ -277,6 +228,7 @@ class MainActivity : AppCompatActivity() {
         releaseAudioTrack()
         disconnectWebSocket()
         client.dispatcher.cancelAll()
+        clientWithPing.dispatcher.cancelAll()
     }
 
     // ====================================================================
@@ -297,11 +249,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
+        // ─── Variant buttons ───────────────────────────────────
+        binding.btnV1.setOnClickListener { startVariant(1) }
+        binding.btnV2.setOnClickListener { startVariant(2) }
+        binding.btnV3.setOnClickListener { startVariant(3) }
+        binding.btnV4.setOnClickListener { startVariant(4) }
+        binding.btnV5.setOnClickListener { startVariant(5) }
+        binding.btnV6.setOnClickListener { startVariant(6) }
+        binding.btnV7.setOnClickListener { startVariant(7) }
+        binding.btnV8.setOnClickListener { startVariant(8) }
+        binding.btnV9.setOnClickListener { startVariant(9) }
+        binding.btnV10.setOnClickListener { startVariant(10) }
+        binding.btnV11.setOnClickListener { startVariant(11) }
+        binding.btnV12.setOnClickListener { startVariant(12) }
+
+        // ─── Control buttons ───────────────────────────────────
         binding.startButton.setOnClickListener { requestPermissionAndRecord() }
         binding.stopButton.setOnClickListener { stopRecording() }
         binding.saveLogButton.setOnClickListener {
             val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
             saveLogLauncher.launch("gemini_log_$ts.txt")
+        }
+    }
+
+    /**
+     * Запуск варианта: отключиться от текущего → подключиться с новым setup.
+     */
+    private fun startVariant(variant: Int) {
+        activeVariant = variant
+        reconnectJob?.cancel()
+        reconnectAttempt = 0
+
+        val desc = variantDescriptions[variant] ?: "Unknown"
+        binding.variantDescription.text = desc
+        log("═══════════════════════════════════════")
+        log("TESTING: $desc")
+        log("═══════════════════════════════════════")
+
+        // Отключаемся, если были подключены
+        disconnectWebSocket()
+
+        // Подключаемся с новым вариантом
+        lifecycleScope.launch {
+            delay(300) // Дать время на cleanup
+            connectWebSocket()
         }
     }
 
@@ -312,27 +303,27 @@ class MainActivity : AppCompatActivity() {
                     SessionState.Disconnected -> Triple(
                         android.R.drawable.presence_busy,
                         android.graphics.Color.RED,
-                        "Disconnected"
+                        if (activeVariant == 0) "Select variant" else "Disconnected (V$activeVariant)"
                     )
                     SessionState.Connecting -> Triple(
                         android.R.drawable.presence_busy,
                         android.graphics.Color.RED,
-                        "Connecting…"
+                        "V$activeVariant: Connecting…"
                     )
                     SessionState.Connected -> Triple(
                         android.R.drawable.presence_online,
                         android.graphics.Color.YELLOW,
-                        "Setting up…"
+                        "V$activeVariant: Setting up…"
                     )
                     SessionState.Ready -> Triple(
                         android.R.drawable.presence_online,
                         COLOR_READY,
-                        "Ready — press Start"
+                        "V$activeVariant: Ready ✓ — press Start"
                     )
                     SessionState.Recording -> Triple(
                         android.R.drawable.presence_audio_online,
                         android.graphics.Color.GREEN,
-                        "● Recording"
+                        "V$activeVariant: ● Recording"
                     )
                 }
                 binding.statusIndicator.setImageResource(icon)
@@ -399,10 +390,13 @@ class MainActivity : AppCompatActivity() {
         )
         setupComplete = CompletableDeferred()
 
-        log("Connecting…")
+        log("Connecting… ${if (activeVariant >= 9) "(with pingInterval)" else "(no ping)"}")
         val request = Request.Builder().url(buildWsUrl()).build()
 
-        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+        // V9–V12 используют client с pingInterval (рекомендация Gemini)
+        val activeClient = if (activeVariant >= 9) clientWithPing else client
+
+        webSocket = activeClient.newWebSocket(request, object : WebSocketListener() {
 
             override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
                 log("WS opened (${response.code})")
@@ -424,9 +418,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // ═══════════════════════════════════════════════════════
-            //  #19: Расшифровка кодов закрытия WebSocket
-            // ═══════════════════════════════════════════════════════
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 log("WS closed: $code ${describeCloseCode(code)} reason='$reason'")
                 handleDisconnect()
@@ -440,38 +431,24 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    /**
-     * ═══════════════════════════════════════════════════════════════════
-     *  #19: Диагностика кодов закрытия WebSocket (v4)
-     *
-     *  Стандартные коды (RFC 6455) + Gemini-специфичные.
-     *  Помогает отличить нормальное закрытие от ошибок сервера.
-     * ═══════════════════════════════════════════════════════════════════
-     */
     private fun describeCloseCode(code: Int): String = when (code) {
-        1000 -> "[Normal Closure]"
-        1001 -> "[Going Away — server shutdown or session timeout]"
+        1000 -> "[Normal]"
+        1001 -> "[Going Away]"
         1002 -> "[Protocol Error]"
-        1003 -> "[Unsupported Data]"
-        1005 -> "[No Status Code]"
-        1006 -> "[Abnormal Closure — no close frame received]"
+        1006 -> "[Abnormal — no close frame]"
         1007 -> "[Invalid Payload]"
         1008 -> "[Policy Violation]"
-        1009 -> "[Message Too Big]"
         1011 -> "[Internal Server Error]"
-        1012 -> "[Service Restart]"
-        1013 -> "[Try Again Later — server overloaded]"
-        1014 -> "[Bad Gateway]"
-        1015 -> "[TLS Handshake Failure]"
-        // Gemini-специфичные (наблюдаемые на практике)
-        4000 -> "[Gemini: Session expired (15 min limit)]"
-        4001 -> "[Gemini: Invalid setup message]"
+        1013 -> "[Try Again Later]"
+        4000 -> "[Gemini: Session expired]"
+        4001 -> "[Gemini: Invalid setup]"
         4002 -> "[Gemini: Rate limited]"
-        4003 -> "[Gemini: Authentication failed]"
-        else -> "[Unknown code $code]"
+        4003 -> "[Gemini: Auth failed]"
+        else -> "[code $code]"
     }
 
     private fun disconnectWebSocket() {
+        reconnectJob?.cancel()
         webSocket?.close(1000, "bye")
         webSocket = null
         sessionState.value = SessionState.Disconnected
@@ -480,137 +457,205 @@ class MainActivity : AppCompatActivity() {
     private fun handleDisconnect() {
         releaseAudioRecord()
         sessionState.value = SessionState.Disconnected
-        scheduleReconnect()
+        // НЕ делаем auto-reconnect в тестовом режиме — пусть юзер сам выберет вариант
     }
 
     @Synchronized
     private fun releaseAudioRecord() {
         recordJob?.cancel()
         recordJob = null
-        echoCanceler?.let {
-            runCatching { it.enabled = false; it.release() }
-        }
+        echoCanceler?.let { runCatching { it.enabled = false; it.release() } }
         echoCanceler = null
-        audioRecord?.let {
-            runCatching { it.stop(); it.release() }
-        }
+        audioRecord?.let { runCatching { it.stop(); it.release() } }
         audioRecord = null
     }
 
-    private fun scheduleReconnect() {
-        if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
-            log("Max reconnect attempts reached")
-            lifecycleScope.launch(Dispatchers.Main) {
-                Toast.makeText(this@MainActivity, "Connection lost", Toast.LENGTH_LONG).show()
-            }
-            return
-        }
-        val delayMs = RECONNECT_BASE_DELAY_MS * (1L shl reconnectAttempt)
-        reconnectAttempt++
-        log("Reconnect #$reconnectAttempt in ${delayMs}ms")
-        reconnectJob?.cancel()
-        reconnectJob = lifecycleScope.launch {
-            delay(delayMs)
-            connectWebSocket()
-        }
-    }
-
     // ====================================================================
-    //  2. SETUP (BidiGenerateContentSetup)
+    //  2. SETUP — 8 ВАРИАНТОВ
     // ====================================================================
 
     /**
-     * Protobuf BidiGenerateContentSetup:
-     *
-     *  ┌─ "setup"
-     *  │   ├─ "model"
-     *  │   ├─ "generationConfig"
-     *  │   │   ├─ "responseModalities": ["AUDIO"]
-     *  │   │   └─ "speechConfig": { voiceConfig: ... }
-     *  │   ├─ "inputAudioTranscription": {}
-     *  │   ├─ "outputAudioTranscription": {}
-     *  │   ├─ "realtimeInputConfig": { automaticActivityDetection: ... }
-     *  │   └─ "tools": [{ "functionDeclarations": [...] }]    ← #17 NEW
-     *  └─
+     * Диспетчер: вызывает нужный builder в зависимости от activeVariant.
      */
     private fun sendSetup() {
-        val msg = buildJsonObject {
-            put("setup", buildJsonObject {
-                put("model", MODEL)
-
-                put("generationConfig", buildJsonObject {
-                    put("responseModalities", buildJsonArray {
-                        add(JsonPrimitive("AUDIO"))
-                    })
-                    put("speechConfig", buildJsonObject {
-                        put("voiceConfig", buildJsonObject {
-                            put("prebuiltVoiceConfig", buildJsonObject {
-                                put("voiceName", "Aoede")
-                            })
-                        })
-                    })
-                })
-
-                put("inputAudioTranscription", buildJsonObject {})
-                put("outputAudioTranscription", buildJsonObject {})
-
-                put("realtimeInputConfig", buildJsonObject {
-                    put("automaticActivityDetection", buildJsonObject {
-                        put("disabled", false)
-                    })
-                })
-
-                // ═══════════════════════════════════════════════════
-                //  #17: Объявление tools в setup (v4)
-                //
-                //  Без этого массива сервер НЕ пришлёт toolCall.
-                //  Пустой toolDeclarations = tools не объявляются.
-                // ═══════════════════════════════════════════════════
-                if (toolDeclarations.isNotEmpty()) {
-                    put("tools", buildJsonArray {
-                        add(buildJsonObject {
-                            put("functionDeclarations", buildJsonArray {
-                                for (fn in toolDeclarations) {
-                                    add(buildJsonObject {
-                                        put("name", fn.name)
-                                        put("description", fn.description)
-                                        if (fn.parameters.isNotEmpty()) {
-                                            put("parameters", buildJsonObject {
-                                                put("type", "object")
-                                                put("properties", buildJsonObject {
-                                                    for (param in fn.parameters) {
-                                                        put(param.name, buildJsonObject {
-                                                            put("type", param.type)
-                                                            put("description", param.description)
-                                                        })
-                                                    }
-                                                })
-                                                val required = fn.parameters
-                                                    .filter { it.required }
-                                                    .map { it.name }
-                                                if (required.isNotEmpty()) {
-                                                    put("required", buildJsonArray {
-                                                        for (r in required) add(JsonPrimitive(r))
-                                                    })
-                                                }
-                                            })
-                                        }
-                                    })
-                                }
-                            })
-                        })
-                    })
-                }
-            })
+        val raw = when (activeVariant) {
+            1 -> buildV1().toString()
+            2 -> buildV2().toString()
+            3 -> buildV3().toString()
+            4 -> buildV4().toString()
+            5 -> buildV5().toString()
+            6 -> buildV6().toString()
+            7 -> buildV7().toString()
+            8 -> buildV8().toString()
+            9 -> buildV3().toString()   // V9 = V3 JSON + pingInterval (client level)
+            10 -> buildV4().toString()  // V10 = V4 JSON + pingInterval (client level)
+            11 -> buildV11().toString() // Bare minimum
+            12 -> buildV11().toString() // V12 = V11 JSON + pingInterval (client level)
+            else -> {
+                log("ERROR: No variant selected!")
+                return
+            }
         }
-
-        val raw = msg.toString()
-        log("SETUP → (${raw.length} chars)")
+        log("V$activeVariant SETUP → (${raw.length} chars)")
+        log("JSON: ${if (raw.length > 400) raw.take(400) + "…" else raw}")
         webSocket?.send(raw)
     }
 
+    // ── V1: "setup" + nested + speechConfig + transcriptions{} + VAD ──
+    private fun buildV1() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL)
+            put("generationConfig", buildJsonObject {
+                put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+                put("speechConfig", buildJsonObject {
+                    put("voiceConfig", buildJsonObject {
+                        put("prebuiltVoiceConfig", buildJsonObject {
+                            put("voiceName", "Aoede")
+                        })
+                    })
+                })
+            })
+            put("inputAudioTranscription", buildJsonObject {})
+            put("outputAudioTranscription", buildJsonObject {})
+            put("realtimeInputConfig", buildJsonObject {
+                put("automaticActivityDetection", buildJsonObject { put("disabled", false) })
+            })
+        })
+    }
+
+    // ── V2: "config" + flat + speechConfig + transcriptions{} + VAD ──
+    private fun buildV2() = buildJsonObject {
+        put("config", buildJsonObject {
+            put("model", MODEL)
+            put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            put("speechConfig", buildJsonObject {
+                put("voiceConfig", buildJsonObject {
+                    put("prebuiltVoiceConfig", buildJsonObject {
+                        put("voiceName", "Aoede")
+                    })
+                })
+            })
+            put("inputAudioTranscription", buildJsonObject {})
+            put("outputAudioTranscription", buildJsonObject {})
+            put("realtimeInputConfig", buildJsonObject {
+                put("automaticActivityDetection", buildJsonObject { put("disabled", false) })
+            })
+        })
+    }
+
+    // ── V3: "setup" + nested + NO speech + NO transcriptions + VAD ──
+    // (Gemini 3.1 fix: native audio не принимает speechConfig и пустые {})
+    private fun buildV3() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL)
+            put("generationConfig", buildJsonObject {
+                put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            })
+            put("realtimeInputConfig", buildJsonObject {
+                put("automaticActivityDetection", buildJsonObject { put("disabled", false) })
+            })
+        })
+    }
+
+    // ── V4: "config" + flat + NO speech + NO transcriptions + VAD ──
+    private fun buildV4() = buildJsonObject {
+        put("config", buildJsonObject {
+            put("model", MODEL)
+            put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            put("realtimeInputConfig", buildJsonObject {
+                put("automaticActivityDetection", buildJsonObject { put("disabled", false) })
+            })
+        })
+    }
+
+    // ── V5: "setup" + nested + speechConfig + NO transcriptions + VAD ──
+    // (Изолирует: transcriptions{} ломают или нет?)
+    private fun buildV5() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL)
+            put("generationConfig", buildJsonObject {
+                put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+                put("speechConfig", buildJsonObject {
+                    put("voiceConfig", buildJsonObject {
+                        put("prebuiltVoiceConfig", buildJsonObject {
+                            put("voiceName", "Aoede")
+                        })
+                    })
+                })
+            })
+            put("realtimeInputConfig", buildJsonObject {
+                put("automaticActivityDetection", buildJsonObject { put("disabled", false) })
+            })
+        })
+    }
+
+    // ── V6: "setup" + nested + NO speech + transcriptions{} + VAD ──
+    // (Изолирует: speechConfig ломает или нет?)
+    private fun buildV6() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL)
+            put("generationConfig", buildJsonObject {
+                put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            })
+            put("inputAudioTranscription", buildJsonObject {})
+            put("outputAudioTranscription", buildJsonObject {})
+            put("realtimeInputConfig", buildJsonObject {
+                put("automaticActivityDetection", buildJsonObject { put("disabled", false) })
+            })
+        })
+    }
+
+    // ── V7: "config" + flat + NO speech + AUDIO+TEXT + transcriptions{} + VAD ──
+    // (Gemini 3.1: нужен "TEXT" для транскрипций?)
+    private fun buildV7() = buildJsonObject {
+        put("config", buildJsonObject {
+            put("model", MODEL)
+            put("responseModalities", buildJsonArray {
+                add(JsonPrimitive("AUDIO"))
+                add(JsonPrimitive("TEXT"))
+            })
+            put("inputAudioTranscription", buildJsonObject {})
+            put("outputAudioTranscription", buildJsonObject {})
+            put("realtimeInputConfig", buildJsonObject {
+                put("automaticActivityDetection", buildJsonObject { put("disabled", false) })
+            })
+        })
+    }
+
+    // ── V8: "setup" + nested + NO speech + AUDIO+TEXT + NO transcriptions + VAD ──
+    private fun buildV8() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL)
+            put("generationConfig", buildJsonObject {
+                put("responseModalities", buildJsonArray {
+                    add(JsonPrimitive("AUDIO"))
+                    add(JsonPrimitive("TEXT"))
+                })
+            })
+            put("realtimeInputConfig", buildJsonObject {
+                put("automaticActivityDetection", buildJsonObject { put("disabled", false) })
+            })
+        })
+    }
+
+    // V9 = buildV3() JSON + pingInterval (разница только в OkHttpClient)
+    // V10 = buildV4() JSON + pingInterval (разница только в OkHttpClient)
+
+    // ── V11: АБСОЛЮТНЫЙ МИНИМУМ — только model + AUDIO, ничего больше ──
+    // (Тест: работает ли сервер с голым setup вообще?)
+    private fun buildV11() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL)
+            put("generationConfig", buildJsonObject {
+                put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            })
+        })
+    }
+
+    // V12 = buildV11() JSON + pingInterval (разница только в OkHttpClient)
+
     // ====================================================================
-    //  3. CLIENT MESSAGES — audio, text, toolResponse, context
+    //  3. CLIENT MESSAGES
     // ====================================================================
 
     private fun sendAudioChunk(b64: String) {
@@ -622,57 +667,27 @@ class MainActivity : AppCompatActivity() {
     private fun sendTextMessage(text: String) {
         val state = sessionState.value
         if (state != SessionState.Ready && state != SessionState.Recording) return
-
         val msg = buildJsonObject {
-            put("realtimeInput", buildJsonObject {
-                put("text", text)
-            })
+            put("realtimeInput", buildJsonObject { put("text", text) })
         }
         val raw = msg.toString()
         log("TEXT → $raw")
         webSocket?.send(raw)
     }
 
-    private fun sendClientContent(text: String, turnComplete: Boolean = true) {
+    private fun sendTurnComplete() {
         val state = sessionState.value
         if (state != SessionState.Ready && state != SessionState.Recording) return
-
         val msg = buildJsonObject {
-            put("clientContent", buildJsonObject {
-                put("turns", buildJsonArray {
-                    add(buildJsonObject {
-                        put("role", "user")
-                        put("parts", buildJsonArray {
-                            add(buildJsonObject { put("text", text) })
-                        })
-                    })
-                })
-                put("turnComplete", turnComplete)
-            })
+            put("clientContent", buildJsonObject { put("turnComplete", true) })
         }
-        val raw = msg.toString()
-        log("CLIENT_CONTENT → $raw")
-        webSocket?.send(raw)
+        webSocket?.send(msg.toString())
+        log("→ turnComplete")
     }
 
-    /**
-     * ═══════════════════════════════════════════════════════════════════
-     *  #18: Восстановление контекста после reconnect (v4)
-     *
-     *  Отправляет накопленную историю разговора через clientContent,
-     *  чтобы модель помнила предыдущий контекст после переподключения.
-     *
-     *  Протокол: clientContent с массивом turns (чередование user/model)
-     *  + turnComplete: true — чтобы модель знала, что контекст загружен.
-     * ═══════════════════════════════════════════════════════════════════
-     */
     private fun restoreConversationContext() {
-        val history = synchronized(conversationHistory) {
-            conversationHistory.toList()
-        }
-
+        val history = synchronized(conversationHistory) { conversationHistory.toList() }
         if (history.isEmpty()) return
-
         val msg = buildJsonObject {
             put("clientContent", buildJsonObject {
                 put("turns", buildJsonArray {
@@ -688,75 +703,23 @@ class MainActivity : AppCompatActivity() {
                 put("turnComplete", true)
             })
         }
-
-        val raw = msg.toString()
-        log("CONTEXT RESTORE → ${history.size} messages (${raw.length} chars)")
-        webSocket?.send(raw)
-    }
-
-    private fun sendToolResponse(functionResponses: List<ToolFunctionResponse>) {
-        val msg = buildJsonObject {
-            put("toolResponse", buildJsonObject {
-                put("functionResponses", buildJsonArray {
-                    for (resp in functionResponses) {
-                        add(buildJsonObject {
-                            put("name", resp.name)
-                            put("id", resp.id)
-                            put("response", buildJsonObject {
-                                put("result", resp.result)
-                            })
-                        })
-                    }
-                })
-            })
-        }
-        val raw = msg.toString()
-        log("TOOL_RESPONSE → (${raw.length} chars)")
-        webSocket?.send(raw)
-    }
-
-    private data class ToolFunctionResponse(
-        val name: String,
-        val id: String,
-        val result: String
-    )
-
-    /**
-     * Диспетчер вызовов инструментов.
-     * Добавляйте ветки when для каждой функции из toolDeclarations.
-     */
-    private fun dispatchToolFunction(name: String, args: Map<String, String>): String {
-        return when (name) {
-            // "get_current_time" -> {
-            //     val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-            //     """{"time":"$now"}"""
-            // }
-            // "get_weather" -> {
-            //     val city = args["city"] ?: "Unknown"
-            //     """{"city":"$city","temp":"22°C","condition":"Sunny"}"""
-            // }
-            else -> {
-                log("⚠ Unknown tool function: $name")
-                """{"error":"Function '$name' not implemented"}"""
-            }
-        }
+        log("CONTEXT RESTORE → ${history.size} msgs")
+        webSocket?.send(msg.toString())
     }
 
     // ====================================================================
-    //  4. SERVER MESSAGES — parse & route
+    //  4. SERVER MESSAGES
     // ====================================================================
 
     private fun handleServerMessage(raw: String) {
         try {
             val root = json.parseToJsonElement(raw).jsonObject
 
-            // ─── Setup complete ────────────────────────────────────
             if (root.containsKey("setupComplete")) {
-                log("✓ SETUP COMPLETE")
+                log("✓ SETUP COMPLETE — V$activeVariant WORKS!")
                 sessionState.value = SessionState.Ready
                 setupComplete.complete(Unit)
 
-                // #18: Восстанавливаем контекст после reconnect
                 lifecycleScope.launch(Dispatchers.IO) {
                     restoreConversationContext()
                     delay(300)
@@ -765,49 +728,39 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            // ─── Tool call (#12) ───────────────────────────────────
             root["toolCall"]?.jsonObject?.let { toolCall ->
-                handleToolCall(toolCall)
+                val preview = if (raw.length > 200) raw.take(200) + "…" else raw
+                log("TOOL_CALL: $preview")
                 return
             }
 
-            // ─── Server content ────────────────────────────────────
             val sc = root["serverContent"]?.jsonObject ?: run {
                 if (root.containsKey("goAway")) {
-                    log("GO_AWAY — сервер скоро закроет, сбрасываем счётчик реконнекта")
+                    log("GO_AWAY — server closing session")
                     reconnectAttempt = 0
                 } else {
-                    val preview = if (raw.length > 200) raw.take(200) + "…(${raw.length} chars)" else raw
+                    val preview = if (raw.length > 200) raw.take(200) + "…(${raw.length})" else raw
                     log("SERVER ← $preview")
                 }
                 return
             }
 
-            // ─── Транскрипции + сохранение в историю (#18) ─────────
             sc["inputTranscription"]?.jsonObject
                 ?.get("text")?.jsonPrimitive?.content
                 ?.takeIf { it.isNotBlank() }
-                ?.let { text ->
-                    log("🎤 USER: $text")
-                    addToHistory("user", text)
-                }
+                ?.let { log("🎤 USER: $it"); addToHistory("user", it) }
 
             sc["outputTranscription"]?.jsonObject
                 ?.get("text")?.jsonPrimitive?.content
                 ?.takeIf { it.isNotBlank() }
-                ?.let { text ->
-                    log("🔊 GEMINI: $text")
-                    addToHistory("model", text)
-                }
+                ?.let { log("🔊 GEMINI: $it"); addToHistory("model", it) }
 
-            // ─── Прерывание (barge-in) ─────────────────────────────
             if (sc["interrupted"]?.jsonPrimitive?.booleanOrNull == true) {
-                log("⚡ INTERRUPTED — flushing playback")
+                log("⚡ INTERRUPTED")
                 awaitingPlaybackDrain = false
                 flushPlaybackQueue()
             }
 
-            // ─── Turn complete (#13: плавная остановка) ────────────
             if (sc["turnComplete"]?.jsonPrimitive?.booleanOrNull == true) {
                 log("⏹ TURN COMPLETE")
                 awaitingPlaybackDrain = true
@@ -817,15 +770,11 @@ class MainActivity : AppCompatActivity() {
                 log("✅ GENERATION COMPLETE")
             }
 
-            // ─── Аудио-данные модели ───────────────────────────────
-            val parts = sc["modelTurn"]?.jsonObject
-                ?.get("parts") as? JsonArray ?: return
+            val parts = sc["modelTurn"]?.jsonObject?.get("parts") as? JsonArray ?: return
 
             for (part in parts) {
                 val obj = part.jsonObject
-
                 obj["text"]?.jsonPrimitive?.content?.let { log("MODEL_TEXT: $it") }
-
                 obj["inlineData"]?.jsonObject?.let { inline ->
                     val mime = inline["mimeType"]?.jsonPrimitive?.content.orEmpty()
                     if (mime.startsWith("audio/pcm")) {
@@ -834,7 +783,6 @@ class MainActivity : AppCompatActivity() {
                             awaitingPlaybackDrain = false
                             val sent = audioPlaybackChannel.trySend(pcm)
                             if (sent.isFailure) {
-                                log("⚠ Playback queue full — dropping oldest chunk")
                                 audioPlaybackChannel.tryReceive()
                                 audioPlaybackChannel.trySend(pcm)
                             }
@@ -847,50 +795,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * #12: Обработка toolCall от сервера
-     */
-    private fun handleToolCall(toolCall: kotlinx.serialization.json.JsonObject) {
-        val functionCalls = toolCall["functionCalls"]?.jsonArray ?: run {
-            log("⚠ toolCall without functionCalls")
-            return
-        }
-
-        val responses = mutableListOf<ToolFunctionResponse>()
-
-        for (fc in functionCalls) {
-            val fcObj = fc.jsonObject
-            val name = fcObj["name"]?.jsonPrimitive?.content ?: "unknown"
-            val id = fcObj["id"]?.jsonPrimitive?.content ?: ""
-            val argsObj = fcObj["args"]?.jsonObject
-
-            val args = mutableMapOf<String, String>()
-            argsObj?.forEach { (key, value) ->
-                args[key] = value.jsonPrimitive.content
-            }
-
-            log("🔧 TOOL_CALL: $name($args)")
-            val result = dispatchToolFunction(name, args)
-            log("🔧 TOOL_RESULT: $name → $result")
-
-            responses.add(ToolFunctionResponse(name, id, result))
-        }
-
-        sendToolResponse(responses)
-    }
-
-    /**
-     * #3: flush ТОЛЬКО при barge-in (interrupted)
-     * #13: при turnComplete буфер доигрывает естественно
-     */
     private fun flushPlaybackQueue() {
         while (audioPlaybackChannel.tryReceive().isSuccess) { /* drain */ }
-        isFirstBatch = true  // #21: Чистый pre-buffer для новой генерации после barge-in
-        audioTrack?.apply {
-            pause()
-            flush()
-            play()
-        }
+        isFirstBatch = true
+        audioTrack?.apply { pause(); flush(); play() }
     }
 
     // ====================================================================
@@ -914,11 +822,8 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == AUDIO_PERMISSION_CODE) {
-            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-                startRecording()
-            } else {
-                Toast.makeText(this, "Microphone permission required", Toast.LENGTH_SHORT).show()
-            }
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startRecording()
+            else Toast.makeText(this, "Microphone permission required", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -929,78 +834,57 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             if (currentState != SessionState.Ready) {
                 log("Waiting for setupComplete…")
-                runCatching { setupComplete.await() }
-                    .onFailure {
-                        log("Setup not completed — cannot record")
-                        return@launch
-                    }
+                runCatching { setupComplete.await() }.onFailure {
+                    log("Setup not completed — cannot record")
+                    return@launch
+                }
             }
             if (sessionState.value != SessionState.Ready) {
-                log("Session no longer ready (${sessionState.value}) — aborting record")
+                log("Session no longer ready — aborting")
                 return@launch
             }
             launchAudioCapture()
         }
     }
 
-    /**
-     * #4: GC — один ByteBuffer переиспользуется
-     * #8: AcousticEchoCanceler — явное включение
-     */
     @Suppress("MissingPermission")
     private fun launchAudioCapture() {
         val minBuf = AudioRecord.getMinBufferSize(
             INPUT_SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
         )
         if (minBuf == AudioRecord.ERROR || minBuf == AudioRecord.ERROR_BAD_VALUE) {
-            log("AudioRecord.getMinBufferSize failed: $minBuf")
-            return
+            log("AudioRecord.getMinBufferSize failed: $minBuf"); return
         }
 
         try {
             val recorder = AudioRecord(
                 MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                INPUT_SAMPLE_RATE,
-                AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT,
-                minBuf * 2
+                INPUT_SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT, minBuf * 2
             )
             if (recorder.state != AudioRecord.STATE_INITIALIZED) {
-                log("AudioRecord init failed")
-                recorder.release()
-                return
+                log("AudioRecord init failed"); recorder.release(); return
             }
 
             if (AcousticEchoCanceler.isAvailable()) {
                 try {
                     echoCanceler = AcousticEchoCanceler.create(recorder.audioSessionId)?.apply {
-                        enabled = true
-                        log("AcousticEchoCanceler enabled (sessionId=${recorder.audioSessionId})")
+                        enabled = true; log("AEC enabled")
                     }
-                } catch (e: Exception) {
-                    log("AEC init error: ${e.message}")
-                }
-            } else {
-                log("AcousticEchoCanceler not available")
+                } catch (e: Exception) { log("AEC error: ${e.message}") }
             }
 
-            try {
-                recorder.startRecording()
-            } catch (e: Exception) {
-                log("AudioRecord.startRecording() failed: ${e.message}")
-                recorder.release()
-                return
+            try { recorder.startRecording() } catch (e: Exception) {
+                log("startRecording failed: ${e.message}"); recorder.release(); return
             }
 
             audioRecord = recorder
             sessionState.value = SessionState.Recording
-            log("🎙 Recording started (buf=$minBuf)")
+            log("🎙 Recording started")
 
             recordJob = lifecycleScope.launch(Dispatchers.IO) {
                 val buffer = ShortArray(minBuf)
-                val byteBuffer = ByteBuffer
-                    .allocate(minBuf * 2)
-                    .order(ByteOrder.LITTLE_ENDIAN)
+                val byteBuffer = ByteBuffer.allocate(minBuf * 2).order(ByteOrder.LITTLE_ENDIAN)
                 val rawBytes = byteBuffer.array()
 
                 while (isActive && sessionState.value == SessionState.Recording) {
@@ -1008,148 +892,84 @@ class MainActivity : AppCompatActivity() {
                     if (read > 0) {
                         byteBuffer.clear()
                         byteBuffer.asShortBuffer().put(buffer, 0, read)
-                        val b64 = Base64.encodeToString(rawBytes, 0, read * 2, Base64.NO_WRAP)
-                        sendAudioChunk(b64)
+                        sendAudioChunk(Base64.encodeToString(rawBytes, 0, read * 2, Base64.NO_WRAP))
                     }
                 }
             }
-        } catch (e: SecurityException) {
-            log("SECURITY: ${e.message}")
-        } catch (e: Exception) {
-            log("AUDIO INIT ERROR: ${e.message}")
-        }
+        } catch (e: SecurityException) { log("SECURITY: ${e.message}")
+        } catch (e: Exception) { log("AUDIO ERROR: ${e.message}") }
     }
 
     private fun stopRecording() {
         if (sessionState.value != SessionState.Recording) return
         releaseAudioRecord()
         if (sessionState.value == SessionState.Disconnected) {
-            log("🎙 Recording stopped (disconnect in progress)")
-            return
+            log("🎙 Stopped (disconnected)"); return
         }
         sendTurnComplete()
         sessionState.value = SessionState.Ready
         log("🎙 Recording stopped")
     }
 
-    private fun sendTurnComplete() {
-        val state = sessionState.value
-        if (state != SessionState.Ready && state != SessionState.Recording) return
-
-        val msg = buildJsonObject {
-            put("clientContent", buildJsonObject {
-                put("turnComplete", true)
-            })
-        }
-        val raw = msg.toString()
-        webSocket?.send(raw)
-        log("→ turnComplete (audio stream stopped)")
-    }
-
     // ====================================================================
     //  6. AUDIO OUTPUT
     // ====================================================================
 
-    /**
-     * #14: Проверка 24kHz
-     * #15 + #16: Jitter pre-buffer с suspend receive()
-     * #13: Плавная остановка по turnComplete
-     */
     private fun startAudioPlaybackLoop() {
         playbackJob = lifecycleScope.launch(Dispatchers.IO) {
-
-            // #14: Проверка поддержки OUTPUT_SAMPLE_RATE
             val minBuf = AudioTrack.getMinBufferSize(
                 OUTPUT_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
             )
             if (minBuf == AudioTrack.ERROR || minBuf == AudioTrack.ERROR_BAD_VALUE) {
-                log("⚠ Device does not support ${OUTPUT_SAMPLE_RATE}Hz output! (minBuf=$minBuf)")
-                return@launch
+                log("⚠ ${OUTPUT_SAMPLE_RATE}Hz not supported (minBuf=$minBuf)"); return@launch
             }
-
-            log("AudioTrack: ${OUTPUT_SAMPLE_RATE}Hz supported (minBuf=$minBuf)")
+            log("AudioTrack: ${OUTPUT_SAMPLE_RATE}Hz OK (minBuf=$minBuf)")
 
             val track = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .build()
-                )
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(OUTPUT_SAMPLE_RATE)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                        .build()
-                )
+                .setAudioAttributes(AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(OUTPUT_SAMPLE_RATE)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
                 .setTransferMode(AudioTrack.MODE_STREAM)
-                .setBufferSizeInBytes(minBuf * 2)
-                .build()
+                .setBufferSizeInBytes(minBuf * 2).build()
 
             audioTrack = track
             track.play()
-            log("Speaker ready (rate=$OUTPUT_SAMPLE_RATE)")
-
-            // #21: isFirstBatch вынесен на уровень класса (сбрасывается в flushPlaybackQueue)
+            log("Speaker ready")
 
             for (chunk in audioPlaybackChannel) {
                 if (!isActive) break
 
-                // ═══════════════════════════════════════════════════
-                //  #15 + #16 + #20: Jitter pre-buffer (FINAL)
-                //
-                //  v3: tryReceive() — non-blocking, получал 1 чанк
-                //  v4: receive() — suspend, но зависал навечно при
-                //      коротких ответах ("Ок" = 2 чанка, 3-го нет)
-                //  v5: withTimeoutOrNull(150ms) — ждёт до 150мс,
-                //      если чанк не пришёл → играем что есть.
-                //
-                //  Gemini 3.1: "Без timeout — deadlock. Без сброса
-                //  isFirstBatch в flush — audio bleed при barge-in."
-                // ═══════════════════════════════════════════════════
                 if (isFirstBatch) {
                     val preBuffer = mutableListOf(chunk)
                     repeat(JITTER_PRE_BUFFER_CHUNKS - 1) {
                         try {
-                            // #20: withTimeoutOrNull — ждём макс 150мс
-                            // Если ответ короткий и чанков больше нет → не зависаем
-                            val next = withTimeoutOrNull(150L) {
-                                audioPlaybackChannel.receive()
-                            }
-                            if (next != null) {
-                                preBuffer.add(next)
-                            }
-                        } catch (e: ClosedReceiveChannelException) {
-                            return@repeat
-                        } catch (e: Exception) {
-                            return@repeat
-                        }
+                            val next = withTimeoutOrNull(150L) { audioPlaybackChannel.receive() }
+                            if (next != null) preBuffer.add(next)
+                        } catch (_: ClosedReceiveChannelException) { return@repeat
+                        } catch (_: Exception) { return@repeat }
                     }
-
-                    for (buffered in preBuffer) {
-                        track.write(buffered, 0, buffered.size)
-                    }
+                    for (b in preBuffer) track.write(b, 0, b.size)
                     isFirstBatch = false
-                    log("Jitter pre-buffer: ${preBuffer.size} chunks written")
+                    log("Jitter buffer: ${preBuffer.size} chunks")
                 } else {
                     track.write(chunk, 0, chunk.size)
                 }
 
-                // #13: При turnComplete — channel доигрывает, не flush
                 if (awaitingPlaybackDrain && audioPlaybackChannel.isEmpty) {
-                    log("⏹ Playback drained after turnComplete")
+                    log("⏹ Playback drained")
                     awaitingPlaybackDrain = false
-                    isFirstBatch = true  // Следующий ответ → снова pre-buffer
+                    isFirstBatch = true
                 }
             }
         }
     }
 
     private fun releaseAudioTrack() {
-        audioTrack?.let {
-            runCatching { it.stop(); it.release() }
-        }
+        audioTrack?.let { runCatching { it.stop(); it.release() } }
         audioTrack = null
     }
 }
