@@ -217,6 +217,28 @@ class MainActivity : AppCompatActivity() {
             if (root.containsKey("setupComplete")) {
                 isSetupComplete = true
                 writeLog("SETUP COMPLETE!")
+                // Отправляем текст чтобы спровоцировать ответ
+                lifecycleScope.launch(Dispatchers.IO) {
+                    delay(500)
+                    val textMsg = buildJsonObject {
+                        put("clientContent", buildJsonObject {
+                            put("turns", buildJsonArray {
+                                add(buildJsonObject {
+                                    put("role", "user")
+                                    put("parts", buildJsonArray {
+                                        add(buildJsonObject {
+                                            put("text", "Hello, say something")
+                                        })
+                                    })
+                                })
+                            })
+                            put("turnComplete", JsonPrimitive(true))
+                        })
+                    }
+                    val json = jsonSerializer.encodeToString(textMsg)
+                    writeLog("TEXT MSG SENT: $json")
+                    webSocket?.send(json)
+                }
                 return
             }
 
