@@ -12,10 +12,13 @@ import android.os.Bundle
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.codeextractor.app.databinding.ActivityMainBinding
 import kotlinx.coroutines.CompletableDeferred
@@ -88,6 +91,9 @@ class MainActivity : AppCompatActivity() {
 
         /** Базовая задержка реконнекта (мс), множится экспоненциально. */
         private const val RECONNECT_BASE_DELAY_MS = 2_000L
+
+        /** Зелёный для Ready-состояния. */
+        private val COLOR_READY = android.graphics.Color.parseColor("#4CAF50")
     }
 
     // ====================================================================
@@ -146,10 +152,14 @@ class MainActivity : AppCompatActivity() {
     // ====================================================================
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Edge-to-edge ПЕРЕД super.onCreate — Android 16 (API 36) требует.
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
         setupUI()
@@ -175,6 +185,37 @@ class MainActivity : AppCompatActivity() {
     //  UI
     // ====================================================================
 
+    /**
+     * Edge-to-edge insets для Android 16 (API 36).
+     *
+     * S23 Ultra: punch-hole камера → status bar ~110px.
+     * Navigation bar (gesture) → ~48px.
+     *
+     * Header получает top-padding (под status bar).
+     * Controls получают bottom-padding (над navigation bar).
+     * Лог-область не затрагивается — заполняет всё между ними.
+     */
+    private fun setupEdgeToEdgeInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.rootLayout) { _, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val density = resources.displayMetrics.density
+            val pad12 = (12 * density).toInt()  // 12dp → px
+            val pad16 = (16 * density).toInt()  // 16dp → px (горизонтальный)
+
+            // Header: top = status bar + 12dp, сохраняем горизонтальный padding
+            binding.headerLayout.setPadding(
+                pad16, systemBars.top + pad12, pad16, pad12
+            )
+
+            // Controls: bottom = navigation bar + 12dp
+            binding.controlsLayout.setPadding(
+                pad16, pad12, pad16, systemBars.bottom + pad12
+            )
+
+            insets
+        }
+    }
+
     private fun setupUI() {
         binding.startButton.setOnClickListener { requestPermissionAndRecord() }
         binding.stopButton.setOnClickListener { stopRecording() }
@@ -184,22 +225,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Подписка на [sessionState] → обновление UI-индикатора. */
+    /** Подписка на [sessionState] → обновление UI-индикатора + текста. */
     private fun observeState() {
         lifecycleScope.launch {
             sessionState.collectLatest { state ->
-                val (icon, color) = when (state) {
-                    SessionState.Disconnected,
-                    SessionState.Connecting -> android.R.drawable.presence_busy to android.graphics.Color.RED
-
-                    SessionState.Connected -> android.R.drawable.presence_online to android.graphics.Color.YELLOW
-
-                    SessionState.Ready -> android.R.drawable.presence_online to android.graphics.Color.GRAY
-
-                    SessionState.Recording -> android.R.drawable.presence_audio_online to android.graphics.Color.GREEN
+                val (icon, color, label) = when (state) {
+                    SessionState.Disconnected -> Triple(
+                        android.R.drawable.presence_busy,
+                        android.graphics.Color.RED,
+                        "Disconnected"
+                    )
+                    SessionState.Connecting -> Triple(
+                        android.R.drawable.presence_busy,
+                        android.graphics.Color.RED,
+                        "Connecting…"
+                    )
+                    SessionState.Connected -> Triple(
+                        android.R.drawable.presence_online,
+                        android.graphics.Color.YELLOW,
+                        "Setting up…"
+                    )
+                    SessionState.Ready -> Triple(
+                        android.R.drawable.presence_online,
+                        COLOR_READY,
+                        "Ready — press Start"
+                    )
+                    SessionState.Recording -> Triple(
+                        android.R.drawable.presence_audio_online,
+                        android.graphics.Color.GREEN,
+                        "● Recording"
+                    )
                 }
                 binding.statusIndicator.setImageResource(icon)
                 binding.statusIndicator.setColorFilter(color)
+                binding.statusText.text = label
+
+                // Кнопки: Start активна только в Ready, Stop — только в Recording
+                binding.startButton.isEnabled = state == SessionState.Ready
+                binding.stopButton.isEnabled = state == SessionState.Recording
             }
         }
     }
@@ -212,6 +275,11 @@ class MainActivity : AppCompatActivity() {
                 logLines.joinToString("\n")
             }
             binding.chatLog.text = if (text.length > 3000) text.takeLast(3000) else text
+
+            // Авто-скролл вниз
+            binding.logScrollView.post {
+                binding.logScrollView.fullScroll(android.view.View.FOCUS_DOWN)
+            }
         }
     }
 
@@ -333,6 +401,7 @@ class MainActivity : AppCompatActivity() {
         val delayMs = RECONNECT_BASE_DELAY_MS * (1L shl reconnectAttempt)
         reconnectAttempt++
         log("Reconnect #$reconnectAttempt in ${delayMs}ms")
+        reconnectJob?.cancel()
         reconnectJob = lifecycleScope.launch {
             delay(delayMs)
             connectWebSocket()
@@ -460,7 +529,8 @@ class MainActivity : AppCompatActivity() {
             val sc = root["serverContent"]?.jsonObject ?: run {
                 // Может быть usageMetadata, toolCall, goAway и т.д.
                 if (root.containsKey("toolCall")) {
-                    log("TOOL_CALL (not handled): $raw")
+                    val preview = if (raw.length > 200) raw.take(200) + "…" else raw
+                    log("TOOL_CALL (not handled): $preview")
                 } else if (root.containsKey("goAway")) {
                     log("GO_AWAY — сервер скоро закроет, сбрасываем счётчик реконнекта")
                     // Не переподключаемся здесь напрямую — сервер сам закроет WS,
@@ -652,8 +722,12 @@ class MainActivity : AppCompatActivity() {
     private fun stopRecording() {
         if (sessionState.value != SessionState.Recording) return
         releaseAudioRecord()
-        // Уведомляем сервер что аудиопоток закрыт (API ref: audioStreamEnd).
-        // Без этого Auto VAD ждёт тишину → лишний latency перед turnComplete.
+        // Re-check: handleDisconnect() из OkHttp-потока мог уже поставить Disconnected.
+        // Если перезаписать → connectWebSocket() не увидит Disconnected → реконнект сломан.
+        if (sessionState.value == SessionState.Disconnected) {
+            log("🎙 Recording stopped (disconnect in progress)")
+            return
+        }
         sendAudioStreamEnd()
         sessionState.value = SessionState.Ready
         log("🎙 Recording stopped")
@@ -691,7 +765,7 @@ class MainActivity : AppCompatActivity() {
             val track = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build()
                 )
