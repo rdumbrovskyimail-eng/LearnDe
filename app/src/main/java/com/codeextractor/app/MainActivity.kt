@@ -1,7 +1,7 @@
+```kotlin
 package com.codeextractor.app
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
@@ -38,9 +38,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okio.ByteString
 import java.io.BufferedReader
-import java.io.File
-import java.io.FileWriter
 import java.io.InputStreamReader
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -80,10 +79,8 @@ class MainActivity : AppCompatActivity() {
     private val logBuffer = StringBuilder()
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
 
-    // Logcat reader
     private var logcatJob: Job? = null
 
-    // SAF launcher для выбора папки сохранения
     private val saveLogLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain")
     ) { uri: Uri? ->
@@ -121,7 +118,6 @@ class MainActivity : AppCompatActivity() {
     private fun startLogcatCapture() {
         logcatJob = lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Очищаем старый logcat и читаем новый
                 Runtime.getRuntime().exec("logcat -c")
                 val process = Runtime.getRuntime().exec("logcat -v time")
                 val reader = BufferedReader(InputStreamReader(process.inputStream))
@@ -132,7 +128,6 @@ class MainActivity : AppCompatActivity() {
                         synchronized(logBuffer) {
                             logBuffer.appendLine(line)
                         }
-                        // Обновляем UI каждые 50 строк
                         if (logBuffer.count { it == '\n' } % 50 == 0) {
                             updateLogUI()
                         }
@@ -149,7 +144,6 @@ class MainActivity : AppCompatActivity() {
     private fun updateLogUI() {
         lifecycleScope.launch(Dispatchers.Main) {
             val text = synchronized(logBuffer) { logBuffer.toString() }
-            // Показываем последние 3000 символов чтобы не тормозить UI
             val display = if (text.length > 3000) text.takeLast(3000) else text
             binding.chatLog.text = display
         }
@@ -213,13 +207,25 @@ class MainActivity : AppCompatActivity() {
                 updateStatusIndicator()
                 sendInitialSetupMessage()
             }
+
+            // Текстовые сообщения
             override fun onMessage(webSocket: WebSocket, text: String) {
+                writeLog("RAW TEXT: $text")
                 handleIncomingMessage(text)
             }
+
+            // Бинарные сообщения — Gemini отвечает именно так
+            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                val text = bytes.utf8()
+                writeLog("RAW BINARY: $text")
+                handleIncomingMessage(text)
+            }
+
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 writeLog("WebSocket CLOSED: code=$code reason=$reason")
                 handleDisconnect("Closed: $reason")
             }
+
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
                 writeLog("WebSocket FAILURE: ${t.message}")
                 handleDisconnect("Error: ${t.message}")
@@ -289,7 +295,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIncomingMessage(message: String) {
-        writeLog("RAW RECEIVED: $message")
+        writeLog("HANDLING: $message")
         try {
             val root = jsonSerializer.parseToJsonElement(message).jsonObject
 
@@ -487,3 +493,4 @@ class MainActivity : AppCompatActivity() {
         client.dispatcher.executorService.shutdown()
     }
 }
+```
