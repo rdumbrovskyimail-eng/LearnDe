@@ -64,7 +64,7 @@ class MainActivity : AppCompatActivity() {
     private val audioChannel = Channel<ByteArray>(Channel.UNLIMITED)
     private var playbackJob: Job? = null
 
-    private val MODEL = "models/gemini-live-2.5-flash-native-audio"
+    private val MODEL = "models/gemini-2.5-flash-preview-native-audio-dialog"
     private val API_KEY = BuildConfig.GEMINI_API_KEY
     private val HOST = "generativelanguage.googleapis.com"
     private val URL = "wss://$HOST/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$API_KEY"
