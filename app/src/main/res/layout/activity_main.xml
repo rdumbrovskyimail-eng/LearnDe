@@ -8,14 +8,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="16dp"
-        android:gravity="center">
+        android:padding="16dp">
 
         <ImageView
             android:id="@+id/statusIndicator"
             android:layout_width="64dp"
             android:layout_height="64dp"
-            android:layout_marginBottom="32dp"
+            android:layout_gravity="center"
+            android:layout_marginBottom="16dp"
             android:src="@android:drawable/presence_audio_online" />
 
         <LinearLayout
@@ -36,7 +36,15 @@
                 android:id="@+id/stopButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
                 android:text="Stop"
+                style="@style/Widget.Material3.Button.OutlinedButton" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/saveLogButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Save Log"
                 style="@style/Widget.Material3.Button.OutlinedButton" />
 
         </LinearLayout>
@@ -44,12 +52,14 @@
         <TextView
             android:id="@+id/chatLog"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:maxHeight="400dp"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="16dp"
             android:scrollbars="vertical"
             android:background="#f0f0f0"
-            android:padding="8dp" />
+            android:padding="8dp"
+            android:textSize="12sp"
+            android:fontFamily="monospace" />
 
     </LinearLayout>
 
