@@ -18,16 +18,20 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.codeextractor.app.databinding.ActivityMainBinding
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -38,222 +42,339 @@ import okhttp3.Request
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
+/**
+ * Gemini Live API — raw WebSocket (OkHttp) implementation.
+ *
+ * Targeting: AI Studio API keys + v1beta endpoint.
+ * Protocol reference (2026-03-13):
+ *   https://ai.google.dev/api/live
+ *
+ * Audio format:
+ *   Input  — PCM 16-bit LE mono 16 kHz
+ *   Output — PCM 16-bit LE mono 24 kHz
+ */
 class MainActivity : AppCompatActivity() {
+
+    // ====================================================================
+    //  CONSTANTS
+    // ====================================================================
+
+    companion object {
+        private const val TAG = "GeminiLive"
+
+        // Актуальная модель для AI Studio ключей (декабрь 2025 preview)
+        private const val MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
+        private const val HOST = "generativelanguage.googleapis.com"
+        private const val WS_PATH =
+            "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+
+        private const val INPUT_SAMPLE_RATE = 16_000
+        private const val OUTPUT_SAMPLE_RATE = 24_000
+
+        private const val AUDIO_PERMISSION_CODE = 200
+
+        /** Ёмкость очереди воспроизведения — ~64 чанка ≈ нескольких секунд аудио. */
+        private const val PLAYBACK_QUEUE_CAPACITY = 64
+
+        /** Макс. попыток реконнекта. */
+        private const val MAX_RECONNECT_ATTEMPTS = 5
+
+        /** Базовая задержка реконнекта (мс), множится экспоненциально. */
+        private const val RECONNECT_BASE_DELAY_MS = 2_000L
+    }
+
+    // ====================================================================
+    //  SEALED STATE — потокобезопасная машина состояний
+    // ====================================================================
+
+    private sealed interface SessionState {
+        data object Disconnected : SessionState
+        data object Connecting : SessionState
+        data object Connected : SessionState       // WS открыт, setup отправлен
+        data object Ready : SessionState           // setupComplete получен
+        data object Recording : SessionState       // аудио идёт на вход
+    }
+
+    private val sessionState = MutableStateFlow<SessionState>(SessionState.Disconnected)
+
+    // ====================================================================
+    //  FIELDS
+    // ====================================================================
 
     private lateinit var binding: ActivityMainBinding
 
-    private val client = OkHttpClient()
+    private val json = Json { ignoreUnknownKeys = true }
+
+    private val client = OkHttpClient.Builder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)   // WS keep-alive
+        .pingInterval(20, TimeUnit.SECONDS)       // heartbeat
+        .build()
+
     private var webSocket: WebSocket? = null
+    private var setupComplete = CompletableDeferred<Unit>()
 
-    private var isRecording = false
-    private var isConnected = false
-    private var isSetupComplete = false
-
+    // Audio record
     private var audioRecord: AudioRecord? = null
     private var recordJob: Job? = null
 
+    // Audio playback
     private var audioTrack: AudioTrack? = null
-    private val audioChannel = Channel<ByteArray>(Channel.UNLIMITED)
+    private val audioPlaybackChannel = Channel<ByteArray>(PLAYBACK_QUEUE_CAPACITY)
     private var playbackJob: Job? = null
 
-    private val MODEL = "models/gemini-2.5-flash-preview-native-audio-dialog"
-    private val API_KEY = BuildConfig.GEMINI_API_KEY
-    private val HOST = "generativelanguage.googleapis.com"
-    private val URL = "wss://$HOST/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$API_KEY"
+    // Reconnect
+    private var reconnectAttempt = 0
+    private var reconnectJob: Job? = null
 
-    private val AUDIO_REQUEST_CODE = 200
-    private val INPUT_SAMPLE_RATE = 16000
-    private val OUTPUT_SAMPLE_RATE = 24000
-
-    private val jsonSerializer = Json { ignoreUnknownKeys = true }
-
-    private val logBuffer = StringBuilder()
-    private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
-
-    private var logcatJob: Job? = null
+    // Logging
+    private val logLines = ArrayDeque<String>(500)
+    private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
     private val saveLogLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain")
-    ) { uri: Uri? ->
-        uri?.let { saveLogToUri(it) }
-    }
+    ) { uri: Uri? -> uri?.let { saveLogToUri(it) } }
+
+    // ====================================================================
+    //  LIFECYCLE
+    // ====================================================================
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        writeLog("=== APP STARTED ===")
-        startLogcatCapture()
+        log("=== APP STARTED ===")
 
         setupUI()
+        observeState()
         startAudioPlaybackLoop()
         connectWebSocket()
+    }
 
-        lifecycleScope.launch {
-            writeLog("Auto-start scheduled in 10 seconds")
-            delay(10_000)
-            writeLog("Auto-starting audio input...")
-            startAudioInput()
+    override fun onDestroy() {
+        super.onDestroy()
+        reconnectJob?.cancel()
+        releaseAudioRecord()
+        // Закрываем канал ПЕРВЫМ — for-loop в playbackJob выйдет штатно,
+        // иначе корутина может зависнуть внутри track.write() после cancel.
+        audioPlaybackChannel.close()
+        playbackJob?.cancel()
+        releaseAudioTrack()
+        disconnectWebSocket()
+        client.dispatcher.cancelAll()
+    }
 
-            delay(40_000)
-            writeLog("=== AUTO-STOP AFTER 40 SECONDS ===")
-            stopAudioInput()
+    // ====================================================================
+    //  UI
+    // ====================================================================
+
+    private fun setupUI() {
+        binding.startButton.setOnClickListener { requestPermissionAndRecord() }
+        binding.stopButton.setOnClickListener { stopRecording() }
+        binding.saveLogButton.setOnClickListener {
+            val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
+            saveLogLauncher.launch("gemini_log_$ts.txt")
         }
     }
 
-    // ==========================================
-    // LOGCAT CAPTURE
-    // ==========================================
+    /** Подписка на [sessionState] → обновление UI-индикатора. */
+    private fun observeState() {
+        lifecycleScope.launch {
+            sessionState.collectLatest { state ->
+                val (icon, color) = when (state) {
+                    SessionState.Disconnected,
+                    SessionState.Connecting -> android.R.drawable.presence_busy to android.graphics.Color.RED
 
-    private fun startLogcatCapture() {
-        logcatJob = lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                Runtime.getRuntime().exec("logcat -c")
-                val process = Runtime.getRuntime().exec("logcat -v time")
-                val reader = BufferedReader(InputStreamReader(process.inputStream))
-                var line: String?
-                while (isActive) {
-                    line = reader.readLine()
-                    if (line != null) {
-                        synchronized(logBuffer) {
-                            logBuffer.appendLine(line)
-                        }
-                        if (logBuffer.count { it == '\n' } % 50 == 0) {
-                            updateLogUI()
-                        }
-                    }
+                    SessionState.Connected -> android.R.drawable.presence_online to android.graphics.Color.YELLOW
+
+                    SessionState.Ready -> android.R.drawable.presence_online to android.graphics.Color.GRAY
+
+                    SessionState.Recording -> android.R.drawable.presence_audio_online to android.graphics.Color.GREEN
                 }
-                reader.close()
-                process.destroy()
-            } catch (e: Exception) {
-                writeLog("Logcat capture error: ${e.message}")
+                binding.statusIndicator.setImageResource(icon)
+                binding.statusIndicator.setColorFilter(color)
             }
         }
     }
 
-    private fun updateLogUI() {
+    private fun appendLogToUI(line: String) {
         lifecycleScope.launch(Dispatchers.Main) {
-            val text = synchronized(logBuffer) { logBuffer.toString() }
-            val display = if (text.length > 3000) text.takeLast(3000) else text
-            binding.chatLog.text = display
+            val text = synchronized(logLines) {
+                logLines.addLast(line)
+                while (logLines.size > 500) logLines.removeFirst()
+                logLines.joinToString("\n")
+            }
+            binding.chatLog.text = if (text.length > 3000) text.takeLast(3000) else text
         }
     }
 
-    // ==========================================
-    // LOG WRITING & SAVING
-    // ==========================================
+    // ====================================================================
+    //  LOGGING
+    // ====================================================================
 
-    private fun writeLog(message: String) {
-        val timestamp = timeFormat.format(Date())
-        val line = "[$timestamp] $message"
-        Log.d("GeminiLog", line)
+    private fun log(msg: String) {
+        val line = "[${timeFormat.format(Date())}] $msg"
+        Log.d(TAG, line)
+        appendLogToUI(line)
     }
 
     private fun saveLogToUri(uri: Uri) {
         lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                contentResolver.openOutputStream(uri)?.use { outputStream ->
-                    val text = synchronized(logBuffer) { logBuffer.toString() }
-                    outputStream.write(text.toByteArray())
+            runCatching {
+                contentResolver.openOutputStream(uri)?.use { out ->
+                    val text = synchronized(logLines) { logLines.joinToString("\n") }
+                    out.write(text.toByteArray())
                 }
-                lifecycleScope.launch(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Log saved!", Toast.LENGTH_SHORT).show()
-                }
-                writeLog("Log saved via SAF")
-            } catch (e: Exception) {
-                writeLog("Save error: ${e.message}")
-                lifecycleScope.launch(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
+                log("Log saved")
+            }.onFailure { log("Save error: ${it.message}") }
         }
     }
 
-    // ==========================================
-    // UI SETUP
-    // ==========================================
+    // ====================================================================
+    //  1. WEBSOCKET
+    // ====================================================================
 
-    private fun setupUI() {
-        updateStatusIndicator()
-        binding.startButton.setOnClickListener { checkRecordAudioPermission() }
-        binding.stopButton.setOnClickListener { stopAudioInput() }
-        binding.saveLogButton.setOnClickListener {
-            val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
-            saveLogLauncher.launch("gemini_log_$timestamp.txt")
-        }
+    private fun buildWsUrl(): String {
+        val key = BuildConfig.GEMINI_API_KEY
+        return "wss://$HOST/$WS_PATH?key=$key"
     }
-
-    // ==========================================
-    // 1. WEBSOCKET & OKHTTP
-    // ==========================================
 
     private fun connectWebSocket() {
-        writeLog("Connecting to WebSocket: $URL")
-        val request = Request.Builder().url(URL).build()
+        if (sessionState.value != SessionState.Disconnected) return
+        sessionState.value = SessionState.Connecting
+
+        // Завершаем старый deferred ошибкой — любая корутина,
+        // ждущая setupComplete.await(), выйдет через runCatching.onFailure.
+        setupComplete.completeExceptionally(
+            kotlinx.coroutines.CancellationException("Session reset")
+        )
+        setupComplete = CompletableDeferred()
+
+        log("Connecting…")
+        val request = Request.Builder().url(buildWsUrl()).build()
+
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
-                writeLog("WebSocket OPENED: ${response.code}")
-                isConnected = true
-                updateStatusIndicator()
-                sendInitialSetupMessage()
+
+            override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
+                log("WS opened (${response.code})")
+                sessionState.value = SessionState.Connected
+                reconnectAttempt = 0
+                sendSetup()
             }
 
-            // Текстовые сообщения
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                writeLog("RAW TEXT: $text")
-                handleIncomingMessage(text)
+            override fun onMessage(ws: WebSocket, text: String) {
+                handleServerMessage(text)
             }
 
-            // Бинарные сообщения — Gemini отвечает именно так
-            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                val text = bytes.utf8()
-                writeLog("RAW BINARY: $text")
-                handleIncomingMessage(text)
+            override fun onMessage(ws: WebSocket, bytes: ByteString) {
+                // Gemini Live API отвечает текстовыми фреймами (JSON).
+                // Бинарный фрейм — аномалия; пробуем прочитать как UTF-8.
+                log("BINARY frame ${bytes.size} bytes")
+                handleServerMessage(bytes.utf8())
             }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                writeLog("WebSocket CLOSED: code=$code reason=$reason")
-                handleDisconnect("Closed: $reason")
+            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                log("WS closed: $code $reason")
+                handleDisconnect()
             }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
-                writeLog("WebSocket FAILURE: ${t.message}")
-                handleDisconnect("Error: ${t.message}")
+            override fun onFailure(ws: WebSocket, t: Throwable, response: okhttp3.Response?) {
+                log("WS failure: ${t.message}")
+                handleDisconnect()
             }
         })
     }
 
-    private fun handleDisconnect(reason: String) {
-        writeLog("DISCONNECT: $reason")
-        isConnected = false
-        isSetupComplete = false
-        stopAudioInput()
-        updateStatusIndicator()
-        lifecycleScope.launch(Dispatchers.Main) {
-            Toast.makeText(this@MainActivity, "Connection lost: $reason", Toast.LENGTH_SHORT).show()
+    private fun disconnectWebSocket() {
+        webSocket?.close(1000, "bye")
+        webSocket = null
+        sessionState.value = SessionState.Disconnected
+    }
+
+    private fun handleDisconnect() {
+        // Остановить запись ДО смены состояния, иначе stopRecording()
+        // увидит state != Recording и выйдет без очистки ресурсов.
+        releaseAudioRecord()
+        sessionState.value = SessionState.Disconnected
+        scheduleReconnect()
+    }
+
+    /** Безусловная очистка AudioRecord (без проверки state). Thread-safe. */
+    @Synchronized
+    private fun releaseAudioRecord() {
+        recordJob?.cancel()
+        recordJob = null
+        audioRecord?.let {
+            runCatching {
+                it.stop()
+                it.release()
+            }
+        }
+        audioRecord = null
+    }
+
+    // ---- Exponential-backoff reconnect --------------------------------
+
+    private fun scheduleReconnect() {
+        if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+            log("Max reconnect attempts reached")
+            lifecycleScope.launch(Dispatchers.Main) {
+                Toast.makeText(this@MainActivity, "Connection lost", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        val delayMs = RECONNECT_BASE_DELAY_MS * (1L shl reconnectAttempt)
+        reconnectAttempt++
+        log("Reconnect #$reconnectAttempt in ${delayMs}ms")
+        reconnectJob = lifecycleScope.launch {
+            delay(delayMs)
+            connectWebSocket()
         }
     }
 
-    private fun sendInitialSetupMessage() {
-        val setupMsg = buildJsonObject {
-            put("config", buildJsonObject {
+    // ====================================================================
+    //  2. SETUP — BidiGenerateContentSetup
+    // ====================================================================
+
+    /**
+     * Первое сообщение после WS open.
+     *
+     * Формат «setup» — формальный ключ из API reference (2026-03-13).
+     * `responseModalities`, `speechConfig` вложены в `generationConfig`.
+     *
+     * ⚠ FALLBACK: если сервер не принимает «setup», попробовать «config» —
+     * альтернативный формат из getting started guide, где responseModalities
+     * лежат на верхнем уровне config (без generationConfig обёртки):
+     *
+     *   {"config": {"model": "...", "responseModalities": ["AUDIO"], ...}}
+     */
+    private fun sendSetup() {
+        val msg = buildJsonObject {
+            put("setup", buildJsonObject {
                 put("model", MODEL)
-                put("responseModalities", buildJsonArray {
-                    add(JsonPrimitive("AUDIO"))
+                put("generationConfig", buildJsonObject {
+                    put("responseModalities", buildJsonArray {
+                        add(JsonPrimitive("AUDIO"))
+                    })
+                    put("speechConfig", buildJsonObject {
+                        put("voiceConfig", buildJsonObject {
+                            put("prebuiltVoiceConfig", buildJsonObject {
+                                put("voiceName", "Kore")
+                            })
+                        })
+                    })
                 })
-                put("speechConfig", buildJsonObject {
-                    put("voiceConfig", buildJsonObject {
-                        put("prebuiltVoiceConfig", buildJsonObject {
-                            put("voiceName", "Kore")
+                put("systemInstruction", buildJsonObject {
+                    put("parts", buildJsonArray {
+                        add(buildJsonObject {
+                            put("text", "You are a helpful voice assistant. Respond concisely.")
                         })
                     })
                 })
@@ -261,163 +382,313 @@ class MainActivity : AppCompatActivity() {
                 put("outputAudioTranscription", buildJsonObject {})
             })
         }
-        val json = jsonSerializer.encodeToString(setupMsg)
-        writeLog("SETUP SENT: $json")
-        webSocket?.send(json)
+        val raw = json.encodeToString(msg)
+        log("SETUP → (${raw.length} chars)")
+        webSocket?.send(raw)
     }
 
-    private fun sendMediaChunk(b64Data: String) {
-        if (!isConnected || !isSetupComplete) return
+    // ====================================================================
+    //  3. CLIENT MESSAGES — audio, text
+    // ====================================================================
+
+    /**
+     * Аудио-чанк через `realtimeInput.audio` (Blob).
+     *
+     * ‼️ `mediaChunks` DEPRECATED (API ref 2026-03-13).
+     *    Актуальное поле — `audio` (одиночный Blob, не массив).
+     *
+     * Оптимизация: строковый шаблон вместо buildJsonObject + encodeToString
+     * на каждый чанк (~30мс интервал). Снижает GC pressure.
+     */
+    private fun sendAudioChunk(b64: String) {
+        if (sessionState.value != SessionState.Recording) return
+        // b64 гарантированно Base64 NO_WRAP — без спецсимволов JSON, escaping не нужен.
+        val raw = """{"realtimeInput":{"audio":{"data":"$b64","mimeType":"audio/pcm;rate=$INPUT_SAMPLE_RATE"}}}"""
+        webSocket?.send(raw)
+    }
+
+    /**
+     * Текстовое сообщение через `clientContent` + `turnComplete`.
+     *
+     * Используется для однократных фраз (не стриминг текста).
+     * `realtimeInput.text` тоже валиден, но не сигнализирует конец хода.
+     */
+    private fun sendTextMessage(text: String) {
+        val state = sessionState.value
+        if (state != SessionState.Ready && state != SessionState.Recording) return
         val msg = buildJsonObject {
-            put("realtimeInput", buildJsonObject {
-                put("mediaChunks", buildJsonArray {
+            put("clientContent", buildJsonObject {
+                put("turns", buildJsonArray {
                     add(buildJsonObject {
-                        put("mimeType", "audio/pcm;rate=$INPUT_SAMPLE_RATE")
-                        put("data", b64Data)
+                        put("role", "user")
+                        put("parts", buildJsonArray {
+                            add(buildJsonObject { put("text", text) })
+                        })
                     })
                 })
+                put("turnComplete", true)
             })
         }
-        webSocket?.send(jsonSerializer.encodeToString(msg))
+        val raw = json.encodeToString(msg)
+        log("TEXT → $raw")
+        webSocket?.send(raw)
     }
 
-    private fun sendTextMessage(text: String) {
-        if (!isConnected) return
-        val msg = buildJsonObject {
-            put("realtimeInput", buildJsonObject {
-                put("text", text)
-            })
-        }
-        val json = jsonSerializer.encodeToString(msg)
-        writeLog("TEXT SENT: $json")
-        webSocket?.send(json)
-    }
+    // ====================================================================
+    //  4. SERVER MESSAGES — parse & route
+    // ====================================================================
 
-    private fun handleIncomingMessage(message: String) {
-        writeLog("HANDLING: $message")
+    private fun handleServerMessage(raw: String) {
         try {
-            val root = jsonSerializer.parseToJsonElement(message).jsonObject
+            val root = json.parseToJsonElement(raw).jsonObject
 
+            // ---- setupComplete ------------------------------------------
             if (root.containsKey("setupComplete")) {
-                isSetupComplete = true
-                writeLog("SETUP COMPLETE!")
+                log("✓ SETUP COMPLETE")
+                sessionState.value = SessionState.Ready
+                setupComplete.complete(Unit)
+
+                // Отправляем приветствие после небольшой паузы
                 lifecycleScope.launch(Dispatchers.IO) {
-                    delay(500)
+                    delay(300)
                     sendTextMessage("Hello, say something")
                 }
                 return
             }
 
-            val serverContent = root["serverContent"]?.jsonObject ?: return
+            // ---- serverContent ------------------------------------------
+            val sc = root["serverContent"]?.jsonObject ?: run {
+                // Может быть usageMetadata, toolCall, goAway и т.д.
+                if (root.containsKey("toolCall")) {
+                    log("TOOL_CALL (not handled): $raw")
+                } else if (root.containsKey("goAway")) {
+                    log("GO_AWAY — сервер скоро закроет, сбрасываем счётчик реконнекта")
+                    // Не переподключаемся здесь напрямую — сервер сам закроет WS,
+                    // сработает onClosed → handleDisconnect → scheduleReconnect.
+                    // Сбрасываем счётчик, чтобы не штрафовать за server-initiated close.
+                    reconnectAttempt = 0
+                } else {
+                    // Логируем только начало — raw может содержать base64-аудио (100+ КБ)
+                    val preview = if (raw.length > 200) raw.take(200) + "…(${raw.length} chars)" else raw
+                    log("SERVER ← $preview")
+                }
+                return
+            }
 
-            serverContent["inputTranscription"]?.jsonObject?.get("text")
-                ?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
-                ?.let { writeLog("INPUT_TRANSCRIPTION: $it") }
+            // Input transcription
+            sc["inputTranscription"]?.jsonObject
+                ?.get("text")?.jsonPrimitive?.content
+                ?.takeIf { it.isNotBlank() }
+                ?.let { log("🎤 USER: $it") }
 
-            serverContent["outputTranscription"]?.jsonObject?.get("text")
-                ?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
-                ?.let { writeLog("OUTPUT_TRANSCRIPTION: $it") }
+            // Output transcription
+            sc["outputTranscription"]?.jsonObject
+                ?.get("text")?.jsonPrimitive?.content
+                ?.takeIf { it.isNotBlank() }
+                ?.let { log("🔊 GEMINI: $it") }
 
-            val parts = serverContent["modelTurn"]?.jsonObject
+            // Interrupted
+            if (sc["interrupted"]?.jsonPrimitive?.booleanOrNull == true) {
+                log("⚡ INTERRUPTED — flushing playback")
+                flushPlaybackQueue()
+            }
+
+            // Turn complete
+            if (sc["turnComplete"]?.jsonPrimitive?.booleanOrNull == true) {
+                log("⏹ TURN COMPLETE")
+            }
+
+            // Generation complete
+            if (sc["generationComplete"]?.jsonPrimitive?.booleanOrNull == true) {
+                log("✅ GENERATION COMPLETE")
+            }
+
+            // Model turn → audio / text parts
+            val parts = sc["modelTurn"]?.jsonObject
                 ?.get("parts") as? JsonArray ?: return
 
             for (part in parts) {
-                val partObj = part.jsonObject
-                partObj["text"]?.jsonPrimitive?.content?.let {
-                    writeLog("MODEL_TEXT: $it")
-                }
-                partObj["inlineData"]?.jsonObject?.let { inlineData ->
-                    val mime = inlineData["mimeType"]?.jsonPrimitive?.content ?: ""
+                val obj = part.jsonObject
+
+                // Текстовый part (редко при AUDIO modality)
+                obj["text"]?.jsonPrimitive?.content?.let { log("MODEL_TEXT: $it") }
+
+                // Audio part → decode & enqueue
+                obj["inlineData"]?.jsonObject?.let { inline ->
+                    val mime = inline["mimeType"]?.jsonPrimitive?.content.orEmpty()
                     if (mime.startsWith("audio/pcm")) {
-                        writeLog("AUDIO_CHUNK received mime=$mime")
-                        inlineData["data"]?.jsonPrimitive?.content?.let { b64 ->
-                            audioChannel.trySend(Base64.decode(b64, Base64.DEFAULT))
+                        inline["data"]?.jsonPrimitive?.content?.let { b64 ->
+                            val pcm = Base64.decode(b64, Base64.DEFAULT)
+                            val sent = audioPlaybackChannel.trySend(pcm)
+                            if (sent.isFailure) {
+                                log("⚠ Playback queue full — dropping oldest chunk")
+                                audioPlaybackChannel.tryReceive()   // drop oldest
+                                audioPlaybackChannel.trySend(pcm)   // retry
+                            }
                         }
                     }
                 }
             }
         } catch (e: Exception) {
-            writeLog("PARSE ERROR: ${e.message}")
+            log("PARSE ERROR: ${e.message}")
         }
     }
 
-    // ==========================================
-    // 2. AUDIO INPUT
-    // ==========================================
+    /** Очищаем очередь воспроизведения (при barge-in / interrupted). */
+    private fun flushPlaybackQueue() {
+        while (audioPlaybackChannel.tryReceive().isSuccess) { /* drain */ }
+        audioTrack?.flush()
+    }
 
-    private fun checkRecordAudioPermission() {
+    // ====================================================================
+    //  5. AUDIO INPUT (запись с микрофона)
+    // ====================================================================
+
+    private fun requestPermissionAndRecord() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
             ActivityCompat.requestPermissions(
-                this, arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_REQUEST_CODE
+                this, arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_PERMISSION_CODE
             )
         } else {
-            startAudioInput()
+            startRecording()
         }
     }
 
-    private fun startAudioInput() {
-        if (isRecording) return
-        val minBuffer = AudioRecord.getMinBufferSize(
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == AUDIO_PERMISSION_CODE) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                startRecording()
+            } else {
+                Toast.makeText(this, "Microphone permission required", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun startRecording() {
+        val currentState = sessionState.value
+        if (currentState == SessionState.Recording) return
+
+        // Ждём setupComplete — без таймеров!
+        lifecycleScope.launch {
+            if (currentState != SessionState.Ready) {
+                log("Waiting for setupComplete…")
+                runCatching { setupComplete.await() }
+                    .onFailure {
+                        log("Setup not completed — cannot record")
+                        return@launch
+                    }
+            }
+            // Перепроверяем состояние: WS мог упасть пока ждали.
+            if (sessionState.value != SessionState.Ready) {
+                log("Session no longer ready (${sessionState.value}) — aborting record")
+                return@launch
+            }
+            launchAudioCapture()
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private fun launchAudioCapture() {
+        val minBuf = AudioRecord.getMinBufferSize(
             INPUT_SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
         )
+        if (minBuf == AudioRecord.ERROR || minBuf == AudioRecord.ERROR_BAD_VALUE) {
+            log("AudioRecord.getMinBufferSize failed: $minBuf")
+            return
+        }
+
         try {
-            audioRecord = AudioRecord(
+            val recorder = AudioRecord(
                 MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                 INPUT_SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
-                minBuffer
+                minBuf * 2  // двойной буфер для стабильности
             )
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                writeLog("AudioRecord init failed")
-                throw IllegalStateException("AudioRecord init failed")
+            if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+                log("AudioRecord init failed")
+                recorder.release()
+                return
             }
-            audioRecord?.startRecording()
-            isRecording = true
-            writeLog("AudioRecord started, minBuffer=$minBuffer")
-            updateStatusIndicator()
+
+            try {
+                recorder.startRecording()
+            } catch (e: Exception) {
+                log("AudioRecord.startRecording() failed: ${e.message}")
+                recorder.release()
+                return
+            }
+
+            audioRecord = recorder
+            sessionState.value = SessionState.Recording
+            log("🎙 Recording started (buf=$minBuf)")
 
             recordJob = lifecycleScope.launch(Dispatchers.IO) {
-                val buffer = ShortArray(minBuffer)
-                while (isActive && isRecording) {
-                    val readSize = audioRecord?.read(buffer, 0, buffer.size) ?: 0
-                    if (readSize > 0) {
-                        val byteBuffer = ByteBuffer.allocate(readSize * 2).order(ByteOrder.LITTLE_ENDIAN)
-                        for (i in 0 until readSize) { byteBuffer.putShort(buffer[i]) }
-                        val base64 = Base64.encodeToString(byteBuffer.array(), Base64.NO_WRAP)
-                        sendMediaChunk(base64)
+                val buffer = ShortArray(minBuf)
+                while (isActive && sessionState.value == SessionState.Recording) {
+                    val read = recorder.read(buffer, 0, buffer.size)
+                    if (read > 0) {
+                        val bytes = ByteBuffer
+                            .allocate(read * 2)
+                            .order(ByteOrder.LITTLE_ENDIAN)
+                            .apply { for (i in 0 until read) putShort(buffer[i]) }
+                            .array()
+                        sendAudioChunk(Base64.encodeToString(bytes, Base64.NO_WRAP))
                     }
                 }
             }
         } catch (e: SecurityException) {
-            writeLog("SECURITY ERROR: ${e.message}")
+            log("SECURITY: ${e.message}")
         } catch (e: Exception) {
-            writeLog("AUDIO ERROR: ${e.message}")
+            log("AUDIO INIT ERROR: ${e.message}")
         }
     }
 
-    private fun stopAudioInput() {
-        isRecording = false
-        recordJob?.cancel()
-        audioRecord?.stop()
-        audioRecord?.release()
-        audioRecord = null
-        writeLog("AudioRecord stopped")
-        updateStatusIndicator()
+    private fun stopRecording() {
+        if (sessionState.value != SessionState.Recording) return
+        releaseAudioRecord()
+        // Уведомляем сервер что аудиопоток закрыт (API ref: audioStreamEnd).
+        // Без этого Auto VAD ждёт тишину → лишний latency перед turnComplete.
+        sendAudioStreamEnd()
+        sessionState.value = SessionState.Ready
+        log("🎙 Recording stopped")
     }
 
-    // ==========================================
-    // 3. AUDIO OUTPUT
-    // ==========================================
+    /**
+     * Сигнал серверу что микрофон выключен.
+     *
+     * API ref: "Indicates that the audio stream has ended.
+     * This should only be sent when automatic activity detection is enabled
+     * (which is the default). The client can reopen the stream by sending
+     * an audio message."
+     */
+    private fun sendAudioStreamEnd() {
+        val state = sessionState.value
+        if (state != SessionState.Ready && state != SessionState.Recording) return
+        val raw = """{"realtimeInput":{"audioStreamEnd":true}}"""
+        webSocket?.send(raw)
+        log("→ audioStreamEnd")
+    }
+
+    // ====================================================================
+    //  6. AUDIO OUTPUT (воспроизведение)
+    // ====================================================================
 
     private fun startAudioPlaybackLoop() {
         playbackJob = lifecycleScope.launch(Dispatchers.IO) {
-            val minBuffer = AudioTrack.getMinBufferSize(
+            val minBuf = AudioTrack.getMinBufferSize(
                 OUTPUT_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
             )
-            audioTrack = AudioTrack.Builder()
+            if (minBuf == AudioTrack.ERROR || minBuf == AudioTrack.ERROR_BAD_VALUE) {
+                log("AudioTrack.getMinBufferSize failed: $minBuf")
+                return@launch
+            }
+            val track = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -432,63 +703,27 @@ class MainActivity : AppCompatActivity() {
                         .build()
                 )
                 .setTransferMode(AudioTrack.MODE_STREAM)
-                .setBufferSizeInBytes(minBuffer)
+                .setBufferSizeInBytes(minBuf * 2)
                 .build()
 
-            audioTrack?.play()
+            audioTrack = track
+            track.play()
+            log("Speaker ready (rate=$OUTPUT_SAMPLE_RATE)")
 
-            for (audioChunk in audioChannel) {
+            for (chunk in audioPlaybackChannel) {
                 if (!isActive) break
-                audioTrack?.write(audioChunk, 0, audioChunk.size)
+                track.write(chunk, 0, chunk.size)
             }
         }
     }
 
-    // ==========================================
-    // 4. UI & LIFECYCLE
-    // ==========================================
-
-    private fun updateStatusIndicator() {
-        lifecycleScope.launch(Dispatchers.Main) {
-            when {
-                !isConnected -> {
-                    binding.statusIndicator.setImageResource(android.R.drawable.presence_busy)
-                    binding.statusIndicator.setColorFilter(android.graphics.Color.RED)
-                }
-                isRecording -> {
-                    binding.statusIndicator.setImageResource(android.R.drawable.presence_audio_online)
-                    binding.statusIndicator.setColorFilter(android.graphics.Color.GREEN)
-                }
-                else -> {
-                    binding.statusIndicator.setImageResource(android.R.drawable.presence_audio_online)
-                    binding.statusIndicator.setColorFilter(android.graphics.Color.GRAY)
-                }
+    private fun releaseAudioTrack() {
+        audioTrack?.let {
+            runCatching {
+                it.stop()
+                it.release()
             }
         }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == AUDIO_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startAudioInput()
-            } else {
-                Toast.makeText(this, "Audio permission is required", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        logcatJob?.cancel()
-        stopAudioInput()
-        playbackJob?.cancel()
-        audioTrack?.stop()
-        audioTrack?.release()
-        audioChannel.close()
-        webSocket?.close(1000, "Activity destroyed")
-        client.dispatcher.executorService.shutdown()
+        audioTrack = null
     }
 }
