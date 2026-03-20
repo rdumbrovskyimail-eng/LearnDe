@@ -344,22 +344,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ====================================================================
-    //  2. SETUP — BidiGenerateContentSetup
+    //  2. SETUP — вариант 2: ключ "config", плоская структура
     // ====================================================================
 
     private fun sendSetup() {
         val msg = buildJsonObject {
-            put("setup", buildJsonObject {
+            put("config", buildJsonObject {
                 put("model", MODEL)
-                put("generationConfig", buildJsonObject {
-                    put("responseModalities", buildJsonArray {
-                        add(JsonPrimitive("AUDIO"))
-                    })
-                    put("speechConfig", buildJsonObject {
-                        put("voiceConfig", buildJsonObject {
-                            put("prebuiltVoiceConfig", buildJsonObject {
-                                put("voiceName", "Kore")
-                            })
+                put("responseModalities", buildJsonArray {
+                    add(JsonPrimitive("AUDIO"))
+                })
+                put("speechConfig", buildJsonObject {
+                    put("voiceConfig", buildJsonObject {
+                        put("prebuiltVoiceConfig", buildJsonObject {
+                            put("voiceName", "Kore")
                         })
                     })
                 })
