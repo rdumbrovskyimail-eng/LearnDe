@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CodeExtractor"
+rootProject.name = "CopyM"
 include(":app")
