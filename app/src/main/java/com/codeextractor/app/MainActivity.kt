@@ -1,4 +1,3 @@
-```kotlin
 package com.codeextractor.app
 
 import android.Manifest
@@ -493,4 +492,3 @@ class MainActivity : AppCompatActivity() {
         client.dispatcher.executorService.shutdown()
     }
 }
-```
