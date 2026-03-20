@@ -19,6 +19,7 @@ import com.codeextractor.app.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
@@ -34,8 +35,13 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.io.File
+import java.io.FileWriter
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -66,14 +72,60 @@ class MainActivity : AppCompatActivity() {
 
     private val jsonSerializer = Json { ignoreUnknownKeys = true }
 
+    // Лог файл
+    private lateinit var logFile: File
+    private val logBuffer = StringBuilder()
+    private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Инициализация лог файла
+        logFile = File(getExternalFilesDir(null), "gemini_log.txt")
+        writeLog("=== APP STARTED ===")
+
         setupUI()
         startAudioPlaybackLoop()
         connectWebSocket()
+
+        // Автозапуск через 10 секунд
+        lifecycleScope.launch {
+            writeLog("Auto-start scheduled in 10 seconds")
+            delay(10_000)
+            writeLog("Auto-starting audio input...")
+            startAudioInput()
+
+            // Через 40 секунд останавливаем и сохраняем лог
+            delay(40_000)
+            writeLog("=== AUTO-STOP AFTER 40 SECONDS ===")
+            stopAudioInput()
+            saveLogToFile()
+        }
+    }
+
+    private fun writeLog(message: String) {
+        val timestamp = timeFormat.format(Date())
+        val line = "[$timestamp] $message"
+        Log.d("GeminiLog", line)
+        synchronized(logBuffer) {
+            logBuffer.appendLine(line)
+        }
+    }
+
+    private fun saveLogToFile() {
+        try {
+            FileWriter(logFile, false).use { writer ->
+                synchronized(logBuffer) {
+                    writer.write(logBuffer.toString())
+                }
+            }
+            writeLog("Log saved to: ${logFile.absolutePath}")
+            Log.d("GeminiLog", "Log file path: ${logFile.absolutePath}")
+        } catch (e: Exception) {
+            Log.e("GeminiLog", "Failed to save log: ${e.message}")
+        }
     }
 
     private fun setupUI() {
@@ -87,27 +139,32 @@ class MainActivity : AppCompatActivity() {
     // ==========================================
 
     private fun connectWebSocket() {
+        writeLog("Connecting to WebSocket: $URL")
         val request = Request.Builder().url(URL).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
+                writeLog("WebSocket OPENED: ${response.code}")
                 isConnected = true
                 updateStatusIndicator()
                 sendInitialSetupMessage()
             }
             override fun onMessage(webSocket: WebSocket, text: String) {
+                writeLog("RECEIVED: $text")
                 handleIncomingMessage(text)
             }
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                writeLog("WebSocket CLOSED: code=$code reason=$reason")
                 handleDisconnect("Closed: $reason")
             }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
+                writeLog("WebSocket FAILURE: ${t.message}")
                 handleDisconnect("Error: ${t.message}")
             }
         })
     }
 
     private fun handleDisconnect(reason: String) {
-        Log.e("WebSocket", reason)
+        writeLog("DISCONNECT: $reason")
         isConnected = false
         isSetupComplete = false
         stopAudioInput()
@@ -135,8 +192,9 @@ class MainActivity : AppCompatActivity() {
                 })
             })
         }
-        webSocket?.send(jsonSerializer.encodeToString(setupMsg))
-        Log.d("WebSocket", "Setup sent")
+        val json = jsonSerializer.encodeToString(setupMsg)
+        writeLog("SETUP SENT: $json")
+        webSocket?.send(json)
     }
 
     private fun sendMediaChunk(b64Data: String) {
@@ -160,7 +218,7 @@ class MainActivity : AppCompatActivity() {
 
             if (root.containsKey("setupComplete")) {
                 isSetupComplete = true
-                Log.d("WebSocket", "Setup complete!")
+                writeLog("SETUP COMPLETE!")
                 return
             }
 
@@ -168,22 +226,31 @@ class MainActivity : AppCompatActivity() {
 
             serverContent["inputTranscription"]?.jsonObject?.get("text")
                 ?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
-                ?.let { displayMessage("USER: $it") }
+                ?.let {
+                    writeLog("INPUT_TRANSCRIPTION: $it")
+                    displayMessage("USER: $it")
+                }
 
             serverContent["outputTranscription"]?.jsonObject?.get("text")
                 ?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
-                ?.let { displayMessage("GEMINI: $it") }
+                ?.let {
+                    writeLog("OUTPUT_TRANSCRIPTION: $it")
+                    displayMessage("GEMINI: $it")
+                }
 
             val parts = serverContent["modelTurn"]?.jsonObject
                 ?.get("parts") as? JsonArray ?: return
 
             for (part in parts) {
                 val partObj = part.jsonObject
-                partObj["text"]?.jsonPrimitive?.content
-                    ?.let { displayMessage("GEMINI: $it") }
+                partObj["text"]?.jsonPrimitive?.content?.let {
+                    writeLog("MODEL_TEXT: $it")
+                    displayMessage("GEMINI: $it")
+                }
                 partObj["inlineData"]?.jsonObject?.let { inlineData ->
                     val mime = inlineData["mimeType"]?.jsonPrimitive?.content ?: ""
                     if (mime.startsWith("audio/pcm")) {
+                        writeLog("AUDIO_CHUNK received mime=$mime")
                         inlineData["data"]?.jsonPrimitive?.content?.let { b64 ->
                             audioChannel.trySend(Base64.decode(b64, Base64.DEFAULT))
                         }
@@ -191,6 +258,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
+            writeLog("PARSE ERROR: ${e.message}")
             Log.e("Receive", "Error: ${e.message}", e)
         }
     }
@@ -225,10 +293,12 @@ class MainActivity : AppCompatActivity() {
                 minBuffer
             )
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                writeLog("AudioRecord init failed")
                 throw IllegalStateException("AudioRecord init failed")
             }
             audioRecord?.startRecording()
             isRecording = true
+            writeLog("AudioRecord started, minBuffer=$minBuffer")
             updateStatusIndicator()
 
             recordJob = lifecycleScope.launch(Dispatchers.IO) {
@@ -244,8 +314,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: SecurityException) {
+            writeLog("SECURITY ERROR: ${e.message}")
             Log.e("Audio", "Permission denied", e)
         } catch (e: Exception) {
+            writeLog("AUDIO ERROR: ${e.message}")
             Log.e("Audio", "Microphone error: ${e.message}", e)
         }
     }
@@ -256,6 +328,7 @@ class MainActivity : AppCompatActivity() {
         audioRecord?.stop()
         audioRecord?.release()
         audioRecord = null
+        writeLog("AudioRecord stopped")
         updateStatusIndicator()
     }
 
@@ -340,6 +413,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        saveLogToFile()
         stopAudioInput()
         playbackJob?.cancel()
         audioTrack?.stop()
@@ -348,4 +422,3 @@ class MainActivity : AppCompatActivity() {
         webSocket?.close(1000, "Activity destroyed")
         client.dispatcher.executorService.shutdown()
     }
-}
