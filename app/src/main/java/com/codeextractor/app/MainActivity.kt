@@ -181,6 +181,71 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ====================================================================
+    //  TOOL CALLING — data classes + declarations
+    // ====================================================================
+
+    private data class ToolParameter(
+        val name: String,
+        val type: String,         // "string", "integer", "boolean", "number"
+        val description: String,
+        val required: Boolean = true
+    )
+
+    private data class FunctionDeclaration(
+        val name: String,
+        val description: String,
+        val parameters: List<ToolParameter> = emptyList()
+    )
+
+    private data class ToolFunctionResponse(
+        val name: String,
+        val id: String,
+        val result: String
+    )
+
+    /**
+     * Список объявленных функций.
+     * Пустой список → tools не отправляются в setup → toolCall не приходит.
+     */
+    private val toolDeclarations: List<FunctionDeclaration> = listOf(
+        // Раскомментируйте для активации:
+        // FunctionDeclaration(
+        //     name = "get_current_time",
+        //     description = "Returns the current date and time",
+        //     parameters = emptyList()
+        // ),
+        // FunctionDeclaration(
+        //     name = "get_weather",
+        //     description = "Returns weather for a given city",
+        //     parameters = listOf(
+        //         ToolParameter("city", "string", "City name, e.g. 'Berlin'"),
+        //         ToolParameter("units", "string", "celsius or fahrenheit", required = false)
+        //     )
+        // ),
+    )
+
+    /**
+     * Диспетчер вызовов инструментов.
+     * Добавляйте ветки when для каждой функции из toolDeclarations.
+     */
+    private fun dispatchToolFunction(name: String, args: Map<String, String>): String {
+        return when (name) {
+            // "get_current_time" -> {
+            //     val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+            //     """{"time":"$now"}"""
+            // }
+            // "get_weather" -> {
+            //     val city = args["city"] ?: "Unknown"
+            //     """{"city":"$city","temp":"22°C","condition":"Sunny"}"""
+            // }
+            else -> {
+                log("⚠ Unknown tool function: $name")
+                """{"error":"Function '$name' not implemented"}"""
+            }
+        }
+    }
+
+    // ====================================================================
     //  VARIANT DESCRIPTIONS (для UI)
     // ====================================================================
 
@@ -501,6 +566,44 @@ class MainActivity : AppCompatActivity() {
         webSocket?.send(raw)
     }
 
+    /**
+     * Вспомогательный метод: генерирует tools JSON для вставки в setup.
+     * Возвращает null если toolDeclarations пуст.
+     */
+    private fun buildToolsJsonArray() = if (toolDeclarations.isNotEmpty()) {
+        buildJsonArray {
+            add(buildJsonObject {
+                put("functionDeclarations", buildJsonArray {
+                    for (fn in toolDeclarations) {
+                        add(buildJsonObject {
+                            put("name", fn.name)
+                            put("description", fn.description)
+                            if (fn.parameters.isNotEmpty()) {
+                                put("parameters", buildJsonObject {
+                                    put("type", "object")
+                                    put("properties", buildJsonObject {
+                                        for (param in fn.parameters) {
+                                            put(param.name, buildJsonObject {
+                                                put("type", param.type)
+                                                put("description", param.description)
+                                            })
+                                        }
+                                    })
+                                    val required = fn.parameters.filter { it.required }.map { it.name }
+                                    if (required.isNotEmpty()) {
+                                        put("required", buildJsonArray {
+                                            for (r in required) add(JsonPrimitive(r))
+                                        })
+                                    }
+                                })
+                            }
+                        })
+                    }
+                })
+            })
+        }
+    } else null
+
     // ── V1: "setup" + nested + speechConfig + transcriptions{} + VAD ──
     private fun buildV1() = buildJsonObject {
         put("setup", buildJsonObject {
@@ -520,6 +623,7 @@ class MainActivity : AppCompatActivity() {
             put("realtimeInputConfig", buildJsonObject {
                 put("automaticActivityDetection", buildJsonObject { put("disabled", false) })
             })
+            buildToolsJsonArray()?.let { put("tools", it) }
         })
     }
 
@@ -554,6 +658,7 @@ class MainActivity : AppCompatActivity() {
             put("realtimeInputConfig", buildJsonObject {
                 put("automaticActivityDetection", buildJsonObject { put("disabled", false) })
             })
+            buildToolsJsonArray()?.let { put("tools", it) }
         })
     }
 
@@ -685,6 +790,78 @@ class MainActivity : AppCompatActivity() {
         log("→ turnComplete")
     }
 
+    /**
+     * Контекст/история через clientContent (НЕ потоковая отправка).
+     */
+    private fun sendClientContent(text: String, turnComplete: Boolean = true) {
+        val state = sessionState.value
+        if (state != SessionState.Ready && state != SessionState.Recording) return
+        val msg = buildJsonObject {
+            put("clientContent", buildJsonObject {
+                put("turns", buildJsonArray {
+                    add(buildJsonObject {
+                        put("role", "user")
+                        put("parts", buildJsonArray {
+                            add(buildJsonObject { put("text", text) })
+                        })
+                    })
+                })
+                put("turnComplete", turnComplete)
+            })
+        }
+        val raw = msg.toString()
+        log("CLIENT_CONTENT → $raw")
+        webSocket?.send(raw)
+    }
+
+    /**
+     * Отправка toolResponse — ответ на toolCall от сервера.
+     */
+    private fun sendToolResponse(functionResponses: List<ToolFunctionResponse>) {
+        val msg = buildJsonObject {
+            put("toolResponse", buildJsonObject {
+                put("functionResponses", buildJsonArray {
+                    for (resp in functionResponses) {
+                        add(buildJsonObject {
+                            put("name", resp.name)
+                            put("id", resp.id)
+                            put("response", buildJsonObject {
+                                put("result", resp.result)
+                            })
+                        })
+                    }
+                })
+            })
+        }
+        val raw = msg.toString()
+        log("TOOL_RESPONSE → (${raw.length} chars)")
+        webSocket?.send(raw)
+    }
+
+    /**
+     * Обработка toolCall от сервера: выполнить функции → отправить toolResponse.
+     */
+    private fun handleToolCall(toolCall: kotlinx.serialization.json.JsonObject) {
+        val functionCalls = toolCall["functionCalls"]?.jsonArray ?: run {
+            log("⚠ toolCall without functionCalls")
+            return
+        }
+        val responses = mutableListOf<ToolFunctionResponse>()
+        for (fc in functionCalls) {
+            val fcObj = fc.jsonObject
+            val name = fcObj["name"]?.jsonPrimitive?.content ?: "unknown"
+            val id = fcObj["id"]?.jsonPrimitive?.content ?: ""
+            val argsObj = fcObj["args"]?.jsonObject
+            val args = mutableMapOf<String, String>()
+            argsObj?.forEach { (key, value) -> args[key] = value.jsonPrimitive.content }
+            log("🔧 TOOL_CALL: $name($args)")
+            val result = dispatchToolFunction(name, args)
+            log("🔧 TOOL_RESULT: $name → $result")
+            responses.add(ToolFunctionResponse(name, id, result))
+        }
+        sendToolResponse(responses)
+    }
+
     private fun restoreConversationContext() {
         val history = synchronized(conversationHistory) { conversationHistory.toList() }
         if (history.isEmpty()) return
@@ -729,8 +906,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             root["toolCall"]?.jsonObject?.let { toolCall ->
-                val preview = if (raw.length > 200) raw.take(200) + "…" else raw
-                log("TOOL_CALL: $preview")
+                handleToolCall(toolCall)
                 return
             }
 
