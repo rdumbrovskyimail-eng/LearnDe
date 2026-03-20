@@ -52,94 +52,54 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/**
- * Gemini Live API — raw WebSocket (OkHttp) implementation.
- *
- * Targeting: AI Studio API keys + v1beta endpoint.
- * Protocol reference (2026-03-13):
- *   https://ai.google.dev/api/live
- *
- * Audio format:
- *   Input  — PCM 16-bit LE mono 16 kHz
- *   Output — PCM 16-bit LE mono 24 kHz
- */
 class MainActivity : AppCompatActivity() {
-
-    // ====================================================================
-    //  CONSTANTS
-    // ====================================================================
 
     companion object {
         private const val TAG = "GeminiLive"
-
-        // Актуальная модель для AI Studio ключей (декабрь 2025 preview)
         private const val MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
         private const val HOST = "generativelanguage.googleapis.com"
         private const val WS_PATH =
             "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
-
         private const val INPUT_SAMPLE_RATE = 16_000
         private const val OUTPUT_SAMPLE_RATE = 24_000
-
         private const val AUDIO_PERMISSION_CODE = 200
-
-        /** Ёмкость очереди воспроизведения — ~64 чанка ≈ нескольких секунд аудио. */
         private const val PLAYBACK_QUEUE_CAPACITY = 64
-
-        /** Макс. попыток реконнекта. */
         private const val MAX_RECONNECT_ATTEMPTS = 5
-
-        /** Базовая задержка реконнекта (мс), множится экспоненциально. */
         private const val RECONNECT_BASE_DELAY_MS = 2_000L
-
-        /** Зелёный для Ready-состояния. */
         private val COLOR_READY = android.graphics.Color.parseColor("#4CAF50")
     }
-
-    // ====================================================================
-    //  SEALED STATE — потокобезопасная машина состояний
-    // ====================================================================
 
     private sealed interface SessionState {
         data object Disconnected : SessionState
         data object Connecting : SessionState
-        data object Connected : SessionState       // WS открыт, setup отправлен
-        data object Ready : SessionState           // setupComplete получен
-        data object Recording : SessionState       // аудио идёт на вход
+        data object Connected : SessionState
+        data object Ready : SessionState
+        data object Recording : SessionState
     }
 
     private val sessionState = MutableStateFlow<SessionState>(SessionState.Disconnected)
 
-    // ====================================================================
-    //  FIELDS
-    // ====================================================================
-
     private lateinit var binding: ActivityMainBinding
-
     private val json = Json { ignoreUnknownKeys = true }
 
     private val client = OkHttpClient.Builder()
-        .readTimeout(0, TimeUnit.MILLISECONDS)   // WS keep-alive
-        .pingInterval(20, TimeUnit.SECONDS)       // heartbeat
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .pingInterval(20, TimeUnit.SECONDS)
         .build()
 
     private var webSocket: WebSocket? = null
     private var setupComplete = CompletableDeferred<Unit>()
 
-    // Audio record
     private var audioRecord: AudioRecord? = null
     private var recordJob: Job? = null
 
-    // Audio playback
     private var audioTrack: AudioTrack? = null
     private val audioPlaybackChannel = Channel<ByteArray>(PLAYBACK_QUEUE_CAPACITY)
     private var playbackJob: Job? = null
 
-    // Reconnect
     private var reconnectAttempt = 0
     private var reconnectJob: Job? = null
 
-    // Logging
     private val logLines = ArrayDeque<String>(500)
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
@@ -152,7 +112,6 @@ class MainActivity : AppCompatActivity() {
     // ====================================================================
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Edge-to-edge ПЕРЕД super.onCreate — Android 16 (API 36) требует.
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
@@ -172,8 +131,6 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         reconnectJob?.cancel()
         releaseAudioRecord()
-        // Закрываем канал ПЕРВЫМ — for-loop в playbackJob выйдет штатно,
-        // иначе корутина может зависнуть внутри track.write() после cancel.
         audioPlaybackChannel.close()
         playbackJob?.cancel()
         releaseAudioTrack()
@@ -185,29 +142,17 @@ class MainActivity : AppCompatActivity() {
     //  UI
     // ====================================================================
 
-    /**
-     * Edge-to-edge insets для Android 16 (API 36).
-     *
-     * S23 Ultra: punch-hole камера → status bar ~110px.
-     * Navigation bar (gesture) → ~48px.
-     *
-     * Header получает top-padding (под status bar).
-     * Controls получают bottom-padding (над navigation bar).
-     * Лог-область не затрагивается — заполняет всё между ними.
-     */
     private fun setupEdgeToEdgeInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.rootLayout) { _, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val density = resources.displayMetrics.density
-            val pad12 = (12 * density).toInt()  // 12dp → px
-            val pad16 = (16 * density).toInt()  // 16dp → px (горизонтальный)
+            val pad12 = (12 * density).toInt()
+            val pad16 = (16 * density).toInt()
 
-            // Header: top = status bar + 12dp, сохраняем горизонтальный padding
             binding.headerLayout.setPadding(
                 pad16, systemBars.top + pad12, pad16, pad12
             )
 
-            // Controls: bottom = navigation bar + 12dp
             binding.controlsLayout.setPadding(
                 pad16, pad12, pad16, systemBars.bottom + pad12
             )
@@ -225,7 +170,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Подписка на [sessionState] → обновление UI-индикатора + текста. */
     private fun observeState() {
         lifecycleScope.launch {
             sessionState.collectLatest { state ->
@@ -260,7 +204,6 @@ class MainActivity : AppCompatActivity() {
                 binding.statusIndicator.setColorFilter(color)
                 binding.statusText.text = label
 
-                // Кнопки: Start активна только в Ready, Stop — только в Recording
                 binding.startButton.isEnabled = state == SessionState.Ready
                 binding.stopButton.isEnabled = state == SessionState.Recording
             }
@@ -276,7 +219,6 @@ class MainActivity : AppCompatActivity() {
             }
             binding.chatLog.text = if (text.length > 3000) text.takeLast(3000) else text
 
-            // Авто-скролл вниз
             binding.logScrollView.post {
                 binding.logScrollView.fullScroll(android.view.View.FOCUS_DOWN)
             }
@@ -318,8 +260,6 @@ class MainActivity : AppCompatActivity() {
         if (sessionState.value != SessionState.Disconnected) return
         sessionState.value = SessionState.Connecting
 
-        // Завершаем старый deferred ошибкой — любая корутина,
-        // ждущая setupComplete.await(), выйдет через runCatching.onFailure.
         setupComplete.completeExceptionally(
             kotlinx.coroutines.CancellationException("Session reset")
         )
@@ -342,8 +282,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onMessage(ws: WebSocket, bytes: ByteString) {
-                // Gemini Live API отвечает текстовыми фреймами (JSON).
-                // Бинарный фрейм — аномалия; пробуем прочитать как UTF-8.
                 log("BINARY frame ${bytes.size} bytes")
                 handleServerMessage(bytes.utf8())
             }
@@ -367,14 +305,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleDisconnect() {
-        // Остановить запись ДО смены состояния, иначе stopRecording()
-        // увидит state != Recording и выйдет без очистки ресурсов.
         releaseAudioRecord()
         sessionState.value = SessionState.Disconnected
         scheduleReconnect()
     }
 
-    /** Безусловная очистка AudioRecord (без проверки state). Thread-safe. */
     @Synchronized
     private fun releaseAudioRecord() {
         recordJob?.cancel()
@@ -412,18 +347,6 @@ class MainActivity : AppCompatActivity() {
     //  2. SETUP — BidiGenerateContentSetup
     // ====================================================================
 
-    /**
-     * Первое сообщение после WS open.
-     *
-     * Формат «setup» — формальный ключ из API reference (2026-03-13).
-     * `responseModalities`, `speechConfig` вложены в `generationConfig`.
-     *
-     * ⚠ FALLBACK: если сервер не принимает «setup», попробовать «config» —
-     * альтернативный формат из getting started guide, где responseModalities
-     * лежат на верхнем уровне config (без generationConfig обёртки):
-     *
-     *   {"config": {"model": "...", "responseModalities": ["AUDIO"], ...}}
-     */
     private fun sendSetup() {
         val msg = buildJsonObject {
             put("setup", buildJsonObject {
@@ -460,28 +383,12 @@ class MainActivity : AppCompatActivity() {
     //  3. CLIENT MESSAGES — audio, text
     // ====================================================================
 
-    /**
-     * Аудио-чанк через `realtimeInput.audio` (Blob).
-     *
-     * ‼️ `mediaChunks` DEPRECATED (API ref 2026-03-13).
-     *    Актуальное поле — `audio` (одиночный Blob, не массив).
-     *
-     * Оптимизация: строковый шаблон вместо buildJsonObject + encodeToString
-     * на каждый чанк (~30мс интервал). Снижает GC pressure.
-     */
     private fun sendAudioChunk(b64: String) {
         if (sessionState.value != SessionState.Recording) return
-        // b64 гарантированно Base64 NO_WRAP — без спецсимволов JSON, escaping не нужен.
         val raw = """{"realtimeInput":{"audio":{"data":"$b64","mimeType":"audio/pcm;rate=$INPUT_SAMPLE_RATE"}}}"""
         webSocket?.send(raw)
     }
 
-    /**
-     * Текстовое сообщение через `clientContent` + `turnComplete`.
-     *
-     * Используется для однократных фраз (не стриминг текста).
-     * `realtimeInput.text` тоже валиден, но не сигнализирует конец хода.
-     */
     private fun sendTextMessage(text: String) {
         val state = sessionState.value
         if (state != SessionState.Ready && state != SessionState.Recording) return
@@ -511,13 +418,11 @@ class MainActivity : AppCompatActivity() {
         try {
             val root = json.parseToJsonElement(raw).jsonObject
 
-            // ---- setupComplete ------------------------------------------
             if (root.containsKey("setupComplete")) {
                 log("✓ SETUP COMPLETE")
                 sessionState.value = SessionState.Ready
                 setupComplete.complete(Unit)
 
-                // Отправляем приветствие после небольшой паузы
                 lifecycleScope.launch(Dispatchers.IO) {
                     delay(300)
                     sendTextMessage("Hello, say something")
@@ -525,65 +430,51 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            // ---- serverContent ------------------------------------------
             val sc = root["serverContent"]?.jsonObject ?: run {
-                // Может быть usageMetadata, toolCall, goAway и т.д.
                 if (root.containsKey("toolCall")) {
                     val preview = if (raw.length > 200) raw.take(200) + "…" else raw
                     log("TOOL_CALL (not handled): $preview")
                 } else if (root.containsKey("goAway")) {
                     log("GO_AWAY — сервер скоро закроет, сбрасываем счётчик реконнекта")
-                    // Не переподключаемся здесь напрямую — сервер сам закроет WS,
-                    // сработает onClosed → handleDisconnect → scheduleReconnect.
-                    // Сбрасываем счётчик, чтобы не штрафовать за server-initiated close.
                     reconnectAttempt = 0
                 } else {
-                    // Логируем только начало — raw может содержать base64-аудио (100+ КБ)
                     val preview = if (raw.length > 200) raw.take(200) + "…(${raw.length} chars)" else raw
                     log("SERVER ← $preview")
                 }
                 return
             }
 
-            // Input transcription
             sc["inputTranscription"]?.jsonObject
                 ?.get("text")?.jsonPrimitive?.content
                 ?.takeIf { it.isNotBlank() }
                 ?.let { log("🎤 USER: $it") }
 
-            // Output transcription
             sc["outputTranscription"]?.jsonObject
                 ?.get("text")?.jsonPrimitive?.content
                 ?.takeIf { it.isNotBlank() }
                 ?.let { log("🔊 GEMINI: $it") }
 
-            // Interrupted
             if (sc["interrupted"]?.jsonPrimitive?.booleanOrNull == true) {
                 log("⚡ INTERRUPTED — flushing playback")
                 flushPlaybackQueue()
             }
 
-            // Turn complete
             if (sc["turnComplete"]?.jsonPrimitive?.booleanOrNull == true) {
                 log("⏹ TURN COMPLETE")
             }
 
-            // Generation complete
             if (sc["generationComplete"]?.jsonPrimitive?.booleanOrNull == true) {
                 log("✅ GENERATION COMPLETE")
             }
 
-            // Model turn → audio / text parts
             val parts = sc["modelTurn"]?.jsonObject
                 ?.get("parts") as? JsonArray ?: return
 
             for (part in parts) {
                 val obj = part.jsonObject
 
-                // Текстовый part (редко при AUDIO modality)
                 obj["text"]?.jsonPrimitive?.content?.let { log("MODEL_TEXT: $it") }
 
-                // Audio part → decode & enqueue
                 obj["inlineData"]?.jsonObject?.let { inline ->
                     val mime = inline["mimeType"]?.jsonPrimitive?.content.orEmpty()
                     if (mime.startsWith("audio/pcm")) {
@@ -592,8 +483,8 @@ class MainActivity : AppCompatActivity() {
                             val sent = audioPlaybackChannel.trySend(pcm)
                             if (sent.isFailure) {
                                 log("⚠ Playback queue full — dropping oldest chunk")
-                                audioPlaybackChannel.tryReceive()   // drop oldest
-                                audioPlaybackChannel.trySend(pcm)   // retry
+                                audioPlaybackChannel.tryReceive()
+                                audioPlaybackChannel.trySend(pcm)
                             }
                         }
                     }
@@ -604,14 +495,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Очищаем очередь воспроизведения (при barge-in / interrupted). */
     private fun flushPlaybackQueue() {
         while (audioPlaybackChannel.tryReceive().isSuccess) { /* drain */ }
         audioTrack?.flush()
     }
 
     // ====================================================================
-    //  5. AUDIO INPUT (запись с микрофона)
+    //  5. AUDIO INPUT
     // ====================================================================
 
     private fun requestPermissionAndRecord() {
@@ -643,7 +533,6 @@ class MainActivity : AppCompatActivity() {
         val currentState = sessionState.value
         if (currentState == SessionState.Recording) return
 
-        // Ждём setupComplete — без таймеров!
         lifecycleScope.launch {
             if (currentState != SessionState.Ready) {
                 log("Waiting for setupComplete…")
@@ -653,7 +542,6 @@ class MainActivity : AppCompatActivity() {
                         return@launch
                     }
             }
-            // Перепроверяем состояние: WS мог упасть пока ждали.
             if (sessionState.value != SessionState.Ready) {
                 log("Session no longer ready (${sessionState.value}) — aborting record")
                 return@launch
@@ -678,7 +566,7 @@ class MainActivity : AppCompatActivity() {
                 INPUT_SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
-                minBuf * 2  // двойной буфер для стабильности
+                minBuf * 2
             )
             if (recorder.state != AudioRecord.STATE_INITIALIZED) {
                 log("AudioRecord init failed")
@@ -722,8 +610,6 @@ class MainActivity : AppCompatActivity() {
     private fun stopRecording() {
         if (sessionState.value != SessionState.Recording) return
         releaseAudioRecord()
-        // Re-check: handleDisconnect() из OkHttp-потока мог уже поставить Disconnected.
-        // Если перезаписать → connectWebSocket() не увидит Disconnected → реконнект сломан.
         if (sessionState.value == SessionState.Disconnected) {
             log("🎙 Recording stopped (disconnect in progress)")
             return
@@ -733,14 +619,6 @@ class MainActivity : AppCompatActivity() {
         log("🎙 Recording stopped")
     }
 
-    /**
-     * Сигнал серверу что микрофон выключен.
-     *
-     * API ref: "Indicates that the audio stream has ended.
-     * This should only be sent when automatic activity detection is enabled
-     * (which is the default). The client can reopen the stream by sending
-     * an audio message."
-     */
     private fun sendAudioStreamEnd() {
         val state = sessionState.value
         if (state != SessionState.Ready && state != SessionState.Recording) return
@@ -750,7 +628,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ====================================================================
-    //  6. AUDIO OUTPUT (воспроизведение)
+    //  6. AUDIO OUTPUT
     // ====================================================================
 
     private fun startAudioPlaybackLoop() {
