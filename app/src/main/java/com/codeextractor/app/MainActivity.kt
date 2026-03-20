@@ -422,3 +422,4 @@ class MainActivity : AppCompatActivity() {
         webSocket?.close(1000, "Activity destroyed")
         client.dispatcher.executorService.shutdown()
     }
+}
