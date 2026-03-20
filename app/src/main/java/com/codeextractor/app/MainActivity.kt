@@ -1,16 +1,19 @@
 package com.codeextractor.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
+import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -35,8 +38,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.io.BufferedReader
 import java.io.File
 import java.io.FileWriter
+import java.io.InputStreamReader
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.text.SimpleDateFormat
@@ -72,17 +77,26 @@ class MainActivity : AppCompatActivity() {
 
     private val jsonSerializer = Json { ignoreUnknownKeys = true }
 
-    private lateinit var logFile: File
     private val logBuffer = StringBuilder()
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+
+    // Logcat reader
+    private var logcatJob: Job? = null
+
+    // SAF launcher для выбора папки сохранения
+    private val saveLogLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri: Uri? ->
+        uri?.let { saveLogToUri(it) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        logFile = File(getExternalFilesDir(null), "gemini_log.txt")
         writeLog("=== APP STARTED ===")
+        startLogcatCapture()
 
         setupUI()
         startAudioPlaybackLoop()
@@ -97,36 +111,92 @@ class MainActivity : AppCompatActivity() {
             delay(40_000)
             writeLog("=== AUTO-STOP AFTER 40 SECONDS ===")
             stopAudioInput()
-            saveLogToFile()
         }
     }
+
+    // ==========================================
+    // LOGCAT CAPTURE
+    // ==========================================
+
+    private fun startLogcatCapture() {
+        logcatJob = lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Очищаем старый logcat и читаем новый
+                Runtime.getRuntime().exec("logcat -c")
+                val process = Runtime.getRuntime().exec("logcat -v time")
+                val reader = BufferedReader(InputStreamReader(process.inputStream))
+                var line: String?
+                while (isActive) {
+                    line = reader.readLine()
+                    if (line != null) {
+                        synchronized(logBuffer) {
+                            logBuffer.appendLine(line)
+                        }
+                        // Обновляем UI каждые 50 строк
+                        if (logBuffer.count { it == '\n' } % 50 == 0) {
+                            updateLogUI()
+                        }
+                    }
+                }
+                reader.close()
+                process.destroy()
+            } catch (e: Exception) {
+                writeLog("Logcat capture error: ${e.message}")
+            }
+        }
+    }
+
+    private fun updateLogUI() {
+        lifecycleScope.launch(Dispatchers.Main) {
+            val text = synchronized(logBuffer) { logBuffer.toString() }
+            // Показываем последние 3000 символов чтобы не тормозить UI
+            val display = if (text.length > 3000) text.takeLast(3000) else text
+            binding.chatLog.text = display
+        }
+    }
+
+    // ==========================================
+    // LOG WRITING & SAVING
+    // ==========================================
 
     private fun writeLog(message: String) {
         val timestamp = timeFormat.format(Date())
         val line = "[$timestamp] $message"
         Log.d("GeminiLog", line)
-        synchronized(logBuffer) {
-            logBuffer.appendLine(line)
+    }
+
+    private fun saveLogToUri(uri: Uri) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    val text = synchronized(logBuffer) { logBuffer.toString() }
+                    outputStream.write(text.toByteArray())
+                }
+                lifecycleScope.launch(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Log saved!", Toast.LENGTH_SHORT).show()
+                }
+                writeLog("Log saved via SAF")
+            } catch (e: Exception) {
+                writeLog("Save error: ${e.message}")
+                lifecycleScope.launch(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
-    private fun saveLogToFile() {
-        try {
-            FileWriter(logFile, false).use { writer ->
-                synchronized(logBuffer) {
-                    writer.write(logBuffer.toString())
-                }
-            }
-            writeLog("Log saved to: ${logFile.absolutePath}")
-        } catch (e: Exception) {
-            Log.e("GeminiLog", "Failed to save log: ${e.message}")
-        }
-    }
+    // ==========================================
+    // UI SETUP
+    // ==========================================
 
     private fun setupUI() {
         updateStatusIndicator()
         binding.startButton.setOnClickListener { checkRecordAudioPermission() }
         binding.stopButton.setOnClickListener { stopAudioInput() }
+        binding.saveLogButton.setOnClickListener {
+            val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
+            saveLogLauncher.launch("gemini_log_$timestamp.txt")
+        }
     }
 
     // ==========================================
@@ -226,7 +296,6 @@ class MainActivity : AppCompatActivity() {
             if (root.containsKey("setupComplete")) {
                 isSetupComplete = true
                 writeLog("SETUP COMPLETE!")
-                // Отправляем текст чтобы спровоцировать ответ
                 lifecycleScope.launch(Dispatchers.IO) {
                     delay(500)
                     sendTextMessage("Hello, say something")
@@ -238,17 +307,11 @@ class MainActivity : AppCompatActivity() {
 
             serverContent["inputTranscription"]?.jsonObject?.get("text")
                 ?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
-                ?.let {
-                    writeLog("INPUT_TRANSCRIPTION: $it")
-                    displayMessage("USER: $it")
-                }
+                ?.let { writeLog("INPUT_TRANSCRIPTION: $it") }
 
             serverContent["outputTranscription"]?.jsonObject?.get("text")
                 ?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
-                ?.let {
-                    writeLog("OUTPUT_TRANSCRIPTION: $it")
-                    displayMessage("GEMINI: $it")
-                }
+                ?.let { writeLog("OUTPUT_TRANSCRIPTION: $it") }
 
             val parts = serverContent["modelTurn"]?.jsonObject
                 ?.get("parts") as? JsonArray ?: return
@@ -257,7 +320,6 @@ class MainActivity : AppCompatActivity() {
                 val partObj = part.jsonObject
                 partObj["text"]?.jsonPrimitive?.content?.let {
                     writeLog("MODEL_TEXT: $it")
-                    displayMessage("GEMINI: $it")
                 }
                 partObj["inlineData"]?.jsonObject?.let { inlineData ->
                     val mime = inlineData["mimeType"]?.jsonPrimitive?.content ?: ""
@@ -271,12 +333,11 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             writeLog("PARSE ERROR: ${e.message}")
-            Log.e("Receive", "Error: ${e.message}", e)
         }
     }
 
     // ==========================================
-    // 2. AUDIO INPUT (Микрофон)
+    // 2. AUDIO INPUT
     // ==========================================
 
     private fun checkRecordAudioPermission() {
@@ -327,10 +388,8 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: SecurityException) {
             writeLog("SECURITY ERROR: ${e.message}")
-            Log.e("Audio", "Permission denied", e)
         } catch (e: Exception) {
             writeLog("AUDIO ERROR: ${e.message}")
-            Log.e("Audio", "Microphone error: ${e.message}", e)
         }
     }
 
@@ -345,7 +404,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ==========================================
-    // 3. AUDIO OUTPUT (Динамик)
+    // 3. AUDIO OUTPUT
     // ==========================================
 
     private fun startAudioPlaybackLoop() {
@@ -384,13 +443,6 @@ class MainActivity : AppCompatActivity() {
     // 4. UI & LIFECYCLE
     // ==========================================
 
-    private fun displayMessage(message: String) {
-        lifecycleScope.launch(Dispatchers.Main) {
-            val currentText = binding.chatLog.text.toString()
-            binding.chatLog.text = if (currentText.isEmpty()) message else "$currentText\n$message"
-        }
-    }
-
     private fun updateStatusIndicator() {
         lifecycleScope.launch(Dispatchers.Main) {
             when {
@@ -425,7 +477,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        saveLogToFile()
+        logcatJob?.cancel()
         stopAudioInput()
         playbackJob?.cancel()
         audioTrack?.stop()
