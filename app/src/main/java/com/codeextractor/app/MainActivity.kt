@@ -363,13 +363,6 @@ class MainActivity : AppCompatActivity() {
                         })
                     })
                 })
-                put("systemInstruction", buildJsonObject {
-                    put("parts", buildJsonArray {
-                        add(buildJsonObject {
-                            put("text", "You are a helpful voice assistant. Respond concisely.")
-                        })
-                    })
-                })
                 put("inputAudioTranscription", buildJsonObject {})
                 put("outputAudioTranscription", buildJsonObject {})
             })
