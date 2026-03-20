@@ -21,15 +21,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.jsonArray
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
@@ -41,28 +40,22 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
-    // Сеть
     private val client = OkHttpClient()
     private var webSocket: WebSocket? = null
-    
-    // Состояние
+
     private var isRecording = false
     private var isConnected = false
     private var isSetupComplete = false
 
-    // Аудио Ввод (Микрофон)
     private var audioRecord: AudioRecord? = null
     private var recordJob: Job? = null
-    
-    // Аудио Вывод (Динамик)
+
     private var audioTrack: AudioTrack? = null
     private val audioChannel = Channel<ByteArray>(Channel.UNLIMITED)
     private var playbackJob: Job? = null
 
-    // Константы
     private val MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
-    // TODO: Убедись, что BuildConfig.GEMINI_API_KEY настроен в build.gradle
-    private val API_KEY = BuildConfig.GEMINI_API_KEY 
+    private val API_KEY = BuildConfig.GEMINI_API_KEY
     private val HOST = "generativelanguage.googleapis.com"
     private val URL = "wss://$HOST/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$API_KEY"
 
@@ -78,7 +71,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupUI()
-        startAudioPlaybackLoop() // Запускаем слушатель очереди воспроизведения
+        startAudioPlaybackLoop()
         connectWebSocket()
     }
 
@@ -122,7 +115,7 @@ class MainActivity : AppCompatActivity() {
         stopAudioInput()
         updateStatusIndicator()
         lifecycleScope.launch(Dispatchers.Main) {
-            Toast.makeText(this@MainActivity, "Connection lost", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@MainActivity, "Connection lost: $reason", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -131,7 +124,9 @@ class MainActivity : AppCompatActivity() {
             put("setup", buildJsonObject {
                 put("model", MODEL)
                 put("generation_config", buildJsonObject {
-                    put("response_modalities", buildJsonArray { add("AUDIO") })
+                    put("response_modalities", buildJsonArray {
+                        add(JsonPrimitive("AUDIO"))
+                    })
                     put("speech_config", buildJsonObject {
                         put("voice_config", buildJsonObject {
                             put("prebuilt_voice_config", buildJsonObject {
@@ -143,7 +138,7 @@ class MainActivity : AppCompatActivity() {
             })
         }
         webSocket?.send(jsonSerializer.encodeToString(setupMsg))
-        Log.d("WebSocket", "Setup sent")
+        Log.d("WebSocket", "Setup sent: $setupMsg")
     }
 
     private fun sendMediaChunk(b64Data: String) {
@@ -173,9 +168,36 @@ class MainActivity : AppCompatActivity() {
 
             val serverContent = root["serverContent"]?.jsonObject ?: return
 
-            // Парсинг текста (Транскрипция)
+            // Транскрипция входящего аудио
+            serverContent["inputTranscription"]?.jsonObject?.let { transcription ->
+                val text = transcription["text"]?.jsonPrimitive?.content ?: ""
+                if (text.isNotEmpty()) displayMessage("USER: $text")
+            }
+
+            // Транскрипция исходящего аудио
+            serverContent["outputTranscription"]?.jsonObject?.let { transcription ->
+                val text = transcription["text"]?.jsonPrimitive?.content ?: ""
+                if (text.isNotEmpty()) displayMessage("GEMINI: $text")
+            }
+
+            // Парсинг modelTurn
             serverContent["modelTurn"]?.jsonObject?.let { modelTurn ->
-                val parts = modelTurn["parts"]?.jsonArray ?: return
+                val parts = modelTurn["parts"]?.let {
+                    jsonSerializer.parseToJsonElement(it.toString())
+                        .let { el -> el.toString() }
+                        .let { _ -> modelTurn["parts"] }
+                }?.let {
+                    buildList {
+                        val arr = it.toString()
+                        // используем jsonArray через parseToJsonElement
+                        jsonSerializer.parseToJsonElement(arr).let { el ->
+                            if (el is kotlinx.serialization.json.JsonArray) {
+                                el.forEach { add(it) }
+                            }
+                        }
+                    }
+                } ?: return
+
                 for (part in parts) {
                     val partObj = part.jsonObject
                     partObj["text"]?.jsonPrimitive?.content?.let { text ->
@@ -187,14 +209,14 @@ class MainActivity : AppCompatActivity() {
                             val base64Data = inlineData["data"]?.jsonPrimitive?.content
                             if (base64Data != null) {
                                 val audioBytes = Base64.decode(base64Data, Base64.DEFAULT)
-                                audioChannel.trySend(audioBytes) // Отправляем в канал воспроизведения
+                                audioChannel.trySend(audioBytes)
                             }
                         }
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.e("Receive", "Error parsing message", e)
+            Log.e("Receive", "Error parsing message: ${e.message}", e)
         }
     }
 
@@ -203,8 +225,12 @@ class MainActivity : AppCompatActivity() {
     // ==========================================
 
     private fun checkRecordAudioPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_REQUEST_CODE)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_REQUEST_CODE
+            )
         } else {
             startAudioInput()
         }
@@ -212,23 +238,24 @@ class MainActivity : AppCompatActivity() {
 
     private fun startAudioInput() {
         if (isRecording) return
-        val minBuffer = AudioRecord.getMinBufferSize(INPUT_SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-
+        val minBuffer = AudioRecord.getMinBufferSize(
+            INPUT_SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
         try {
             audioRecord = AudioRecord(
                 MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                INPUT_SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minBuffer
+                INPUT_SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                minBuffer
             )
-            
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
                 throw IllegalStateException("AudioRecord init failed")
             }
-
             audioRecord?.startRecording()
             isRecording = true
             updateStatusIndicator()
 
-            // Читаем звук в фоновом потоке, привязанном к Activity
             recordJob = lifecycleScope.launch(Dispatchers.IO) {
                 val buffer = ShortArray(minBuffer)
                 while (isActive && isRecording) {
@@ -244,7 +271,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: SecurityException) {
             Log.e("Audio", "Permission denied", e)
         } catch (e: Exception) {
-            Log.e("Audio", "Microphone error", e)
+            Log.e("Audio", "Microphone error: ${e.message}", e)
         }
     }
 
@@ -263,26 +290,29 @@ class MainActivity : AppCompatActivity() {
 
     private fun startAudioPlaybackLoop() {
         playbackJob = lifecycleScope.launch(Dispatchers.IO) {
-            val minBuffer = AudioTrack.getMinBufferSize(OUTPUT_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
-            
-            // Современный Builder (API 26+)
+            val minBuffer = AudioTrack.getMinBufferSize(
+                OUTPUT_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
+            )
             audioTrack = AudioTrack.Builder()
-                .setAudioAttributes(AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build())
-                .setAudioFormat(AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(OUTPUT_SAMPLE_RATE)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build())
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(OUTPUT_SAMPLE_RATE)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build()
+                )
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .setBufferSizeInBytes(minBuffer)
                 .build()
 
-            audioTrack?.play() // Вызываем play() ОДИН раз
+            audioTrack?.play()
 
-            // Бесконечно читаем данные из канала и скармливаем их AudioTrack
             for (audioChunk in audioChannel) {
                 if (!isActive) break
                 audioTrack?.write(audioChunk, 0, audioChunk.size)
@@ -320,7 +350,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == AUDIO_REQUEST_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
