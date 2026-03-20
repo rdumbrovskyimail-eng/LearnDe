@@ -2,9 +2,25 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Сеть: WebSocket (OkHttp) + reconnect -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Микрофон: AudioRecord (VOICE_COMMUNICATION) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Аудио: AcousticEchoCanceler + VOICE_COMMUNICATION AudioSource
+         Консенсус 3/4 ИИ: без этого AEC может молча не включиться на Samsung/Xiaomi/BBK -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Фильтрация Google Play: отсечь устройства без микрофона (Android TV, IoT)
+         Консенсус 2/4 ИИ (DeepSeek, Gemini 3.1) -->
+    <uses-feature android:name="android.hardware.microphone" android:required="true" />
+
+    <!-- TODO [PRODUCTION]: Foreground Service для фоновой работы (Android 14+)
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    -->
 
     <application
         android:allowBackup="false"
@@ -28,6 +44,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- TODO [PRODUCTION]: Foreground Service для работы при свёрнутом экране
+        <service
+            android:name=".GeminiLiveForegroundService"
+            android:foregroundServiceType="microphone"
+            android:exported="false" />
+        -->
 
     </application>
 
