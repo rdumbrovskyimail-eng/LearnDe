@@ -72,7 +72,6 @@ class MainActivity : AppCompatActivity() {
 
     private val jsonSerializer = Json { ignoreUnknownKeys = true }
 
-    // Лог файл
     private lateinit var logFile: File
     private val logBuffer = StringBuilder()
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
@@ -82,7 +81,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Инициализация лог файла
         logFile = File(getExternalFilesDir(null), "gemini_log.txt")
         writeLog("=== APP STARTED ===")
 
@@ -90,14 +88,12 @@ class MainActivity : AppCompatActivity() {
         startAudioPlaybackLoop()
         connectWebSocket()
 
-        // Автозапуск через 10 секунд
         lifecycleScope.launch {
             writeLog("Auto-start scheduled in 10 seconds")
             delay(10_000)
             writeLog("Auto-starting audio input...")
             startAudioInput()
 
-            // Через 40 секунд останавливаем и сохраняем лог
             delay(40_000)
             writeLog("=== AUTO-STOP AFTER 40 SECONDS ===")
             stopAudioInput()
@@ -149,7 +145,6 @@ class MainActivity : AppCompatActivity() {
                 sendInitialSetupMessage()
             }
             override fun onMessage(webSocket: WebSocket, text: String) {
-                writeLog("RECEIVED: $text")
                 handleIncomingMessage(text)
             }
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -190,6 +185,8 @@ class MainActivity : AppCompatActivity() {
                         })
                     })
                 })
+                put("input_audio_transcription", buildJsonObject {})
+                put("output_audio_transcription", buildJsonObject {})
             })
         }
         val json = jsonSerializer.encodeToString(setupMsg)
@@ -213,6 +210,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIncomingMessage(message: String) {
+        writeLog("RAW RECEIVED: $message")
         try {
             val root = jsonSerializer.parseToJsonElement(message).jsonObject
 
