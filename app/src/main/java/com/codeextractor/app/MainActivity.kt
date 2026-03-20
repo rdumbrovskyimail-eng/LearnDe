@@ -118,7 +118,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             writeLog("Log saved to: ${logFile.absolutePath}")
-            Log.d("GeminiLog", "Log file path: ${logFile.absolutePath}")
         } catch (e: Exception) {
             Log.e("GeminiLog", "Failed to save log: ${e.message}")
         }
@@ -171,22 +170,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendInitialSetupMessage() {
         val setupMsg = buildJsonObject {
-            put("setup", buildJsonObject {
+            put("config", buildJsonObject {
                 put("model", MODEL)
-                put("generation_config", buildJsonObject {
-                    put("response_modalities", buildJsonArray {
-                        add(JsonPrimitive("AUDIO"))
-                    })
-                    put("speech_config", buildJsonObject {
-                        put("voice_config", buildJsonObject {
-                            put("prebuilt_voice_config", buildJsonObject {
-                                put("voice_name", "Kore")
-                            })
+                put("responseModalities", buildJsonArray {
+                    add(JsonPrimitive("AUDIO"))
+                })
+                put("speechConfig", buildJsonObject {
+                    put("voiceConfig", buildJsonObject {
+                        put("prebuiltVoiceConfig", buildJsonObject {
+                            put("voiceName", "Kore")
                         })
                     })
                 })
-                put("input_audio_transcription", buildJsonObject {})
-                put("output_audio_transcription", buildJsonObject {})
+                put("inputAudioTranscription", buildJsonObject {})
+                put("outputAudioTranscription", buildJsonObject {})
             })
         }
         val json = jsonSerializer.encodeToString(setupMsg)
@@ -209,6 +206,18 @@ class MainActivity : AppCompatActivity() {
         webSocket?.send(jsonSerializer.encodeToString(msg))
     }
 
+    private fun sendTextMessage(text: String) {
+        if (!isConnected) return
+        val msg = buildJsonObject {
+            put("realtimeInput", buildJsonObject {
+                put("text", text)
+            })
+        }
+        val json = jsonSerializer.encodeToString(msg)
+        writeLog("TEXT SENT: $json")
+        webSocket?.send(json)
+    }
+
     private fun handleIncomingMessage(message: String) {
         writeLog("RAW RECEIVED: $message")
         try {
@@ -220,24 +229,7 @@ class MainActivity : AppCompatActivity() {
                 // Отправляем текст чтобы спровоцировать ответ
                 lifecycleScope.launch(Dispatchers.IO) {
                     delay(500)
-                    val textMsg = buildJsonObject {
-                        put("clientContent", buildJsonObject {
-                            put("turns", buildJsonArray {
-                                add(buildJsonObject {
-                                    put("role", "user")
-                                    put("parts", buildJsonArray {
-                                        add(buildJsonObject {
-                                            put("text", "Hello, say something")
-                                        })
-                                    })
-                                })
-                            })
-                            put("turnComplete", JsonPrimitive(true))
-                        })
-                    }
-                    val json = jsonSerializer.encodeToString(textMsg)
-                    writeLog("TEXT MSG SENT: $json")
-                    webSocket?.send(json)
+                    sendTextMessage("Hello, say something")
                 }
                 return
             }
