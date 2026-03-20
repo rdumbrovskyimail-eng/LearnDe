@@ -23,6 +23,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -93,15 +94,12 @@ class MainActivity : AppCompatActivity() {
                 updateStatusIndicator()
                 sendInitialSetupMessage()
             }
-
             override fun onMessage(webSocket: WebSocket, text: String) {
                 handleIncomingMessage(text)
             }
-
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 handleDisconnect("Closed: $reason")
             }
-
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
                 handleDisconnect("Error: ${t.message}")
             }
@@ -138,7 +136,7 @@ class MainActivity : AppCompatActivity() {
             })
         }
         webSocket?.send(jsonSerializer.encodeToString(setupMsg))
-        Log.d("WebSocket", "Setup sent: $setupMsg")
+        Log.d("WebSocket", "Setup sent")
     }
 
     private fun sendMediaChunk(b64Data: String) {
@@ -168,55 +166,32 @@ class MainActivity : AppCompatActivity() {
 
             val serverContent = root["serverContent"]?.jsonObject ?: return
 
-            // Транскрипция входящего аудио
-            serverContent["inputTranscription"]?.jsonObject?.let { transcription ->
-                val text = transcription["text"]?.jsonPrimitive?.content ?: ""
-                if (text.isNotEmpty()) displayMessage("USER: $text")
-            }
+            serverContent["inputTranscription"]?.jsonObject?.get("text")
+                ?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
+                ?.let { displayMessage("USER: $it") }
 
-            // Транскрипция исходящего аудио
-            serverContent["outputTranscription"]?.jsonObject?.let { transcription ->
-                val text = transcription["text"]?.jsonPrimitive?.content ?: ""
-                if (text.isNotEmpty()) displayMessage("GEMINI: $text")
-            }
+            serverContent["outputTranscription"]?.jsonObject?.get("text")
+                ?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
+                ?.let { displayMessage("GEMINI: $it") }
 
-            // Парсинг modelTurn
-            serverContent["modelTurn"]?.jsonObject?.let { modelTurn ->
-                val parts = modelTurn["parts"]?.let {
-                    jsonSerializer.parseToJsonElement(it.toString())
-                        .let { el -> el.toString() }
-                        .let { _ -> modelTurn["parts"] }
-                }?.let {
-                    buildList {
-                        val arr = it.toString()
-                        // используем jsonArray через parseToJsonElement
-                        jsonSerializer.parseToJsonElement(arr).let { el ->
-                            if (el is kotlinx.serialization.json.JsonArray) {
-                                el.forEach { add(it) }
-                            }
-                        }
-                    }
-                } ?: return
+            val parts = serverContent["modelTurn"]?.jsonObject
+                ?.get("parts") as? JsonArray ?: return
 
-                for (part in parts) {
-                    val partObj = part.jsonObject
-                    partObj["text"]?.jsonPrimitive?.content?.let { text ->
-                        displayMessage("GEMINI: $text")
-                    }
-                    partObj["inlineData"]?.jsonObject?.let { inlineData ->
-                        val mime = inlineData["mimeType"]?.jsonPrimitive?.content ?: ""
-                        if (mime.startsWith("audio/pcm")) {
-                            val base64Data = inlineData["data"]?.jsonPrimitive?.content
-                            if (base64Data != null) {
-                                val audioBytes = Base64.decode(base64Data, Base64.DEFAULT)
-                                audioChannel.trySend(audioBytes)
-                            }
+            for (part in parts) {
+                val partObj = part.jsonObject
+                partObj["text"]?.jsonPrimitive?.content
+                    ?.let { displayMessage("GEMINI: $it") }
+                partObj["inlineData"]?.jsonObject?.let { inlineData ->
+                    val mime = inlineData["mimeType"]?.jsonPrimitive?.content ?: ""
+                    if (mime.startsWith("audio/pcm")) {
+                        inlineData["data"]?.jsonPrimitive?.content?.let { b64 ->
+                            audioChannel.trySend(Base64.decode(b64, Base64.DEFAULT))
                         }
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.e("Receive", "Error parsing message: ${e.message}", e)
+            Log.e("Receive", "Error: ${e.message}", e)
         }
     }
 
