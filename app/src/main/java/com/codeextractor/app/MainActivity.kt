@@ -56,10 +56,16 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "GeminiLive"
-        private const val MODEL = "models/gemini-2.5-flash"
+
+        // 1. ИСПОЛЬЗУЕМ АКТУАЛЬНУЮ GA-МОДЕЛЬ ДЛЯ LIVE API
+        private const val MODEL = "models/gemini-2.5-flash-native-audio-latest"
+
         private const val HOST = "generativelanguage.googleapis.com"
+
+        // 2. ВОЗВРАЩАЕМСЯ НА ОФИЦИАЛЬНЫЙ v1beta
         private const val WS_PATH =
             "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+
         private const val INPUT_SAMPLE_RATE = 16_000
         private const val OUTPUT_SAMPLE_RATE = 24_000
         private const val AUDIO_PERMISSION_CODE = 200
