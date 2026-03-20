@@ -10,12 +10,11 @@ android {
 
     defaultConfig {
         applicationId = "com.codeextractor.app"
-        minSdk = 26          // Android 8.0 — AudioTrack.Builder, WebSocket стабильны
-        targetSdk = 36       // Android 16 — edge-to-edge принудительный
+        minSdk = 26
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
-        // API ключ из local.properties → BuildConfig.GEMINI_API_KEY
         buildConfigField(
             "String",
             "GEMINI_API_KEY",
@@ -39,20 +38,13 @@ android {
 }
 
 dependencies {
-    // AndroidX Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.activity.ktx)        // enableEdgeToEdge(), OnBackPressedDispatcher
+    implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
-
-    // WebSocket
     implementation(libs.okhttp)
-
-    // JSON — сериализация сообщений Gemini Live API
     implementation(libs.kotlinx.serialization.json)
-
-    // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 }
