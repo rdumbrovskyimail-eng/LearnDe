@@ -9,6 +9,7 @@
     android:fitsSystemWindows="false"
     tools:context=".MainActivity">
 
+    <!-- ═══ HEADER: статус подключения ═══ -->
     <LinearLayout
         android:id="@+id/headerLayout"
         android:layout_width="match_parent"
@@ -32,7 +33,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="8dp"
-            android:text="Disconnected"
+            android:text="Select variant"
             android:textColor="?colorOnSurface"
             android:textSize="14sp"
             android:textStyle="bold"
@@ -45,6 +46,186 @@
         android:layout_height="1dp"
         android:background="#20000000" />
 
+    <!-- ═══ VARIANT BUTTONS: горизонтальный скролл с кнопками вариантов ═══ -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:fadeScrollbars="true">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="6dp">
+
+            <!-- V1: setup + nested + speech + transcriptions (v5 original) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV1"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V1"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V2: config + flat + speech + transcriptions (Claude fix) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV2"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V2"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V3: setup + nested + NO speech + NO transcriptions (Gemini fix) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV3"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V3"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V4: config + flat + NO speech + NO transcriptions -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV4"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V4"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V5: setup + nested + speech + NO transcriptions -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV5"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V5"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V6: setup + nested + NO speech + transcriptions (isolate speech bug) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV6"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V6"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V7: config + flat + NO speech + AUDIO+TEXT + transcriptions -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV7"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V7"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V8: setup + nested + NO speech + AUDIO+TEXT + NO transcriptions -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV8"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V8"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V9: V3 + pingInterval (setup minimal + ping) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV9"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V9🏓"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V10: V4 + pingInterval (config minimal + ping) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV10"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V10🏓"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V11: absolute bare minimum (just model + AUDIO) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV11"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:text="V11min"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+            <!-- V12: bare minimum + pingInterval -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnV12"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="V12min🏓"
+                android:textSize="11sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="8dp" />
+
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- Подпись текущего варианта -->
+    <TextView
+        android:id="@+id/variantDescription"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="12dp"
+        android:paddingBottom="4dp"
+        android:text="V1–V8: no ping | V9–V10: +ping🏓 | V11–V12: bare min"
+        android:textColor="#999999"
+        android:textSize="10sp"
+        android:fontFamily="monospace"
+        android:singleLine="false"
+        android:maxLines="2" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#20000000" />
+
+    <!-- ═══ LOG: вывод сообщений ═══ -->
     <ScrollView
         android:id="@+id/logScrollView"
         android:layout_width="match_parent"
@@ -72,6 +253,7 @@
         android:layout_height="1dp"
         android:background="#20000000" />
 
+    <!-- ═══ CONTROLS: Start / Stop / Save ═══ -->
     <LinearLayout
         android:id="@+id/controlsLayout"
         android:layout_width="match_parent"
