@@ -102,14 +102,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendInitialSetupMessage() {
         val setupMessage = JSONObject().apply {
-            put("config", JSONObject().apply {
+            put("setup", JSONObject().apply {
                 put("model", MODEL)
-                put("generationConfig", JSONObject().apply {
-                    put("responseModalities", org.json.JSONArray().apply { put("AUDIO") })
-                    put("speechConfig", JSONObject().apply {
-                        put("voiceConfig", JSONObject().apply {
-                            put("prebuiltVoiceConfig", JSONObject().apply {
-                                put("voiceName", "Kore")
+                put("generation_config", JSONObject().apply {
+                    put("response_modalities", org.json.JSONArray().apply { put("AUDIO") })
+                    put("speech_config", JSONObject().apply {
+                        put("voice_config", JSONObject().apply {
+                            put("prebuilt_voice_config", JSONObject().apply {
+                                put("voice_name", "Kore")
                             })
                         })
                     })
@@ -263,7 +263,11 @@ class MainActivity : AppCompatActivity() {
                 AUDIO_OUTPUT_SAMPLE_RATE,
                 AudioFormat.CHANNEL_OUT_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
-                AudioTrack.getMinBufferSize(AUDIO_OUTPUT_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT),
+                AudioTrack.getMinBufferSize(
+                    AUDIO_OUTPUT_SAMPLE_RATE,
+                    AudioFormat.CHANNEL_OUT_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT
+                ),
                 AudioTrack.MODE_STREAM
             )
         }
