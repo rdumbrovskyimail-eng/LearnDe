@@ -286,6 +286,23 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
+        // ТЕСТ AudioFocusManager — удалить после проверки
+        val testFocusResult = runCatching {
+            val manager = com.codeextractor.app.audio.AudioFocusManager(this) {
+                log("⚠ AudioFocusManager: фокус потерян")
+            }
+
+            // Тест 1: запрос фокуса
+            val granted = manager.requestFocus()
+            log(if (granted) "✅ AudioFocusManager: фокус получен" else "❌ AudioFocusManager: фокус не получен")
+
+            // Тест 2: освобождение фокуса
+            manager.abandonFocus()
+            log("✅ AudioFocusManager: фокус освобождён")
+        }.getOrElse { "❌ ERROR: ${it.message}" }
+
+        if (testFocusResult is String) log(testFocusResult)
+
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
 
