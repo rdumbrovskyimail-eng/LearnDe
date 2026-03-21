@@ -64,7 +64,7 @@ dependencies {
     // ── Шифрование API-ключа ────────────────────────────────────
     // androidx.security:security-crypto:1.1.0 — все API deprecated.
     // 1.0.0 — последний стабильный без deprecated, работает корректно.
-    implementation("androidx.security:security-crypto:1.0.0")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // ── DataStore + Tink ────────────────────────────────────────
     implementation("androidx.datastore:datastore-preferences:1.2.1")
