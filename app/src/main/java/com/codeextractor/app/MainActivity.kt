@@ -289,9 +289,9 @@ class MainActivity : AppCompatActivity() {
         // ТЕСТ WebSocketExtensions — удалить после проверки
         val testWsResult = runCatching {
             val client = com.codeextractor.app.network.WebSocketExtensions.buildProductionClient()
-            val pingOk = client.pingIntervalMillis == 20_000L
-            val connectOk = client.connectTimeoutMillis == 15_000L
-            val readOk = client.readTimeoutMillis == 0L
+            val pingOk = client.pingIntervalMillis == 20_000
+            val connectOk = client.connectTimeoutMillis == 15_000
+            val readOk = client.readTimeoutMillis == 0
 
             val delay0 = com.codeextractor.app.network.WebSocketExtensions.computeBackoffDelay(0)
             val delay1 = com.codeextractor.app.network.WebSocketExtensions.computeBackoffDelay(1)
