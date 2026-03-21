@@ -286,6 +286,24 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
+        // ТЕСТ WebSocketExtensions — удалить после проверки
+        val testWsResult = runCatching {
+            val client = com.codeextractor.app.network.WebSocketExtensions.buildProductionClient()
+            val pingOk = client.pingIntervalMillis == 20_000L
+            val connectOk = client.connectTimeoutMillis == 15_000L
+            val readOk = client.readTimeoutMillis == 0L
+
+            val delay0 = com.codeextractor.app.network.WebSocketExtensions.computeBackoffDelay(0)
+            val delay1 = com.codeextractor.app.network.WebSocketExtensions.computeBackoffDelay(1)
+            val delay4 = com.codeextractor.app.network.WebSocketExtensions.computeBackoffDelay(4)
+
+            if (pingOk && connectOk && readOk)
+                "✅ WebSocketExtensions OK | delays: ${delay0}ms → ${delay1}ms → ${delay4}ms"
+            else
+                "❌ Client config wrong: ping=$pingOk connect=$connectOk read=$readOk"
+        }.getOrElse { "❌ ERROR: ${it.message}" }
+        log(testWsResult)
+
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
 
