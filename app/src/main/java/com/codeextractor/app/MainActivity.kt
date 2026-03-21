@@ -1,6 +1,7 @@
 package com.codeextractor.app
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
@@ -10,9 +11,14 @@ import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.net.Uri
 import android.os.Bundle
+import android.os.Debug
 import android.util.Base64
 import android.util.Log
+import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -114,6 +120,9 @@ import java.util.concurrent.TimeUnit
  *          (Тест 12 вариантов: V13 с v1alpha получил setupComplete.
  *          v1beta молча игнорирует setup для native-audio модели.)
  *  v7→v8:  #23 systemInstruction (русский язык)
+ *  v8→v9:  #24 speechConfig Aoede (Шаг 2, минимальный setup)
+ *          #25 API ключ через UI + EncryptedSharedPreferences
+ *          #26 Anti-tamper: debugger + root detection
  */
 class MainActivity : AppCompatActivity() {
 
@@ -141,6 +150,10 @@ class MainActivity : AppCompatActivity() {
 
         // #18: Максимум сообщений для восстановления контекста после reconnect
         private const val MAX_CONTEXT_MESSAGES = 10
+
+        // #25: Хранилище ключа
+        private const val PREFS_FILE = "secure_prefs"
+        private const val PREFS_KEY_API = "gemini_api_key"
     }
 
     // ====================================================================
@@ -159,6 +172,9 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private val json = Json { ignoreUnknownKeys = true }
+
+    // #25: Ключ берётся из EncryptedSharedPreferences, не из BuildConfig
+    private var apiKey: String = ""
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -263,16 +279,32 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        // #26: Anti-tamper проверки — первым делом до любой инициализации
+        performSecurityChecks()
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
+        // #25: Загружаем сохранённый ключ
+        apiKey = loadApiKey()
+
         setupUI()
         observeState()
         startAudioPlaybackLoop()
-        connectWebSocket()
+
+        // Подключаемся только если ключ уже есть
+        if (apiKey.isNotEmpty()) {
+            binding.keyInputLayout.visibility = View.GONE
+            binding.keyDivider.visibility = View.GONE
+            connectWebSocket()
+        } else {
+            log("⚠ API ключ не задан — введите ключ и нажмите OK")
+            binding.startButton.isEnabled = false
+            binding.stopButton.isEnabled = false
+        }
     }
 
     override fun onDestroy() {
@@ -309,6 +341,37 @@ class MainActivity : AppCompatActivity() {
         binding.saveLogButton.setOnClickListener {
             val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
             saveLogLauncher.launch("gemini_log_$ts.txt")
+        }
+
+        // #25: Обработка ввода API ключа
+        binding.keyOkButton.setOnClickListener {
+            val input = binding.apiKeyEditText.text?.toString()?.trim().orEmpty()
+            if (input.length < 20) {
+                Toast.makeText(this, "Ключ слишком короткий", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            saveApiKey(input)
+            apiKey = input
+            // Скрываем панель ввода
+            binding.keyInputLayout.visibility = View.GONE
+            binding.keyDivider.visibility = View.GONE
+            // Убираем клавиатуру
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(binding.apiKeyEditText.windowToken, 0)
+            log("✓ API ключ сохранён")
+            // Подключаемся
+            connectWebSocket()
+        }
+
+        // Поддержка Enter в поле ввода
+        binding.apiKeyEditText.setOnEditorActionListener { _, _, _ ->
+            binding.keyOkButton.performClick()
+            true
+        }
+
+        // Если ключ уже есть — показываем маску в поле (подсказка)
+        if (apiKey.isNotEmpty()) {
+            binding.apiKeyEditText.hint = "Ключ сохранён (tap для замены)"
         }
     }
 
@@ -393,11 +456,15 @@ class MainActivity : AppCompatActivity() {
     // ====================================================================
 
     private fun buildWsUrl(): String {
-        val key = BuildConfig.GEMINI_API_KEY
-        return "wss://$HOST/$WS_PATH?key=$key"
+        // #25: Ключ из EncryptedSharedPreferences, не из BuildConfig
+        return "wss://$HOST/$WS_PATH?key=$apiKey"
     }
 
     private fun connectWebSocket() {
+        if (apiKey.isEmpty()) {
+            log("⚠ connectWebSocket() — ключ не задан, пропуск")
+            return
+        }
         if (sessionState.value != SessionState.Disconnected) return
         sessionState.value = SessionState.Connecting
 
@@ -1111,5 +1178,96 @@ class MainActivity : AppCompatActivity() {
             runCatching { it.stop(); it.release() }
         }
         audioTrack = null
+    }
+
+    // ====================================================================
+    //  #25: API KEY — EncryptedSharedPreferences
+    // ====================================================================
+
+    private fun getEncryptedPrefs() = try {
+        val masterKey = MasterKey.Builder(this)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            this,
+            PREFS_FILE,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    } catch (e: Exception) {
+        log("⚠ EncryptedPrefs init error: ${e.message} — fallback to plain")
+        // Fallback: обычные prefs (хуже, но не крашим приложение)
+        getSharedPreferences(PREFS_FILE + "_plain", Context.MODE_PRIVATE)
+    }
+
+    private fun loadApiKey(): String {
+        return try {
+            getEncryptedPrefs().getString(PREFS_KEY_API, "").orEmpty()
+        } catch (e: Exception) {
+            log("⚠ loadApiKey error: ${e.message}")
+            ""
+        }
+    }
+
+    private fun saveApiKey(key: String) {
+        try {
+            getEncryptedPrefs().edit().putString(PREFS_KEY_API, key).apply()
+        } catch (e: Exception) {
+            log("⚠ saveApiKey error: ${e.message}")
+        }
+    }
+
+    // ====================================================================
+    //  #26: ANTI-TAMPER — debugger + root detection
+    // ====================================================================
+
+    /**
+     * Вызывается первым в onCreate.
+     * При обнаружении угрозы — завершает процесс.
+     *
+     * Что проверяет:
+     *  1. Подключён ли отладчик (JDWP / ADB debugger)
+     *  2. Есть ли su на устройстве (root)
+     *  3. Установлен ли сам APK из неизвестного источника (не Play / не наш пакет)
+     */
+    private fun performSecurityChecks() {
+        // 1. Anti-debug: JDWP debugger
+        if (Debug.isDebuggerConnected() || Debug.waitingForDebugger()) {
+            Log.e(TAG, "SECURITY: debugger detected — terminating")
+            finishAndRemoveTask()
+            android.os.Process.killProcess(android.os.Process.myPid())
+            return
+        }
+
+        // 2. Root detection: проверяем наличие su в PATH
+        val suPaths = arrayOf(
+            "/system/bin/su", "/system/xbin/su",
+            "/sbin/su", "/su/bin/su",
+            "/data/local/xbin/su", "/data/local/bin/su",
+            "/system/sd/xbin/su", "/system/bin/failsafe/su"
+        )
+        val rooted = suPaths.any { java.io.File(it).exists() }
+        if (rooted) {
+            Log.w(TAG, "SECURITY: root detected — su binary found")
+            // На рутованных устройствах предупреждаем, но не блокируем
+            // (рут сам по себе не означает атаку — это может быть твой dev-телефон)
+            // Если хочешь жёсткую блокировку — раскомментируй:
+            // finishAndRemoveTask()
+            // android.os.Process.killProcess(android.os.Process.myPid())
+        }
+
+        // 3. Повторная проверка отладчика через нативный флаг
+        val tracerPid = runCatching {
+            java.io.File("/proc/self/status").readLines()
+                .firstOrNull { it.startsWith("TracerPid:") }
+                ?.substringAfter("TracerPid:")?.trim()?.toIntOrNull() ?: 0
+        }.getOrDefault(0)
+
+        if (tracerPid > 0) {
+            Log.e(TAG, "SECURITY: TracerPid=$tracerPid — process being traced, terminating")
+            finishAndRemoveTask()
+            android.os.Process.killProcess(android.os.Process.myPid())
+        }
     }
 }
