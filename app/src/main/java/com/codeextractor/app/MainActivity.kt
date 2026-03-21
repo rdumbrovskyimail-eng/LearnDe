@@ -286,26 +286,6 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
-        // ТЕСТ CoroutineExtensions — удалить после проверки
-        lifecycleScope.launch {
-            // Тест 1: успешное завершение
-            val deferred1 = kotlinx.coroutines.CompletableDeferred<Unit>()
-            deferred1.complete(Unit)
-            val result1 = com.codeextractor.app.util.awaitSetupCompleteWithTimeout(deferred1)
-            log(if (result1.isSuccess) "✅ CoroutineExtensions: успешное завершение OK" else "❌ Тест 1 провалился")
-
-            // Тест 2: таймаут
-            val deferred2 = kotlinx.coroutines.CompletableDeferred<Unit>()
-            val result2 = com.codeextractor.app.util.awaitSetupCompleteWithTimeout(deferred2, timeoutMs = 500L)
-            log(if (result2.isFailure) "✅ CoroutineExtensions: таймаут работает OK" else "❌ Тест 2 провалился")
-
-            // Тест 3: отмена
-            val deferred3 = kotlinx.coroutines.CompletableDeferred<Unit>()
-            deferred3.completeExceptionally(kotlinx.coroutines.CancellationException("test cancel"))
-            val result3 = com.codeextractor.app.util.awaitSetupCompleteWithTimeout(deferred3)
-            log(if (result3.isFailure) "✅ CoroutineExtensions: отмена работает OK" else "❌ Тест 3 провалился")
-        }
-
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
 
