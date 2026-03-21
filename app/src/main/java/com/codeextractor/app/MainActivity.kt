@@ -533,24 +533,20 @@ class MainActivity : AppCompatActivity() {
      *  │   ├─ "model"
      *  │   ├─ "generationConfig"
      *  │   │   ├─ "responseModalities": ["AUDIO"]
-     *  │   │   └─ "speechConfig": { voiceConfig: ... }
-     *  │   ├─ "systemInstruction"                          ← #23 NEW (Шаг 1)
-     *  │   │   └─ "parts": [{ "text": "..." }]
-     *  │   ├─ "inputAudioTranscription": {}
-     *  │   ├─ "outputAudioTranscription": {}
-     *  │   ├─ "realtimeInputConfig": { automaticActivityDetection: ... }
-     *  │   └─ "tools": [{ "functionDeclarations": [...] }]    ← #17
+     *  │   │   └─ "speechConfig": { voiceConfig: ... }    ← #24 Шаг 2
+     *  │   └─ "systemInstruction"                          ← #23 Шаг 1
+     *  │       └─ "parts": [{ "text": "..." }]
      *  └─
      */
     private fun sendSetup() {
         val msg = buildJsonObject {
             put("setup", buildJsonObject {
                 put("model", MODEL)
-
                 put("generationConfig", buildJsonObject {
                     put("responseModalities", buildJsonArray {
                         add(JsonPrimitive("AUDIO"))
                     })
+                    // ШАГ 2: speechConfig с голосом Aoede
                     put("speechConfig", buildJsonObject {
                         put("voiceConfig", buildJsonObject {
                             put("prebuiltVoiceConfig", buildJsonObject {
@@ -559,13 +555,6 @@ class MainActivity : AppCompatActivity() {
                         })
                     })
                 })
-
-                // ═══════════════════════════════════════════════════
-                //  #23: systemInstruction — русский язык (Шаг 1)
-                //
-                //  Инструктирует модель отвечать только на русском.
-                //  Поле находится на уровне setup, не в generationConfig.
-                // ═══════════════════════════════════════════════════
                 put("systemInstruction", buildJsonObject {
                     put("parts", buildJsonArray {
                         add(buildJsonObject {
@@ -573,60 +562,8 @@ class MainActivity : AppCompatActivity() {
                         })
                     })
                 })
-
-                put("inputAudioTranscription", buildJsonObject {})
-                put("outputAudioTranscription", buildJsonObject {})
-
-                put("realtimeInputConfig", buildJsonObject {
-                    put("automaticActivityDetection", buildJsonObject {
-                        put("disabled", false)
-                    })
-                })
-
-                // ═══════════════════════════════════════════════════
-                //  #17: Объявление tools в setup (v4)
-                //
-                //  Без этого массива сервер НЕ пришлёт toolCall.
-                //  Пустой toolDeclarations = tools не объявляются.
-                // ═══════════════════════════════════════════════════
-                if (toolDeclarations.isNotEmpty()) {
-                    put("tools", buildJsonArray {
-                        add(buildJsonObject {
-                            put("functionDeclarations", buildJsonArray {
-                                for (fn in toolDeclarations) {
-                                    add(buildJsonObject {
-                                        put("name", fn.name)
-                                        put("description", fn.description)
-                                        if (fn.parameters.isNotEmpty()) {
-                                            put("parameters", buildJsonObject {
-                                                put("type", "object")
-                                                put("properties", buildJsonObject {
-                                                    for (param in fn.parameters) {
-                                                        put(param.name, buildJsonObject {
-                                                            put("type", param.type)
-                                                            put("description", param.description)
-                                                        })
-                                                    }
-                                                })
-                                                val required = fn.parameters
-                                                    .filter { it.required }
-                                                    .map { it.name }
-                                                if (required.isNotEmpty()) {
-                                                    put("required", buildJsonArray {
-                                                        for (r in required) add(JsonPrimitive(r))
-                                                    })
-                                                }
-                                            })
-                                        }
-                                    })
-                                }
-                            })
-                        })
-                    })
-                }
             })
         }
-
         val raw = msg.toString()
         log("SETUP → (${raw.length} chars)")
         webSocket?.send(raw)
