@@ -292,14 +292,14 @@ class MainActivity : AppCompatActivity() {
         // ТЕСТ AudioFocusManager — удалить после проверки
         lifecycleScope.launch {
             runCatching {
-                val manager = com.codeextractor.app.audio.AudioFocusManager(this@MainActivity) {
+                val mgr = com.codeextractor.app.audio.AudioFocusManager(this@MainActivity) {
                     log("⚠ AudioFocusManager: фокус потерян")
                 }
-                val granted = manager.requestFocus()
+                val granted = mgr.requestFocus()
                 log(if (granted) "✅ AudioFocusManager: фокус получен" else "❌ фокус не получен")
-                manager.abandonFocus()
+                mgr.abandonFocus()
                 log("✅ AudioFocusManager: фокус освобождён")
-            }.onFailure { log("❌ ERROR: ${it.message}") }
+            }.onFailure { e -> log("❌ AudioFocusManager ERROR: ${e.message}") }
         }
 
         setupUI()
