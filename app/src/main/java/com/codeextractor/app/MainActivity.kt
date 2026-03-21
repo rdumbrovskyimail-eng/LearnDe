@@ -286,6 +286,13 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
+        val testSave = runCatching {
+            com.codeextractor.app.security.SecurityHelper.saveApiKey(this, "TEST_KEY_12345")
+            val loaded = com.codeextractor.app.security.SecurityHelper.loadApiKey(this)
+            if (loaded == "TEST_KEY_12345") "✅ SecurityHelper OK" else "❌ Mismatch: $loaded"
+        }.getOrElse { "❌ ERROR: ${it.message}" }
+        log(testSave)
+
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
 
