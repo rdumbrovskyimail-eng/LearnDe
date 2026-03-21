@@ -14,8 +14,6 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-        // GEMINI_API_KEY убран из BuildConfig — ключ вводится через UI
-        // и хранится в EncryptedSharedPreferences (#25)
     }
 
     buildFeatures {
@@ -25,7 +23,6 @@ android {
 
     buildTypes {
         release {
-            // #26: ProGuard/R8 обфускация — обязательно для release
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -49,13 +46,30 @@ android {
 }
 
 dependencies {
+    // ── Существующие ────────────────────────────────────────────
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.10.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.constraintlayout:constraintlayout:2.2.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    // ── Lifecycle (обновлено 2.8.7 → 2.10.0) ───────────────────
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-service:2.10.0")
+
+    // ── Шифрование API-ключа ────────────────────────────────────
+    // androidx.security:security-crypto:1.1.0 — все API deprecated.
+    // 1.0.0 — последний стабильный без deprecated, работает корректно.
+    implementation("androidx.security:security-crypto:1.0.0")
+
+    // ── DataStore + Tink ────────────────────────────────────────
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
+    implementation("com.google.crypto.tink:tink-android:1.14.0")
+
+    // ── Timber ─────────────────────────────────────────────────
+    implementation("com.jakewharton.timber:timber:5.0.1")
 }
