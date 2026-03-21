@@ -28,29 +28,6 @@ jobs:
     - name: Build Debug APK
       run: gradle assembleDebug --stacktrace
 
-    - name: Enable KVM
-      run: |
-        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-        sudo udevadm control --reload-rules
-        sudo udevadm trigger --name-match=kvm
-
-    - name: Run on emulator and capture logs
-      uses: reactivecircus/android-emulator-runner@v2
-      with:
-        api-level: 29
-        arch: x86_64
-        profile: Nexus 6
-        script: |
-          adb wait-for-device
-          adb install app/build/outputs/apk/debug/app-debug.apk
-          adb shell am start -n com.codeextractor.app/.MainActivity
-          echo "App started, waiting 60 seconds for logs..."
-          sleep 60
-          adb logcat -d -s GeminiLog:D > gemini_logcat.txt
-          adb pull /sdcard/Android/data/com.codeextractor.app/files/gemini_log.txt gemini_log_file.txt || echo "Log file not found on device"
-          echo "=== LOGCAT ===" >> gemini_logcat.txt
-          cat gemini_logcat.txt
-
     - name: Rename APK
       run: |
         mkdir -p apks
@@ -63,10 +40,8 @@ jobs:
         name: Release v1.0.${{ github.run_number }}
         body: |
           ## 📱 CodeExtractor v1.0.${{ github.run_number }}
-          Скачайте APK и проверьте лог файл.
+          Скачайте APK и установите на устройство.
         files: |
           apks/*.apk
-          gemini_logcat.txt
-          gemini_log_file.txt
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
