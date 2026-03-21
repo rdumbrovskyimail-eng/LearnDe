@@ -2,6 +2,13 @@ package com.example.test
 
 import android.util.Log
 
+sealed class SortOrder {
+    object ByName : SortOrder()
+    object ByAge : SortOrder()
+    object ByCreatedAt : SortOrder()
+    data class ByTag(val tag: String) : SortOrder()
+}
+
 sealed class UserResult {
     data class Success(val user: User) : UserResult()
     data class NotFound(val id: Int) : UserResult()
@@ -19,22 +26,31 @@ data class User(
     val tags: List<String> = emptyList()
 )
 
+data class UserStats(
+    val totalUsers: Int,
+    val activeUsers: Int,
+    val averageAge: Double,
+    val mostCommonRole: String,
+    val newestUserId: Int?
+)
+
 class UserManager {
 
     private val users = mutableListOf<User>()
     private var nextId = 1
+    private val operationLog = mutableListOf<String>()
+    private var lastModifiedAt: Long = System.currentTimeMillis()
 
-    fun addUser(name: String, email: String, age: Int, role: String = "user"): User {
-        val user = User(
-            id = nextId++,
-            name = name,
-            email = email,
-            age = age,
-            role = role
-        )
+    fun addUser(name: String, email: String, age: Int, role: String = DEFAULT_ROLE, tags: List<String> = emptyList()): UserResult {
+        if (users.size >= MAX_USERS) return UserResult.Error("Max users limit reached: $MAX_USERS")
+        if (name.isBlank()) return UserResult.Error("Name cannot be blank")
+        if (!email.contains("@")) return UserResult.Error("Invalid email: $email")
+        val user = User(id = nextId++, name = name.trim(), email = email.trim(), age = age, role = role, tags = tags)
         users.add(user)
-        Log.i("UserManager", "Added user: ${user.name}")
-        return user
+        lastModifiedAt = System.currentTimeMillis()
+        operationLog.add("ADD user id=${user.id} name=${user.name}")
+        Log.i(TAG, "✅ Added user: ${user.name} role=${user.role}")
+        return UserResult.Success(user)
     }
 
     fun removeUser(id: Int): UserResult {
@@ -61,17 +77,33 @@ class UserManager {
         return users.filter { it.name.contains(query, ignoreCase = true) }
     }
 
+    fun findByRole(role: String): List<User> {
+        return users.filter { it.role.equals(role, ignoreCase = true) }
+    }
+
+    fun promoteToAdmin(id: Int): UserResult {
+        val index = users.indexOfFirst { it.id == id }
+        if (index < 0) return UserResult.NotFound(id)
+        if (users[index].role == ADMIN_ROLE) return UserResult.Error("User id=$id is already admin")
+        val updated = users[index].copy(role = ADMIN_ROLE)
+        users[index] = updated
+        operationLog.add("PROMOTE user id=$id to admin")
+        lastModifiedAt = System.currentTimeMillis()
+        Log.i(TAG, "👑 User id=$id promoted to admin")
+        return UserResult.Success(updated)
+    }
+
     fun updateUserEmail(id: Int, newEmail: String): Boolean {
         val index = users.indexOfFirst { it.id == id }
         return if (index >= 0) {
             val oldEmail = users[index].email
             users[index] = users[index].copy(email = newEmail)
             Log.i(TAG, "📧 Email changed for id=$id: $oldEmail → $newEmail")
-            Log.i("UserManager", "Updated email for id=$id")
             true
         } else {
             false
         }
+    }
     }
 
     fun deactivateUser(id: Int): Boolean {
@@ -104,22 +136,116 @@ class UserManager {
         return users.sumOf { it.age }.toDouble() / users.size
     }
 
-    fun sortByAge(): List<User> {
-        return users.sortedBy { it.age }
+    fun getSortedUsers(order: SortOrder): List<User> {
+        return when (order) {
+            is SortOrder.ByName -> users.sortedBy { it.name }
+            is SortOrder.ByAge -> users.sortedBy { it.age }
+            is SortOrder.ByCreatedAt -> users.sortedBy { it.createdAt }
+            is SortOrder.ByTag -> users.filter { order.tag in it.tags }.sortedBy { it.name }
+        }
     }
 
-    fun getUsersByAgeRange(minAge: Int, maxAge: Int): List<User> {
-        return users.filter { it.age in minAge..maxAge }
+    fun getStats(): UserStats {
+        val mostCommonRole = users.groupBy { it.role }
+            .maxByOrNull { it.value.size }?.key ?: DEFAULT_ROLE
+        val newestUserId = users.maxByOrNull { it.createdAt }?.id
+        return UserStats(
+            totalUsers = users.size,
+            activeUsers = getActiveUsers().size,
+            averageAge = getAverageAge(),
+            mostCommonRole = mostCommonRole,
+            newestUserId = newestUserId
+        )
     }
 
-    fun exportToMap(): Map<Int, String> {
-        return users.associate { it.id to "${it.name} <${it.email}> [${it.role}]" }
+    fun getOperationLog(): List<String> = operationLog.toList()
+
+    fun bulkDeactivate(ids: List<Int>): Map<Int, UserResult> {
+        return ids.associateWith { id ->
+            val index = users.indexOfFirst { it.id == id }
+            if (index < 0) {
+                UserResult.NotFound(id)
+            } else {
+                users[index] = users[index].copy(isActive = false)
+                operationLog.add("DEACTIVATE user id=$id")
+                UserResult.Success(users[index])
+            }
+        }
+    }
+
+    fun exportToMap(): Map<Int, Map<String, Any>> {
+        return users.associate { user ->
+            user.id to mapOf(
+                "name" to user.name,
+                "email" to user.email,
+                "role" to user.role,
+                "age" to user.age,
+                "active" to user.isActive,
+                "tags" to user.tags,
+                "createdAt" to user.createdAt
+            )
+        }
     }
 
     fun clearAll() {
+        val count = users.size
         users.clear()
         nextId = 100
-        Log.i(TAG, "Cleared all users, nextId reset to 1")
+        operationLog.clear()
+        lastModifiedAt = System.currentTimeMillis()
+        Log.i(TAG, "🗑️ Cleared $count users, nextId reset to 100")
+    }
+    }
+
+    fun getStats(): UserStats {
+        val mostCommonRole = users.groupBy { it.role }
+            .maxByOrNull { it.value.size }?.key ?: DEFAULT_ROLE
+        val newestUserId = users.maxByOrNull { it.createdAt }?.id
+        return UserStats(
+            totalUsers = users.size,
+            activeUsers = getActiveUsers().size,
+            averageAge = getAverageAge(),
+            mostCommonRole = mostCommonRole,
+            newestUserId = newestUserId
+        )
+    }
+
+    fun getOperationLog(): List<String> = operationLog.toList()
+
+    fun bulkDeactivate(ids: List<Int>): Map<Int, UserResult> {
+        return ids.associateWith { id ->
+            val index = users.indexOfFirst { it.id == id }
+            if (index < 0) {
+                UserResult.NotFound(id)
+            } else {
+                users[index] = users[index].copy(isActive = false)
+                operationLog.add("DEACTIVATE user id=$id")
+                UserResult.Success(users[index])
+            }
+        }
+    }
+
+    fun exportToMap(): Map<Int, Map<String, Any>> {
+        return users.associate { user ->
+            user.id to mapOf(
+                "name" to user.name,
+                "email" to user.email,
+                "role" to user.role,
+                "age" to user.age,
+                "active" to user.isActive,
+                "tags" to user.tags,
+                "createdAt" to user.createdAt
+            )
+        }
+    }
+
+    fun clearAll() {
+        val count = users.size
+        users.clear()
+        nextId = 100
+        operationLog.clear()
+        lastModifiedAt = System.currentTimeMillis()
+        Log.i(TAG, "🗑️ Cleared $count users, nextId reset to 100")
     }
 
     companion object {
@@ -128,5 +254,8 @@ class UserManager {
         const val DEFAULT_ROLE = "user"
         const val ADMIN_ROLE = "admin"
         val SYSTEM_TAGS = listOf("verified", "premium", "banned")
+        val VALID_ROLES = setOf(DEFAULT_ROLE, ADMIN_ROLE, "moderator", "guest")
+        const val MIN_AGE = 0
+        const val MAX_AGE = 150
     }
 }
