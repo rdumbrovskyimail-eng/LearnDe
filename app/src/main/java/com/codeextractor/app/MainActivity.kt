@@ -113,6 +113,7 @@ import java.util.concurrent.TimeUnit
  *  v5→v7:  #22 ENDPOINT: v1beta → v1alpha (ROOT CAUSE!)
  *          (Тест 12 вариантов: V13 с v1alpha получил setupComplete.
  *          v1beta молча игнорирует setup для native-audio модели.)
+ *  v7→v8:  #23 systemInstruction (русский язык)
  */
 class MainActivity : AppCompatActivity() {
 
@@ -533,10 +534,12 @@ class MainActivity : AppCompatActivity() {
      *  │   ├─ "generationConfig"
      *  │   │   ├─ "responseModalities": ["AUDIO"]
      *  │   │   └─ "speechConfig": { voiceConfig: ... }
+     *  │   ├─ "systemInstruction"                          ← #23 NEW (Шаг 1)
+     *  │   │   └─ "parts": [{ "text": "..." }]
      *  │   ├─ "inputAudioTranscription": {}
      *  │   ├─ "outputAudioTranscription": {}
      *  │   ├─ "realtimeInputConfig": { automaticActivityDetection: ... }
-     *  │   └─ "tools": [{ "functionDeclarations": [...] }]    ← #17 NEW
+     *  │   └─ "tools": [{ "functionDeclarations": [...] }]    ← #17
      *  └─
      */
     private fun sendSetup() {
@@ -553,6 +556,20 @@ class MainActivity : AppCompatActivity() {
                             put("prebuiltVoiceConfig", buildJsonObject {
                                 put("voiceName", "Aoede")
                             })
+                        })
+                    })
+                })
+
+                // ═══════════════════════════════════════════════════
+                //  #23: systemInstruction — русский язык (Шаг 1)
+                //
+                //  Инструктирует модель отвечать только на русском.
+                //  Поле находится на уровне setup, не в generationConfig.
+                // ═══════════════════════════════════════════════════
+                put("systemInstruction", buildJsonObject {
+                    put("parts", buildJsonArray {
+                        add(buildJsonObject {
+                            put("text", "Ты русскоязычный голосовой ассистент. Всегда отвечай только на русском языке. Слушай и понимай русскую речь.")
                         })
                     })
                 })
