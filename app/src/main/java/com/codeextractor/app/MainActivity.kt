@@ -25,6 +25,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import com.codeextractor.app.audio.AudioFocusManager
 import com.codeextractor.app.databinding.ActivityMainBinding
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -288,20 +289,16 @@ class MainActivity : AppCompatActivity() {
 
         // ТЕСТ AudioFocusManager — удалить после проверки
         val testFocusResult = runCatching {
-            val manager = com.codeextractor.app.audio.AudioFocusManager(this) {
+            val manager = AudioFocusManager(this) {
                 log("⚠ AudioFocusManager: фокус потерян")
             }
-
-            // Тест 1: запрос фокуса
             val granted = manager.requestFocus()
             log(if (granted) "✅ AudioFocusManager: фокус получен" else "❌ AudioFocusManager: фокус не получен")
-
-            // Тест 2: освобождение фокуса
             manager.abandonFocus()
             log("✅ AudioFocusManager: фокус освобождён")
-        }.getOrElse { "❌ ERROR: ${it.message}" }
+        }.getOrElse { it.message ?: "unknown error" }
 
-        if (testFocusResult is String) log(testFocusResult)
+        if (testFocusResult.startsWith("❌")) log(testFocusResult)
 
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
