@@ -286,6 +286,23 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
+        // ТЕСТ AudioTrackFactory — удалить после проверки
+        val minBuf = android.media.AudioTrack.getMinBufferSize(
+            24000,
+            android.media.AudioFormat.CHANNEL_OUT_MONO,
+            android.media.AudioFormat.ENCODING_PCM_16BIT
+        )
+        val testResult = runCatching {
+            val track = com.codeextractor.app.audio.AudioTrackFactory.build(minBuf)
+            val state = if (track.state == android.media.AudioTrack.STATE_INITIALIZED)
+                "✅ AudioTrackFactory OK (state=INITIALIZED, buf=${minBuf * 4})"
+            else
+                "❌ AudioTrack state=${track.state}"
+            track.release()
+            state
+        }.getOrElse { "❌ ERROR: ${it.message}" }
+        log(testResult)
+
         // ТЕСТ AudioEffectsHelper — удалить после проверки
         val minBuf = android.media.AudioRecord.getMinBufferSize(
             16000,
