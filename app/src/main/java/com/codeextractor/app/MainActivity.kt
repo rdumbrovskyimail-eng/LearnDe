@@ -286,47 +286,6 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
-        // ТЕСТ AudioTrackFactory — удалить после проверки
-        val testTrackResult = runCatching {
-            val testMinBuf = android.media.AudioTrack.getMinBufferSize(
-                24000,
-                android.media.AudioFormat.CHANNEL_OUT_MONO,
-                android.media.AudioFormat.ENCODING_PCM_16BIT
-            )
-            val track = com.codeextractor.app.audio.AudioTrackFactory.build(testMinBuf)
-            val state = if (track.state == android.media.AudioTrack.STATE_INITIALIZED)
-                "✅ AudioTrackFactory OK (buf=${testMinBuf * 4})"
-            else
-                "❌ AudioTrack state=${track.state}"
-            track.release()
-            state
-        }.getOrElse { "❌ ERROR: ${it.message}" }
-        log(testTrackResult)
-
-        // ТЕСТ AudioEffectsHelper — удалить после проверки
-        val minBuf = android.media.AudioRecord.getMinBufferSize(
-            16000,
-            android.media.AudioFormat.CHANNEL_IN_MONO,
-            android.media.AudioFormat.ENCODING_PCM_16BIT
-        )
-        if (android.media.audiofx.NoiseSuppressor.isAvailable()) {
-            log("✅ NoiseSuppressor доступен на устройстве")
-        } else {
-            log("⚠ NoiseSuppressor недоступен (нормально для некоторых устройств)")
-        }
-        if (android.media.audiofx.AutomaticGainControl.isAvailable()) {
-            log("✅ AutomaticGainControl доступен на устройстве")
-        } else {
-            log("⚠ AutomaticGainControl недоступен (нормально для некоторых устройств)")
-        }
-
-        val testSave = runCatching {
-            com.codeextractor.app.security.SecurityHelper.saveApiKey(this, "TEST_KEY_12345")
-            val loaded = com.codeextractor.app.security.SecurityHelper.loadApiKey(this)
-            if (loaded == "TEST_KEY_12345") "✅ SecurityHelper OK" else "❌ Mismatch: $loaded"
-        }.getOrElse { "❌ ERROR: ${it.message}" }
-        log(testSave)
-
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
 
