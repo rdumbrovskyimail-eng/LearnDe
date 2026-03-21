@@ -17,8 +17,6 @@ import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -1181,41 +1179,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ====================================================================
-    //  #25: API KEY — EncryptedSharedPreferences
+    //  #25: API KEY — SharedPreferences (MODE_PRIVATE)
+    //  Android sandbox изолирует данные на уровне UID — другие приложения
+    //  не имеют доступа без root. Достаточно для личного использования.
     // ====================================================================
 
-    private fun getEncryptedPrefs() = try {
-        val masterKey = MasterKey.Builder(this)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            this,
-            PREFS_FILE,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-    } catch (e: Exception) {
-        log("⚠ EncryptedPrefs init error: ${e.message} — fallback to plain")
-        // Fallback: обычные prefs (хуже, но не крашим приложение)
-        getSharedPreferences(PREFS_FILE + "_plain", Context.MODE_PRIVATE)
-    }
+    private fun getPrefs() =
+        getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
 
-    private fun loadApiKey(): String {
-        return try {
-            getEncryptedPrefs().getString(PREFS_KEY_API, "").orEmpty()
-        } catch (e: Exception) {
-            log("⚠ loadApiKey error: ${e.message}")
-            ""
-        }
-    }
+    private fun loadApiKey(): String =
+        getPrefs().getString(PREFS_KEY_API, "").orEmpty()
 
     private fun saveApiKey(key: String) {
-        try {
-            getEncryptedPrefs().edit().putString(PREFS_KEY_API, key).apply()
-        } catch (e: Exception) {
-            log("⚠ saveApiKey error: ${e.message}")
-        }
+        getPrefs().edit().putString(PREFS_KEY_API, key).apply()
     }
 
     // ====================================================================
