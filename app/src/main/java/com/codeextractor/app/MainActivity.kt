@@ -101,6 +101,9 @@ class MainActivity : AppCompatActivity() {
         private const val HOST = "generativelanguage.googleapis.com"
         private const val WS_PATH =
             "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+        private const val WS_PATH_ALPHA =
+            "ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent"
+        private const val MODEL_2_0 = "models/gemini-2.0-flash-exp"
 
         private const val INPUT_SAMPLE_RATE = 16_000
         private const val OUTPUT_SAMPLE_RATE = 24_000
@@ -262,6 +265,17 @@ class MainActivity : AppCompatActivity() {
         10 to "V10: =V4 + pingInterval🏓 (config minimal + ping)",
         11 to "V11: BARE MIN — setup + AUDIO only + nothing else",
         12 to "V12: BARE MIN + pingInterval🏓 — setup + AUDIO only + ping",
+        // ── Row 2: Endpoint / Model / Casing diagnostics ──
+        13 to "V13: v1ALPHA + setup + bare min (endpoint test)",
+        14 to "V14: v1beta + gemini-2.0-flash-exp (model test)",
+        15 to "V15: v1beta + snake_case (generation_config, response_modalities)",
+        16 to "V16: v1beta + TEXT only (is AUDIO forbidden for this key?)",
+        17 to "V17: 🏆 GOLDEN = v1alpha + 2.0-flash-exp + snake_case",
+        18 to "V18: V17 + system_instruction (required by some models)",
+        19 to "V19: v1beta + config + flat + systemInstruction (Grok rec)",
+        20 to "V20: v1ALPHA + config + flat + bare min",
+        21 to "V21: v1ALPHA + current native-audio model (is it endpoint?)",
+        22 to "V22: v1beta + 2.0-flash-exp + config flat (model+format)",
     )
 
     // ====================================================================
@@ -327,6 +341,16 @@ class MainActivity : AppCompatActivity() {
         binding.btnV10.setOnClickListener { startVariant(10) }
         binding.btnV11.setOnClickListener { startVariant(11) }
         binding.btnV12.setOnClickListener { startVariant(12) }
+        binding.btnV13.setOnClickListener { startVariant(13) }
+        binding.btnV14.setOnClickListener { startVariant(14) }
+        binding.btnV15.setOnClickListener { startVariant(15) }
+        binding.btnV16.setOnClickListener { startVariant(16) }
+        binding.btnV17.setOnClickListener { startVariant(17) }
+        binding.btnV18.setOnClickListener { startVariant(18) }
+        binding.btnV19.setOnClickListener { startVariant(19) }
+        binding.btnV20.setOnClickListener { startVariant(20) }
+        binding.btnV21.setOnClickListener { startVariant(21) }
+        binding.btnV22.setOnClickListener { startVariant(22) }
 
         // ─── Control buttons ───────────────────────────────────
         binding.startButton.setOnClickListener { requestPermissionAndRecord() }
@@ -443,7 +467,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildWsUrl(): String {
         val key = BuildConfig.GEMINI_API_KEY
-        return "wss://$HOST/$WS_PATH?key=$key"
+        // V13, V17, V18, V20, V21 используют v1alpha endpoint
+        val useAlpha = activeVariant in listOf(13, 17, 18, 20, 21)
+        val path = if (useAlpha) WS_PATH_ALPHA else WS_PATH
+        return "wss://$HOST/$path?key=$key"
     }
 
     private fun connectWebSocket() {
@@ -455,11 +482,12 @@ class MainActivity : AppCompatActivity() {
         )
         setupComplete = CompletableDeferred()
 
-        log("Connecting… ${if (activeVariant >= 9) "(with pingInterval)" else "(no ping)"}")
+        val useAlpha = activeVariant in listOf(13, 17, 18, 20, 21)
+        val usePing = activeVariant >= 9 && activeVariant <= 12
+        log("Connecting… ${if (useAlpha) "v1alpha" else "v1beta"} ${if (usePing) "+ping" else ""}")
         val request = Request.Builder().url(buildWsUrl()).build()
 
-        // V9–V12 используют client с pingInterval (рекомендация Gemini)
-        val activeClient = if (activeVariant >= 9) clientWithPing else client
+        val activeClient = if (usePing) clientWithPing else client
 
         webSocket = activeClient.newWebSocket(request, object : WebSocketListener() {
 
@@ -556,6 +584,16 @@ class MainActivity : AppCompatActivity() {
             10 -> buildV4().toString()  // V10 = V4 JSON + pingInterval (client level)
             11 -> buildV11().toString() // Bare minimum
             12 -> buildV11().toString() // V12 = V11 JSON + pingInterval (client level)
+            13 -> buildV11().toString() // V13 = V11 JSON but v1alpha endpoint
+            14 -> buildV14().toString()
+            15 -> buildV15().toString()
+            16 -> buildV16().toString()
+            17 -> buildV17().toString()
+            18 -> buildV18().toString()
+            19 -> buildV19().toString()
+            20 -> buildV20().toString() // v1alpha + config flat
+            21 -> buildV21().toString() // v1alpha + current model
+            22 -> buildV22().toString()
             else -> {
                 log("ERROR: No variant selected!")
                 return
@@ -758,6 +796,110 @@ class MainActivity : AppCompatActivity() {
     }
 
     // V12 = buildV11() JSON + pingInterval (разница только в OkHttpClient)
+    // V13 = buildV11() JSON but v1alpha endpoint (разница в buildWsUrl)
+
+    // ── V14: v1beta + другая модель gemini-2.0-flash-exp ──
+    // (Тест: текущая модель недоступна для этого ключа?)
+    private fun buildV14() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL_2_0)
+            put("generationConfig", buildJsonObject {
+                put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            })
+        })
+    }
+
+    // ── V15: snake_case вместо camelCase ──
+    // (Gemini 3.1: сервер может требовать strict snake_case для raw JSON)
+    private fun buildV15() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL)
+            put("generation_config", buildJsonObject {
+                put("response_modalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            })
+        })
+    }
+
+    // ── V16: TEXT only — проверка: запрещён ли AUDIO для этого ключа? ──
+    private fun buildV16() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL)
+            put("generationConfig", buildJsonObject {
+                put("responseModalities", buildJsonArray { add(JsonPrimitive("TEXT")) })
+            })
+        })
+    }
+
+    // ── V17: 🏆 GOLDEN PATH ──
+    // v1alpha (через buildWsUrl) + gemini-2.0-flash-exp + snake_case
+    // (Gemini 3.1: "точь-в-точь как в офф. Python SDK")
+    private fun buildV17() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL_2_0)
+            put("generation_config", buildJsonObject {
+                put("response_modalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            })
+        })
+    }
+
+    // ── V18: V17 + system_instruction ──
+    // (Grok + Gemini 3.1: без инструкции модель может молча закрыть)
+    private fun buildV18() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL_2_0)
+            put("system_instruction", buildJsonObject {
+                put("parts", buildJsonArray {
+                    add(buildJsonObject { put("text", "You are a helpful voice assistant.") })
+                })
+            })
+            put("generation_config", buildJsonObject {
+                put("response_modalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            })
+        })
+    }
+
+    // ── V19: v1beta + "config" flat + systemInstruction (Grok rec) ──
+    // (Grok: config + systemInstruction — рабочая комбинация в примерах 2026)
+    private fun buildV19() = buildJsonObject {
+        put("config", buildJsonObject {
+            put("model", MODEL)
+            put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            put("systemInstruction", buildJsonObject {
+                put("parts", buildJsonArray {
+                    add(buildJsonObject { put("text", "You are a helpful assistant.") })
+                })
+            })
+        })
+    }
+
+    // ── V20: v1ALPHA + "config" flat + bare min ──
+    // (Изолирует: v1alpha + config вместо setup)
+    private fun buildV20() = buildJsonObject {
+        put("config", buildJsonObject {
+            put("model", MODEL)
+            put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+        })
+    }
+
+    // ── V21: v1ALPHA + текущая native-audio модель + setup nested ──
+    // (Изолирует: endpoint v1alpha + правильная модель = работает?)
+    private fun buildV21() = buildJsonObject {
+        put("setup", buildJsonObject {
+            put("model", MODEL)
+            put("generationConfig", buildJsonObject {
+                put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+            })
+        })
+    }
+
+    // ── V22: v1beta + gemini-2.0-flash-exp + "config" flat ──
+    // (Изолирует: модель 2.0 + config формат на beta)
+    private fun buildV22() = buildJsonObject {
+        put("config", buildJsonObject {
+            put("model", MODEL_2_0)
+            put("responseModalities", buildJsonArray { add(JsonPrimitive("AUDIO")) })
+        })
+    }
 
     // ====================================================================
     //  3. CLIENT MESSAGES
