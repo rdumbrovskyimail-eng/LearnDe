@@ -9,18 +9,18 @@
     <!-- Микрофон: AudioRecord (VOICE_COMMUNICATION) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Аудио: AcousticEchoCanceler + VOICE_COMMUNICATION AudioSource
-         Консенсус 3/4 ИИ: без этого AEC может молча не включиться на Samsung/Xiaomi/BBK -->
+    <!-- Аудио: AcousticEchoCanceler + VOICE_COMMUNICATION AudioSource -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
-    <!-- Фильтрация Google Play: отсечь устройства без микрофона (Android TV, IoT)
-         Консенсус 2/4 ИИ (DeepSeek, Gemini 3.1) -->
-    <uses-feature android:name="android.hardware.microphone" android:required="true" />
-
-    <!-- TODO [PRODUCTION]: Foreground Service для фоновой работы (Android 14+)
+    <!-- Foreground Service: микрофон в фоне (Android 14+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    -->
+
+    <!-- Уведомления: показ нотификации Foreground Service (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Фильтрация Google Play: отсечь устройства без микрофона -->
+    <uses-feature android:name="android.hardware.microphone" android:required="true" />
 
     <application
         android:allowBackup="false"
@@ -29,6 +29,8 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:enableOnBackInvokedCallback="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         tools:targetApi="36">
 
         <activity
@@ -45,12 +47,11 @@
             </intent-filter>
         </activity>
 
-        <!-- TODO [PRODUCTION]: Foreground Service для работы при свёрнутом экране
+        <!-- Foreground Service: запись микрофона при свёрнутом приложении -->
         <service
             android:name=".GeminiLiveForegroundService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
-        -->
 
     </application>
 
