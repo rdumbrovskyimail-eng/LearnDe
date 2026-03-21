@@ -286,27 +286,6 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
-        // ТЕСТ NetworkMonitor — удалить после проверки
-        val testNetworkResult = runCatching {
-            val callback = com.codeextractor.app.network.NetworkMonitor.register(
-                context = this,
-                onAvailable = { log("✅ NetworkMonitor: сеть доступна") },
-                onLost = { log("⚠ NetworkMonitor: сеть потеряна") }
-            )
-            log("✅ NetworkMonitor зарегистрирован")
-
-            // Отменяем регистрацию через 3 секунды
-            lifecycleScope.launch {
-                kotlinx.coroutines.delay(3000)
-                (getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
-                    as android.net.ConnectivityManager)
-                    .unregisterNetworkCallback(callback)
-                log("✅ NetworkMonitor отменён корректно")
-            }
-        }.getOrElse { "❌ ERROR: ${it.message}" }
-
-        if (testNetworkResult is String) log(testNetworkResult)
-
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
 
