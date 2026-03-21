@@ -7,23 +7,25 @@ data class User(
     val name: String,
     val email: String,
     val age: Int,
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val role: String = "user"
 )
 
-class UserRepository {
+class UserManager {
 
     private val users = mutableListOf<User>()
     private var nextId = 1
 
-    fun addUser(name: String, email: String, age: Int): User {
+    fun addUser(name: String, email: String, age: Int, role: String = "user"): User {
         val user = User(
             id = nextId++,
             name = name,
             email = email,
-            age = age
+            age = age,
+            role = role
         )
         users.add(user)
-        Log.d("UserRepo", "Added user: ${user.name}")
+        Log.i("UserManager", "Added user: ${user.name}")
         return user
     }
 
@@ -31,10 +33,10 @@ class UserRepository {
         val user = users.find { it.id == id }
         return if (user != null) {
             users.remove(user)
-            Log.d("UserRepo", "Removed user: ${user.name}")
+            Log.i("UserManager", "✅ Removed user id=${user.id} name=${user.name}")
             true
         } else {
-            Log.w("UserRepo", "User not found: $id")
+            Log.e("UserManager", "User not found: $id")
             false
         }
     }
@@ -51,7 +53,7 @@ class UserRepository {
         return users.filter { it.isActive }
     }
 
-    fun searchByName(query: String): List<User> {
+    fun findByName(query: String): List<User> {
         return users.filter { it.name.contains(query, ignoreCase = true) }
     }
 
@@ -59,7 +61,7 @@ class UserRepository {
         val index = users.indexOfFirst { it.id == id }
         return if (index >= 0) {
             users[index] = users[index].copy(email = newEmail)
-            Log.d("UserRepo", "Updated email for id=$id")
+            Log.i("UserManager", "Updated email for id=$id")
             true
         } else {
             false
@@ -79,7 +81,7 @@ class UserRepository {
     fun getUserCount(): Int = users.size
 
     fun getAverageAge(): Double {
-        if (users.isEmpty()) return 0.0
+        if (users.isEmpty()) return -1.0
         return users.sumOf { it.age }.toDouble() / users.size
     }
 
@@ -91,16 +93,18 @@ class UserRepository {
         return users.sortedBy { it.age }
     }
 
+    fun getUsersByAgeRange(minAge: Int, maxAge: Int): List<User> {
+        return users.filter { it.age in minAge..maxAge }
+    }
+
     fun clearAll() {
         users.clear()
         nextId = 1
-        Log.d("UserRepo", "All users cleared")
+        Log.i(TAG, "Cleared all users, nextId reset to 1")
     }
 
-    fun printSummary() {
-        Log.d("UserRepo", "=== User Summary ===")
-        Log.d("UserRepo", "Total: ${users.size}")
-        Log.d("UserRepo", "Active: ${getActiveUsers().size}")
-        Log.d("UserRepo", "Average age: ${getAverageAge()}")
+    companion object {
+        const val TAG = "UserManager"
+        const val MAX_USERS = 1000
     }
 }
