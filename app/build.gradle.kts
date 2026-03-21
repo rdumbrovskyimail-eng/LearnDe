@@ -14,17 +14,28 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-
-        buildConfigField(
-            "String",
-            "GEMINI_API_KEY",
-            "\"${project.findProperty("GEMINI_API_KEY") ?: ""}\""
-        )
+        // GEMINI_API_KEY убран из BuildConfig — ключ вводится через UI
+        // и хранится в EncryptedSharedPreferences (#25)
     }
 
     buildFeatures {
         viewBinding = true
         buildConfig = true
+    }
+
+    buildTypes {
+        release {
+            // #26: ProGuard/R8 обфускация — обязательно для release
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
+            isMinifyEnabled = false
+        }
     }
 
     compileOptions {
@@ -47,4 +58,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // #25: EncryptedSharedPreferences для хранения API ключа
+    implementation("androidx.security:security-crypto:1.0.0")
 }
