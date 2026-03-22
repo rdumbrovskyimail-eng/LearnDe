@@ -307,6 +307,36 @@ class MainActivity : AppCompatActivity() {
             }.onFailure { e -> log("❌ GeminiLiveForegroundService ERROR: ${e.message}") }
         }
 
+        // ТЕСТ AudioDispatcherProvider — удалить после проверки
+        lifecycleScope.launch {
+            runCatching {
+                val dispatchers = com.codeextractor.app.audio.AudioDispatcherProvider()
+
+                // Тест 1: recorder поток
+                var recorderThreadName = ""
+                kotlinx.coroutines.withContext(dispatchers.recorder) {
+                    recorderThreadName = Thread.currentThread().name
+                }
+                log(if (recorderThreadName == "GeminiAudioRecorder")
+                    "✅ AudioDispatcherProvider: recorder OK (thread=$recorderThreadName)"
+                    else "❌ recorder thread wrong: $recorderThreadName")
+
+                // Тест 2: player поток
+                var playerThreadName = ""
+                kotlinx.coroutines.withContext(dispatchers.player) {
+                    playerThreadName = Thread.currentThread().name
+                }
+                log(if (playerThreadName == "GeminiAudioPlayer")
+                    "✅ AudioDispatcherProvider: player OK (thread=$playerThreadName)"
+                    else "❌ player thread wrong: $playerThreadName")
+
+                // Тест 3: shutdown
+                dispatchers.shutdown()
+                log("✅ AudioDispatcherProvider: shutdown OK")
+
+            }.onFailure { e -> log("❌ AudioDispatcherProvider ERROR: ${e.message}") }
+        }
+
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
 
