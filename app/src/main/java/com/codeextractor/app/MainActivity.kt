@@ -2,6 +2,7 @@ package com.codeextractor.app
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
@@ -1218,7 +1219,7 @@ class MainActivity : AppCompatActivity() {
             var failed = 0
             val separator = "─".repeat(52)
 
-            fun test(name: String, block: () -> Unit) {
+            suspend fun test(name: String, block: suspend () -> Unit) {
                 try {
                     block()
                     log("✅  $name")
@@ -1568,7 +1569,7 @@ class MainActivity : AppCompatActivity() {
                         channel.importance,
                         "важность канала"
                     )
-                    check(!channel.shouldShowBadge(), "showBadge должен быть false")
+                    check(!channel.canShowBadge(), "showBadge должен быть false")
                     stopService(intent)
                 } else {
                     log("   ⚠ Пропущен на API < 26 (notification channels не поддерживаются)")
