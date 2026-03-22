@@ -286,7 +286,83 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
+        // ТЕСТ AudioDispatcherProvider — удалить после проверки
+        lifecycleScope.launch {
+            runCatching {
+                val dispatchers = com.codeextractor.app.audio.AudioDispatcherProvider()
+                var recorderThreadName = ""
+                kotlinx.coroutines.withContext(dispatchers.recorder) {
+                    recorderThreadName = Thread.currentThread().name
+                }
+                log(if (recorderThreadName == "GeminiAudioRecorder")
+                    "✅ AudioDispatcherProvider: recorder OK" else "❌ recorder: $recorderThreadName")
+                var playerThreadName = ""
+                kotlinx.coroutines.withContext(dispatchers.player) {
+                    playerThreadName = Thread.currentThread().name
+                }
+                log(if (playerThreadName == "GeminiAudioPlayer")
+                    "✅ AudioDispatcherProvider: player OK" else "❌ player: $playerThreadName")
+                dispatchers.shutdown()
+                log("✅ AudioDispatcherProvider: shutdown OK")
+            }.onFailure { e -> log("❌ AudioDispatcherProvider ERROR: ${e.message}") }
+        }
 
+        // ТЕСТ GeminiProtocol — удалить после проверки
+        runCatching {
+            val setup = com.codeextractor.app.network.SetupMessage(
+                setup = com.codeextractor.app.network.SetupBody(
+                    model = "models/gemini-2.5-flash-native-audio-preview-12-2025",
+                    generationConfig = com.codeextractor.app.network.GenerationConfig(
+                        speechConfig = com.codeextractor.app.network.SpeechConfig(
+                            com.codeextractor.app.network.VoiceConfig(
+                                com.codeextractor.app.network.PrebuiltVoice("Aoede")
+                            )
+                        )
+                    ),
+                    systemInstruction = com.codeextractor.app.network.SystemInstruction(
+                        listOf(com.codeextractor.app.network.Part("Ты русскоязычный ассистент"))
+                    )
+                )
+            )
+            val json = com.codeextractor.app.network.GeminiProtocol.json
+                .encodeToString(com.codeextractor.app.network.SetupMessage.serializer(), setup)
+            log(if (json.contains("gemini-2.5-flash") && json.contains("Aoede"))
+                "✅ GeminiProtocol: сериализация OK (${json.length} chars)"
+                else "❌ GeminiProtocol: json неверный")
+            log(if (!json.contains("null"))
+                "✅ GeminiProtocol: null поля исключены OK"
+                else "❌ GeminiProtocol: json содержит null")
+            val audioMsg = com.codeextractor.app.network.RealtimeInputMessage(
+                com.codeextractor.app.network.RealtimeInputBody(
+                    audio = com.codeextractor.app.network.AudioData("base64data", "audio/pcm;rate=16000")
+                )
+            )
+            val audioJson = com.codeextractor.app.network.GeminiProtocol.json
+                .encodeToString(com.codeextractor.app.network.RealtimeInputMessage.serializer(), audioMsg)
+            log(if (audioJson.contains("base64data"))
+                "✅ GeminiProtocol: AudioData OK"
+                else "❌ GeminiProtocol: AudioData неверный")
+        }.onFailure { e -> log("❌ GeminiProtocol ERROR: ${e.message}") }
+
+        // ТЕСТ ConversationRepository — удалить после проверки
+        runCatching {
+            val repo = com.codeextractor.app.data.ConversationRepository()
+            repo.addMessage("user", "Привет")
+            repo.addMessage("model", "Здравствуйте")
+            repo.addMessage("user", "Как дела?")
+            val history = repo.getTurnsForContext()
+            log(if (history.size == 3)
+                "✅ ConversationRepository: addMessage OK (${history.size} msgs)"
+                else "❌ ConversationRepository: size=${history.size}")
+            val firstRole = history[0].first
+            log(if (firstRole == "user")
+                "✅ ConversationRepository: роли OK"
+                else "❌ роль неверная: $firstRole")
+            repo.clear()
+            log(if (repo.getTurnsForContext().isEmpty())
+                "✅ ConversationRepository: clear OK"
+                else "❌ ConversationRepository: clear не сработал")
+        }.onFailure { e -> log("❌ ConversationRepository ERROR: ${e.message}") }
 
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
