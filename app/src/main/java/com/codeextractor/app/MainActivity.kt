@@ -289,19 +289,6 @@ class MainActivity : AppCompatActivity() {
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
 
-        // ТЕСТ AudioFocusManager — удалить после проверки
-        lifecycleScope.launch {
-            runCatching {
-                val mgr = com.codeextractor.app.audio.AudioFocusManager(this@MainActivity) {
-                    log("⚠ AudioFocusManager: фокус потерян")
-                }
-                val granted = mgr.requestFocus()
-                log(if (granted) "✅ AudioFocusManager: фокус получен" else "❌ фокус не получен")
-                mgr.abandonFocus()
-                log("✅ AudioFocusManager: фокус освобождён")
-            }.onFailure { e -> log("❌ AudioFocusManager ERROR: ${e.message}") }
-        }
-
         setupUI()
         observeState()
         startAudioPlaybackLoop()
