@@ -1214,6 +1214,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun runInAppTests() {
         lifecycleScope.launch(Dispatchers.IO) {
+            try {
 
             var passed = 0
             var failed = 0
