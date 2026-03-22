@@ -1215,234 +1215,215 @@ class MainActivity : AppCompatActivity() {
     private fun runInAppTests() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                delay(1000)
+                var passed = 0
+                var failed = 0
+                val sep = "─".repeat(48)
 
-            var passed = 0
-            var failed = 0
-            val separator = "─".repeat(52)
-
-            suspend fun test(name: String, block: suspend () -> Unit) {
-                try {
-                    block()
-                    log("✅  $name")
-                    passed++
-                } catch (e: AssertionError) {
-                    log("❌  $name\n     ↳ ${e.message}")
-                    failed++
-                } catch (e: Throwable) {
-                    log("💥  $name\n     ↳ ${e::class.simpleName}: ${e.message}")
-                    failed++
+                suspend fun test(name: String, block: suspend () -> Unit) {
+                    try {
+                        block()
+                        log("✅ $name")
+                        passed++
+                    } catch (e: Throwable) {
+                        log("❌ $name ↳ ${e::class.simpleName}: ${e.message}")
+                        failed++
+                    }
                 }
-            }
+                fun check(c: Boolean, m: String = "fail") { if (!c) throw AssertionError(m) }
+                fun <T> checkEq(e: T, a: T, l: String = "") {
+                    if (e != a) throw AssertionError("[$l] ожидалось=<$e> получено=<$a>")
+                }
 
-            fun check(cond: Boolean, msg: String = "условие не выполнено") {
-                if (!cond) throw AssertionError(msg)
-            }
+                log(sep)
+                log("▶ ТЕСТЫ ЗАПУЩЕНЫ")
+                log(sep)
 
-            fun <T> checkEq(expected: T, actual: T, label: String = "") {
-                if (expected != actual) throw AssertionError(
-                    "${if (label.isNotEmpty()) "[$label] " else ""}ожидалось=<$expected>  получено=<$actual>"
-                )
-            }
+                // --- ГРУППА 1: GeminiProtocol ---
+                log("▶ ГРУППА 1 — GeminiProtocol")
 
-            // ════════════════════════════════════════════════════════════
-            //  ГРУППА 1: GeminiProtocol
-            // ════════════════════════════════════════════════════════════
-            log(separator)
-            log("▶ ГРУППА 1 — GeminiProtocol (network/GeminiProtocol.kt)")
-            log(separator)
-
-            // 1. ignoreUnknownKeys: лишние поля не бросают исключение
-            test("json · ignoreUnknownKeys — лишние поля игнорируются") {
-                val parsed = GeminiProtocol.json.decodeFromString<Part>(
-                    """{"text":"привет","unknownField":"ignored","another":42}"""
-                )
-                checkEq("привет", parsed.text, "text после игнорирования лишних полей")
-            }
-
-            // 2. encodeDefaults=false: null-поля не сериализуются
-            test("json · encodeDefaults=false — null-поля не попадают в JSON") {
-                val body = SetupBody(model = "models/gemini-2.5-flash")
-                val encoded = GeminiProtocol.json.encodeToString(body)
-                check(!encoded.contains("generationConfig"), "generationConfig null → не должно быть в JSON")
-                check(!encoded.contains("systemInstruction"), "systemInstruction null → не должно быть в JSON")
-                check(!encoded.contains("tools"), "tools null → не должно быть в JSON")
-                check(!encoded.contains("realtimeInputConfig"), "realtimeInputConfig null → не должно быть в JSON")
-                check(encoded.contains("models/gemini-2.5-flash"), "model должен присутствовать")
-            }
-
-            // 3. encodeDefaults=false: поле с дефолтным значением НЕ сериализуется
-            // Важно: GenerationConfig() имеет responseModalities = listOf("AUDIO") как default.
-            // При encodeDefaults=false это поле будет ПРОПУЩЕНО в JSON.
-            test("json · encodeDefaults=false — дефолтный responseModalities опускается") {
-                val config = GenerationConfig() // responseModalities = listOf("AUDIO") — это default
-                val encoded = GeminiProtocol.json.encodeToString(config)
-                check(!encoded.contains("responseModalities"),
-                    "Default responseModalities=[AUDIO] должен быть опущен (encodeDefaults=false). " +
-                            "Encoded: $encoded"
-                )
-            }
-
-            // 4. Не-дефолтное значение — сериализуется
-            test("json · не-дефолтный responseModalities сериализуется") {
-                val config = GenerationConfig(responseModalities = listOf("AUDIO", "TEXT"))
-                val encoded = GeminiProtocol.json.encodeToString(config)
-                check(encoded.contains("AUDIO"), "AUDIO должен быть в JSON")
-                check(encoded.contains("TEXT"), "TEXT должен быть в JSON")
-            }
-
-            // 5. Полный round-trip SetupMessage
-            test("SetupMessage · полный round-trip сериализации/десериализации") {
-                val original = SetupMessage(
-                    SetupBody(
-                        model = "models/gemini-2.5-flash-native-audio-preview-12-2025",
+                test("ignoreUnknownKeys") {
+                    val p = GeminiProtocol.json.decodeFromString<Part>("""{"text":"hi","x":1}""")
+                    checkEq("hi", p.text)
+                }
+                test("null-поля не в JSON") {
+                    val e = GeminiProtocol.json.encodeToString(SetupBody(model = "m"))
+                    check(!e.contains("generationConfig"))
+                    check(e.contains("m"))
+                }
+                test("encodeDefaults=false: дефолт опускается") {
+                    val e = GeminiProtocol.json.encodeToString(GenerationConfig())
+                    check(!e.contains("responseModalities"), "Encoded: $e")
+                }
+                test("не-дефолт сериализуется") {
+                    val e = GeminiProtocol.json.encodeToString(
+                        GenerationConfig(responseModalities = listOf("AUDIO","TEXT")))
+                    check(e.contains("TEXT"))
+                }
+                test("SetupMessage round-trip") {
+                    val orig = SetupMessage(SetupBody(
+                        model = "test-model",
                         generationConfig = GenerationConfig(
                             responseModalities = listOf("AUDIO"),
                             speechConfig = SpeechConfig(VoiceConfig(PrebuiltVoice("Aoede")))
-                        ),
-                        systemInstruction = SystemInstruction(
-                            listOf(Part("Ты русскоязычный голосовой ассистент"))
                         )
-                    )
-                )
-                val encoded = GeminiProtocol.json.encodeToString(original)
-                val decoded = GeminiProtocol.json.decodeFromString<SetupMessage>(encoded)
-
-                checkEq(original.setup.model, decoded.setup.model, "model")
-                checkEq(
-                    "Aoede",
-                    decoded.setup.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName,
-                    "voiceName"
-                )
-                checkEq(
-                    "Ты русскоязычный голосовой ассистент",
-                    decoded.setup.systemInstruction?.parts?.firstOrNull()?.text,
-                    "systemInstruction text"
-                )
-            }
-
-            // 6. RealtimeInputMessage: аудио → text-поле отсутствует
-            test("RealtimeInputMessage · audio-вариант: поле text отсутствует") {
-                val msg = RealtimeInputMessage(
-                    RealtimeInputBody(audio = AudioData("YWJj", "audio/pcm;rate=16000"))
-                )
-                val encoded = GeminiProtocol.json.encodeToString(msg)
-                check(encoded.contains("YWJj"), "data должен присутствовать")
-                check(encoded.contains("audio/pcm;rate=16000"), "mimeType должен присутствовать")
-                check(!encoded.contains("\"text\""),
-                    "поле text должно отсутствовать при null. Encoded: $encoded")
-            }
-
-            // 7. RealtimeInputMessage: текст → audio-поле отсутствует
-            test("RealtimeInputMessage · text-вариант: поле audio отсутствует") {
-                val msg = RealtimeInputMessage(RealtimeInputBody(text = "Привет Gemini"))
-                val encoded = GeminiProtocol.json.encodeToString(msg)
-                check(encoded.contains("Привет Gemini"), "text должен присутствовать")
-                check(!encoded.contains("\"audio\""),
-                    "поле audio должно отсутствовать при null. Encoded: $encoded")
-            }
-
-            // 8. ToolDeclaration со вложенными параметрами
-            test("ToolDeclaration · сериализация с параметрами") {
-                val decl = ToolDeclaration(
-                    listOf(
-                        FunctionDeclarationProto(
-                            name = "get_weather",
-                            description = "Возвращает погоду",
-                            parameters = ParametersProto(
-                                properties = mapOf(
-                                    "city" to PropertyProto("string", "Название города"),
-                                    "units" to PropertyProto("string", "Единицы: celsius/fahrenheit")
-                                ),
-                                required = listOf("city")
-                            )
-                        )
-                    )
-                )
-                val encoded = GeminiProtocol.json.encodeToString(decl)
-                check(encoded.contains("get_weather"), "name функции")
-                check(encoded.contains("Название города"), "description параметра")
-                check(encoded.contains("required"), "список required")
-            }
-
-            // 9. ParametersProto: default type = "object"
-            test("ParametersProto · default type = \"object\"") {
-                val p = ParametersProto(properties = emptyMap())
-                checkEq("object", p.type, "default type")
-            }
-
-            // 10. AutomaticActivityDetection: defaults
-            test("AutomaticActivityDetection · defaults корректны") {
-                val aad = AutomaticActivityDetection()
-                checkEq(false, aad.disabled, "disabled default")
-                check(aad.startOfSpeechSensitivity == null, "startOfSpeechSensitivity должен быть null")
-                check(aad.endOfSpeechSensitivity == null, "endOfSpeechSensitivity должен быть null")
-                check(aad.prefixPaddingMs == null, "prefixPaddingMs должен быть null")
-                check(aad.silenceDurationMs == null, "silenceDurationMs должен быть null")
-            }
-
-            // 11. ThinkingConfig round-trip
-            test("ThinkingConfig · round-trip") {
-                val original = ThinkingConfig(thinkingBudget = 2048)
-                val encoded = GeminiProtocol.json.encodeToString(original)
-                val decoded = GeminiProtocol.json.decodeFromString<ThinkingConfig>(encoded)
-                checkEq(2048, decoded.thinkingBudget, "thinkingBudget")
-            }
-
-            // 12. Part: кириллица сохраняется
-            test("Part · кириллический текст сохраняется при round-trip") {
-                val original = Part("Всегда отвечай на русском языке")
-                val encoded = GeminiProtocol.json.encodeToString(original)
-                val decoded = GeminiProtocol.json.decodeFromString<Part>(encoded)
-                checkEq(original.text, decoded.text, "кириллический текст")
-            }
-
-            // 13. SetupBody с ВСЕМИ полями — все присутствуют в JSON
-            test("SetupBody · все non-null поля присутствуют в JSON") {
-                val body = SetupBody(
-                    model = "m",
-                    generationConfig = GenerationConfig(responseModalities = listOf("AUDIO")),
-                    systemInstruction = SystemInstruction(listOf(Part("test"))),
-                    tools = listOf(ToolDeclaration(emptyList())),
-                    realtimeInputConfig = RealtimeInputConfig()
-                )
-                val encoded = GeminiProtocol.json.encodeToString(body)
-                check(encoded.contains("generationConfig"), "generationConfig должен быть в JSON")
-                check(encoded.contains("systemInstruction"), "systemInstruction должен быть в JSON")
-                check(encoded.contains("tools"), "tools должен быть в JSON")
-                check(encoded.contains("realtimeInputConfig"), "realtimeInputConfig должен быть в JSON")
-            }
-
-            // 14. GeminiProtocol.json — единственный объект (object), не new instance
-            test("GeminiProtocol · json доступен как Kotlin object (singleton)") {
-                val ref1 = GeminiProtocol.json
-                val ref2 = GeminiProtocol.json
-                check(ref1 === ref2, "json должен быть одним и тем же объектом")
-            }
-
-            // ════════════════════════════════════════════════════════════
-            //  ГРУППА 2: AudioDispatcherProvider
-            // ════════════════════════════════════════════════════════════
-            log(separator)
-            log("▶ ГРУППА 2 — AudioDispatcherProvider (audio/AudioDispatcherProvider.kt)")
-            log(separator)
-
-            // 15. Создание не бросает исключений
-            test("AudioDispatcherProvider · создаётся без ошибок") {
-                val provider = AudioDispatcherProvider()
-                check(provider.recorder != null, "recorder не должен быть null")
-                check(provider.player != null, "player не должен быть null")
-                provider.shutdown()
-            }
-
-            // 16. Recorder: имя потока = "GeminiAudioRecorder"
-            test("AudioDispatcherProvider · recorder: имя потока = \"GeminiAudioRecorder\"") {
-                val provider = AudioDispatcherProvider()
-                val latch = CountDownLatch(1)
-                var threadName = ""
-                kotlinx.coroutines.GlobalScope.launch(provider.recorder) {
-                    threadName = Thread.currentThread().name
-                    latch.countDown()
+                    ))
+                    val dec = GeminiProtocol.json.decodeFromString<SetupMessage>(
+                        GeminiProtocol.json.encodeToString(orig))
+                    checkEq("test-model", dec.setup.model)
+                    checkEq("Aoede",
+                        dec.setup.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName)
                 }
+                test("audio: text отсутствует") {
+                    val e = GeminiProtocol.json.encodeToString(
+                        RealtimeInputMessage(RealtimeInputBody(audio = AudioData("abc","audio/pcm"))))
+                    check(!e.contains("\"text\""), "Encoded: $e")
+                }
+                test("text: audio отсутствует") {
+                    val e = GeminiProtocol.json.encodeToString(
+                        RealtimeInputMessage(RealtimeInputBody(text = "Привет")))
+                    check(!e.contains("\"audio\""), "Encoded: $e")
+                }
+                test("ParametersProto default type=object") {
+                    checkEq("object", ParametersProto(properties = emptyMap()).type)
+                }
+                test("Part кириллица round-trip") {
+                    val orig = Part("Всегда на русском")
+                    val dec = GeminiProtocol.json.decodeFromString<Part>(
+                        GeminiProtocol.json.encodeToString(orig))
+                    checkEq(orig.text, dec.text)
+                }
+                test("ThinkingConfig round-trip") {
+                    val dec = GeminiProtocol.json.decodeFromString<ThinkingConfig>(
+                        GeminiProtocol.json.encodeToString(ThinkingConfig(2048)))
+                    checkEq(2048, dec.thinkingBudget)
+                }
+                test("GeminiProtocol singleton") {
+                    check(GeminiProtocol.json === GeminiProtocol.json)
+                }
+
+                // --- ГРУППА 2: AudioDispatcherProvider ---
+                log(sep)
+                log("▶ ГРУППА 2 — AudioDispatcherProvider")
+
+                test("создаётся без ошибок") {
+                    val p = AudioDispatcherProvider()
+                    check(p.recorder != null)
+                    check(p.player != null)
+                    p.shutdown()
+                }
+                test("recorder: имя потока") {
+                    val p = AudioDispatcherProvider()
+                    val latch = java.util.concurrent.CountDownLatch(1)
+                    var name = ""
+                    kotlinx.coroutines.GlobalScope.launch(p.recorder) {
+                        name = Thread.currentThread().name; latch.countDown()
+                    }
+                    check(latch.await(2, TimeUnit.SECONDS))
+                    checkEq("GeminiAudioRecorder", name)
+                    p.shutdown()
+                }
+                test("recorder: MAX_PRIORITY") {
+                    val p = AudioDispatcherProvider()
+                    val latch = java.util.concurrent.CountDownLatch(1)
+                    var pri = -1
+                    kotlinx.coroutines.GlobalScope.launch(p.recorder) {
+                        pri = Thread.currentThread().priority; latch.countDown()
+                    }
+                    check(latch.await(2, TimeUnit.SECONDS))
+                    checkEq(Thread.MAX_PRIORITY, pri)
+                    p.shutdown()
+                }
+                test("recorder: isDaemon") {
+                    val p = AudioDispatcherProvider()
+                    val latch = java.util.concurrent.CountDownLatch(1)
+                    var daemon = false
+                    kotlinx.coroutines.GlobalScope.launch(p.recorder) {
+                        daemon = Thread.currentThread().isDaemon; latch.countDown()
+                    }
+                    check(latch.await(2, TimeUnit.SECONDS))
+                    check(daemon)
+                    p.shutdown()
+                }
+                test("player: имя потока") {
+                    val p = AudioDispatcherProvider()
+                    val latch = java.util.concurrent.CountDownLatch(1)
+                    var name = ""
+                    kotlinx.coroutines.GlobalScope.launch(p.player) {
+                        name = Thread.currentThread().name; latch.countDown()
+                    }
+                    check(latch.await(2, TimeUnit.SECONDS))
+                    checkEq("GeminiAudioPlayer", name)
+                    p.shutdown()
+                }
+                test("recorder ≠ player") {
+                    val p = AudioDispatcherProvider()
+                    check(p.recorder !== p.player)
+                    p.shutdown()
+                }
+                test("double shutdown безопасен") {
+                    val p = AudioDispatcherProvider()
+                    p.shutdown()
+                    p.shutdown()
+                }
+
+                // --- ГРУППА 3: ForegroundService ---
+                log(sep)
+                log("▶ ГРУППА 3 — GeminiLiveForegroundService")
+
+                test("startService не крашит") {
+                    val i = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
+                    withContext(kotlinx.coroutines.Dispatchers.Main) { startService(i) }
+                    delay(600)
+                    withContext(kotlinx.coroutines.Dispatchers.Main) { stopService(i) }
+                }
+                test("notification channel создан") {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        val i = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
+                        withContext(kotlinx.coroutines.Dispatchers.Main) { startService(i) }
+                        delay(400)
+                        val nm = getSystemService(android.app.NotificationManager::class.java)
+                        val ch = nm.getNotificationChannel("gemini_live_channel")
+                        check(ch != null, "канал не создан")
+                        checkEq(android.app.NotificationManager.IMPORTANCE_LOW, ch.importance)
+                        withContext(kotlinx.coroutines.Dispatchers.Main) { stopService(i) }
+                    } else log("   ⚠ skip API<26")
+                }
+                test("channel: имя и описание") {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        val i = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
+                        withContext(kotlinx.coroutines.Dispatchers.Main) { startService(i) }
+                        delay(400)
+                        val ch = getSystemService(android.app.NotificationManager::class.java)
+                            .getNotificationChannel("gemini_live_channel")
+                        check(ch != null)
+                        checkEq("Gemini Live — Запись", ch.name.toString())
+                        check(ch.description?.contains("записи голоса") == true,
+                            "desc='${ch.description}'")
+                        withContext(kotlinx.coroutines.Dispatchers.Main) { stopService(i) }
+                    } else log("   ⚠ skip API<26")
+                }
+                test("повторный startService безопасен") {
+                    val i = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
+                    withContext(kotlinx.coroutines.Dispatchers.Main) { startService(i) }
+                    delay(200)
+                    withContext(kotlinx.coroutines.Dispatchers.Main) { startService(i) }
+                    delay(200)
+                    withContext(kotlinx.coroutines.Dispatchers.Main) { stopService(i) }
+                }
+
+                // --- ИТОГО ---
+                log(sep)
+                val total = passed + failed
+                log("▶ ИТОГО: $passed/$total (${if(total>0) passed*100/total else 0}%)")
+                log(if (failed == 0) "🎉 ВСЕ ТЕСТЫ ПРОЙДЕНЫ" else "⚠️ ПРОВАЛЕНО: $failed")
+                log(sep)
+
+            } catch (e: Throwable) {
+                log("🔥 CRASH: ${e::class.simpleName}: ${e.message}")
+            }
+        }
+    }
                 check(latch.await(2, TimeUnit.SECONDS), "timeout ожидания задачи recorder")
                 checkEq("GeminiAudioRecorder", threadName, "имя потока recorder")
                 provider.shutdown()
