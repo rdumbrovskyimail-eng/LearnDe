@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class GeminiLiveForegroundService : Service() {
 
@@ -35,14 +36,26 @@ class GeminiLiveForegroundService : Service() {
             .setSilent(true)
             .build()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            LocalBroadcastManager.getInstance(this).sendBroadcast(Intent("com.codeextractor.app.SERVICE_READY"))
+        } catch (e: Exception) {
+            when (e) {
+                is SecurityException, is IllegalArgumentException -> {
+                    Log.e(TAG, "Failed to start foreground service: ${e.message}")
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                else -> throw e
+            }
         }
 
         return START_STICKY
