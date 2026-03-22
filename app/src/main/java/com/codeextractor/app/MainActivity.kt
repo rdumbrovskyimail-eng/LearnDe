@@ -325,7 +325,8 @@ class MainActivity : AppCompatActivity() {
                     )
                 )
             )
-            val json = com.codeextractor.app.network.GeminiProtocol.json.encodeToString(setup)
+            val json = com.codeextractor.app.network.GeminiProtocol.json
+                .encodeToString(com.codeextractor.app.network.SetupMessage.serializer(), setup)
             val hasModel = json.contains("gemini-2.5-flash")
             val hasVoice = json.contains("Aoede")
             val hasInstruction = json.contains("русскоязычный")
@@ -333,19 +334,19 @@ class MainActivity : AppCompatActivity() {
                 "✅ GeminiProtocol: сериализация OK (${json.length} chars)"
                 else "❌ GeminiProtocol: json неверный: $json")
 
-            // Тест 2: encodeDefaults=false — null поля не попадают в json
             val noNulls = !json.contains("null")
             log(if (noNulls)
                 "✅ GeminiProtocol: null поля исключены OK"
                 else "❌ GeminiProtocol: json содержит null")
 
-            // Тест 3: RealtimeInputMessage
+            // Тест 2: RealtimeInputMessage
             val audioMsg = com.codeextractor.app.network.RealtimeInputMessage(
                 com.codeextractor.app.network.RealtimeInputBody(
                     audio = com.codeextractor.app.network.AudioData("base64data", "audio/pcm;rate=16000")
                 )
             )
-            val audioJson = com.codeextractor.app.network.GeminiProtocol.json.encodeToString(audioMsg)
+            val audioJson = com.codeextractor.app.network.GeminiProtocol.json
+                .encodeToString(com.codeextractor.app.network.RealtimeInputMessage.serializer(), audioMsg)
             log(if (audioJson.contains("base64data"))
                 "✅ GeminiProtocol: AudioData OK"
                 else "❌ GeminiProtocol: AudioData неверный")
