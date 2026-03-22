@@ -286,116 +286,8 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
-        setupUI()
-        observeState()
-        startAudioPlaybackLoop()
-
-        // ===== ТЕСТЫ — удалить после проверки =====
-        lifecycleScope.launch(Dispatchers.Main) {
-            delay(1000) // ждём полную инициализацию UI
-
-            // ТЕСТ 1: GeminiLiveForegroundService
-            try {
-                val intent = android.content.Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
-                if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent)
-                else startService(intent)
-                log("✅ ForegroundService: запущен")
-                delay(2000)
-                stopService(intent)
-                log("✅ ForegroundService: остановлен")
-            } catch (e: Exception) {
-                log("❌ ForegroundService: ${e.message}")
-            }
-
-            // ТЕСТ 2: AudioDispatcherProvider
-            try {
-                val d = com.codeextractor.app.audio.AudioDispatcherProvider()
-                var t1 = ""
-                var t2 = ""
-                kotlinx.coroutines.withContext(d.recorder) { t1 = Thread.currentThread().name }
-                kotlinx.coroutines.withContext(d.player) { t2 = Thread.currentThread().name }
-                d.shutdown()
-                log(if (t1 == "GeminiAudioRecorder" && t2 == "GeminiAudioPlayer")
-                    "✅ AudioDispatcherProvider: OK (recorder=$t1, player=$t2)"
-                    else "❌ AudioDispatcherProvider: wrong threads t1=$t1 t2=$t2")
-            } catch (e: Exception) {
-                log("❌ AudioDispatcherProvider: ${e.message}")
-            }
-
-            // ТЕСТ 3: GeminiProtocol
-            try {
-                val msg = com.codeextractor.app.network.SetupMessage(
-                    com.codeextractor.app.network.SetupBody(
-                        model = "gemini-test",
-                        systemInstruction = com.codeextractor.app.network.SystemInstruction(
-                            listOf(com.codeextractor.app.network.Part("тест"))
-                        )
-                    )
-                )
-                val json = com.codeextractor.app.network.GeminiProtocol.json
-                    .encodeToString(com.codeextractor.app.network.SetupMessage.serializer(), msg)
-                log(if (json.contains("gemini-test") && json.contains("тест") && !json.contains("null"))
-                    "✅ GeminiProtocol: OK (${json.length} chars)"
-                    else "❌ GeminiProtocol: json=$json")
-            } catch (e: Exception) {
-                log("❌ GeminiProtocol: ${e.message}")
-            }
-        }
-        // ===== КОНЕЦ ТЕСТОВ =====
-
-        apiKey = loadApiKey()
-
-        // Подключаемся только если ключ уже есть
-        if (apiKey.isNotEmpty()) {
-            binding.keyInputLayout.visibility = View.GONE
-            binding.keyDivider.visibility = View.GONE
-            connectWebSocket()
-        } else {
-            log("⚠ API ключ не задан — введите ключ и нажмите OK")
-            binding.startButton.isEnabled = false
-            binding.stopButton.isEnabled = false
-        }
-
-            // ТЕСТ 3: GeminiProtocol
-            try {
-                val msg = com.codeextractor.app.network.SetupMessage(
-                    com.codeextractor.app.network.SetupBody(
-                        model = "gemini-test",
-                        systemInstruction = com.codeextractor.app.network.SystemInstruction(
-                            listOf(com.codeextractor.app.network.Part("тест"))
-                        )
-                    )
-                )
-                val json = com.codeextractor.app.network.GeminiProtocol.json
-                    .encodeToString(com.codeextractor.app.network.SetupMessage.serializer(), msg)
-                log(if (json.contains("gemini-test") && json.contains("тест") && !json.contains("null"))
-                    "✅ GeminiProtocol: OK (${json.length} chars)"
-                    else "❌ GeminiProtocol: json=$json")
-            } catch (e: Exception) {
-                log("❌ GeminiProtocol: ${e.message}")
-            }
-        }
-        // ===== КОНЕЦ ТЕСТОВ =====
-
-        // #25: Загружаем сохранённый ключ
-        apiKey = loadApiKey()
-
-        // Подключаемся только если ключ уже есть
-        if (apiKey.isNotEmpty()) {
-            binding.keyInputLayout.visibility = View.GONE
-            binding.keyDivider.visibility = View.GONE
-            connectWebSocket()
-        } else {
-            log("⚠ API ключ не задан — введите ключ и нажмите OK")
-            binding.startButton.isEnabled = false
-            binding.stopButton.isEnabled = false
-        }
-
-        // ТЕСТЫ — запускаем после полной инициализации UI
+        // ТЕСТ GeminiLiveForegroundService — удалить после проверки
         lifecycleScope.launch {
-            delay(500) // ждём пока UI готов
-
-            // ТЕСТ GeminiLiveForegroundService
             runCatching {
                 val serviceIntent = android.content.Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -404,12 +296,14 @@ class MainActivity : AppCompatActivity() {
                     startService(serviceIntent)
                 }
                 log("✅ GeminiLiveForegroundService: запущен")
-                delay(3000)
+                kotlinx.coroutines.delay(3000)
                 stopService(serviceIntent)
                 log("✅ GeminiLiveForegroundService: остановлен")
-            }.onFailure { e -> log("❌ ForegroundService ERROR: ${e.message}") }
+            }.onFailure { e -> log("❌ GeminiLiveForegroundService ERROR: ${e.message}") }
+        }
 
-            // ТЕСТ AudioDispatcherProvider
+        // ТЕСТ AudioDispatcherProvider — удалить после проверки
+        lifecycleScope.launch {
             runCatching {
                 val dispatchers = com.codeextractor.app.audio.AudioDispatcherProvider()
                 var recorderThreadName = ""
@@ -427,43 +321,61 @@ class MainActivity : AppCompatActivity() {
                 dispatchers.shutdown()
                 log("✅ AudioDispatcherProvider: shutdown OK")
             }.onFailure { e -> log("❌ AudioDispatcherProvider ERROR: ${e.message}") }
+        }
 
-            // ТЕСТ GeminiProtocol
-            runCatching {
-                val setup = com.codeextractor.app.network.SetupMessage(
-                    setup = com.codeextractor.app.network.SetupBody(
-                        model = "models/gemini-2.5-flash-native-audio-preview-12-2025",
-                        generationConfig = com.codeextractor.app.network.GenerationConfig(
-                            speechConfig = com.codeextractor.app.network.SpeechConfig(
-                                com.codeextractor.app.network.VoiceConfig(
-                                    com.codeextractor.app.network.PrebuiltVoice("Aoede")
-                                )
+        // ТЕСТ GeminiProtocol — удалить после проверки
+        runCatching {
+            val setup = com.codeextractor.app.network.SetupMessage(
+                setup = com.codeextractor.app.network.SetupBody(
+                    model = "models/gemini-2.5-flash-native-audio-preview-12-2025",
+                    generationConfig = com.codeextractor.app.network.GenerationConfig(
+                        speechConfig = com.codeextractor.app.network.SpeechConfig(
+                            com.codeextractor.app.network.VoiceConfig(
+                                com.codeextractor.app.network.PrebuiltVoice("Aoede")
                             )
-                        ),
-                        systemInstruction = com.codeextractor.app.network.SystemInstruction(
-                            listOf(com.codeextractor.app.network.Part("Ты русскоязычный ассистент"))
                         )
+                    ),
+                    systemInstruction = com.codeextractor.app.network.SystemInstruction(
+                        listOf(com.codeextractor.app.network.Part("Ты русскоязычный ассистент"))
                     )
                 )
-                val json = com.codeextractor.app.network.GeminiProtocol.json
-                    .encodeToString(com.codeextractor.app.network.SetupMessage.serializer(), setup)
-                log(if (json.contains("gemini-2.5-flash") && json.contains("Aoede"))
-                    "✅ GeminiProtocol: сериализация OK (${json.length} chars)"
-                    else "❌ GeminiProtocol: json неверный")
-                log(if (!json.contains("null"))
-                    "✅ GeminiProtocol: null поля исключены OK"
-                    else "❌ GeminiProtocol: json содержит null")
-                val audioMsg = com.codeextractor.app.network.RealtimeInputMessage(
-                    com.codeextractor.app.network.RealtimeInputBody(
-                        audio = com.codeextractor.app.network.AudioData("base64data", "audio/pcm;rate=16000")
-                    )
+            )
+            val json = com.codeextractor.app.network.GeminiProtocol.json
+                .encodeToString(com.codeextractor.app.network.SetupMessage.serializer(), setup)
+            log(if (json.contains("gemini-2.5-flash") && json.contains("Aoede"))
+                "✅ GeminiProtocol: сериализация OK (${json.length} chars)"
+                else "❌ GeminiProtocol: json неверный")
+            log(if (!json.contains("null"))
+                "✅ GeminiProtocol: null поля исключены OK"
+                else "❌ GeminiProtocol: json содержит null")
+            val audioMsg = com.codeextractor.app.network.RealtimeInputMessage(
+                com.codeextractor.app.network.RealtimeInputBody(
+                    audio = com.codeextractor.app.network.AudioData("base64data", "audio/pcm;rate=16000")
                 )
-                val audioJson = com.codeextractor.app.network.GeminiProtocol.json
-                    .encodeToString(com.codeextractor.app.network.RealtimeInputMessage.serializer(), audioMsg)
-                log(if (audioJson.contains("base64data"))
-                    "✅ GeminiProtocol: AudioData OK"
-                    else "❌ GeminiProtocol: AudioData неверный")
-            }.onFailure { e -> log("❌ GeminiProtocol ERROR: ${e.message}") }
+            )
+            val audioJson = com.codeextractor.app.network.GeminiProtocol.json
+                .encodeToString(com.codeextractor.app.network.RealtimeInputMessage.serializer(), audioMsg)
+            log(if (audioJson.contains("base64data"))
+                "✅ GeminiProtocol: AudioData OK"
+                else "❌ GeminiProtocol: AudioData неверный")
+        }.onFailure { e -> log("❌ GeminiProtocol ERROR: ${e.message}") }
+
+        // #25: Загружаем сохранённый ключ
+        apiKey = loadApiKey()
+
+        setupUI()
+        observeState()
+        startAudioPlaybackLoop()
+
+        // Подключаемся только если ключ уже есть
+        if (apiKey.isNotEmpty()) {
+            binding.keyInputLayout.visibility = View.GONE
+            binding.keyDivider.visibility = View.GONE
+            connectWebSocket()
+        } else {
+            log("⚠ API ключ не задан — введите ключ и нажмите OK")
+            binding.startButton.isEnabled = false
+            binding.stopButton.isEnabled = false
         }
     }
 
