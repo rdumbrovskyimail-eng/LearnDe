@@ -1653,8 +1653,12 @@ class MainActivity : AppCompatActivity() {
                 log("⚠️  ПРОВАЛЕНО: $failed тест(ов)")
             }
             log(separator)
+
+        } catch (e: Throwable) {
+            log("🔥 TEST RUNNER CRASHED: ${e::class.simpleName}: ${e.message}")
         }
     }
+}
 
     // ====================================================================
     //  #25: API KEY — SharedPreferences (MODE_PRIVATE)
