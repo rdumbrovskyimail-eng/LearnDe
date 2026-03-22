@@ -31,24 +31,23 @@ jobs:
             caches/*/gc.properties
 
       - name: Build Debug APK
-        run: |
-          gradle assembleDebug \
-            --no-build-cache \
-            --parallel \
-            --max-workers=4 \
-            --stacktrace \
-            -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m" \
-            -Dorg.gradle.parallel=true \
-            -Dkotlin.incremental=false \
-            -Dandroid.enableJetifier=false
+        run: gradle assembleDebug --no-build-cache --parallel --max-workers=4 --stacktrace -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m" -Dorg.gradle.parallel=true -Dkotlin.incremental=false -Dandroid.enableJetifier=false
 
       - name: Rename APK
         run: |
           mkdir -p apks
-          cp app/build/outputs/apk/debug/app-debug.apk \
-             apks/CodeExtractor-v${{ github.run_number }}.apk
+          cp app/build/outputs/apk/debug/app-debug.apk apks/CodeExtractor-v${{ github.run_number }}.apk
 
-      - name: Create Release
+      # Сохраняем APK для следующего job
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ github.run_number }}
+          path: apks/CodeExtractor-v${{ github.run_number }}.apk
+          retention-days: 1
+
+      # Релиз 1 — только APK
+      - name: Create APK Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
@@ -56,6 +55,7 @@ jobs:
           body: |
             ## 📱 CodeExtractor v1.0.${{ github.run_number }}
             Скачайте APK и установите на устройство.
+            ⏳ Logcat будет добавлен после прохождения тестов на эмуляторе.
           files: apks/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -73,11 +73,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Включаем KVM для аппаратного ускорения эмулятора
       - name: Enable KVM
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
@@ -86,15 +84,13 @@ jobs:
         with:
           gradle-version: 8.11.1
 
-      - name: Build Debug APK
-        run: |
-          gradle assembleDebug \
-            --no-build-cache \
-            -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC" \
-            -Dkotlin.incremental=false \
-            -Dandroid.enableJetifier=false
+      # Скачиваем APK собранный в job build
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: apk-${{ github.run_number }}
+          path: apks/
 
-      # Android 16 = API 36
       - name: Run Emulator (API 36 / Android 16)
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -107,76 +103,55 @@ jobs:
           disk-size: 8192M
           avd-name: android16_test
           force-avd-creation: false
-          emulator-options: >-
-            -no-snapshot-save
-            -no-window
-            -gpu swiftshader_indirect
-            -noaudio
-            -no-boot-anim
-            -camera-back emulated
-            -camera-front emulated
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
           disable-animations: true
           script: |
             echo "=== Эмулятор запущен ==="
             adb devices
-
-            # Установка APK
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb logcat -c
+            adb logcat > emulator_logcat.txt &
+            LOGCAT_PID=$!
+            echo "📋 Logcat запущен (pid=$LOGCAT_PID)"
+            adb install -r apks/CodeExtractor-v${{ github.run_number }}.apk
             echo "✅ APK установлен"
-
-            # Выдаём разрешения вручную (без UI-диалогов)
-            adb shell pm grant com.codeextractor.app \
-              android.permission.RECORD_AUDIO
-            adb shell pm grant com.codeextractor.app \
-              android.permission.POST_NOTIFICATIONS
+            adb shell pm grant com.codeextractor.app android.permission.RECORD_AUDIO
+            adb shell pm grant com.codeextractor.app android.permission.POST_NOTIFICATIONS
             echo "✅ Разрешения выданы"
-
-            # Запускаем приложение
-            adb shell am start -n \
-              com.codeextractor.app/.MainActivity
+            adb shell am start -n com.codeextractor.app/.MainActivity
             echo "✅ MainActivity запущена"
-
-            # Ждём инициализацию
             sleep 3
-
-            # Эмулируем нажатие Start (записываем координаты кнопки)
-            # pixel_6: 1080x2400 — кнопка Start примерно x=135, y=2050
             adb shell input tap 135 2050
             echo "🎙 Нажата кнопка Start"
-
-            # Запись 25 секунд
             echo "⏳ Запись идёт 25 секунд..."
             sleep 25
-
-            # Нажимаем Stop
             adb shell input tap 365 2050
             echo "⏹ Нажата кнопка Stop"
-
             sleep 2
-
-            # Снимаем скриншот результата
+            kill $LOGCAT_PID || true
+            echo "📋 Logcat остановлен ($(wc -l < emulator_logcat.txt) строк)"
             adb shell screencap -p /sdcard/result.png
             adb pull /sdcard/result.png emulator_result.png
             echo "📸 Скриншот сохранён"
-
-            # Сохраняем logcat за всё время теста
-            adb logcat -d -s GeminiLive:D GeminiFgService:D \
-              > emulator_logcat.txt
-            echo "📋 Logcat сохранён"
-
-            # Проверяем: был ли setupComplete в логах
             if grep -q "SETUP COMPLETE" emulator_logcat.txt; then
               echo "✅ TEST PASSED: setupComplete получен"
             else
-              echo "⚠ TEST WARNING: setupComplete не найден (нет API ключа в CI — ожидаемо)"
+              echo "⚠ TEST WARNING: setupComplete не найден"
             fi
 
-      - name: Upload test artifacts
+      # Релиз 2 — добавляем logcat и скриншот к существующему релизу
+      - name: Update Release with Logcat
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: softprops/action-gh-release@v2
         with:
-          name: emulator-test-results-${{ github.run_number }}
-          path: |
-            emulator_result.png
+          tag_name: v1.0.${{ github.run_number }}
+          name: Release v1.0.${{ github.run_number }} ✅
+          body: |
+            ## 📱 CodeExtractor v1.0.${{ github.run_number }}
+            Скачайте APK и установите на устройство.
+            ✅ Тест на эмуляторе Android 16 (API 36) завершён.
+            📋 Logcat и скриншот прикреплены ниже.
+          files: |
             emulator_logcat.txt
-          retention-days: 7
+            emulator_result.png
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
