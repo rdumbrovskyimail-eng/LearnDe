@@ -307,6 +307,51 @@ class MainActivity : AppCompatActivity() {
             }.onFailure { e -> log("❌ GeminiLiveForegroundService ERROR: ${e.message}") }
         }
 
+        // ТЕСТ GeminiProtocol — удалить после проверки
+        runCatching {
+            // Тест 1: сериализация SetupMessage
+            val setup = com.codeextractor.app.network.SetupMessage(
+                setup = com.codeextractor.app.network.SetupBody(
+                    model = "models/gemini-2.5-flash-native-audio-preview-12-2025",
+                    generationConfig = com.codeextractor.app.network.GenerationConfig(
+                        speechConfig = com.codeextractor.app.network.SpeechConfig(
+                            com.codeextractor.app.network.VoiceConfig(
+                                com.codeextractor.app.network.PrebuiltVoice("Aoede")
+                            )
+                        )
+                    ),
+                    systemInstruction = com.codeextractor.app.network.SystemInstruction(
+                        listOf(com.codeextractor.app.network.Part("Ты русскоязычный ассистент"))
+                    )
+                )
+            )
+            val json = com.codeextractor.app.network.GeminiProtocol.json.encodeToString(setup)
+            val hasModel = json.contains("gemini-2.5-flash")
+            val hasVoice = json.contains("Aoede")
+            val hasInstruction = json.contains("русскоязычный")
+            log(if (hasModel && hasVoice && hasInstruction)
+                "✅ GeminiProtocol: сериализация OK (${json.length} chars)"
+                else "❌ GeminiProtocol: json неверный: $json")
+
+            // Тест 2: encodeDefaults=false — null поля не попадают в json
+            val noNulls = !json.contains("null")
+            log(if (noNulls)
+                "✅ GeminiProtocol: null поля исключены OK"
+                else "❌ GeminiProtocol: json содержит null")
+
+            // Тест 3: RealtimeInputMessage
+            val audioMsg = com.codeextractor.app.network.RealtimeInputMessage(
+                com.codeextractor.app.network.RealtimeInputBody(
+                    audio = com.codeextractor.app.network.AudioData("base64data", "audio/pcm;rate=16000")
+                )
+            )
+            val audioJson = com.codeextractor.app.network.GeminiProtocol.json.encodeToString(audioMsg)
+            log(if (audioJson.contains("base64data"))
+                "✅ GeminiProtocol: AudioData OK"
+                else "❌ GeminiProtocol: AudioData неверный")
+
+        }.onFailure { e -> log("❌ GeminiProtocol ERROR: ${e.message}") }
+
         // ТЕСТ AudioDispatcherProvider — удалить после проверки
         lifecycleScope.launch {
             runCatching {
