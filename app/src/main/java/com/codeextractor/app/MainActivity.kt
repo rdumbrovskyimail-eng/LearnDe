@@ -286,6 +286,27 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
+        // ТЕСТ GeminiLiveForegroundService — удалить после проверки
+        lifecycleScope.launch {
+            runCatching {
+                // Запускаем сервис
+                val serviceIntent = android.content.Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent)
+                } else {
+                    startService(serviceIntent)
+                }
+                log("✅ GeminiLiveForegroundService: запущен")
+
+                // Ждём 3 секунды — проверяем что уведомление появилось
+                kotlinx.coroutines.delay(3000)
+
+                // Останавливаем сервис
+                stopService(serviceIntent)
+                log("✅ GeminiLiveForegroundService: остановлен")
+            }.onFailure { e -> log("❌ GeminiLiveForegroundService ERROR: ${e.message}") }
+        }
+
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
 
