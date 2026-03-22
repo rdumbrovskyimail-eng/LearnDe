@@ -19,27 +19,20 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          # НЕ используем cache: 'gradle' здесь — управляем кешем вручную ниже
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.11.1
-          # КЛЮЧЕВОЕ: исключаем build-cache из кеша.
-          # Именно build-cache хранит скомпилированные таски и даёт стейл.
-          # Зависимости (.gradle/caches/modules-*) кешируются — они не меняются от коммита.
           gradle-home-cache-excludes: |
             caches/build-cache-*
             caches/*/executionHistory
             caches/journal-1
             caches/*/gc.properties
 
-      - name: Grant execute permission
-        run: chmod +x gradlew
-
       - name: Build Debug APK
         run: |
-          ./gradlew assembleDebug \
+          gradle assembleDebug \
             --no-build-cache \
             --parallel \
             --max-workers=4 \
