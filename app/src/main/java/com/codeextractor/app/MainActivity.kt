@@ -301,7 +301,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         // #26: Anti-tamper проверки — первым делом до любой инициализации
-        performSecurityChecks()
+        // performSecurityChecks()
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -1227,7 +1227,7 @@ class MainActivity : AppCompatActivity() {
                 } catch (e: AssertionError) {
                     log("❌  $name\n     ↳ ${e.message}")
                     failed++
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     log("💥  $name\n     ↳ ${e::class.simpleName}: ${e.message}")
                     failed++
                 }
