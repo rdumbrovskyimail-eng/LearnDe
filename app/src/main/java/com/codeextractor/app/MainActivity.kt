@@ -286,6 +286,22 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
+        // ТЕСТ GeminiLiveForegroundService — удалить после проверки
+        lifecycleScope.launch {
+            runCatching {
+                val serviceIntent = android.content.Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent)
+                } else {
+                    startService(serviceIntent)
+                }
+                log("✅ GeminiLiveForegroundService: запущен")
+                kotlinx.coroutines.delay(3000)
+                stopService(serviceIntent)
+                log("✅ GeminiLiveForegroundService: остановлен")
+            }.onFailure { e -> log("❌ GeminiLiveForegroundService ERROR: ${e.message}") }
+        }
+
         // ТЕСТ AudioDispatcherProvider — удалить после проверки
         lifecycleScope.launch {
             runCatching {
@@ -343,26 +359,6 @@ class MainActivity : AppCompatActivity() {
                 "✅ GeminiProtocol: AudioData OK"
                 else "❌ GeminiProtocol: AudioData неверный")
         }.onFailure { e -> log("❌ GeminiProtocol ERROR: ${e.message}") }
-
-        // ТЕСТ ConversationRepository — удалить после проверки
-        runCatching {
-            val repo = com.codeextractor.app.data.ConversationRepository()
-            repo.addMessage("user", "Привет")
-            repo.addMessage("model", "Здравствуйте")
-            repo.addMessage("user", "Как дела?")
-            val history = repo.getTurnsForContext()
-            log(if (history.size == 3)
-                "✅ ConversationRepository: addMessage OK (${history.size} msgs)"
-                else "❌ ConversationRepository: size=${history.size}")
-            val firstRole = history[0].first
-            log(if (firstRole == "user")
-                "✅ ConversationRepository: роли OK"
-                else "❌ роль неверная: $firstRole")
-            repo.clear()
-            log(if (repo.getTurnsForContext().isEmpty())
-                "✅ ConversationRepository: clear OK"
-                else "❌ ConversationRepository: clear не сработал")
-        }.onFailure { e -> log("❌ ConversationRepository ERROR: ${e.message}") }
 
         // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
