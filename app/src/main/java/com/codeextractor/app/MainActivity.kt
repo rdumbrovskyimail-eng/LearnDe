@@ -324,34 +324,44 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.Main) {
             log("⏳ ТЕСТ: Запускаем GeminiLiveForegroundService...")
             val serviceIntent = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
+            val lbm = androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(this@MainActivity)
+            val readyDeferred = CompletableDeferred<Boolean>()
+
+            val receiver = object : android.content.BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    readyDeferred.complete(true)
+                }
+            }
+            lbm.registerReceiver(receiver, android.content.IntentFilter("com.codeextractor.app.SERVICE_READY"))
 
             try {
-                // 1. Пробуем запустить сервис
                 ContextCompat.startForegroundService(this@MainActivity, serviceIntent)
                 log("✅ Сервис: команда start отправлена")
 
-                // 2. Ждем 2 секунды, чтобы сервис успел создать уведомление
-                delay(2000)
+                val result = withTimeoutOrNull(5000L) { readyDeferred.await() }
 
-                // Проверяем, создался ли канал уведомлений
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    val manager = getSystemService(android.app.NotificationManager::class.java)
-                    val channel = manager?.getNotificationChannel("gemini_live_channel")
-
-                    if (channel != null) {
-                        log("✅ Сервис: Канал '${channel.name}' успешно создан")
-                    } else {
-                        log("❌ Сервис: Ошибка! Канал уведомлений не найден.")
+                if (result == true) {
+                    log("✅ Сервис: получен сигнал SERVICE_READY")
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        val manager = getSystemService(android.app.NotificationManager::class.java)
+                        val channel = manager?.getNotificationChannel("gemini_live_channel")
+                        if (channel != null) {
+                            log("✅ Сервис: Канал '${channel.name}' успешно создан")
+                        } else {
+                            log("❌ Сервис: Ошибка! Канал уведомлений не найден.")
+                        }
                     }
+                } else {
+                    log("❌ Сервис: таймаут ожидания SERVICE_READY")
                 }
 
-                // 3. Останавливаем сервис
                 stopService(serviceIntent)
                 log("✅ Сервис: команда stop отправлена")
                 log("🏁 ТЕСТ СЕРВИСА ЗАВЕРШЕН")
-
             } catch (e: Exception) {
                 log("❌ Сервис: Краш при запуске: ${e.message}")
+            } finally {
+                lbm.unregisterReceiver(receiver)
             }
         }
         // ====================================================================
