@@ -1425,219 +1425,49 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-                check(latch.await(2, TimeUnit.SECONDS), "timeout ожидания задачи recorder")
-                checkEq("GeminiAudioRecorder", threadName, "имя потока recorder")
-                provider.shutdown()
-            }
 
-            // 17. Recorder: приоритет = MAX_PRIORITY
-            test("AudioDispatcherProvider · recorder: приоритет = Thread.MAX_PRIORITY") {
-                val provider = AudioDispatcherProvider()
-                val latch = CountDownLatch(1)
-                var priority = -1
-                kotlinx.coroutines.GlobalScope.launch(provider.recorder) {
-                    priority = Thread.currentThread().priority
-                    latch.countDown()
-                }
-                check(latch.await(2, TimeUnit.SECONDS), "timeout")
-                checkEq(Thread.MAX_PRIORITY, priority, "приоритет потока recorder")
-                provider.shutdown()
-            }
+    private fun getPrefs() =
+        getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
 
-            // 18. Recorder: isDaemon = true
-            test("AudioDispatcherProvider · recorder: поток является daemon") {
-                val provider = AudioDispatcherProvider()
-                val latch = CountDownLatch(1)
-                var isDaemon = false
-                kotlinx.coroutines.GlobalScope.launch(provider.recorder) {
-                    isDaemon = Thread.currentThread().isDaemon
-                    latch.countDown()
-                }
-                check(latch.await(2, TimeUnit.SECONDS), "timeout")
-                check(isDaemon, "поток recorder должен быть daemon")
-                provider.shutdown()
-            }
+    private fun loadApiKey(): String =
+        getPrefs().getString(PREFS_KEY_API, "").orEmpty()
 
-            // 19. Player: имя потока = "GeminiAudioPlayer"
-            test("AudioDispatcherProvider · player: имя потока = \"GeminiAudioPlayer\"") {
-                val provider = AudioDispatcherProvider()
-                val latch = CountDownLatch(1)
-                var threadName = ""
-                kotlinx.coroutines.GlobalScope.launch(provider.player) {
-                    threadName = Thread.currentThread().name
-                    latch.countDown()
-                }
-                check(latch.await(2, TimeUnit.SECONDS), "timeout ожидания задачи player")
-                checkEq("GeminiAudioPlayer", threadName, "имя потока player")
-                provider.shutdown()
-            }
+    private fun saveApiKey(key: String) {
+        getPrefs().edit().putString(PREFS_KEY_API, key).apply()
+    }
 
-            // 20. Player: приоритет = MAX_PRIORITY и isDaemon = true
-            test("AudioDispatcherProvider · player: MAX_PRIORITY и daemon") {
-                val provider = AudioDispatcherProvider()
-                val latch = CountDownLatch(1)
-                var priority = -1
-                var isDaemon = false
-                kotlinx.coroutines.GlobalScope.launch(provider.player) {
-                    priority = Thread.currentThread().priority
-                    isDaemon = Thread.currentThread().isDaemon
-                    latch.countDown()
-                }
-                check(latch.await(2, TimeUnit.SECONDS), "timeout")
-                checkEq(Thread.MAX_PRIORITY, priority, "приоритет player")
-                check(isDaemon, "поток player должен быть daemon")
-                provider.shutdown()
-            }
+    private fun performSecurityChecks() {
+        // 1. Anti-debug: JDWP debugger
+        if (Debug.isDebuggerConnected() || Debug.waitingForDebugger()) {
+            Log.e(TAG, "SECURITY: debugger detected — terminating")
+            finishAndRemoveTask()
+            android.os.Process.killProcess(android.os.Process.myPid())
+            return
+        }
 
-            // 21. recorder и player — разные диспетчеры
-            test("AudioDispatcherProvider · recorder и player — разные объекты") {
-                val provider = AudioDispatcherProvider()
-                check(provider.recorder !== provider.player, "recorder и player должны быть разными диспетчерами")
-                provider.shutdown()
-            }
+        // 2. Root detection: проверяем наличие su в PATH
+        val suPaths = arrayOf(
+            "/system/bin/su", "/system/xbin/su",
+            "/sbin/su", "/su/bin/su",
+            "/data/local/xbin/su", "/data/local/bin/su",
+            "/system/sd/xbin/su", "/system/bin/failsafe/su"
+        )
+        val rooted = suPaths.any { java.io.File(it).exists() }
+        if (rooted) {
+            Log.w(TAG, "SECURITY: root detected — su binary found")
+        }
 
-            // 22. recorder и player работают независимо (параллельный запуск)
-            test("AudioDispatcherProvider · параллельный запуск recorder и player") {
-                val provider = AudioDispatcherProvider()
-                val latch = CountDownLatch(2)
-                val names = mutableListOf<String>()
-                kotlinx.coroutines.GlobalScope.launch(provider.recorder) {
-                    synchronized(names) { names.add(Thread.currentThread().name) }
-                    latch.countDown()
-                }
-                kotlinx.coroutines.GlobalScope.launch(provider.player) {
-                    synchronized(names) { names.add(Thread.currentThread().name) }
-                    latch.countDown()
-                }
-                check(latch.await(2, TimeUnit.SECONDS), "обе задачи должны завершиться за 2с")
-                check(names.contains("GeminiAudioRecorder"), "recorder выполнился")
-                check(names.contains("GeminiAudioPlayer"), "player выполнился")
-                provider.shutdown()
-            }
+        // 3. Повторная проверка отладчика через нативный флаг
+        val tracerPid = runCatching {
+            java.io.File("/proc/self/status").readLines()
+                .firstOrNull { it.startsWith("TracerPid:") }
+                ?.substringAfter("TracerPid:")?.trim()?.toIntOrNull() ?: 0
+        }.getOrDefault(0)
 
-            // 23. shutdown() не бросает исключений при двойном вызове
-            test("AudioDispatcherProvider · shutdown() безопасен при двойном вызове") {
-                val provider = AudioDispatcherProvider()
-                provider.shutdown()
-                provider.shutdown() // второй вызов не должен упасть
-            }
-
-            // ════════════════════════════════════════════════════════════
-            //  ГРУППА 3: GeminiLiveForegroundService
-            // ════════════════════════════════════════════════════════════
-            log(separator)
-            log("▶ ГРУППА 3 — GeminiLiveForegroundService")
-            log(separator)
-
-            // 24. Сервис запускается без краша
-            test("GeminiLiveForegroundService · startService не бросает исключений") {
-                val intent = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
-                startService(intent)
-                delay(600) // даём время onCreate/onStartCommand
-                stopService(intent)
-            }
-
-            // 25. Notification channel создаётся (Android O+)
-            test("GeminiLiveForegroundService · notification channel 'gemini_live_channel' создан") {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    // Запускаем сервис чтобы убедиться что канал создан
-                    val intent = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
-                    startService(intent)
-                    delay(400)
-                    val nm = getSystemService(android.app.NotificationManager::class.java)
-                    val channel = nm.getNotificationChannel("gemini_live_channel")
-                    check(channel != null, "Канал 'gemini_live_channel' должен существовать")
-                    checkEq(
-                        android.app.NotificationManager.IMPORTANCE_LOW,
-                        channel.importance,
-                        "важность канала"
-                    )
-                    check(!channel.canShowBadge(), "showBadge должен быть false")
-                    stopService(intent)
-                } else {
-                    log("   ⚠ Пропущен на API < 26 (notification channels не поддерживаются)")
-                }
-            }
-
-            // 26. Notification channel: название и описание
-            test("GeminiLiveForegroundService · channel: правильное имя и описание") {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    val intent = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
-                    startService(intent)
-                    delay(400)
-                    val nm = getSystemService(android.app.NotificationManager::class.java)
-                    val channel = nm.getNotificationChannel("gemini_live_channel")
-                    check(channel != null, "Канал должен существовать")
-                    checkEq(
-                        "Gemini Live — Запись",
-                        channel.name.toString(),
-                        "имя канала"
-                    )
-                    check(
-                        channel.description?.contains("записи голоса") == true,
-                        "описание должно содержать 'записи голоса'. Actual: '${channel.description}'"
-                    )
-                    stopService(intent)
-                } else {
-                    log("   ⚠ Пропущен на API < 26")
-                }
-            }
-
-            // 27. onBind возвращает null (сервис не bindable)
-            test("GeminiLiveForegroundService · onBind возвращает null") {
-                var binderResult: android.os.IBinder? = android.os.Binder() // non-null sentinel
-                val latch = CountDownLatch(1)
-                val conn = object : android.content.ServiceConnection {
-                    override fun onServiceConnected(name: android.content.ComponentName, binder: android.os.IBinder?) {
-                        binderResult = binder
-                        latch.countDown()
-                    }
-                    override fun onServiceDisconnected(name: android.content.ComponentName) {}
-                }
-                val intent = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
-                val bound = bindService(intent, conn, android.content.Context.BIND_AUTO_CREATE)
-                if (bound) {
-                    // Если bindService вернул true, ждём onServiceConnected
-                    val connected = latch.await(2, TimeUnit.SECONDS)
-                    unbindService(conn)
-                    if (connected) {
-                        check(binderResult == null, "onBind должен вернуть null — сервис не bindable")
-                    } else {
-                        // onBind вернул null → bindService вернул false или соединение не установлено
-                        log("   ℹ onBind=null: bindService не установил соединение (ожидаемо)")
-                    }
-                } else {
-                    // bindService вернул false — это ожидаемое поведение при onBind()=null
-                    log("   ✓ bindService вернул false (onBind=null — сервис не bindable)")
-                }
-            }
-
-            // 28. Повторный startService не бросает исключений (START_STICKY coverage)
-            test("GeminiLiveForegroundService · повторный startService безопасен") {
-                val intent = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
-                startService(intent)
-                delay(200)
-                startService(intent) // второй вызов — сервис уже запущен
-                delay(200)
-                stopService(intent)
-            }
-
-            // ════════════════════════════════════════════════════════════
-            //  ИТОГИ
-            // ════════════════════════════════════════════════════════════
-            log(separator)
-            val total = passed + failed
-            val passRate = if (total > 0) (passed * 100) / total else 0
-            log("▶ ИТОГО: $passed/$total пройдено ($passRate%)")
-            if (failed == 0) {
-                log("🎉 ВСЕ ТЕСТЫ ПРОЙДЕНЫ")
-            } else {
-                log("⚠️  ПРОВАЛЕНО: $failed тест(ов)")
-            }
-            log(separator)
-
-        } catch (e: Throwable) {
-            log("🔥 TEST RUNNER CRASHED: ${e::class.simpleName}: ${e.message}")
+        if (tracerPid > 0) {
+            Log.e(TAG, "SECURITY: TracerPid=$tracerPid — process being traced, terminating")
+            finishAndRemoveTask()
+            android.os.Process.killProcess(android.os.Process.myPid())
         }
     }
 }
