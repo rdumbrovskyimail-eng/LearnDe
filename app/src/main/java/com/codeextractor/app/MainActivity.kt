@@ -286,12 +286,99 @@ class MainActivity : AppCompatActivity() {
         setupEdgeToEdgeInsets()
         log("=== APP STARTED ===")
 
-        // #25: Загружаем сохранённый ключ
-        apiKey = loadApiKey()
-
         setupUI()
         observeState()
         startAudioPlaybackLoop()
+
+        // ===== ТЕСТЫ — удалить после проверки =====
+        lifecycleScope.launch(Dispatchers.Main) {
+            delay(1000) // ждём полную инициализацию UI
+
+            // ТЕСТ 1: GeminiLiveForegroundService
+            try {
+                val intent = android.content.Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
+                if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent)
+                else startService(intent)
+                log("✅ ForegroundService: запущен")
+                delay(2000)
+                stopService(intent)
+                log("✅ ForegroundService: остановлен")
+            } catch (e: Exception) {
+                log("❌ ForegroundService: ${e.message}")
+            }
+
+            // ТЕСТ 2: AudioDispatcherProvider
+            try {
+                val d = com.codeextractor.app.audio.AudioDispatcherProvider()
+                var t1 = ""
+                var t2 = ""
+                kotlinx.coroutines.withContext(d.recorder) { t1 = Thread.currentThread().name }
+                kotlinx.coroutines.withContext(d.player) { t2 = Thread.currentThread().name }
+                d.shutdown()
+                log(if (t1 == "GeminiAudioRecorder" && t2 == "GeminiAudioPlayer")
+                    "✅ AudioDispatcherProvider: OK (recorder=$t1, player=$t2)"
+                    else "❌ AudioDispatcherProvider: wrong threads t1=$t1 t2=$t2")
+            } catch (e: Exception) {
+                log("❌ AudioDispatcherProvider: ${e.message}")
+            }
+
+            // ТЕСТ 3: GeminiProtocol
+            try {
+                val msg = com.codeextractor.app.network.SetupMessage(
+                    com.codeextractor.app.network.SetupBody(
+                        model = "gemini-test",
+                        systemInstruction = com.codeextractor.app.network.SystemInstruction(
+                            listOf(com.codeextractor.app.network.Part("тест"))
+                        )
+                    )
+                )
+                val json = com.codeextractor.app.network.GeminiProtocol.json
+                    .encodeToString(com.codeextractor.app.network.SetupMessage.serializer(), msg)
+                log(if (json.contains("gemini-test") && json.contains("тест") && !json.contains("null"))
+                    "✅ GeminiProtocol: OK (${json.length} chars)"
+                    else "❌ GeminiProtocol: json=$json")
+            } catch (e: Exception) {
+                log("❌ GeminiProtocol: ${e.message}")
+            }
+        }
+        // ===== КОНЕЦ ТЕСТОВ =====
+
+        apiKey = loadApiKey()
+
+        // Подключаемся только если ключ уже есть
+        if (apiKey.isNotEmpty()) {
+            binding.keyInputLayout.visibility = View.GONE
+            binding.keyDivider.visibility = View.GONE
+            connectWebSocket()
+        } else {
+            log("⚠ API ключ не задан — введите ключ и нажмите OK")
+            binding.startButton.isEnabled = false
+            binding.stopButton.isEnabled = false
+        }
+
+            // ТЕСТ 3: GeminiProtocol
+            try {
+                val msg = com.codeextractor.app.network.SetupMessage(
+                    com.codeextractor.app.network.SetupBody(
+                        model = "gemini-test",
+                        systemInstruction = com.codeextractor.app.network.SystemInstruction(
+                            listOf(com.codeextractor.app.network.Part("тест"))
+                        )
+                    )
+                )
+                val json = com.codeextractor.app.network.GeminiProtocol.json
+                    .encodeToString(com.codeextractor.app.network.SetupMessage.serializer(), msg)
+                log(if (json.contains("gemini-test") && json.contains("тест") && !json.contains("null"))
+                    "✅ GeminiProtocol: OK (${json.length} chars)"
+                    else "❌ GeminiProtocol: json=$json")
+            } catch (e: Exception) {
+                log("❌ GeminiProtocol: ${e.message}")
+            }
+        }
+        // ===== КОНЕЦ ТЕСТОВ =====
+
+        // #25: Загружаем сохранённый ключ
+        apiKey = loadApiKey()
 
         // Подключаемся только если ключ уже есть
         if (apiKey.isNotEmpty()) {
