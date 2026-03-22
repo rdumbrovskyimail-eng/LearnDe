@@ -318,6 +318,44 @@ class MainActivity : AppCompatActivity() {
         setupUI()
         observeState()
         startAudioPlaybackLoop()
+        // ====================================================================
+        //  БЛОК ТЕСТИРОВАНИЯ FOREGROUND СЕРВИСА (Вывод прямо в UI)
+        // ====================================================================
+        lifecycleScope.launch(Dispatchers.Main) {
+            log("⏳ ТЕСТ: Запускаем GeminiLiveForegroundService...")
+            val serviceIntent = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
+
+            try {
+                // 1. Пробуем запустить сервис
+                ContextCompat.startForegroundService(this@MainActivity, serviceIntent)
+                log("✅ Сервис: команда start отправлена")
+
+                // 2. Ждем 2 секунды, чтобы сервис успел создать уведомление
+                delay(2000)
+
+                // Проверяем, создался ли канал уведомлений
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    val manager = getSystemService(android.app.NotificationManager::class.java)
+                    val channel = manager?.getNotificationChannel("gemini_live_channel")
+
+                    if (channel != null) {
+                        log("✅ Сервис: Канал '${channel.name}' успешно создан")
+                    } else {
+                        log("❌ Сервис: Ошибка! Канал уведомлений не найден.")
+                    }
+                }
+
+                // 3. Останавливаем сервис
+                stopService(serviceIntent)
+                log("✅ Сервис: команда stop отправлена")
+                log("🏁 ТЕСТ СЕРВИСА ЗАВЕРШЕН")
+
+            } catch (e: Exception) {
+                log("❌ Сервис: Краш при запуске: ${e.message}")
+            }
+        }
+        // ====================================================================
+
         // Подключаемся только если ключ уже есть
         if (apiKey.isNotEmpty()) {
             binding.keyInputLayout.visibility = View.GONE
