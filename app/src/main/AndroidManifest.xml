@@ -2,24 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Сеть: WebSocket (OkHttp) + reconnect -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- Микрофон: AudioRecord (VOICE_COMMUNICATION) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
-    <!-- Аудио: AcousticEchoCanceler + VOICE_COMMUNICATION AudioSource -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-
-    <!-- Foreground Service: микрофон в фоне (Android 14+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-
-    <!-- Уведомления: показ нотификации Foreground Service (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Фильтрация Google Play: отсечь устройства без микрофона -->
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
 
     <application
@@ -48,7 +38,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Foreground Service: запись микрофона при свёрнутом приложении -->
         <service
             android:name=".GeminiLiveForegroundService"
             android:foregroundServiceType="microphone"
