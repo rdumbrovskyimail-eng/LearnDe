@@ -24,19 +24,29 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.11.1
+          cache-encryption-key: ${{ secrets.GRADLE_CACHE_KEY }}
+          cache-overwrite-existing: true
           gradle-home-cache-excludes: |
             caches/build-cache-*
             caches/*/executionHistory
             caches/journal-1
             caches/*/gc.properties
+            caches/*/fileHashes
+            caches/transforms-*
+            caches/*/scripts
+            daemon
+
+      - name: Clean before build
+        run: gradle clean --no-build-cache -Dorg.gradle.jvmargs="-Xmx4g"
 
       - name: Build Debug APK
         run: |
-          ./gradlew assembleDebug \
+          gradle assembleDebug \
             --no-build-cache \
             --parallel \
             --max-workers=4 \
             --stacktrace \
+            --configuration-cache \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m" \
             -Dorg.gradle.parallel=true \
             -Dkotlin.incremental=false \
@@ -44,19 +54,24 @@ jobs:
 
       - name: Rename APK
         run: |
-          mkdir -p apks
           cp app/build/outputs/apk/debug/app-debug.apk \
-             apks/CodeExtractor-v1.0.${{ github.run_number }}.apk
+             CodeExtractor-v1.0.${{ github.run_number }}.apk
 
-      - name: Create Release
+      - name: Create Release with APK
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: "Release v1.0.${{ github.run_number }}"
+          name: "v1.0.${{ github.run_number }}"
           body: |
             ## 📱 CodeExtractor v1.0.${{ github.run_number }}
-            **Commit:** `${{ github.sha }}`
-            **Branch:** `${{ github.ref_name }}`
-          files: apks/CodeExtractor-v1.0.${{ github.run_number }}.apk
+
+            **Commit:** `${{ github.event.head_commit.message }}`
+            **SHA:** `${{ github.sha }}`
+
+            ### Установка
+            1. Скачайте APK ниже
+            2. Установите на устройство
+            3. Введите Gemini API ключ при первом запуске
+          files: CodeExtractor-v1.0.${{ github.run_number }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
