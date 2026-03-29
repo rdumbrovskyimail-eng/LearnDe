@@ -2,7 +2,6 @@ package com.codeextractor.app
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
@@ -37,43 +36,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import com.codeextractor.app.audio.AudioDispatcherProvider
-import com.codeextractor.app.network.AudioData
-import com.codeextractor.app.network.AutomaticActivityDetection
-import com.codeextractor.app.network.FunctionDeclarationProto
-import com.codeextractor.app.network.GenerationConfig
-import com.codeextractor.app.network.GeminiProtocol
-import com.codeextractor.app.network.ParametersProto
-import com.codeextractor.app.network.Part
-import com.codeextractor.app.network.PrebuiltVoice
-import com.codeextractor.app.network.PropertyProto
-import com.codeextractor.app.network.RealtimeInputBody
-import com.codeextractor.app.network.RealtimeInputConfig
-import com.codeextractor.app.network.RealtimeInputMessage
-import com.codeextractor.app.network.SetupBody
-import com.codeextractor.app.network.SetupMessage
-import com.codeextractor.app.network.SpeechConfig
-import com.codeextractor.app.network.SystemInstruction
-import com.codeextractor.app.network.ThinkingConfig
-import com.codeextractor.app.network.ToolDeclaration
-import com.codeextractor.app.network.VoiceConfig
-import kotlinx.serialization.encodeToString
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
@@ -82,83 +57,43 @@ import java.nio.ByteOrder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * ============================================================================
- *  ЭТАЛОННАЯ РЕАЛИЗАЦИЯ v7 (FINAL) — Gemini Live API Raw WebSocket (Android/Kotlin)
+ *  Gemini 3.1 Flash Live — Production Voice Client (Android/Kotlin)
  * ============================================================================
  *
- *  Синтез: Claude Opus, Grok, Gemini 3.1, DeepSeek (5 раундов, 19 анализов)
- *  Дата: 20 марта 2026
+ *  Model:    gemini-3.1-flash-live-preview
+ *  API:      Gemini Live API (WebSocket, v1beta)
+ *  Audio:    16kHz PCM input → 24kHz PCM output
+ *  Features: Voice chat, function calling, barge-in, context restore
  *
- *  v5 CHANGELOG (поверх v4):
- *
- *  [БАГФИКС] #20  Jitter deadlock: receive() → withTimeoutOrNull(150ms)
- *                  (Gemini 3.1: при коротких ответах "Ок" — только 2 чанка,
- *                  receive() зависал навечно ожидая 3-й. Теперь timeout 150мс
- *                  гарантирует: если чанк не пришёл — играем что есть.)
- *
- *  [БАГФИКС] #21  Audio bleed при barge-in: isFirstBatch вынесен на уровень
- *                  класса + сбрасывается в flushPlaybackQueue()
- *                  (Gemini 3.1: при interrupted висящий receive() просыпался
- *                  на чанке НОВОЙ фразы и клеил его к остаткам СТАРОЙ →
- *                  глитч/искажение. Сброс isFirstBatch = true в flush
- *                  гарантирует чистый pre-buffer для новой генерации.)
- *
- *  v4 CHANGELOG (поверх v3):
- *
- *  [БАГФИКС] #16  Jitter pre-buffer: tryReceive() → receive()
- *                  (Gemini 3.1: tryReceive() — non-blocking, pre-buffer
- *                  всегда получал только 1 чанк вместо 3. Теперь suspend
- *                  receive() честно ждёт следующие чанки из сети.)
- *
- *  [NEW]     #17  Объявление tools в setup
- *                  (DeepSeek: без tools в setup toolCall никогда не придёт,
- *                  весь handler #12 был мёртвым кодом. Теперь tools
- *                  объявляются через TOOL_DECLARATIONS.)
- *
- *  [NEW]     #18  Восстановление контекста после reconnect
- *                  (DeepSeek: после переподключения история терялась.
- *                  Теперь последние MAX_CONTEXT_MESSAGES хранятся и
- *                  реинжектятся через clientContent при новой сессии.)
- *
- *  [NEW]     #19  Диагностика кодов закрытия WebSocket
- *                  (DeepSeek: расшифровка стандартных кодов + Gemini-
- *                  специфичных для отладки.)
- *
- *  Полный список v1→v2→v3→v4→v5→v7 (22 исправления):
- *  ─────────────────────────────────────────────────────────
- *  v1→v2:  #1 setup+generationConfig  #2 audio format  #3 flush
- *          #4 GC  #5 model pin  #6 transcriptions  #7 VAD
- *          #8 AEC  #9 binary frames  #10 text via realtimeInput
- *          #11 channel 256
- *  v2→v3:  #12 toolCall handler  #13 smooth turnComplete
- *          #14 24kHz check  #15 jitter pre-buffer
- *  v3→v4:  #16 jitter fix (receive)  #17 tools in setup
- *          #18 context restore  #19 WS close diagnostics
- *  v4→v5:  #20 jitter timeout (deadlock fix)
- *          #21 audio bleed fix (isFirstBatch reset)
- *  v5→v7:  #22 ENDPOINT: v1beta → v1alpha (ROOT CAUSE!)
- *          (Тест 12 вариантов: V13 с v1alpha получил setupComplete.
- *          v1beta молча игнорирует setup для native-audio модели.)
- *  v7→v8:  #23 systemInstruction (русский язык)
- *  v8→v9:  #24 speechConfig Aoede (Шаг 2, минимальный setup)
- *          #25 API ключ через UI + EncryptedSharedPreferences
- *          #26 Anti-tamper: debugger + root detection
+ *  Migration from 2.5 Flash Native Audio:
+ *  - Endpoint: v1alpha → v1beta (v1alpha only for ephemeral tokens)
+ *  - Model: gemini-2.5-flash-native-audio-preview → gemini-3.1-flash-live-preview
+ *  - Thinking: thinkingBudget → thinkingLevel (minimal/low/medium/high)
+ *  - Async function calling: NOT supported (sync only)
+ *  - Proactive audio / affective dialogue: NOT supported
+ *  - Session limits: audio-only 15min, audio+video 2min
+ *  - Output tokens: 8K → 64K
+ *  - Context window: 128K tokens
+ * ============================================================================
  */
 class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "GeminiLive"
 
-        private const val MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
+        // Gemini 3.1 Flash Live — production model
+        private const val MODEL = "models/gemini-3.1-flash-live-preview"
 
         private const val HOST = "generativelanguage.googleapis.com"
 
-        // #22: v1alpha — единственный работающий endpoint для native-audio модели!
-        // v1beta молча игнорирует setup (подтверждено тестом 12 вариантов).
+        // v1beta — основной endpoint для 3.1 с API key
+        // v1alpha нужен ТОЛЬКО для ephemeral tokens (BidiGenerateContentConstrained)
         private const val WS_PATH =
-            "ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent"
+            "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
 
         private const val INPUT_SAMPLE_RATE = 16_000
         private const val OUTPUT_SAMPLE_RATE = 24_000
@@ -169,11 +104,10 @@ class MainActivity : AppCompatActivity() {
 
         private const val PLAYBACK_QUEUE_CAPACITY = 256
         private const val JITTER_PRE_BUFFER_CHUNKS = 3
+        private const val JITTER_TIMEOUT_MS = 150L
 
-        // #18: Максимум сообщений для восстановления контекста после reconnect
         private const val MAX_CONTEXT_MESSAGES = 10
 
-        // #25: Хранилище ключа
         private const val PREFS_FILE = "secure_prefs"
         private const val PREFS_KEY_API = "gemini_api_key"
     }
@@ -195,11 +129,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private val json = Json { ignoreUnknownKeys = true }
 
-    // #25: Ключ берётся из EncryptedSharedPreferences, не из BuildConfig
     private var apiKey: String = ""
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
+        .pingInterval(30, TimeUnit.SECONDS) // Keep-alive для длинных сессий
         .build()
 
     private var webSocket: WebSocket? = null
@@ -216,9 +150,6 @@ class MainActivity : AppCompatActivity() {
     @Volatile
     private var awaitingPlaybackDrain = false
 
-    // #21: Вынесен на уровень класса (был локальной переменной в playback loop).
-    // Gemini 3.1: при barge-in висящий receive() просыпался на чанке НОВОЙ фразы
-    // и клеил его к остаткам СТАРОЙ → глитч. Сброс в flushPlaybackQueue() это чинит.
     @Volatile
     private var isFirstBatch = true
 
@@ -232,11 +163,10 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.CreateDocument("text/plain")
     ) { uri: Uri? -> uri?.let { saveLogToUri(it) } }
 
-    // ═══════════════════════════════════════════════════════════════
-    //  #18: История разговора для восстановления контекста
-    //  Хранит последние MAX_CONTEXT_MESSAGES пар (role, text)
-    //  и реинжектит через clientContent после reconnect.
-    // ═══════════════════════════════════════════════════════════════
+    // ====================================================================
+    //  CONVERSATION HISTORY (context restore after reconnect)
+    // ====================================================================
+
     private data class ConversationMessage(val role: String, val text: String)
 
     private val conversationHistory = ArrayDeque<ConversationMessage>(MAX_CONTEXT_MESSAGES + 2)
@@ -250,17 +180,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    //  #17: Объявление инструментов (tools / function declarations)
-    //
-    //  Без этого массива в setup toolCall НИКОГДА не придёт от сервера.
-    //  Добавляйте свои функции сюда. Пустой список = tools отключены.
-    //
-    //  Формат: FunctionDeclaration(name, description, parameters)
-    // ═══════════════════════════════════════════════════════════════
+    // ====================================================================
+    //  TOOL DECLARATIONS (function calling)
+    // ====================================================================
+
     private data class ToolParameter(
         val name: String,
-        val type: String,         // "string", "integer", "boolean", "number"
+        val type: String,
         val description: String,
         val required: Boolean = true
     )
@@ -273,22 +199,23 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Список объявленных функций.
-     * Пустой список → tools не отправляются в setup → toolCall не приходит.
-     * Добавьте свои функции для активации function calling.
+     * Пустой список → tools не отправляются в setup.
+     * ВАЖНО: В Gemini 3.1 Flash Live function calling только СИНХРОННЫЙ.
+     * Модель ждёт toolResponse перед продолжением ответа.
      */
     private val toolDeclarations: List<FunctionDeclaration> = listOf(
-        // Пример: раскомментируйте для активации
+        // Раскомментируйте для активации:
         // FunctionDeclaration(
         //     name = "get_current_time",
-        //     description = "Returns the current date and time in the user's timezone",
+        //     description = "Returns the current date and time",
         //     parameters = emptyList()
         // ),
         // FunctionDeclaration(
         //     name = "get_weather",
-        //     description = "Returns weather information for a given city",
+        //     description = "Returns weather for a given city",
         //     parameters = listOf(
-        //         ToolParameter("city", "string", "City name, e.g. 'Berlin'"),
-        //         ToolParameter("units", "string", "Temperature units: 'celsius' or 'fahrenheit'", required = false)
+        //         ToolParameter("city", "string", "City name"),
+        //         ToolParameter("units", "string", "celsius or fahrenheit", required = false)
         //     )
         // ),
     )
@@ -301,72 +228,18 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // #26: Anti-tamper проверки — первым делом до любой инициализации
-        // performSecurityChecks()
-
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         setupEdgeToEdgeInsets()
-        log("=== APP STARTED ===")
+        log("=== APP STARTED (Gemini 3.1 Flash Live) ===")
 
-
-
-        // #25: Загружаем сохранённый ключ
         apiKey = loadApiKey()
 
         setupUI()
         observeState()
         startAudioPlaybackLoop()
-        // ====================================================================
-        //  БЛОК ТЕСТИРОВАНИЯ FOREGROUND СЕРВИСА (Вывод прямо в UI)
-        // ====================================================================
-        lifecycleScope.launch(Dispatchers.Main) {
-            log("⏳ ТЕСТ: Запускаем GeminiLiveForegroundService...")
-            val serviceIntent = Intent(this@MainActivity, GeminiLiveForegroundService::class.java)
-            val lbm = androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(this@MainActivity)
-            val readyDeferred = CompletableDeferred<Boolean>()
 
-            val receiver = object : android.content.BroadcastReceiver() {
-                override fun onReceive(context: Context?, intent: Intent?) {
-                    readyDeferred.complete(true)
-                }
-            }
-            lbm.registerReceiver(receiver, android.content.IntentFilter("com.codeextractor.app.SERVICE_READY"))
-
-            try {
-                ContextCompat.startForegroundService(this@MainActivity, serviceIntent)
-                log("✅ Сервис: команда start отправлена")
-
-                val result = withTimeoutOrNull(5000L) { readyDeferred.await() }
-
-                if (result == true) {
-                    log("✅ Сервис: получен сигнал SERVICE_READY")
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        val manager = getSystemService(android.app.NotificationManager::class.java)
-                        val channel = manager?.getNotificationChannel("gemini_live_channel")
-                        if (channel != null) {
-                            log("✅ Сервис: Канал '${channel.name}' успешно создан")
-                        } else {
-                            log("❌ Сервис: Ошибка! Канал уведомлений не найден.")
-                        }
-                    }
-                } else {
-                    log("❌ Сервис: таймаут ожидания SERVICE_READY")
-                }
-
-                stopService(serviceIntent)
-                log("✅ Сервис: команда stop отправлена")
-                log("🏁 ТЕСТ СЕРВИСА ЗАВЕРШЕН")
-            } catch (e: Exception) {
-                log("❌ Сервис: Краш при запуске: ${e.message}")
-            } finally {
-                lbm.unregisterReceiver(receiver)
-            }
-        }
-        // ====================================================================
-
-        // Подключаемся только если ключ уже есть
         if (apiKey.isNotEmpty()) {
             binding.keyInputLayout.visibility = View.GONE
             binding.keyDivider.visibility = View.GONE
@@ -414,7 +287,6 @@ class MainActivity : AppCompatActivity() {
             saveLogLauncher.launch("gemini_log_$ts.txt")
         }
 
-        // #25: Обработка ввода API ключа
         binding.keyOkButton.setOnClickListener {
             val input = binding.apiKeyEditText.text?.toString()?.trim().orEmpty()
             if (input.length < 20) {
@@ -423,24 +295,19 @@ class MainActivity : AppCompatActivity() {
             }
             saveApiKey(input)
             apiKey = input
-            // Скрываем панель ввода
             binding.keyInputLayout.visibility = View.GONE
             binding.keyDivider.visibility = View.GONE
-            // Убираем клавиатуру
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(binding.apiKeyEditText.windowToken, 0)
             log("✓ API ключ сохранён")
-            // Подключаемся
             connectWebSocket()
         }
 
-        // Поддержка Enter в поле ввода
         binding.apiKeyEditText.setOnEditorActionListener { _, _, _ ->
             binding.keyOkButton.performClick()
             true
         }
 
-        // Если ключ уже есть — показываем маску в поле (подсказка)
         if (apiKey.isNotEmpty()) {
             binding.apiKeyEditText.hint = "Ключ сохранён (tap для замены)"
         }
@@ -526,14 +393,12 @@ class MainActivity : AppCompatActivity() {
     //  1. WEBSOCKET
     // ====================================================================
 
-    private fun buildWsUrl(): String {
-        // #25: Ключ из EncryptedSharedPreferences, не из BuildConfig
-        return "wss://$HOST/$WS_PATH?key=$apiKey"
-    }
+    private fun buildWsUrl(): String =
+        "wss://$HOST/$WS_PATH?key=$apiKey"
 
     private fun connectWebSocket() {
         if (apiKey.isEmpty()) {
-            log("⚠ connectWebSocket() — ключ не задан, пропуск")
+            log("⚠ connectWebSocket() — ключ не задан")
             return
         }
         if (sessionState.value != SessionState.Disconnected) return
@@ -544,7 +409,7 @@ class MainActivity : AppCompatActivity() {
         )
         setupComplete = CompletableDeferred()
 
-        log("Connecting…")
+        log("Connecting to $MODEL via v1beta…")
         val request = Request.Builder().url(buildWsUrl()).build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
@@ -569,9 +434,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // ═══════════════════════════════════════════════════════
-            //  #19: Расшифровка кодов закрытия WebSocket
-            // ═══════════════════════════════════════════════════════
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 log("WS closed: $code ${describeCloseCode(code)} reason='$reason'")
                 handleDisconnect()
@@ -585,35 +447,26 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    /**
-     * ═══════════════════════════════════════════════════════════════════
-     *  #19: Диагностика кодов закрытия WebSocket (v4)
-     *
-     *  Стандартные коды (RFC 6455) + Gemini-специфичные.
-     *  Помогает отличить нормальное закрытие от ошибок сервера.
-     * ═══════════════════════════════════════════════════════════════════
-     */
     private fun describeCloseCode(code: Int): String = when (code) {
         1000 -> "[Normal Closure]"
         1001 -> "[Going Away — server shutdown or session timeout]"
         1002 -> "[Protocol Error]"
         1003 -> "[Unsupported Data]"
         1005 -> "[No Status Code]"
-        1006 -> "[Abnormal Closure — no close frame received]"
+        1006 -> "[Abnormal Closure — no close frame]"
         1007 -> "[Invalid Payload]"
-        1008 -> "[Policy Violation]"
+        1008 -> "[Policy Violation — check model name/endpoint]"
         1009 -> "[Message Too Big]"
         1011 -> "[Internal Server Error]"
         1012 -> "[Service Restart]"
-        1013 -> "[Try Again Later — server overloaded]"
+        1013 -> "[Try Again Later — overloaded]"
         1014 -> "[Bad Gateway]"
         1015 -> "[TLS Handshake Failure]"
-        // Gemini-специфичные (наблюдаемые на практике)
         4000 -> "[Gemini: Session expired (15 min limit)]"
         4001 -> "[Gemini: Invalid setup message]"
         4002 -> "[Gemini: Rate limited]"
         4003 -> "[Gemini: Authentication failed]"
-        else -> "[Unknown code $code]"
+        else -> "[Code $code]"
     }
 
     private fun disconnectWebSocket() {
@@ -644,7 +497,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun scheduleReconnect() {
         if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
-            log("Max reconnect attempts reached")
+            log("Max reconnect attempts reached ($MAX_RECONNECT_ATTEMPTS)")
             lifecycleScope.launch(Dispatchers.Main) {
                 Toast.makeText(this@MainActivity, "Connection lost", Toast.LENGTH_LONG).show()
             }
@@ -661,30 +514,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ====================================================================
-    //  2. SETUP (BidiGenerateContentSetup)
+    //  2. SETUP (BidiGenerateContentSetup) — Gemini 3.1 Flash Live
     // ====================================================================
 
     /**
-     * Protobuf BidiGenerateContentSetup:
+     * Setup для Gemini 3.1 Flash Live:
      *
      *  ┌─ "setup"
-     *  │   ├─ "model"
+     *  │   ├─ "model": "models/gemini-3.1-flash-live-preview"
      *  │   ├─ "generationConfig"
      *  │   │   ├─ "responseModalities": ["AUDIO"]
-     *  │   │   └─ "speechConfig": { voiceConfig: ... }    ← #24 Шаг 2
-     *  │   └─ "systemInstruction"                          ← #23 Шаг 1
-     *  │       └─ "parts": [{ "text": "..." }]
+     *  │   │   ├─ "speechConfig": { voiceConfig: { prebuiltVoiceConfig: { voiceName } } }
+     *  │   │   └─ "thinkingConfig": { "thinkingLevel": "minimal" }
+     *  │   ├─ "systemInstruction"
+     *  │   │   └─ "parts": [{ "text": "..." }]
+     *  │   ├─ "realtimeInputConfig"
+     *  │   │   └─ "automaticActivityDetection": { "disabled": false }
+     *  │   └─ "tools" (if toolDeclarations is not empty)
      *  └─
+     *
+     *  Gemini 3.1 отличия от 2.5:
+     *  - thinkingLevel вместо thinkingBudget
+     *  - "minimal" = наименьшая латентность (по умолчанию для Live)
+     *  - Нет async function calling (только синхронный)
+     *  - Нет proactive audio / affective dialogue
      */
     private fun sendSetup() {
         val msg = buildJsonObject {
             put("setup", buildJsonObject {
                 put("model", MODEL)
+
                 put("generationConfig", buildJsonObject {
                     put("responseModalities", buildJsonArray {
                         add(JsonPrimitive("AUDIO"))
                     })
-                    // ШАГ 2: speechConfig с голосом Aoede
+
+                    // Голос — Aoede (женский, чистый). Варианты: Puck, Charon, Kore, Fenrir, Aoede, Leda, Orus, Zephyr
                     put("speechConfig", buildJsonObject {
                         put("voiceConfig", buildJsonObject {
                             put("prebuiltVoiceConfig", buildJsonObject {
@@ -692,18 +557,83 @@ class MainActivity : AppCompatActivity() {
                             })
                         })
                     })
+
+                    // Gemini 3.1: thinkingLevel вместо thinkingBudget
+                    // minimal = минимальная латентность (оптимально для голосового чата)
+                    // low/medium/high = больше reasoning, но выше латентность
+                    put("thinkingConfig", buildJsonObject {
+                        put("thinkingLevel", "minimal")
+                    })
                 })
+
+                // Системная инструкция
                 put("systemInstruction", buildJsonObject {
                     put("parts", buildJsonArray {
                         add(buildJsonObject {
-                            put("text", "Ты русскоязычный голосовой ассистент. Всегда отвечай только на русском языке. Слушай и понимай русскую речь.")
+                            put(
+                                "text",
+                                "Ты русскоязычный голосовой ассистент. " +
+                                "Всегда отвечай только на русском языке. " +
+                                "Слушай и понимай русскую речь. " +
+                                "Отвечай кратко и по делу, не более 2-3 предложений, " +
+                                "если пользователь не просит подробного ответа."
+                            )
                         })
                     })
                 })
+
+                // VAD: серверная детекция голосовой активности
+                put("realtimeInputConfig", buildJsonObject {
+                    put("automaticActivityDetection", buildJsonObject {
+                        put("disabled", false)
+                    })
+                })
+
+                // Транскрипция входа и выхода
+                put("inputAudioTranscription", buildJsonObject {})
+                put("outputAudioTranscription", buildJsonObject {})
+
+                // Tools (если объявлены)
+                if (toolDeclarations.isNotEmpty()) {
+                    put("tools", buildJsonArray {
+                        add(buildJsonObject {
+                            put("functionDeclarations", buildJsonArray {
+                                for (decl in toolDeclarations) {
+                                    add(buildJsonObject {
+                                        put("name", decl.name)
+                                        put("description", decl.description)
+                                        if (decl.parameters.isNotEmpty()) {
+                                            put("parameters", buildJsonObject {
+                                                put("type", "object")
+                                                put("properties", buildJsonObject {
+                                                    for (param in decl.parameters) {
+                                                        put(param.name, buildJsonObject {
+                                                            put("type", param.type)
+                                                            put("description", param.description)
+                                                        })
+                                                    }
+                                                })
+                                                val required = decl.parameters
+                                                    .filter { it.required }
+                                                    .map { it.name }
+                                                if (required.isNotEmpty()) {
+                                                    put("required", buildJsonArray {
+                                                        required.forEach { add(JsonPrimitive(it)) }
+                                                    })
+                                                }
+                                            })
+                                        }
+                                    })
+                                }
+                            })
+                        })
+                    })
+                }
             })
         }
+
         val raw = msg.toString()
-        log("SETUP → (${raw.length} chars)")
+        log("SETUP → $MODEL (${raw.length} chars)")
         webSocket?.send(raw)
     }
 
@@ -749,26 +679,14 @@ class MainActivity : AppCompatActivity() {
             })
         }
         val raw = msg.toString()
-        log("CLIENT_CONTENT → $raw")
+        log("CLIENT_CONTENT → (${raw.length} chars)")
         webSocket?.send(raw)
     }
 
-    /**
-     * ═══════════════════════════════════════════════════════════════════
-     *  #18: Восстановление контекста после reconnect (v4)
-     *
-     *  Отправляет накопленную историю разговора через clientContent,
-     *  чтобы модель помнила предыдущий контекст после переподключения.
-     *
-     *  Протокол: clientContent с массивом turns (чередование user/model)
-     *  + turnComplete: true — чтобы модель знала, что контекст загружен.
-     * ═══════════════════════════════════════════════════════════════════
-     */
     private fun restoreConversationContext() {
         val history = synchronized(conversationHistory) {
             conversationHistory.toList()
         }
-
         if (history.isEmpty()) return
 
         val msg = buildJsonObject {
@@ -819,10 +737,6 @@ class MainActivity : AppCompatActivity() {
         val result: String
     )
 
-    /**
-     * Диспетчер вызовов инструментов.
-     * Добавляйте ветки when для каждой функции из toolDeclarations.
-     */
     private fun dispatchToolFunction(name: String, args: Map<String, String>): String {
         return when (name) {
             // "get_current_time" -> {
@@ -834,7 +748,7 @@ class MainActivity : AppCompatActivity() {
             //     """{"city":"$city","temp":"22°C","condition":"Sunny"}"""
             // }
             else -> {
-                log("⚠ Unknown tool function: $name")
+                log("⚠ Unknown tool: $name")
                 """{"error":"Function '$name' not implemented"}"""
             }
         }
@@ -850,20 +764,17 @@ class MainActivity : AppCompatActivity() {
 
             // ─── Setup complete ────────────────────────────────────
             if (root.containsKey("setupComplete")) {
-                log("✓ SETUP COMPLETE")
+                log("✓ SETUP COMPLETE ($MODEL)")
                 sessionState.value = SessionState.Ready
                 setupComplete.complete(Unit)
 
-                // #18: Восстанавливаем контекст после reconnect
                 lifecycleScope.launch(Dispatchers.IO) {
                     restoreConversationContext()
-                    delay(300)
-                    sendTextMessage("Hello, say something")
                 }
                 return
             }
 
-            // ─── Tool call (#12) ───────────────────────────────────
+            // ─── Tool call ─────────────────────────────────────────
             root["toolCall"]?.jsonObject?.let { toolCall ->
                 handleToolCall(toolCall)
                 return
@@ -872,16 +783,16 @@ class MainActivity : AppCompatActivity() {
             // ─── Server content ────────────────────────────────────
             val sc = root["serverContent"]?.jsonObject ?: run {
                 if (root.containsKey("goAway")) {
-                    log("GO_AWAY — сервер скоро закроет, сбрасываем счётчик реконнекта")
+                    log("GO_AWAY — server will close soon, resetting reconnect counter")
                     reconnectAttempt = 0
                 } else {
-                    val preview = if (raw.length > 200) raw.take(200) + "…(${raw.length} chars)" else raw
+                    val preview = if (raw.length > 200) raw.take(200) + "…" else raw
                     log("SERVER ← $preview")
                 }
                 return
             }
 
-            // ─── Транскрипции + сохранение в историю (#18) ─────────
+            // ─── Транскрипции + история ────────────────────────────
             sc["inputTranscription"]?.jsonObject
                 ?.get("text")?.jsonPrimitive?.content
                 ?.takeIf { it.isNotBlank() }
@@ -898,14 +809,14 @@ class MainActivity : AppCompatActivity() {
                     addToHistory("model", text)
                 }
 
-            // ─── Прерывание (barge-in) ─────────────────────────────
+            // ─── Barge-in ──────────────────────────────────────────
             if (sc["interrupted"]?.jsonPrimitive?.booleanOrNull == true) {
                 log("⚡ INTERRUPTED — flushing playback")
                 awaitingPlaybackDrain = false
                 flushPlaybackQueue()
             }
 
-            // ─── Turn complete (#13: плавная остановка) ────────────
+            // ─── Turn complete ─────────────────────────────────────
             if (sc["turnComplete"]?.jsonPrimitive?.booleanOrNull == true) {
                 log("⏹ TURN COMPLETE")
                 awaitingPlaybackDrain = true
@@ -915,7 +826,7 @@ class MainActivity : AppCompatActivity() {
                 log("✅ GENERATION COMPLETE")
             }
 
-            // ─── Аудио-данные модели ───────────────────────────────
+            // ─── Audio data ────────────────────────────────────────
             val parts = sc["modelTurn"]?.jsonObject
                 ?.get("parts") as? JsonArray ?: return
 
@@ -932,7 +843,7 @@ class MainActivity : AppCompatActivity() {
                             awaitingPlaybackDrain = false
                             val sent = audioPlaybackChannel.trySend(pcm)
                             if (sent.isFailure) {
-                                log("⚠ Playback queue full — dropping oldest chunk")
+                                log("⚠ Playback queue full — dropping oldest")
                                 audioPlaybackChannel.tryReceive()
                                 audioPlaybackChannel.trySend(pcm)
                             }
@@ -945,9 +856,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * #12: Обработка toolCall от сервера
-     */
     private fun handleToolCall(toolCall: kotlinx.serialization.json.JsonObject) {
         val functionCalls = toolCall["functionCalls"]?.jsonArray ?: run {
             log("⚠ toolCall without functionCalls")
@@ -974,16 +882,13 @@ class MainActivity : AppCompatActivity() {
             responses.add(ToolFunctionResponse(name, id, result))
         }
 
+        // Gemini 3.1: СИНХРОННЫЙ tool calling — модель ждёт ответ
         sendToolResponse(responses)
     }
 
-    /**
-     * #3: flush ТОЛЬКО при barge-in (interrupted)
-     * #13: при turnComplete буфер доигрывает естественно
-     */
     private fun flushPlaybackQueue() {
         while (audioPlaybackChannel.tryReceive().isSuccess) { /* drain */ }
-        isFirstBatch = true  // #21: Чистый pre-buffer для новой генерации после barge-in
+        isFirstBatch = true
         audioTrack?.apply {
             pause()
             flush()
@@ -1034,17 +939,13 @@ class MainActivity : AppCompatActivity() {
                     }
             }
             if (sessionState.value != SessionState.Ready) {
-                log("Session no longer ready (${sessionState.value}) — aborting record")
+                log("Session no longer ready (${sessionState.value}) — aborting")
                 return@launch
             }
             launchAudioCapture()
         }
     }
 
-    /**
-     * #4: GC — один ByteBuffer переиспользуется
-     * #8: AcousticEchoCanceler — явное включение
-     */
     @Suppress("MissingPermission")
     private fun launchAudioCapture() {
         val minBuf = AudioRecord.getMinBufferSize(
@@ -1073,26 +974,24 @@ class MainActivity : AppCompatActivity() {
                 try {
                     echoCanceler = AcousticEchoCanceler.create(recorder.audioSessionId)?.apply {
                         enabled = true
-                        log("AcousticEchoCanceler enabled (sessionId=${recorder.audioSessionId})")
+                        log("AEC enabled (sessionId=${recorder.audioSessionId})")
                     }
                 } catch (e: Exception) {
                     log("AEC init error: ${e.message}")
                 }
-            } else {
-                log("AcousticEchoCanceler not available")
             }
 
             try {
                 recorder.startRecording()
             } catch (e: Exception) {
-                log("AudioRecord.startRecording() failed: ${e.message}")
+                log("startRecording() failed: ${e.message}")
                 recorder.release()
                 return
             }
 
             audioRecord = recorder
             sessionState.value = SessionState.Recording
-            log("🎙 Recording started (buf=$minBuf)")
+            log("🎙 Recording started (buf=$minBuf, rate=$INPUT_SAMPLE_RATE)")
 
             recordJob = lifecycleScope.launch(Dispatchers.IO) {
                 val buffer = ShortArray(minBuf)
@@ -1122,7 +1021,7 @@ class MainActivity : AppCompatActivity() {
         if (sessionState.value != SessionState.Recording) return
         releaseAudioRecord()
         if (sessionState.value == SessionState.Disconnected) {
-            log("🎙 Recording stopped (disconnect in progress)")
+            log("🎙 Recording stopped (disconnect)")
             return
         }
         sendTurnComplete()
@@ -1139,33 +1038,25 @@ class MainActivity : AppCompatActivity() {
                 put("turnComplete", true)
             })
         }
-        val raw = msg.toString()
-        webSocket?.send(raw)
-        log("→ turnComplete (audio stream stopped)")
+        webSocket?.send(msg.toString())
     }
 
     // ====================================================================
     //  6. AUDIO OUTPUT
     // ====================================================================
 
-    /**
-     * #14: Проверка 24kHz
-     * #15 + #16: Jitter pre-buffer с suspend receive()
-     * #13: Плавная остановка по turnComplete
-     */
     private fun startAudioPlaybackLoop() {
         playbackJob = lifecycleScope.launch(Dispatchers.IO) {
 
-            // #14: Проверка поддержки OUTPUT_SAMPLE_RATE
             val minBuf = AudioTrack.getMinBufferSize(
                 OUTPUT_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
             )
             if (minBuf == AudioTrack.ERROR || minBuf == AudioTrack.ERROR_BAD_VALUE) {
-                log("⚠ Device does not support ${OUTPUT_SAMPLE_RATE}Hz output! (minBuf=$minBuf)")
+                log("⚠ Device does not support ${OUTPUT_SAMPLE_RATE}Hz output!")
                 return@launch
             }
 
-            log("AudioTrack: ${OUTPUT_SAMPLE_RATE}Hz supported (minBuf=$minBuf)")
+            log("AudioTrack: ${OUTPUT_SAMPLE_RATE}Hz (minBuf=$minBuf)")
 
             val track = AudioTrack.Builder()
                 .setAudioAttributes(
@@ -1189,38 +1080,23 @@ class MainActivity : AppCompatActivity() {
             track.play()
             log("Speaker ready (rate=$OUTPUT_SAMPLE_RATE)")
 
-            // #21: isFirstBatch вынесен на уровень класса (сбрасывается в flushPlaybackQueue)
-
             for (chunk in audioPlaybackChannel) {
                 if (!isActive) break
 
-                // ═══════════════════════════════════════════════════
-                //  #15 + #16 + #20: Jitter pre-buffer (FINAL)
-                //
-                //  v3: tryReceive() — non-blocking, получал 1 чанк
-                //  v4: receive() — suspend, но зависал навечно при
-                //      коротких ответах ("Ок" = 2 чанка, 3-го нет)
-                //  v5: withTimeoutOrNull(150ms) — ждёт до 150мс,
-                //      если чанк не пришёл → играем что есть.
-                //
-                //  Gemini 3.1: "Без timeout — deadlock. Без сброса
-                //  isFirstBatch в flush — audio bleed при barge-in."
-                // ═══════════════════════════════════════════════════
+                // Jitter pre-buffer: накапливаем первые чанки перед воспроизведением
                 if (isFirstBatch) {
                     val preBuffer = mutableListOf(chunk)
                     repeat(JITTER_PRE_BUFFER_CHUNKS - 1) {
                         try {
-                            // #20: withTimeoutOrNull — ждём макс 150мс
-                            // Если ответ короткий и чанков больше нет → не зависаем
-                            val next = withTimeoutOrNull(150L) {
+                            val next = withTimeoutOrNull(JITTER_TIMEOUT_MS) {
                                 audioPlaybackChannel.receive()
                             }
                             if (next != null) {
                                 preBuffer.add(next)
                             }
-                        } catch (e: ClosedReceiveChannelException) {
+                        } catch (_: ClosedReceiveChannelException) {
                             return@repeat
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             return@repeat
                         }
                     }
@@ -1229,16 +1105,16 @@ class MainActivity : AppCompatActivity() {
                         track.write(buffered, 0, buffered.size)
                     }
                     isFirstBatch = false
-                    log("Jitter pre-buffer: ${preBuffer.size} chunks written")
+                    log("Jitter pre-buffer: ${preBuffer.size} chunks")
                 } else {
                     track.write(chunk, 0, chunk.size)
                 }
 
-                // #13: При turnComplete — channel доигрывает, не flush
+                // Turn complete: доигрываем буфер, не flush
                 if (awaitingPlaybackDrain && audioPlaybackChannel.isEmpty) {
-                    log("⏹ Playback drained after turnComplete")
+                    log("⏹ Playback drained")
                     awaitingPlaybackDrain = false
-                    isFirstBatch = true  // Следующий ответ → снова pre-buffer
+                    isFirstBatch = true
                 }
             }
         }
@@ -1251,8 +1127,9 @@ class MainActivity : AppCompatActivity() {
         audioTrack = null
     }
 
-
-
+    // ====================================================================
+    //  7. SECURE STORAGE
+    // ====================================================================
 
     private fun getPrefs() =
         getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
@@ -1264,28 +1141,28 @@ class MainActivity : AppCompatActivity() {
         getPrefs().edit().putString(PREFS_KEY_API, key).apply()
     }
 
+    // ====================================================================
+    //  8. SECURITY CHECKS (optional — uncomment in onCreate if needed)
+    // ====================================================================
+
+    @Suppress("unused")
     private fun performSecurityChecks() {
-        // 1. Anti-debug: JDWP debugger
         if (Debug.isDebuggerConnected() || Debug.waitingForDebugger()) {
-            Log.e(TAG, "SECURITY: debugger detected — terminating")
+            Log.e(TAG, "SECURITY: debugger detected")
             finishAndRemoveTask()
             android.os.Process.killProcess(android.os.Process.myPid())
             return
         }
 
-        // 2. Root detection: проверяем наличие su в PATH
         val suPaths = arrayOf(
             "/system/bin/su", "/system/xbin/su",
             "/sbin/su", "/su/bin/su",
-            "/data/local/xbin/su", "/data/local/bin/su",
-            "/system/sd/xbin/su", "/system/bin/failsafe/su"
+            "/data/local/xbin/su", "/data/local/bin/su"
         )
-        val rooted = suPaths.any { java.io.File(it).exists() }
-        if (rooted) {
-            Log.w(TAG, "SECURITY: root detected — su binary found")
+        if (suPaths.any { java.io.File(it).exists() }) {
+            Log.w(TAG, "SECURITY: root detected")
         }
 
-        // 3. Повторная проверка отладчика через нативный флаг
         val tracerPid = runCatching {
             java.io.File("/proc/self/status").readLines()
                 .firstOrNull { it.startsWith("TracerPid:") }
@@ -1293,7 +1170,7 @@ class MainActivity : AppCompatActivity() {
         }.getOrDefault(0)
 
         if (tracerPid > 0) {
-            Log.e(TAG, "SECURITY: TracerPid=$tracerPid — process being traced, terminating")
+            Log.e(TAG, "SECURITY: TracerPid=$tracerPid")
             finishAndRemoveTask()
             android.os.Process.killProcess(android.os.Process.myPid())
         }
