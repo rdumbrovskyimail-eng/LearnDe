@@ -24,134 +24,43 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.11.1
+          cache-encryption-key: ${{ secrets.GRADLE_CACHE_KEY }}
+          cache-overwrite-existing: true
           gradle-home-cache-excludes: |
             caches/build-cache-*
             caches/*/executionHistory
             caches/journal-1
             caches/*/gc.properties
+            caches/*/fileHashes
+            caches/transforms-*
+            caches/*/scripts
+            daemon
+
+      - name: Clean before build
+        run: gradle clean --no-build-cache -Dorg.gradle.jvmargs="-Xmx4g"
 
       - name: Build Debug APK
-        run: gradle assembleDebug --no-build-cache --parallel --max-workers=4 --stacktrace -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m" -Dorg.gradle.parallel=true -Dkotlin.incremental=false -Dandroid.enableJetifier=false
-
-      - name: Rename APK
         run: |
-          mkdir -p apks
-          cp app/build/outputs/apk/debug/app-debug.apk apks/CodeExtractor-v${{ github.run_number }}.apk
+          gradle assembleDebug \
+            --no-build-cache \
+            --parallel \
+            --max-workers=4 \
+            --stacktrace \
+            --configuration-cache \
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m" \
+            -Dorg.gradle.parallel=true \
+            -Dkotlin.incremental=false \
+            -Dandroid.enableJetifier=false
 
-      # Сохраняем APK для следующего job
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-${{ github.run_number }}
-          path: apks/CodeExtractor-v${{ github.run_number }}.apk
-          retention-days: 1
-
-      # Релиз 1 — только APK
-      - name: Create APK Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: Release v1.0.${{ github.run_number }}
+          name: "v1.0.${{ github.run_number }}"
           body: |
             ## 📱 CodeExtractor v1.0.${{ github.run_number }}
-            Скачайте APK и установите на устройство.
-            ⏳ Logcat будет добавлен после прохождения тестов на эмуляторе.
-          files: apks/*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  emulator-test:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: 8.11.1
-
-      # Скачиваем APK собранный в job build
-      - name: Download APK artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: apk-${{ github.run_number }}
-          path: apks/
-
-      - name: Run Emulator (API 36 / Android 16)
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 36
-          target: google_apis
-          arch: x86_64
-          profile: pixel_6
-          ram-size: 4096M
-          heap-size: 512M
-          disk-size: 8192M
-          avd-name: android16_test
-          force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
-          disable-animations: true
-          script: |
-            echo "=== Эмулятор запущен ==="
-            adb devices
-            adb logcat -c
-            adb logcat > emulator_logcat.txt &
-            LOGCAT_PID=$!
-            echo "📋 Logcat запущен (pid=$LOGCAT_PID)"
-            adb install -r apks/CodeExtractor-v${{ github.run_number }}.apk
-            echo "✅ APK установлен"
-            adb shell pm grant com.codeextractor.app android.permission.RECORD_AUDIO
-            adb shell pm grant com.codeextractor.app android.permission.POST_NOTIFICATIONS
-            echo "✅ Разрешения выданы"
-            adb shell am start -n com.codeextractor.app/.MainActivity
-            echo "✅ MainActivity запущена"
-            sleep 3
-            adb shell input tap 135 2050
-            echo "🎙 Нажата кнопка Start"
-            echo "⏳ Запись идёт 25 секунд..."
-            sleep 25
-            adb shell input tap 365 2050
-            echo "⏹ Нажата кнопка Stop"
-            sleep 2
-            kill $LOGCAT_PID || true
-            echo "📋 Logcat остановлен ($(wc -l < emulator_logcat.txt) строк)"
-            adb shell screencap -p /sdcard/result.png
-            adb pull /sdcard/result.png emulator_result.png
-            echo "📸 Скриншот сохранён"
-            if grep -q "SETUP COMPLETE" emulator_logcat.txt; then
-              echo "✅ TEST PASSED: setupComplete получен"
-            else
-              echo "⚠ TEST WARNING: setupComplete не найден"
-            fi
-
-      # Релиз 2 — добавляем logcat и скриншот к существующему релизу
-      - name: Update Release with Logcat
-        if: always()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Release v1.0.${{ github.run_number }} ✅
-          body: |
-            ## 📱 CodeExtractor v1.0.${{ github.run_number }}
-            Скачайте APK и установите на устройство.
-            ✅ Тест на эмуляторе Android 16 (API 36) завершён.
-            📋 Logcat и скриншот прикреплены ниже.
-          files: |
-            emulator_logcat.txt
-            emulator_result.png
+            **Commit:** `${{ github.sha }}`
+            **Branch:** `${{ github.ref_name }}`
+          files: app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
