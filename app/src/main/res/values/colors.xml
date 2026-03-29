@@ -1,8 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#6200EE</color>
-    <color name="primary_dark">#3700B3</color>
-    <color name="accent">#03DAC5</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  Gemini Live — Dark Professional Palette                -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+
+    <!-- Surfaces -->
+    <color name="surface_dark">#FF0F1114</color>
+    <color name="surface_elevated">#FF181B20</color>
+    <color name="surface_controls">#FF131519</color>
+
+    <!-- Text hierarchy -->
+    <color name="text_primary">#FFF0F1F3</color>
+    <color name="text_secondary">#FF8B919A</color>
+    <color name="text_tertiary">#FF555B65</color>
+    <color name="text_log">#FFA0A8B4</color>
+
+    <!-- Accent: Blue (Gemini brand) -->
+    <color name="accent_blue">#FF6EA8FE</color>
+    <color name="accent_blue_dim">#33669DF6</color>
+
+    <!-- Status colors -->
+    <color name="status_red">#FFEF5350</color>
+    <color name="status_yellow">#FFFFC107</color>
+    <color name="status_green">#FF66BB6A</color>
+    <color name="status_recording">#FF4CAF50</color>
+
+    <!-- Buttons -->
+    <color name="button_start">#FF66BB6A</color>
+    <color name="button_start_disabled">#33668B6A</color>
+    <color name="button_stop_stroke">#44FFFFFF</color>
+
+    <!-- Dividers & borders -->
+    <color name="divider_dark">#15FFFFFF</color>
+    <color name="input_stroke_color">#33FFFFFF</color>
+
+    <!-- Ripple -->
+    <color name="ripple_subtle">#15FFFFFF</color>
 </resources>
