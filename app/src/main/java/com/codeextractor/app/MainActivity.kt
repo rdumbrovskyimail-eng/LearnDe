@@ -1,8 +1,11 @@
 package com.codeextractor.app
 
 import android.Manifest
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.content.Context
 import android.content.pm.PackageManager
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -146,6 +149,8 @@ class MainActivity : AppCompatActivity() {
     private var audioTrack: AudioTrack? = null
     private val audioPlaybackChannel = Channel<ByteArray>(PLAYBACK_QUEUE_CAPACITY)
     private var playbackJob: Job? = null
+
+    private var pulseAnimator: AnimatorSet? = null
 
     @Volatile
     private var awaitingPlaybackDrain = false
@@ -316,41 +321,82 @@ class MainActivity : AppCompatActivity() {
     private fun observeState() {
         lifecycleScope.launch {
             sessionState.collectLatest { state ->
-                val (icon, color, label) = when (state) {
-                    SessionState.Disconnected -> Triple(
-                        android.R.drawable.presence_busy,
-                        android.graphics.Color.RED,
+                val (dotColor, label) = when (state) {
+                    SessionState.Disconnected -> Pair(
+                        getColor(R.color.status_red),
                         "Disconnected"
                     )
-                    SessionState.Connecting -> Triple(
-                        android.R.drawable.presence_busy,
-                        android.graphics.Color.RED,
+                    SessionState.Connecting -> Pair(
+                        getColor(R.color.status_yellow),
                         "Connecting…"
                     )
-                    SessionState.Connected -> Triple(
-                        android.R.drawable.presence_online,
-                        android.graphics.Color.YELLOW,
+                    SessionState.Connected -> Pair(
+                        getColor(R.color.status_yellow),
                         "Setting up…"
                     )
-                    SessionState.Ready -> Triple(
-                        android.R.drawable.presence_online,
-                        COLOR_READY,
-                        "Ready — press Start"
+                    SessionState.Ready -> Pair(
+                        getColor(R.color.status_green),
+                        "Ready — tap Start"
                     )
-                    SessionState.Recording -> Triple(
-                        android.R.drawable.presence_audio_online,
-                        android.graphics.Color.GREEN,
+                    SessionState.Recording -> Pair(
+                        getColor(R.color.status_recording),
                         "● Recording"
                     )
                 }
-                binding.statusIndicator.setImageResource(icon)
-                binding.statusIndicator.setColorFilter(color)
+
+                // Update status dot color
+                binding.statusIndicator.drawable?.setTint(dotColor)
                 binding.statusText.text = label
+
+                // Pulse animation only while recording
+                if (state == SessionState.Recording) {
+                    startPulseAnimation()
+                } else {
+                    stopPulseAnimation()
+                }
 
                 binding.startButton.isEnabled = state == SessionState.Ready
                 binding.stopButton.isEnabled = state == SessionState.Recording
+
+                // Dim disabled buttons
+                binding.startButton.alpha = if (state == SessionState.Ready) 1f else 0.4f
+                binding.stopButton.alpha = if (state == SessionState.Recording) 1f else 0.4f
             }
         }
+    }
+
+    private fun startPulseAnimation() {
+        if (pulseAnimator?.isRunning == true) return
+
+        val pulseView = binding.statusPulse
+
+        val scaleX = ObjectAnimator.ofFloat(pulseView, "scaleX", 0.5f, 1.3f).apply {
+            repeatCount = ObjectAnimator.INFINITE
+            repeatMode = ObjectAnimator.RESTART
+        }
+        val scaleY = ObjectAnimator.ofFloat(pulseView, "scaleY", 0.5f, 1.3f).apply {
+            repeatCount = ObjectAnimator.INFINITE
+            repeatMode = ObjectAnimator.RESTART
+        }
+        val alpha = ObjectAnimator.ofFloat(pulseView, "alpha", 0.6f, 0f).apply {
+            repeatCount = ObjectAnimator.INFINITE
+            repeatMode = ObjectAnimator.RESTART
+        }
+
+        pulseAnimator = AnimatorSet().apply {
+            playTogether(scaleX, scaleY, alpha)
+            duration = 1200
+            interpolator = AccelerateDecelerateInterpolator()
+            start()
+        }
+    }
+
+    private fun stopPulseAnimation() {
+        pulseAnimator?.cancel()
+        pulseAnimator = null
+        binding.statusPulse.alpha = 0f
+        binding.statusPulse.scaleX = 1f
+        binding.statusPulse.scaleY = 1f
     }
 
     private fun appendLogToUI(line: String) {
