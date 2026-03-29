@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -36,15 +36,12 @@ jobs:
             caches/*/scripts
             daemon
 
-      - name: Clean before build
-        run: gradle clean --no-build-cache -Dorg.gradle.jvmargs="-Xmx4g"
-
       - name: Build Debug APK
         run: |
           gradle assembleDebug \
             --no-build-cache \
             --parallel \
-            --max-workers=4 \
+            --max-workers=2 \
             --stacktrace \
             --configuration-cache \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m" \
