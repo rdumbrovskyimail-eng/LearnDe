@@ -156,6 +156,9 @@ class MainActivity : AppCompatActivity() {
     private var awaitingPlaybackDrain = false
 
     @Volatile
+    private var lastSessionHandle: String? = null
+
+    @Volatile
     private var isFirstBatch = true
 
     private var reconnectAttempt = 0
@@ -823,6 +826,17 @@ class MainActivity : AppCompatActivity() {
             // ─── Tool call ─────────────────────────────────────────
             root["toolCall"]?.jsonObject?.let { toolCall ->
                 handleToolCall(toolCall)
+                return
+            }
+
+            // ─── Session Resumption ────────────────────────────────
+            root["sessionResumptionUpdate"]?.jsonObject?.let { update ->
+                update["newHandle"]?.jsonPrimitive?.content?.let { handle ->
+                    if (lastSessionHandle != handle) {
+                        lastSessionHandle = handle
+                        log("SESSION_RESUMPTION: handle updated")
+                    }
+                }
                 return
             }
 
