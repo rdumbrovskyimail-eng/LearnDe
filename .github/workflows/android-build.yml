@@ -1,14 +1,22 @@
-name: Android CI
+name: Android CI & DevOps
 
 on:
   push:
     branches: [ "main" ]
+  # ВАЖНО: Добавлена кнопка "Run Workflow", чтобы вы могли запускать процесс руками из GitHub без новых пушей!
+  workflow_dispatch: 
+  # ВАЖНО: Каждое утро понедельника GitHub сам будет заходить сюда и тихонько формировать вам свежий список обновившихся либ
+  schedule:
+    - cron: '0 8 * * 1'
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  # === Задача 1: Ваша оригинальная сборка APK === #
+  build-and-release:
+    # Запускаем сборку ТОЛЬКО на пушах и ручных запусках. Не тратим минуты на автоматической (cron) проверке по утрам.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
 
     steps:
@@ -72,3 +80,40 @@ jobs:
           files: CodeExtractor-v1.0.${{ github.run_number }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # === Задача 2: НОВАЯ. Аудит зависимостей (выполняется параллельно с первой задачей) === #
+  dependency-audit:
+    name: 📊 Audit Library Updates
+    runs-on: ubuntu-24.04
+    # Разрешаем продолжить процесс даже если этот шаг сбоит, чтобы он не заблочил зеленый свет всему экшену
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle Cache (for audit)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+          cache-read-only: true # Не мусорим кэш из задачи аудита, только читаем!
+
+      - name: Run Update Audit
+        # Прогоняем скрипт, результаты полетят в build/dependencyUpdates/report.txt
+        run: |
+          gradle dependencyUpdates --no-daemon
+
+      - name: Post Job Summary (Visual Report)
+        if: always() # Вывести результат даже в случае ворнингов от грэдла
+        run: |
+          echo "## 🚀 Доступные стабильные обновления (Инфо)" >> $GITHUB_STEP_SUMMARY
+          echo "Привет, команда! Ваш сервер GitHub проверил реестры библиотек Maven Central и Google Maven. Вот библиотеки в проекте, у которых вышли стабильные обновления:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
+          cat build/dependencyUpdates/report.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
