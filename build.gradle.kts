@@ -4,13 +4,4 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")       version "2.3.20"  apply false
     id("com.google.devtools.ksp")                   version "2.3.6"   apply false
     id("com.google.dagger.hilt.android")            version "2.59.2"  apply false
-    id("com.github.ben-manes.versions")             version "0.53.0"  apply false
-}
-
-tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask> {
-    rejectVersionIf {
-        val isUnstable = candidate.version
-            .matches(".*(alpha|beta|rc|RC|m|M).*".toRegex())
-        isUnstable
-    }
 }
