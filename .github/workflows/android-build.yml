@@ -23,7 +23,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.4.1
-          cache-disabled: true
+          cache-overwrite-existing: true
+          gradle-home-cache-excludes: |
+            caches/build-cache-*
+            caches/*/executionHistory
+            caches/journal-1
+            caches/*/gc.properties
+            caches/*/fileHashes
+            caches/transforms-*
+            caches/*/scripts
+            daemon
 
       - name: Build Debug APK
         run: |
