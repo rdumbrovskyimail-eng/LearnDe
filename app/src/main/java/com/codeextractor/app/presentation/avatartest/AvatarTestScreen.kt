@@ -643,36 +643,33 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     cameraNode = cameraNode,
                     cameraManipulator = rememberCameraManipulator(),
                 ) {
-                    // ТЕСТ 1: Точка привязки (если увидишь красный кубик — движок работает)
-                    io.github.sceneview.node.CubeNode(
-                        engine = engine,
-                        size = io.github.sceneview.math.Size(0.02f), // Маленький кубик в (0,0,0)
-                        centerOrigin = Position(0f, 0f, 0f)
-                    )
+                    // Мы не добавляем куб, чтобы не усложнять.
+                    // Сразу пытаемся отрендерить аватар.
 
-                    // ТЕСТ 2: Твой Аватар
                     val modelInstance = rememberModelInstance(
                         modelLoader = modelLoader,
                         assetFileLocation = MODEL_PATH,
                     )
 
-                    // Передаем инстанс наружу в твой LaunchedEffect для тестов морфинга
                     LaunchedEffect(modelInstance) {
                         if (modelInstance != null) {
-                            DiagLog.i("SUCCESS: Model instance loaded into Scene")
+                            DiagLog.i("SUCCESS: Model instance loaded")
                             modelInstanceRef = modelInstance
                         } else {
-                            DiagLog.e("ERROR: rememberModelInstance returned null for $MODEL_PATH")
+                            DiagLog.e("ERROR: ModelInstance is null")
                         }
                     }
 
                     modelInstance?.let { inst ->
+                        // В версии 3.5.2 параметры задаются через свойства или внутри apply
                         ModelNode(
                             modelInstance = inst,
-                            centerOrigin = Position(0f, 0f, 0f), // КЛЮЧЕВОЙ МОМЕНТ: игнорируем оффсеты FBX
-                            scaleToUnits = 1.0f,               // Подгоняем размер под 1 метр
-                            autoAnimate = false,
-                        )
+                        ).apply {
+                            // Центрируем модель: игнорируем встроенные координаты glb
+                            centerModel() 
+                            // Включаем/выключаем анимацию
+                            autoAnimate = false
+                        }
                     }
                 }
 
