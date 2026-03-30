@@ -40,10 +40,10 @@ fun AppNavGraph(
 
         composable(
             route          = Routes.AVATAR_TEST,
-            enterTransition  = { slideInHorizontally(tween(350)) { it } + fadeIn(tween(350)) },
-            exitTransition   = { fadeOut(tween(250)) },
-            popEnterTransition = { fadeIn(tween(250)) },
-            popExitTransition  = { slideOutHorizontally(tween(350)) { it } + fadeOut(tween(350)) },
+            enterTransition    = { fadeIn(tween(400)) },
+            exitTransition     = { fadeOut(tween(300)) },
+            popEnterTransition = { fadeIn(tween(300)) },
+            popExitTransition  = { fadeOut(tween(400)) },
         ) {
             AvatarTestScreen(
                 onBack = { navController.popBackStack() }
