@@ -627,7 +627,12 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     .weight(1f)
                     .background(Color.Black)
             ) {
-                // ═══ SceneView 3.x — trailing content lambda ═══
+                // Настраиваем камеру так, чтобы она видела центр сцены
+                val cameraNode = rememberCameraNode(engine) {
+                    position = Position(x = 0.0f, y = 0.0f, z = 3.0f) // Отходим на 3 метра
+                    lookAt(Position(0f, 0f, 0f)) // Смотрим строго в ноль
+                }
+
                 Scene(
                     modifier = Modifier.fillMaxSize(),
                     engine = engine,
@@ -635,60 +640,54 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     environmentLoader = environmentLoader,
                     environment = environment,
                     mainLightNode = mainLightNode,
-                    cameraNode = rememberCameraNode(engine) {
-                        position = Position(z = 4.0f)
-                    },
+                    cameraNode = cameraNode,
                     cameraManipulator = rememberCameraManipulator(),
                 ) {
-                    // ═══ ТЕСТ 1: Простой куб — проверяем что Scene вообще рендерит ═══
+                    // ТЕСТ 1: Точка привязки (если увидишь красный кубик — движок работает)
                     io.github.sceneview.node.CubeNode(
                         engine = engine,
-                        size = io.github.sceneview.math.Size(0.5f),
+                        size = io.github.sceneview.math.Size(0.02f), // Маленький кубик в (0,0,0)
+                        centerOrigin = Position(0f, 0f, 0f)
                     )
 
-                    // ═══ ТЕСТ 2: Модель — закомментирована пока ═══
-                    /*
-                    val instance = rememberModelInstance(
+                    // ТЕСТ 2: Твой Аватар
+                    val modelInstance = rememberModelInstance(
                         modelLoader = modelLoader,
                         assetFileLocation = MODEL_PATH,
                     )
 
-                    // Пробрасываем наружу через state
-                    LaunchedEffect(instance) {
-                        DiagLog.d("Scene content: rememberModelInstance result = $instance")
-                        if (instance != null) {
-                            DiagLog.i("Scene content: MODEL INSTANCE LOADED!")
-                            DiagLog.d("  entities: ${instance.entities.size}")
-                            modelInstanceRef = instance
+                    // Передаем инстанс наружу в твой LaunchedEffect для тестов морфинга
+                    LaunchedEffect(modelInstance) {
+                        if (modelInstance != null) {
+                            DiagLog.i("SUCCESS: Model instance loaded into Scene")
+                            modelInstanceRef = modelInstance
                         } else {
-                            DiagLog.d("Scene content: instance is null (still loading or failed)")
+                            DiagLog.e("ERROR: rememberModelInstance returned null for $MODEL_PATH")
                         }
                     }
 
-                    instance?.let { inst ->
-                        DiagLog.d("Scene content: rendering ModelNode")
+                    modelInstance?.let { inst ->
                         ModelNode(
                             modelInstance = inst,
-                            scaleToUnits = 2.0f,
-                            centerOrigin = Position(0f, 0f, 0f),
+                            centerOrigin = Position(0f, 0f, 0f), // КЛЮЧЕВОЙ МОМЕНТ: игнорируем оффсеты FBX
+                            scaleToUnits = 1.0f,               // Подгоняем размер под 1 метр
                             autoAnimate = false,
                         )
                     }
-                    */
                 }
 
+                // Визуальный индикатор работы (Scanline)
                 if (!isFinished) ScanlineOverlay()
 
-                // Overlay с текущим статусом прямо на Scene
+                // Информационный текст поверх
                 Text(
-                    text = if (modelInstanceRef != null) "✓ Model OK" else "⏳ Loading...",
+                    text = if (modelInstanceRef != null) "✓ Model Instance Found" else "⏳ Waiting for GLB...",
                     color = if (modelInstanceRef != null) Color.Green else Color.Yellow,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(8.dp)
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.6f))
                         .padding(4.dp)
                 )
             }
