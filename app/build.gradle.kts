@@ -51,12 +51,11 @@ android {
 dependencies {
 
     // Core
-    implementation("androidx.core:core-ktx:1.16.0")
+    implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.activity:activity-ktx:1.10.1")
-    implementation("com.google.android.material:material:1.14.0-alpha06")
 
     // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2025.04.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.03.00")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
@@ -87,14 +86,12 @@ dependencies {
     // Network
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    // Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // Serialization & Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
 
-    // Secure Storage
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
-    implementation("androidx.datastore:datastore-preferences:1.2.1")
-    implementation("com.google.crypto.tink:tink-android:1.14.0")
+    // DataStore (типизированный — ПРАВИЛЬНЫЙ артефакт)
+    implementation("androidx.datastore:datastore:1.2.1")
 
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
