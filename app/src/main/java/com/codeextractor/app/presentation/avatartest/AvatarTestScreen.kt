@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,14 +55,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import io.github.sceneview.SceneView
+import io.github.sceneview.math.Position
 import io.github.sceneview.node.ModelNode
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  MODEL CONSTANTS
+//  MORPH TARGET INDICES — ARKit 51 blendshapes (source_named.glb)
 // ══════════════════════════════════════════════════════════════════════════════
 
 private object Idx {
@@ -101,8 +102,13 @@ private enum class Category(val label: String, val color: Color) {
     BROWS    ("Brows",     Color(0xFF6A1B9A)),
     JAW      ("Jaw",       Color(0xFF00695C)),
     MOUTH    ("Mouth",     Color(0xFF2E7D32)),
+    CHEEKS   ("Cheeks",    Color(0xFF795548)),
+    NOSE     ("Nose",      Color(0xFF607D8B)),
     FACE     ("Face",      Color(0xFFE65100)),
     EMOTION  ("Emotion",   Color(0xFFC62828)),
+    VISEME   ("Viseme",    Color(0xFF0097A7)),
+    COMBO    ("Combo",     Color(0xFFAD1457)),
+    STRESS   ("Stress",    Color(0xFFFF6F00)),
     ANIMATION("Animation", Color(0xFF37474F)),
 }
 
@@ -122,76 +128,308 @@ private data class Step(
 }
 
 private val SEQUENCE: List<Step> = buildList {
-    add(Step.head("Blink Both",   Category.EYES) { set(Idx.eyeBlinkLeft, 1f); set(Idx.eyeBlinkRight, 1f) })
-    add(Step.head("Look Left",    Category.EYES) { set(Idx.eyeLookOutLeft, 1f); set(Idx.eyeLookInRight, 1f) })
-    add(Step.head("Look Right",   Category.EYES) { set(Idx.eyeLookInLeft, 1f); set(Idx.eyeLookOutRight, 1f) })
-    add(Step.head("Brow Down",    Category.BROWS){ set(Idx.browDownLeft, 1f); set(Idx.browDownRight, 1f) })
-    add(Step.head("Jaw Open",     Category.JAW)  { set(Idx.jawOpen, 1f) })
-    add(Step.head("Smile",        Category.MOUTH){ set(Idx.mouthSmileLeft, 1f); set(Idx.mouthSmileRight, 1f) })
-    
-    // Emotion showcase
-    add(Step.head("Happy 😊", Category.EMOTION, dur = 2_500) {
-        set(Idx.mouthSmileLeft, 0.9f); set(Idx.mouthSmileRight, 0.9f)
-        set(Idx.cheekSquintLeft, 0.5f); set(Idx.cheekSquintRight, 0.5f)
-        set(Idx.browOuterUpLeft, 0.3f); set(Idx.browOuterUpRight, 0.3f)
+
+    // ── EYES ──────────────────────────────────────────────────────
+    add(Step.head("Blink Both", Category.EYES) {
+        this[Idx.eyeBlinkLeft] = 1f; this[Idx.eyeBlinkRight] = 1f
     })
-    add(Step.head("Angry 😠", Category.EMOTION, dur = 2_500) {
-        set(Idx.browDownLeft, 1f); set(Idx.browDownRight, 1f)
-        set(Idx.noseSneerLeft, 0.5f); set(Idx.noseSneerRight, 0.5f)
-        set(Idx.mouthStretchLeft, 0.4f); set(Idx.mouthStretchRight, 0.4f)
-        set(Idx.jawForward, 0.3f)
+    add(Step.head("Blink Left", Category.EYES) {
+        this[Idx.eyeBlinkLeft] = 1f
     })
-    
-    // Всю вашу текущую коллекцию шагов анимаций из SEQUENCE сохраните здесь.
-    // ...
-    
-    add(Step.anim("Built-in Anim 🎬"))
+    add(Step.head("Blink Right", Category.EYES) {
+        this[Idx.eyeBlinkRight] = 1f
+    })
+    add(Step.head("Look Left", Category.EYES) {
+        this[Idx.eyeLookOutLeft] = 1f; this[Idx.eyeLookInRight] = 1f
+    })
+    add(Step.head("Look Right", Category.EYES) {
+        this[Idx.eyeLookInLeft] = 1f; this[Idx.eyeLookOutRight] = 1f
+    })
+    add(Step.head("Look Up", Category.EYES) {
+        this[Idx.eyeLookUpLeft] = 1f; this[Idx.eyeLookUpRight] = 1f
+    })
+    add(Step.head("Look Down", Category.EYES) {
+        this[Idx.eyeLookDownLeft] = 1f; this[Idx.eyeLookDownRight] = 1f
+    })
+    add(Step.head("Squint Both", Category.EYES) {
+        this[Idx.eyeSquintLeft] = 1f; this[Idx.eyeSquintRight] = 1f
+    })
+    add(Step.head("Wide Eyes", Category.EYES) {
+        this[Idx.eyeWideLeft] = 1f; this[Idx.eyeWideRight] = 1f
+    })
+
+    // ── BROWS ─────────────────────────────────────────────────────
+    add(Step.head("Brow Down", Category.BROWS) {
+        this[Idx.browDownLeft] = 1f; this[Idx.browDownRight] = 1f
+    })
+    add(Step.head("Brow Inner Up", Category.BROWS) {
+        this[Idx.browInnerUp] = 1f
+    })
+    add(Step.head("Brow Outer Up", Category.BROWS) {
+        this[Idx.browOuterUpLeft] = 1f; this[Idx.browOuterUpRight] = 1f
+    })
+    add(Step.head("Brow Left Up", Category.BROWS) {
+        this[Idx.browOuterUpLeft] = 1f; this[Idx.browDownRight] = 0.3f
+    })
+    add(Step.head("Brow Right Up", Category.BROWS) {
+        this[Idx.browOuterUpRight] = 1f; this[Idx.browDownLeft] = 0.3f
+    })
+
+    // ── JAW ───────────────────────────────────────────────────────
+    add(Step.head("Jaw Open", Category.JAW) {
+        this[Idx.jawOpen] = 1f
+    })
+    add(Step.head("Jaw Forward", Category.JAW) {
+        this[Idx.jawForward] = 1f
+    })
+    add(Step.head("Jaw Left", Category.JAW) {
+        this[Idx.jawLeft] = 1f
+    })
+    add(Step.head("Jaw Right", Category.JAW) {
+        this[Idx.jawRight] = 1f
+    })
+
+    // ── MOUTH ─────────────────────────────────────────────────────
+    add(Step.head("Smile", Category.MOUTH) {
+        this[Idx.mouthSmileLeft] = 1f; this[Idx.mouthSmileRight] = 1f
+    })
+    add(Step.head("Frown", Category.MOUTH) {
+        this[Idx.mouthFrownLeft] = 1f; this[Idx.mouthFrownRight] = 1f
+    })
+    add(Step.head("Pucker", Category.MOUTH) {
+        this[Idx.mouthPucker] = 1f
+    })
+    add(Step.head("Funnel", Category.MOUTH) {
+        this[Idx.mouthFunnel] = 1f
+    })
+    add(Step.head("Mouth Left", Category.MOUTH) {
+        this[Idx.mouthLeft] = 1f
+    })
+    add(Step.head("Mouth Right", Category.MOUTH) {
+        this[Idx.mouthRight] = 1f
+    })
+    add(Step.head("Mouth Close", Category.MOUTH) {
+        this[Idx.mouthClose] = 1f
+    })
+    add(Step.head("Roll Lower", Category.MOUTH) {
+        this[Idx.mouthRollLower] = 1f
+    })
+    add(Step.head("Roll Upper", Category.MOUTH) {
+        this[Idx.mouthRollUpper] = 1f
+    })
+    add(Step.head("Shrug Lower", Category.MOUTH) {
+        this[Idx.mouthShrugLower] = 1f
+    })
+    add(Step.head("Shrug Upper", Category.MOUTH) {
+        this[Idx.mouthShrugUpper] = 1f
+    })
+    add(Step.head("Press Both", Category.MOUTH) {
+        this[Idx.mouthPressLeft] = 1f; this[Idx.mouthPressRight] = 1f
+    })
+    add(Step.head("Lower Down", Category.MOUTH) {
+        this[Idx.mouthLowerDownLeft] = 1f; this[Idx.mouthLowerDownRight] = 1f
+    })
+    add(Step.head("Upper Up", Category.MOUTH) {
+        this[Idx.mouthUpperUpLeft] = 1f; this[Idx.mouthUpperUpRight] = 1f
+    })
+    add(Step.head("Dimple Both", Category.MOUTH) {
+        this[Idx.mouthDimpleLeft] = 1f; this[Idx.mouthDimpleRight] = 1f
+    })
+    add(Step.head("Stretch Both", Category.MOUTH) {
+        this[Idx.mouthStretchLeft] = 1f; this[Idx.mouthStretchRight] = 1f
+    })
+
+    // ── CHEEKS & NOSE ────────────────────────────────────────────
+    add(Step.head("Cheek Puff", Category.CHEEKS) {
+        this[Idx.cheekPuff] = 1f
+    })
+    add(Step.head("Cheek Squint", Category.CHEEKS) {
+        this[Idx.cheekSquintLeft] = 1f; this[Idx.cheekSquintRight] = 1f
+    })
+    add(Step.head("Nose Sneer", Category.NOSE) {
+        this[Idx.noseSneerLeft] = 1f; this[Idx.noseSneerRight] = 1f
+    })
+
+    // ── EMOTIONS (complex combos) ────────────────────────────────
+    add(Step.head("Happy", Category.EMOTION, dur = 2_500) {
+        this[Idx.mouthSmileLeft] = 0.9f; this[Idx.mouthSmileRight] = 0.9f
+        this[Idx.cheekSquintLeft] = 0.6f; this[Idx.cheekSquintRight] = 0.6f
+        this[Idx.browOuterUpLeft] = 0.3f; this[Idx.browOuterUpRight] = 0.3f
+        this[Idx.eyeSquintLeft] = 0.3f; this[Idx.eyeSquintRight] = 0.3f
+    })
+    add(Step.head("Sad", Category.EMOTION, dur = 2_500) {
+        this[Idx.mouthFrownLeft] = 0.8f; this[Idx.mouthFrownRight] = 0.8f
+        this[Idx.browInnerUp] = 0.9f; this[Idx.browDownLeft] = 0.3f; this[Idx.browDownRight] = 0.3f
+        this[Idx.mouthPressLeft] = 0.3f; this[Idx.mouthPressRight] = 0.3f
+    })
+    add(Step.head("Angry", Category.EMOTION, dur = 2_500) {
+        this[Idx.browDownLeft] = 1f; this[Idx.browDownRight] = 1f
+        this[Idx.noseSneerLeft] = 0.6f; this[Idx.noseSneerRight] = 0.6f
+        this[Idx.mouthStretchLeft] = 0.5f; this[Idx.mouthStretchRight] = 0.5f
+        this[Idx.jawForward] = 0.3f
+        this[Idx.eyeSquintLeft] = 0.4f; this[Idx.eyeSquintRight] = 0.4f
+    })
+    add(Step.head("Surprised", Category.EMOTION, dur = 2_500) {
+        this[Idx.eyeWideLeft] = 0.9f; this[Idx.eyeWideRight] = 0.9f
+        this[Idx.browOuterUpLeft] = 0.8f; this[Idx.browOuterUpRight] = 0.8f
+        this[Idx.browInnerUp] = 0.8f
+        this[Idx.jawOpen] = 0.6f
+        this[Idx.mouthFunnel] = 0.3f
+    })
+    add(Step.head("Disgust", Category.EMOTION, dur = 2_500) {
+        this[Idx.noseSneerLeft] = 1f; this[Idx.noseSneerRight] = 0.7f
+        this[Idx.mouthUpperUpLeft] = 0.6f
+        this[Idx.browDownLeft] = 0.5f; this[Idx.browDownRight] = 0.3f
+        this[Idx.mouthFrownLeft] = 0.4f; this[Idx.mouthFrownRight] = 0.3f
+        this[Idx.eyeSquintLeft] = 0.5f
+    })
+    add(Step.head("Fear", Category.EMOTION, dur = 2_500) {
+        this[Idx.eyeWideLeft] = 1f; this[Idx.eyeWideRight] = 1f
+        this[Idx.browInnerUp] = 1f
+        this[Idx.browOuterUpLeft] = 0.5f; this[Idx.browOuterUpRight] = 0.5f
+        this[Idx.jawOpen] = 0.3f
+        this[Idx.mouthStretchLeft] = 0.6f; this[Idx.mouthStretchRight] = 0.6f
+        this[Idx.mouthFrownLeft] = 0.3f; this[Idx.mouthFrownRight] = 0.3f
+    })
+    add(Step.head("Contempt", Category.EMOTION, dur = 2_500) {
+        this[Idx.mouthSmileRight] = 0.5f
+        this[Idx.mouthDimpleRight] = 0.4f
+        this[Idx.browDownLeft] = 0.2f
+        this[Idx.eyeSquintRight] = 0.2f
+    })
+    add(Step.head("Skeptical", Category.EMOTION, dur = 2_500) {
+        this[Idx.browOuterUpLeft] = 0.8f
+        this[Idx.browDownRight] = 0.4f
+        this[Idx.mouthPucker] = 0.3f
+        this[Idx.mouthRight] = 0.3f
+    })
+
+    // ── VISEMES (lip sync simulation) ────────────────────────────
+    add(Step.head("Viseme: AA", Category.VISEME, dur = 1_200) {
+        this[Idx.jawOpen] = 0.7f
+        this[Idx.mouthLowerDownLeft] = 0.4f; this[Idx.mouthLowerDownRight] = 0.4f
+    })
+    add(Step.head("Viseme: EE", Category.VISEME, dur = 1_200) {
+        this[Idx.mouthSmileLeft] = 0.6f; this[Idx.mouthSmileRight] = 0.6f
+        this[Idx.mouthStretchLeft] = 0.3f; this[Idx.mouthStretchRight] = 0.3f
+    })
+    add(Step.head("Viseme: OO", Category.VISEME, dur = 1_200) {
+        this[Idx.mouthFunnel] = 0.8f; this[Idx.mouthPucker] = 0.5f
+        this[Idx.jawOpen] = 0.2f
+    })
+    add(Step.head("Viseme: FF/VV", Category.VISEME, dur = 1_200) {
+        this[Idx.mouthRollLower] = 0.6f
+        this[Idx.mouthUpperUpLeft] = 0.2f; this[Idx.mouthUpperUpRight] = 0.2f
+    })
+    add(Step.head("Viseme: TH", Category.VISEME, dur = 1_200) {
+        this[Idx.jawOpen] = 0.15f
+        this[Idx.mouthLowerDownLeft] = 0.5f; this[Idx.mouthLowerDownRight] = 0.5f
+        this[Idx.mouthShrugUpper] = 0.3f
+    })
+    add(Step.head("Viseme: PP/BB/MM", Category.VISEME, dur = 1_200) {
+        this[Idx.mouthClose] = 0.8f
+        this[Idx.mouthPressLeft] = 0.5f; this[Idx.mouthPressRight] = 0.5f
+    })
+
+    // ── COMBINATION STRESS TESTS ─────────────────────────────────
+    add(Step.head("Full Smile + Blink", Category.COMBO, dur = 2_000) {
+        this[Idx.mouthSmileLeft] = 1f; this[Idx.mouthSmileRight] = 1f
+        this[Idx.cheekSquintLeft] = 0.7f; this[Idx.cheekSquintRight] = 0.7f
+        this[Idx.eyeBlinkLeft] = 0.8f; this[Idx.eyeBlinkRight] = 0.8f
+    })
+    add(Step.head("Talking + Looking", Category.COMBO, dur = 2_000) {
+        this[Idx.jawOpen] = 0.5f
+        this[Idx.mouthSmileLeft] = 0.3f; this[Idx.mouthSmileRight] = 0.3f
+        this[Idx.eyeLookOutLeft] = 0.8f; this[Idx.eyeLookInRight] = 0.8f
+        this[Idx.browOuterUpLeft] = 0.4f
+    })
+    add(Step.head("All Brows Max", Category.COMBO, dur = 2_000) {
+        this[Idx.browDownLeft] = 1f; this[Idx.browDownRight] = 1f
+        this[Idx.browInnerUp] = 1f
+        this[Idx.browOuterUpLeft] = 1f; this[Idx.browOuterUpRight] = 1f
+    })
+
+    // ── STRESS: Rapid morph transitions ──────────────────────────
+    add(Step.head("Stress: All Eyes", Category.STRESS, dur = 1_500) {
+        this[Idx.eyeBlinkLeft] = 0.5f; this[Idx.eyeBlinkRight] = 0.5f
+        this[Idx.eyeSquintLeft] = 0.5f; this[Idx.eyeSquintRight] = 0.5f
+        this[Idx.eyeWideLeft] = 0.5f; this[Idx.eyeWideRight] = 0.5f
+        this[Idx.eyeLookUpLeft] = 0.5f; this[Idx.eyeLookUpRight] = 0.5f
+    })
+    add(Step.head("Stress: All Mouth", Category.STRESS, dur = 1_500) {
+        this[Idx.mouthSmileLeft] = 0.4f; this[Idx.mouthSmileRight] = 0.4f
+        this[Idx.mouthFrownLeft] = 0.4f; this[Idx.mouthFrownRight] = 0.4f
+        this[Idx.mouthPucker] = 0.5f; this[Idx.mouthFunnel] = 0.5f
+        this[Idx.mouthRollLower] = 0.5f; this[Idx.mouthRollUpper] = 0.5f
+        this[Idx.jawOpen] = 0.3f
+    })
+    add(Step.head("Stress: Max All 51", Category.STRESS, dur = 2_500) {
+        for (i in 0 until 51) this[i] = 1f
+    })
+    add(Step.head("Stress: Half All 51", Category.STRESS, dur = 2_000) {
+        for (i in 0 until 51) this[i] = 0.5f
+    })
+
+    // ── BUILT-IN GLB ANIMATION ───────────────────────────────────
+    add(Step.anim("Built-in Anim (Scene)"))
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  MORPH APPLICATION 
+//  MORPH APPLICATION — maps 51 head weights to per-mesh morph targets
+//
+//  GLB mesh order (renderable entities after filtering):
+//    0 = head_lod0_ORIGINAL  (51 targets)
+//    1 = eyeLeft_ORIGINAL    (4 targets)
+//    2 = eyeRight_ORIGINAL   (4 targets)
+//    3 = teeth_ORIGINAL      (5 targets)
 // ══════════════════════════════════════════════════════════════════════════════
 
 private fun ModelNode.applyMorphs(headW: FloatArray) {
     val instance = modelInstance ?: return
     val rm       = engine.renderableManager
 
-    val teethW = FloatArray(5) { i ->
-        when(i) {
-            0 -> headW[Idx.jawForward]
-            1 -> headW[Idx.jawLeft]
-            2 -> headW[Idx.jawRight]
-            3 -> headW[Idx.jawOpen]
-            4 -> headW[Idx.mouthClose]
-            else -> 0f
-        }
-    }
-    val eyeLW = FloatArray(4) { i -> headW[Idx.eyeLookDownLeft + i] }
-    val eyeRW = FloatArray(4) { i -> headW[Idx.eyeLookDownRight + i] }
+    // Подготавливаем суб-массивы для подмешей
+    val teethW = floatArrayOf(
+        headW[Idx.jawForward],
+        headW[Idx.jawLeft],
+        headW[Idx.jawRight],
+        headW[Idx.jawOpen],
+        headW[Idx.mouthClose],
+    )
+    val eyeLW = floatArrayOf(
+        headW[Idx.eyeLookDownLeft],
+        headW[Idx.eyeLookInLeft],
+        headW[Idx.eyeLookOutLeft],
+        headW[Idx.eyeLookUpLeft],
+    )
+    val eyeRW = floatArrayOf(
+        headW[Idx.eyeLookDownRight],
+        headW[Idx.eyeLookInRight],
+        headW[Idx.eyeLookOutRight],
+        headW[Idx.eyeLookUpRight],
+    )
 
-    // ЗАЩИТА: Получаем только физические Mesh слои (шкурку головы и глаза) обрезая корневые пустые ноды/суставы.
-    val renderables = instance.entities.filter { rm.hasComponent(it) }.map { rm.getInstance(it) }
+    // Получаем только mesh-entity (у которых есть RenderableComponent)
+    val renderables = instance.entities
+        .filter { rm.hasComponent(it) }
+        .map { rm.getInstance(it) }
 
     renderables.forEachIndexed { i, ri ->
-        // Вычисляем натуральную емкость каждого узла сетки у модели
-        val targetCapacityCount = rm.getMorphTargetCount(ri)
-        if (targetCapacityCount <= 0) return@forEachIndexed
+        val count = rm.getMorphTargetCount(ri)
+        if (count <= 0) return@forEachIndexed
 
-        // Разбор: Какому узлу сколько точек мышц лица подавать
-        val w = when {
-            targetCapacityCount == 51 -> headW   // Бинго, 100% главная модель лица
-            targetCapacityCount == 5  -> teethW  // Нижняя челюсть с 5 суставами
-            targetCapacityCount == 4 && i == 2 -> eyeLW // Левый глаз (по дефолт порядку)
-            targetCapacityCount == 4 && i == 3 -> eyeRW // Правый Глаз 
-            targetCapacityCount == 4 -> eyeLW    // Экстренный переброс
-            else -> return@forEachIndexed        // Отвергаем пустые сущности GLB парсера (исключение корутин краша!)
+        val w = when (count) {
+            51 -> headW                // head_lod0_ORIGINAL
+            4  -> if (i <= 1) eyeLW    // eyeLeft — первый 4-target renderable
+                  else eyeRW           // eyeRight — второй 4-target renderable
+            5  -> teethW               // teeth_ORIGINAL
+            else -> return@forEachIndexed
         }
 
         try {
-            // Пихаем выверенные размеры float`ов на сервер движка Vulcan/GL
             rm.setMorphWeights(ri, w, 0)
-        } catch(e: Exception) { 
-            // Безболезненно давим исключения кадров, не давая "Шагу 1/9" встать колом на экране.
+        } catch (_: Exception) {
+            // Безопасно подавляем: несовпадение размеров на редких конфигурациях
         }
     }
 }
@@ -203,31 +441,29 @@ private suspend fun ModelNode.animateMorphsSmooth(
 ) {
     val startT = System.currentTimeMillis()
     val tmpArray = FloatArray(51)
-    
-    // Полноценный бесконечный цикл — не требует импорта CoroutineScope/isActive 
+
     while (true) {
         val elapsed = System.currentTimeMillis() - startT
         val fraction = (elapsed.toFloat() / durationMs).coerceAtMost(1f)
-        
-        // Исправленная плавная функция EaseQuadIn/Out (Без pow() ошибки)
+
+        // EaseInOutQuad
         val easeT = if (fraction < 0.5f) {
             2f * fraction * fraction
         } else {
-            val f = -2f * fraction + 2f
-            1f - (f * f) / 2f
+            1f - (-2f * fraction + 2f).let { it * it } / 2f
         }
-        
+
         for (i in 0 until 51) {
             tmpArray[i] = currentW[i] + (targetW[i] - currentW[i]) * easeT
         }
         applyMorphs(tmpArray)
-        
+
         if (fraction >= 1f) {
             targetW.copyInto(currentW)
-            break // Программный безопасный выход после достижения конца пути
+            break
         }
-        
-        delay(16) // Suspend point гарантированно бросает Cancel при убитом Fragment'e 
+
+        delay(16) // ~60 FPS, suspend point для отмены корутины
     }
 }
 
@@ -243,49 +479,56 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     var isResetting by remember { mutableStateOf(false) }
     var elapsedSec  by remember { mutableIntStateOf(0) }
     var isFinished  by remember { mutableStateOf(false) }
-    
+    var statusText  by remember { mutableStateOf("Loading model…") }
+
     val currentMorphState = remember { FloatArray(51) }
-    var node        by remember { mutableStateOf<ModelNode?>(null) }
-    
-    // Запускаем жизненный цикл скоупа композа (Для загрузчика Android View IO)
-    val scope       = rememberCoroutineScope() 
+    var node by remember { mutableStateOf<ModelNode?>(null) }
+
+    val scope = rememberCoroutineScope()
 
     val currentStep  = SEQUENCE.getOrNull(stepIndex)
     val totalSteps   = SEQUENCE.size
     val animProgress by animateFloatAsState(
-        targetValue   = stepIndex.toFloat() / totalSteps,
+        targetValue   = (stepIndex + 1).toFloat() / totalSteps,
         animationSpec = tween(600),
         label         = "progress",
     )
 
-    // Timer (Зацикленность только пока мы не дойдем до Finished состояния)
+    // Timer
     LaunchedEffect(isFinished) {
         while (!isFinished) { delay(1_000); elapsedSec++ }
     }
 
-    // Test loop 
+    // Test sequence loop
     LaunchedEffect(node) {
         val n = node ?: return@LaunchedEffect
+        statusText = "Running…"
+
         SEQUENCE.forEachIndexed { i, step ->
             stepIndex   = i
             isResetting = false
+
             if (step.headWeights == null) {
+                // Built-in GLB animation
+                statusText = "Playing GLB animation…"
                 n.animateMorphsSmooth(currentMorphState, FloatArray(51), 300)
                 n.playAnimation(0)
                 delay(step.durationMs)
                 n.stopAnimation(0)
             } else {
+                statusText = step.label
+                // Morph transition → hold → reset
                 n.animateMorphsSmooth(currentMorphState, step.headWeights, 450)
-                delay((step.durationMs - 450).coerceAtLeast(0))
+                delay((step.durationMs - 450).coerceAtLeast(200))
                 isResetting = true
                 n.animateMorphsSmooth(currentMorphState, FloatArray(51), 400)
                 delay(100)
             }
         }
+        statusText = "Complete"
         isFinished = true
     }
 
-    // Дебаггинг чистки стейтов на Back. Оптимизация на выход! 
     DisposableEffect(Unit) {
         onDispose {
             node?.stopAnimation(0)
@@ -313,7 +556,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
 
-            // ── 3D Viewport ───────────────────────────────────────────────
+            // ── 3D Viewport ───────────────────────────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -324,31 +567,41 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modifier = Modifier.fillMaxSize(),
                     factory  = { ctx ->
                         SceneView(ctx).apply {
-                            // Фон серого оттенка
-                            setBackgroundColor(android.graphics.Color.parseColor("#151515")) 
+                            setBackgroundColor(android.graphics.Color.parseColor("#1A1A2E"))
 
                             scope.launch {
-                                // Даем время Nav-системе UI запустить холст 
-                                delay(300) 
-                                
+                                delay(300) // Даём UI стабилизироваться
+
                                 try {
-                                    val asyncInstance = modelLoader.createModelInstance(
+                                    val modelInstance = modelLoader.createModelInstance(
                                         assetFileLocation = "models/source_named.glb"
                                     )
-                                    
-                                    if (asyncInstance != null) {
+
+                                    if (modelInstance != null) {
                                         val modelNode = ModelNode(
-                                            modelInstance = asyncInstance as io.github.sceneview.model.ModelInstance,
-                                            scaleToUnits  = 0.45f, 
+                                            modelInstance = modelInstance,
+                                            scaleToUnits  = 0.35f,
+                                            // ═══════════════════════════════════════════
+                                            // FIX: centerOrigin смещает bounding box
+                                            // модели к (0,0,0) в локальных координатах.
+                                            // Без этого геометрия головы сидит на Z≈1.56
+                                            // и после позиционирования оказывается
+                                            // ЗА камерой (камера смотрит вдоль −Z).
+                                            // ═══════════════════════════════════════════
+                                            centerOrigin  = Position(0f, 0f, 0f),
                                         )
-                                        
-                                        // Опускаем аватар вниз, отталкиваем назад (Обязательное условие рендера!) 
-                                        modelNode.position = io.github.sceneview.math.Position(x = 0f, y = -0.1f, z = -1.5f) 
-                                        
+
+                                        // Помещаем модель перед камерой:
+                                        // Y слегка вниз чтобы голова была по центру вьюпорта
+                                        modelNode.position = Position(x = 0f, y = -0.05f, z = -0.8f)
+
                                         addChildNode(modelNode)
-                                        node = modelNode 
+                                        node = modelNode
+                                    } else {
+                                        statusText = "ERROR: model returned null"
                                     }
-                                } catch (e: Exception) { 
+                                } catch (e: Exception) {
+                                    statusText = "ERROR: ${e.message}"
                                     e.printStackTrace()
                                 }
                             }
@@ -363,7 +616,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                 if (!isFinished) ScanlineOverlay()
             }
 
-            // ── HUD ───────────────────────────────────────────────────────
+            // ── HUD ───────────────────────────────────────────────
             Surface(
                 modifier       = Modifier.fillMaxWidth(),
                 color          = MaterialTheme.colorScheme.surface,
@@ -384,17 +637,18 @@ fun AvatarTestScreen(onBack: () -> Unit) {
 
                     if (!isFinished && currentStep != null) {
                         AnimatedContent(
-                            targetState   = currentStep.label,
+                            targetState   = stepIndex,
                             transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
                             label         = "step_label",
-                        ) { label ->
+                        ) { idx ->
+                            val step = SEQUENCE.getOrNull(idx) ?: return@AnimatedContent
                             Row(
                                 verticalAlignment     = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                CategoryChip(currentStep.category)
+                                CategoryChip(step.category)
                                 Text(
-                                    text       = if (isResetting) "↩ Reset…" else label,
+                                    text       = if (isResetting) "↩ Reset…" else step.label,
                                     style      = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold,
                                 )
@@ -408,7 +662,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
 
                     if (isFinished) {
                         Text(
-                            text       = "✅ All $totalSteps steps complete",
+                            text       = "All $totalSteps steps complete",
                             fontWeight = FontWeight.Bold,
                             color      = Color(0xFF2E7D32),
                         )
@@ -424,7 +678,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            text  = "⏱ ${elapsedSec}s",
+                            text  = "${elapsedSec}s",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -459,21 +713,21 @@ private fun CategoryChip(category: Category) {
 private fun ActiveWeightsRow(weights: FloatArray) {
     val active = mutableListOf<Pair<Int, Float>>()
     for (i in weights.indices) {
-        if (weights[i] > 0.001f) {
-            active.add(Pair(i, weights[i]))
-            if (active.size >= 6) break
-        }
+        if (weights[i] > 0.001f) active.add(i to weights[i])
     }
     if (active.isEmpty()) return
 
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (pair in active) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        for ((idx, value) in active) {
             Surface(
                 shape = RoundedCornerShape(4.dp),
                 color = MaterialTheme.colorScheme.secondaryContainer,
             ) {
                 Text(
-                    text     = "#${pair.first}=${"%.2f".format(pair.second)}",
+                    text     = "#$idx=${"%.2f".format(value)}",
                     fontSize = 10.sp,
                     color    = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
