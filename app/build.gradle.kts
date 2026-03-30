@@ -7,25 +7,25 @@ plugins {
 }
 
 android {
-    namespace = "com.codeextractor.app"
+    namespace  = "com.codeextractor.app"
     compileSdk = 36
 
     defaultConfig {
         applicationId = "com.codeextractor.app"
-        minSdk = 26
-        targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        minSdk        = 26
+        targetSdk     = 36
+        versionCode   = 1
+        versionName   = "1.0"
     }
 
     buildFeatures {
         buildConfig = true
-        compose = true
+        compose     = true
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled  = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -47,6 +47,12 @@ android {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
     }
+
+    packaging {
+        jniLibs {
+            keepDebugSymbols += "**/*.so"
+        }
+    }
 }
 
 dependencies {
@@ -63,6 +69,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material.icons:material-icons-extended")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.animation:animation")
     implementation("androidx.activity:activity-compose")
@@ -97,4 +104,7 @@ dependencies {
 
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
+
+    // SceneView / Filament
+    implementation("io.github.sceneview:sceneview:2.2.1")
 }
