@@ -27,6 +27,27 @@ class InMemoryConversationStore @Inject constructor() {
         }
     }
 
+    /**
+     * Если последнее сообщение от той же роли — дописать текст.
+     * Иначе — создать новое. Нужно для стриминговых ответов модели,
+     * где каждый чанк транскрипции приходит отдельным событием.
+     */
+    fun appendOrAdd(role: String, text: String) {
+        synchronized(messages) {
+            val last = messages.lastOrNull()
+            if (last != null && last.role == role) {
+                messages.removeLast()
+                messages.addLast(last.copy(text = last.text + text))
+            } else {
+                val msg = ConversationMessage(role, text)
+                messages.addLast(msg)
+                while (messages.size > MAX_MESSAGES) {
+                    messages.removeFirst()
+                }
+            }
+        }
+    }
+
     fun getAll(): List<ConversationMessage> = synchronized(messages) {
         messages.toList()
     }
