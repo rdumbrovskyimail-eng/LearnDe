@@ -314,25 +314,32 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                         SceneView(ctx).apply {
                             setBackgroundColor(android.graphics.Color.parseColor("#0D0D0D"))
 
-                            // IO Thread Safety для парсера моделей: 
                             scope.launch {
+                                // 1. АНТИ-КРАШ ЗАДЕРЖКА!
+                                // Ждём полсекунды, пока NavGraph закончит свои Slide/Fade-in переходы,
+                                // чтобы не сорвать фреймрейт Compose и успеть аллоцировать рамки холста
+                                delay(450) 
+                                
                                 try {
-                                    val asyncInstance = withContext(Dispatchers.IO) {
-                                        // Этот процесс парсит массив байтов меша. Не блокируя UI!
-                                        modelLoader.createModelInstance(assetFileLocation = "models/source_named.glb")
-                                    }
+                                    // 2. ВОЗВРАЩЕНО НА ОСНОВНОЙ ПОТОК (Только тут Filament даст нам GL Контекст буферов!)
+                                    val asyncInstance = modelLoader.createModelInstance(assetFileLocation = "models/source_named.glb")
                                     
-                                    // Прописываем принудительную совместимость классов во время рантайма `io.github...ModelInstance`!
                                     if (asyncInstance != null) {
                                         val modelNode = ModelNode(
-                                            modelInstance = asyncInstance as io.github.sceneview.model.ModelInstance,
+                                            modelInstance = asyncInstance,
                                             scaleToUnits  = 0.20f,
                                         )
                                         addChildNode(modelNode)
+
+                                        // ОПЦИОНАЛЬНО (улучшает вид, если до этого модель была криво или в спину): 
+                                        // Приказываем камере 3D сцены смотреть прямо в центр мордочки 
+                                        cameraNode.lookAt(modelNode) 
+
+                                        // В самом конце триггерим UI Loop анимаций аватара:
                                         node = modelNode
                                     }
                                 } catch (e: Exception) {
-                                    // System err
+                                    e.printStackTrace()
                                 }
                             }
                         }
