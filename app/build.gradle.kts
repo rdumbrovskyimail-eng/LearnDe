@@ -7,25 +7,25 @@ plugins {
 }
 
 android {
-    namespace  = "com.codeextractor.app"
+    namespace = "com.codeextractor.app"
     compileSdk = 36
 
     defaultConfig {
         applicationId = "com.codeextractor.app"
-        minSdk        = 26
-        targetSdk     = 36
-        versionCode   = 1
-        versionName   = "1.0"
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
     }
 
     buildFeatures {
         buildConfig = true
-        compose     = true
+        compose = true
     }
 
     buildTypes {
         release {
-            isMinifyEnabled  = true
+            isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -105,6 +105,10 @@ dependencies {
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
 
-    // SceneView / Filament
-    implementation("io.github.sceneview:sceneview:2.2.1")
+    // ====================== SCENEVIEW ======================
+    // 3D (рекомендуется для начала)
+    implementation("io.github.sceneview:sceneview:3.5.2")
+
+    // Если нужен AR (ARCore + RealityKit-подобный API) — замени строку выше на:
+    // implementation("io.github.sceneview:arsceneview:3.5.2")
 }
