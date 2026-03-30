@@ -26,8 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -281,12 +279,6 @@ private fun ControlButtons(
             onClick  = onTestAvatar,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Icon(
-                imageVector         = Icons.Outlined.Face,
-                contentDescription  = null,
-                modifier            = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
             Text("Test Avatar Model")
         }
     }
