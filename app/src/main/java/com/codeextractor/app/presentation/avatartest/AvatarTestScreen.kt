@@ -220,7 +220,7 @@ private val SEQUENCE: List<Step> = buildList {
 
 private fun ModelNode.applyMorphs(headW: FloatArray) {
     val instance = modelInstance ?: return
-    val rm       = instance.renderableManager
+    val rm       = engine.renderableManager
     val entities = instance.entities
 
     val teethW = FloatArray(5).apply {
