@@ -218,10 +218,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val modelLoader       = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
 
-    var modelNodeRef by remember { mutableStateOf<ModelNode?>(null) }
-
-    // ── ИЗМЕНЕНИЕ 1: вместо rememberNodes — обычный remember ──────────────
-    val childNodes = remember { mutableListOf<Node>() }
+    var modelInstance by remember { mutableStateOf<io.github.sceneview.model.ModelInstance?>(null) }
 
     // ── HDR-окружение: fallback на дефолтное если нет файла ───────────────
     // ИЗМЕНЕНИЕ 2: environment теперь non-nullable (Environment, не Environment?)
@@ -235,69 +232,16 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         }
     }
 
-    // ── ИЗМЕНЕНИЕ 3: загрузка модели перенесена в LaunchedEffect ──────────
     LaunchedEffect(modelLoader) {
         Log.d(TAG, "═══ Model loading START ═══")
-
-        fun tryLoad(path: String): Boolean {
-            return try {
-                val instance = modelLoader.createModelInstance(assetFileLocation = path)
-                if (instance != null) {
-                    val mn = ModelNode(
-                        modelInstance = instance,
-                        scaleToUnits  = 0.8f,
-                        centerOrigin  = Position(0f, 0f, 0f),
-                        autoAnimate   = false,
-                    ).apply {
-                        position = Position(x = 0f, y = 0f, z = -1.5f)
-                    }
-                    childNodes.add(mn)   // ← теперь просто MutableList.add()
-                    modelNodeRef = mn
-                    statusText = "OK: $path"
-                    Log.d(TAG, "✓ Loaded: $path")
-                    true
-                } else {
-                    Log.e(TAG, "✗ null from: $path")
-                    false
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "✗ Exception loading $path", e)
-                false
-            }
+        modelInstance = try {
+            modelLoader.createModelInstance("models/source_named.glb")
+                ?: modelLoader.createModelInstance("source_named.glb")
+        } catch (e: Exception) {
+            Log.e(TAG, "Load failed", e)
+            null
         }
-
-        if (!tryLoad("models/source_named.glb") &&
-            !tryLoad("source_named.glb")) {
-            try {
-                val model = modelLoader.createModel("models/source_named.glb")
-                if (model != null) {
-                    val inst = modelLoader.createInstance(model)
-                    if (inst != null) {
-                        val mn = ModelNode(
-                            modelInstance = inst,
-                            scaleToUnits  = 0.8f,
-                            centerOrigin  = Position(0f, 0f, 0f),
-                            autoAnimate   = false,
-                        ).apply {
-                            position = Position(x = 0f, y = 0f, z = -1.5f)
-                        }
-                        childNodes.add(mn)   // ← то же
-                        modelNodeRef = mn
-                        statusText = "OK: 2-step"
-                        Log.d(TAG, "✓ Fallback 2-step OK")
-                    } else {
-                        statusText = "FAIL: inst null"
-                        Log.e(TAG, "✗ createInstance null")
-                    }
-                } else {
-                    statusText = "FAIL: model null"
-                    Log.e(TAG, "✗ createModel null")
-                }
-            } catch (e: Exception) {
-                statusText = "FAIL: ${e::class.simpleName}"
-                Log.e(TAG, "✗ 2-step exception", e)
-            }
-        }
+        statusText = if (modelInstance != null) "OK" else "FAIL"
     }
 
     // ── Прогресс / UI state ───────────────────────────────────────────────
@@ -312,8 +256,13 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         while (!isFinished) { delay(1_000); elapsedSec++ }
     }
 
-    LaunchedEffect(modelNodeRef) {
-        val n = modelNodeRef ?: return@LaunchedEffect
+    var modelNode by remember { mutableStateOf<ModelNode?>(null) }
+    LaunchedEffect(modelInstance) {
+        val inst = modelInstance ?: return@LaunchedEffect
+        val n = ModelNode(modelInstance = inst, scaleToUnits = 0.8f, autoAnimate = false).apply {
+            position = Position(x = 0f, y = 0f, z = -1.5f)
+        }
+        modelNode = n
         Log.d(TAG, "═══ TEST SEQUENCE START ═══")
         SEQUENCE.forEachIndexed { i, step ->
             stepIndex = i; isResetting = false
@@ -365,8 +314,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     engine            = engine,
                     modelLoader       = modelLoader,
                     environmentLoader = environmentLoader,
-                    childNodes        = childNodes,
                     planeRenderer     = false,
+                    environment       = environment,
                     mainLightNode     = rememberMainLightNode(engine) {
                         intensity = 80_000f
                     },
@@ -375,9 +324,12 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                             position = Position(z = 0.5f)
                         }
                     },
-                    environment       = environment,
                     onSessionUpdated  = { _, _ -> },
-                )
+                ) {
+                    modelNode?.let { node ->
+                        node
+                    }
+                }
 
                 if (!isFinished) ScanlineOverlay()
             }
