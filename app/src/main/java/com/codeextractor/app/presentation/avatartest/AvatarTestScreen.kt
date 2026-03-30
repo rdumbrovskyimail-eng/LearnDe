@@ -56,13 +56,13 @@ import androidx.compose.ui.unit.sp
 import com.google.android.filament.Engine
 import io.github.sceneview.Scene
 import io.github.sceneview.math.Position
+import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberEnvironmentLoader
 import io.github.sceneview.rememberMainLightNode
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberModelInstance
-import io.github.sceneview.rememberNodes
 import kotlinx.coroutines.delay
 
 private const val TAG = "AvatarTest"
@@ -160,11 +160,10 @@ private val SEQUENCE: List<Step> = buildList {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  MORPH APPLICATION
+//  MORPH APPLICATION — работает с ModelInstance + Engine напрямую
 // ══════════════════════════════════════════════════════════════════════════════
 
-private fun ModelNode.applyMorphs(engine: Engine, headW: FloatArray) {
-    val instance = modelInstance ?: return
+private fun applyMorphsToInstance(engine: Engine, instance: ModelInstance, headW: FloatArray) {
     val rm = engine.renderableManager
     val teethW = floatArrayOf(
         headW[Idx.jawForward], headW[Idx.jawLeft], headW[Idx.jawRight],
@@ -193,8 +192,8 @@ private fun ModelNode.applyMorphs(engine: Engine, headW: FloatArray) {
     }
 }
 
-private suspend fun ModelNode.animateMorphsSmooth(
-    engine: Engine, cur: FloatArray, tgt: FloatArray, durMs: Long
+private suspend fun animateMorphsSmooth(
+    engine: Engine, instance: ModelInstance, cur: FloatArray, tgt: FloatArray, durMs: Long
 ) {
     val start = System.currentTimeMillis()
     val tmp = FloatArray(51)
@@ -202,8 +201,26 @@ private suspend fun ModelNode.animateMorphsSmooth(
         val frac = ((System.currentTimeMillis() - start).toFloat() / durMs).coerceAtMost(1f)
         val t = if (frac < 0.5f) 2f * frac * frac else 1f - (-2f * frac + 2f).let { it * it } / 2f
         for (i in 0 until 51) tmp[i] = cur[i] + (tgt[i] - cur[i]) * t
-        applyMorphs(engine, tmp)
+        applyMorphsToInstance(engine, instance, tmp)
         if (frac >= 1f) { tgt.copyInto(cur); break }
+        delay(16)
+    }
+}
+
+/** Ручной проигрыш анимации через Filament Animator */
+private suspend fun playAnimationManual(instance: ModelInstance, durationMs: Long) {
+    val animator = instance.animator ?: throw IllegalStateException("No animator")
+    val animCount = animator.animationCount
+    if (animCount == 0) throw IllegalStateException("No animations in model")
+    val animDuration = animator.getAnimationDuration(0)  // секунды
+    val maxMs = minOf(durationMs, (animDuration * 1000).toLong())
+    val start = System.currentTimeMillis()
+    while (true) {
+        val elapsed = (System.currentTimeMillis() - start)
+        if (elapsed >= maxMs) break
+        val timeSec = elapsed / 1000f
+        animator.applyAnimation(0, timeSec)
+        animator.updateBoneMatrices()
         delay(16)
     }
 }
@@ -242,33 +259,16 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         intensity = 80_000f
     }
 
-    // ── Модель ────────────────────────────────────────────────────────────
+    // ── Модель — загружается ВНЕ Scene ────────────────────────────────────
     val modelInstance = rememberModelInstance(
         modelLoader = modelLoader,
-        assetFileLocation = "models/source_named.glb"   // FIX #1: assetFileName → assetFileLocation
+        assetFileLocation = "models/source_named.glb"
     )
 
-    val modelNode = remember(modelInstance) {
-        modelInstance?.let { inst ->
-            ModelNode(
-                modelInstance = inst,
-                scaleToUnits = 0.8f,
-                autoAnimate = false
-            ).apply {
-                position = Position(x = 0f, y = 0f, z = -1.5f)
-            }
-        }
-    }
-
-    // childNodes для Scene через rememberNodes
-    val sceneNodes = rememberNodes {                     // FIX #4: вместо childNodes параметра
-        modelNode?.let { add(it) }
-    }
-
-    LaunchedEffect(modelNode) {
-        if (modelNode != null) {
+    LaunchedEffect(modelInstance) {
+        if (modelInstance != null) {
             statusText = "Model loaded"
-            Log.d(TAG, "Model loaded, entities: ${modelNode.modelInstance?.entities?.size}")
+            Log.d(TAG, "Model loaded, entities: ${modelInstance.entities.size}")
         }
     }
 
@@ -284,9 +284,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         while (!isFinished) { delay(1_000); elapsedSec++ }
     }
 
-    // ── Тест-сиквенс ─────────────────────────────────────────────────────
-    LaunchedEffect(modelNode) {
-        val n = modelNode ?: return@LaunchedEffect
+    // ── Тест-сиквенс — использует modelInstance + engine напрямую ─────────
+    LaunchedEffect(modelInstance) {
+        val inst = modelInstance ?: return@LaunchedEffect
         Log.d(TAG, "═══ TEST SEQUENCE START ═══")
         delay(500)
 
@@ -295,23 +295,21 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             statusText = step.label
 
             if (step.headWeights == null) {
-                // FIX #3: убран animationCount — просто пробуем playAnimation
-                n.animateMorphsSmooth(engine, currentMorphState, FloatArray(51), 300)
+                // Animation step
+                animateMorphsSmooth(engine, inst, currentMorphState, FloatArray(51), 300)
                 try {
-                    n.playAnimation(0)
-                    delay(step.durationMs)
-                    n.stopAnimation(0)
+                    playAnimationManual(inst, step.durationMs)
                     statusText = "OK: Anim played"
                 } catch (e: Exception) {
                     statusText = "FAIL: ${e.message}"
                     delay(step.durationMs)
                 }
             } else {
-                n.animateMorphsSmooth(engine, currentMorphState, step.headWeights, 450)
+                animateMorphsSmooth(engine, inst, currentMorphState, step.headWeights, 450)
                 statusText = "OK: ${step.label}"
                 delay((step.durationMs - 450).coerceAtLeast(200))
                 isResetting = true
-                n.animateMorphsSmooth(engine, currentMorphState, FloatArray(51), 400)
+                animateMorphsSmooth(engine, inst, currentMorphState, FloatArray(51), 400)
                 delay(100)
             }
         }
@@ -348,15 +346,24 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     .weight(1f)
                     .background(Color.Black)
             ) {
-                Scene(                                   // FIX #4: без childNodes, nodes через rememberNodes
+                // ═══ SceneView 3.x — trailing content lambda ═══
+                Scene(
                     modifier = Modifier.fillMaxSize(),
                     engine = engine,
                     modelLoader = modelLoader,
                     environmentLoader = environmentLoader,
                     environment = environment,
                     mainLightNode = mainLightNode,
-                    childNodes = sceneNodes,
-                )
+                ) {
+                    // ModelNode — composable внутри SceneScope
+                    modelInstance?.let { inst ->
+                        ModelNode(
+                            modelInstance = inst,
+                            scaleToUnits = 0.8f,
+                            autoAnimate = false,
+                        )
+                    }
+                }
 
                 if (!isFinished) ScanlineOverlay()
             }
@@ -471,7 +478,7 @@ private fun ActiveWeightsRow(weights: FloatArray) {
         for ((idx, value) in active) {
             Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
                 Text(
-                    text     = "#$idx=${"%.2f".format(value)}",   // FIX: string template
+                    text     = "#$idx=${"%.2f".format(value)}",
                     fontSize = 10.sp,
                     color    = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
