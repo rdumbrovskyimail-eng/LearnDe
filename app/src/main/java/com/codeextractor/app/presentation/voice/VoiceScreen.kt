@@ -26,8 +26,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -56,42 +59,34 @@ import com.codeextractor.app.domain.model.ConversationMessage
 import com.codeextractor.app.util.resolve
 
 @Composable
-fun VoiceScreen(viewModel: VoiceViewModel = hiltViewModel()) {
+fun VoiceScreen(
+    viewModel: VoiceViewModel = hiltViewModel(),
+    onNavigateToAvatarTest: () -> Unit = {},
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) {
-            viewModel.onIntent(VoiceIntent.ToggleMic)
-        } else {
-            Toast.makeText(context, "Microphone permission required", Toast.LENGTH_SHORT).show()
-        }
+        if (granted) viewModel.onIntent(VoiceIntent.ToggleMic)
+        else Toast.makeText(context, "Microphone permission required", Toast.LENGTH_SHORT).show()
     }
 
-    // Effects (Toast, save log)
     LaunchedEffect(Unit) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                is VoiceEffect.ShowToast -> {
+                is VoiceEffect.ShowToast ->
                     Toast.makeText(context, effect.message.resolve(context), Toast.LENGTH_SHORT).show()
-                }
-                is VoiceEffect.SaveLogToFile -> {
-                    // TODO: Этап 8 — SAF file picker
+                is VoiceEffect.SaveLogToFile ->
                     Toast.makeText(context, "Log: ${effect.content.length} chars", Toast.LENGTH_SHORT).show()
-                }
             }
         }
     }
 
-    // Scroll to bottom on new messages
     val listState = rememberLazyListState()
     LaunchedEffect(state.transcript.size) {
-        if (state.transcript.isNotEmpty()) {
-            listState.animateScrollToItem(state.transcript.size - 1)
-        }
+        if (state.transcript.isNotEmpty()) listState.animateScrollToItem(state.transcript.size - 1)
     }
 
     Scaffold { innerPadding ->
@@ -104,18 +99,15 @@ fun VoiceScreen(viewModel: VoiceViewModel = hiltViewModel()) {
         ) {
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Header: Status ──
             StatusHeader(state = state)
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ── API Key Input ──
             if (state.showApiKeyInput) {
                 ApiKeyInput(onSubmit = { viewModel.onIntent(VoiceIntent.SubmitApiKey(it)) })
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // ── Transcript ──
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -133,18 +125,12 @@ fun VoiceScreen(viewModel: VoiceViewModel = hiltViewModel()) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Controls ──
             ControlButtons(
-                state = state,
-                onToggleMic = {
-                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                },
-                onStop = {
-                    viewModel.onIntent(VoiceIntent.ToggleMic)
-                },
-                onSaveLog = {
-                    viewModel.onIntent(VoiceIntent.SaveLog)
-                }
+                state             = state,
+                onToggleMic       = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                onStop            = { viewModel.onIntent(VoiceIntent.ToggleMic) },
+                onSaveLog         = { viewModel.onIntent(VoiceIntent.SaveLog) },
+                onTestAvatar      = onNavigateToAvatarTest,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -159,17 +145,16 @@ fun VoiceScreen(viewModel: VoiceViewModel = hiltViewModel()) {
 @Composable
 private fun StatusHeader(state: VoiceState) {
     val statusColor = when (state.connectionStatus) {
-        ConnectionStatus.Disconnected -> Color(0xFFF44336)
+        ConnectionStatus.Disconnected                                                          -> Color(0xFFF44336)
         ConnectionStatus.Connecting, ConnectionStatus.Negotiating, ConnectionStatus.Reconnecting -> Color(0xFFFFC107)
-        ConnectionStatus.Ready -> Color(0xFF4CAF50)
-        ConnectionStatus.Recording -> Color(0xFFFF5252)
+        ConnectionStatus.Ready                                                                 -> Color(0xFF4CAF50)
+        ConnectionStatus.Recording                                                             -> Color(0xFFFF5252)
     }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
+        modifier          = Modifier.fillMaxWidth()
     ) {
-        // Pulse animation for recording
         if (state.connectionStatus == ConnectionStatus.Recording) {
             PulsingDot(color = statusColor)
         } else {
@@ -180,13 +165,11 @@ private fun StatusHeader(state: VoiceState) {
                     .background(statusColor)
             )
         }
-
         Spacer(modifier = Modifier.width(8.dp))
-
         Text(
-            text = state.connectionStatus.label,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
+            text       = state.connectionStatus.label,
+            style      = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
@@ -194,82 +177,50 @@ private fun StatusHeader(state: VoiceState) {
 @Composable
 private fun PulsingDot(color: Color) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-
     val scale by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1.3f,
-        animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Restart),
-        label = "scale"
+        initialValue = 0.6f, targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Restart), label = "scale",
     )
     val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 0.2f,
-        animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Restart),
-        label = "alpha"
+        initialValue = 0.8f, targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Restart), label = "alpha",
     )
-
     Box(contentAlignment = Alignment.Center) {
-        // Pulse ring
-        Box(
-            modifier = Modifier
-                .size(20.dp)
-                .scale(scale)
-                .alpha(alpha)
-                .clip(CircleShape)
-                .background(color)
-        )
-        // Solid center
-        Box(
-            modifier = Modifier
-                .size(12.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
+        Box(modifier = Modifier.size(20.dp).scale(scale).alpha(alpha).clip(CircleShape).background(color))
+        Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(color))
     }
 }
 
 @Composable
 private fun ApiKeyInput(onSubmit: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
-            value = text,
+            value         = text,
             onValueChange = { text = it },
-            label = { Text("API Key") },
-            singleLine = true,
-            modifier = Modifier.weight(1f)
+            label         = { Text("API Key") },
+            singleLine    = true,
+            modifier      = Modifier.weight(1f),
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Button(onClick = { onSubmit(text.trim()) }) {
-            Text("OK")
-        }
+        Button(onClick = { onSubmit(text.trim()) }) { Text("OK") }
     }
 }
 
 @Composable
 private fun ChatBubble(message: ConversationMessage) {
-    val isUser = message.role == ConversationMessage.ROLE_USER
-    val bubbleColor = if (isUser) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.secondaryContainer
-    }
-    val alignment = if (isUser) Alignment.End else Alignment.Start
-    val label = if (isUser) "🎤 You" else "🔊 Gemini"
+    val isUser      = message.role == ConversationMessage.ROLE_USER
+    val bubbleColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
+                      else        MaterialTheme.colorScheme.secondaryContainer
+    val alignment   = if (isUser) Alignment.End else Alignment.Start
+    val label       = if (isUser) "🎤 You" else "🔊 Gemini"
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = alignment
-    ) {
+    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
         Text(
-            text = label,
+            text     = label,
             fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp)
+            color    = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 4.dp),
         )
         Box(
             modifier = Modifier
@@ -278,9 +229,9 @@ private fun ChatBubble(message: ConversationMessage) {
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Text(
-                text = message.text,
+                text  = message.text,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
     }
@@ -288,45 +239,55 @@ private fun ChatBubble(message: ConversationMessage) {
 
 @Composable
 private fun ControlButtons(
-    state: VoiceState,
-    onToggleMic: () -> Unit,
-    onStop: () -> Unit,
-    onSaveLog: () -> Unit
+    state        : VoiceState,
+    onToggleMic  : () -> Unit,
+    onStop       : () -> Unit,
+    onSaveLog    : () -> Unit,
+    onTestAvatar : () -> Unit,
 ) {
-    val isReady = state.connectionStatus == ConnectionStatus.Ready
+    val isReady     = state.connectionStatus == ConnectionStatus.Ready
     val isRecording = state.connectionStatus == ConnectionStatus.Recording
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+    Column(
+        modifier            = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Button(
-            onClick = onToggleMic,
-            enabled = isReady,
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF4CAF50)
-            )
+        Row(
+            modifier                = Modifier.fillMaxWidth(),
+            horizontalArrangement   = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         ) {
-            Text("Start", color = Color.White)
+            Button(
+                onClick  = onToggleMic,
+                enabled  = isReady,
+                modifier = Modifier.weight(1f),
+                colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+            ) { Text("Start", color = Color.White) }
+
+            Button(
+                onClick  = onStop,
+                enabled  = isRecording,
+                modifier = Modifier.weight(1f),
+                colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+            ) { Text("Stop", color = Color.White) }
+
+            OutlinedButton(
+                onClick  = onSaveLog,
+                modifier = Modifier.weight(1f),
+            ) { Text("Log", textAlign = TextAlign.Center) }
         }
 
-        Button(
-            onClick = onStop,
-            enabled = isRecording,
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFF44336)
-            )
-        ) {
-            Text("Stop", color = Color.White)
-        }
-
+        // ── Avatar Test Button ─────────────────────────────────
         OutlinedButton(
-            onClick = onSaveLog,
-            modifier = Modifier.weight(1f)
+            onClick  = onTestAvatar,
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Log", textAlign = TextAlign.Center)
+            Icon(
+                imageVector         = Icons.Outlined.Face,
+                contentDescription  = null,
+                modifier            = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Test Avatar Model")
         }
     }
 }
