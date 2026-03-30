@@ -62,6 +62,7 @@ import io.github.sceneview.rememberEnvironmentLoader
 import io.github.sceneview.rememberMainLightNode
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberModelInstance
+import io.github.sceneview.rememberNodes
 import kotlinx.coroutines.delay
 
 private const val TAG = "AvatarTest"
@@ -159,7 +160,7 @@ private val SEQUENCE: List<Step> = buildList {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  MORPH APPLICATION  (engine передаётся явно)
+//  MORPH APPLICATION
 // ══════════════════════════════════════════════════════════════════════════════
 
 private fun ModelNode.applyMorphs(engine: Engine, headW: FloatArray) {
@@ -227,7 +228,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val modelLoader       = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
 
-    // HDR окружение
     val environment = remember(environmentLoader) {
         try {
             environmentLoader.createHDREnvironment("environments/studio_small_09_2k.hdr")
@@ -242,10 +242,10 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         intensity = 80_000f
     }
 
-    // ── Модель загружается СНАРУЖИ Scene ──────────────────────────────────
+    // ── Модель ────────────────────────────────────────────────────────────
     val modelInstance = rememberModelInstance(
         modelLoader = modelLoader,
-        assetFileName = "models/source_named.glb"
+        assetFileLocation = "models/source_named.glb"   // FIX #1: assetFileName → assetFileLocation
     )
 
     val modelNode = remember(modelInstance) {
@@ -260,7 +260,11 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         }
     }
 
-    // Обновляем statusText при загрузке модели
+    // childNodes для Scene через rememberNodes
+    val sceneNodes = rememberNodes {                     // FIX #4: вместо childNodes параметра
+        modelNode?.let { add(it) }
+    }
+
     LaunchedEffect(modelNode) {
         if (modelNode != null) {
             statusText = "Model loaded"
@@ -268,7 +272,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         }
     }
 
-    // ── Прогресс / UI state ───────────────────────────────────────────────
+    // ── Прогресс ──────────────────────────────────────────────────────────
     val currentStep  = SEQUENCE.getOrNull(stepIndex)
     val totalSteps   = SEQUENCE.size
     val animProgress by animateFloatAsState(
@@ -280,12 +284,10 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         while (!isFinished) { delay(1_000); elapsedSec++ }
     }
 
-    // ── Запуск теста после появления модели ───────────────────────────────
+    // ── Тест-сиквенс ─────────────────────────────────────────────────────
     LaunchedEffect(modelNode) {
         val n = modelNode ?: return@LaunchedEffect
         Log.d(TAG, "═══ TEST SEQUENCE START ═══")
-
-        // Небольшая пауза чтобы Scene успел отрендериться
         delay(500)
 
         SEQUENCE.forEachIndexed { i, step ->
@@ -293,16 +295,15 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             statusText = step.label
 
             if (step.headWeights == null) {
-                // Animation step
+                // FIX #3: убран animationCount — просто пробуем playAnimation
                 n.animateMorphsSmooth(engine, currentMorphState, FloatArray(51), 300)
-                val animCount = n.modelInstance?.animationCount ?: 0
-                if (animCount > 0) {
+                try {
                     n.playAnimation(0)
                     delay(step.durationMs)
                     n.stopAnimation(0)
-                    statusText = "OK: Anim played ($animCount available)"
-                } else {
-                    statusText = "FAIL: No animations in model"
+                    statusText = "OK: Anim played"
+                } catch (e: Exception) {
+                    statusText = "FAIL: ${e.message}"
                     delay(step.durationMs)
                 }
             } else {
@@ -347,14 +348,14 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     .weight(1f)
                     .background(Color.Black)
             ) {
-                Scene(
+                Scene(                                   // FIX #4: без childNodes, nodes через rememberNodes
                     modifier = Modifier.fillMaxSize(),
                     engine = engine,
                     modelLoader = modelLoader,
                     environmentLoader = environmentLoader,
                     environment = environment,
                     mainLightNode = mainLightNode,
-                    childNodes = listOfNotNull(modelNode),
+                    childNodes = sceneNodes,
                 )
 
                 if (!isFinished) ScanlineOverlay()
@@ -470,7 +471,7 @@ private fun ActiveWeightsRow(weights: FloatArray) {
         for ((idx, value) in active) {
             Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
                 Text(
-                    text     = "#$idx=${"%.2f".format(value)}",
+                    text     = "#$idx=${"%.2f".format(value)}",   // FIX: string template
                     fontSize = 10.sp,
                     color    = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
