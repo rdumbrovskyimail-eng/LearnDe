@@ -640,7 +640,14 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     },
                     cameraManipulator = rememberCameraManipulator(),
                 ) {
-                    // rememberModelInstance ВНУТРИ Scene content lambda!
+                    // ═══ ТЕСТ 1: Простой куб — проверяем что Scene вообще рендерит ═══
+                    io.github.sceneview.node.CubeNode(
+                        engine = engine,
+                        size = io.github.sceneview.math.Size(0.5f),
+                    )
+
+                    // ═══ ТЕСТ 2: Модель — закомментирована пока ═══
+                    /*
                     val instance = rememberModelInstance(
                         modelLoader = modelLoader,
                         assetFileLocation = MODEL_PATH,
@@ -667,6 +674,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                             autoAnimate = false,
                         )
                     }
+                    */
                 }
 
                 if (!isFinished) ScanlineOverlay()
