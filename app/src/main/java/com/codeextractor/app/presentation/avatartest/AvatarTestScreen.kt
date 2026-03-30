@@ -223,25 +223,18 @@ private fun ModelNode.applyMorphs(headW: FloatArray) {
     val rm       = engine.renderableManager
     val entities = instance.entities
 
-    val teethW = FloatArray(5).apply {
-        this[0] = headW[Idx.jawForward]
-        this[1] = headW[Idx.jawLeft]
-        this[2] = headW[Idx.jawRight]
-        this[3] = headW[Idx.jawOpen]
-        this[4] = headW[Idx.mouthClose]
+    val teethW = FloatArray(5) { i ->
+        when(i) {
+            0 -> headW[Idx.jawForward]
+            1 -> headW[Idx.jawLeft]
+            2 -> headW[Idx.jawRight]
+            3 -> headW[Idx.jawOpen]
+            4 -> headW[Idx.mouthClose]
+            else -> 0f
+        }
     }
-    val eyeLW = FloatArray(4).apply {
-        this[0] = headW[Idx.eyeLookDownLeft]
-        this[1] = headW[Idx.eyeLookInLeft]
-        this[2] = headW[Idx.eyeLookOutLeft]
-        this[3] = headW[Idx.eyeLookUpLeft]
-    }
-    val eyeRW = FloatArray(4).apply {
-        this[0] = headW[Idx.eyeLookDownRight]
-        this[1] = headW[Idx.eyeLookInRight]
-        this[2] = headW[Idx.eyeLookOutRight]
-        this[3] = headW[Idx.eyeLookUpRight]
-    }
+    val eyeLW = FloatArray(4) { i -> headW[Idx.eyeLookDownLeft + i] }
+    val eyeRW = FloatArray(4) { i -> headW[Idx.eyeLookDownRight + i] }
 
     entities.forEachIndexed { i, entity ->
         if (!rm.hasComponent(entity)) return@forEachIndexed
@@ -257,7 +250,28 @@ private fun ModelNode.applyMorphs(headW: FloatArray) {
     }
 }
 
-private fun ModelNode.clearMorphs() = applyMorphs(FloatArray(51))
+private suspend fun ModelNode.animateMorphsSmooth(
+    currentW: FloatArray,
+    targetW: FloatArray,
+    durationMs: Long
+) {
+    val startT = System.currentTimeMillis()
+    val tmpArray = FloatArray(51)
+    while (isActive) {
+        val elapsed = System.currentTimeMillis() - startT
+        val fraction = (elapsed.toFloat() / durationMs).coerceAtMost(1f)
+        val easeT = if (fraction < 0.5f) 2f * fraction * fraction else 1f - kotlin.math.pow(-2f * fraction + 2f, 2f) / 2f
+        for (i in 0 until 51) {
+            tmpArray[i] = currentW[i] + (targetW[i] - currentW[i]) * easeT
+        }
+        applyMorphs(tmpArray)
+        if (fraction >= 1f) {
+            targetW.copyInto(currentW)
+            break
+        }
+        delay(16)
+    }
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  SCREEN
@@ -271,7 +285,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     var isResetting by remember { mutableStateOf(false) }
     var elapsedSec  by remember { mutableIntStateOf(0) }
     var isFinished  by remember { mutableStateOf(false) }
+    val currentMorphState = remember { FloatArray(51) }
     var node        by remember { mutableStateOf<ModelNode?>(null) }
+    val scope       = rememberCoroutineScope()
 
     val currentStep  = SEQUENCE.getOrNull(stepIndex)
     val totalSteps   = SEQUENCE.size
@@ -293,23 +309,19 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             stepIndex   = i
             isResetting = false
             if (step.headWeights == null) {
+                n.animateMorphsSmooth(currentMorphState, FloatArray(51), 300)
                 n.playAnimation(0)
                 delay(step.durationMs)
                 n.stopAnimation(0)
-                n.clearMorphs()
             } else {
-                n.applyMorphs(step.headWeights)
-                delay(step.durationMs)
+                n.animateMorphsSmooth(currentMorphState, step.headWeights, 450)
+                delay((step.durationMs - 450).coerceAtLeast(0))
                 isResetting = true
-                n.clearMorphs()
-                delay(250)
+                n.animateMorphsSmooth(currentMorphState, FloatArray(51), 400)
+                delay(100)
             }
         }
         isFinished = true
-    }
-
-    DisposableEffect(Unit) {
-        onDispose { node?.stopAnimation(0); node?.clearMorphs() }
     }
 
     Scaffold(
@@ -346,16 +358,26 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                         SceneView(ctx).apply {
                             setBackgroundColor(android.graphics.Color.parseColor("#0D0D0D"))
 
-                            val modelInstance = modelLoader.createModelInstance(
-                                assetFileLocation = "models/source_named.glb"
-                            )
-                            val modelNode = ModelNode(
-                                modelInstance = modelInstance,
-                                scaleToUnits  = 0.20f,
-                            )
-                            addChildNode(modelNode)
-                            node = modelNode
+                            scope.launch {
+                                try {
+                                    val modelInstance = withContext(Dispatchers.IO) {
+                                        modelLoader.createModelInstance(assetFileLocation = "models/source_named.glb")
+                                    }
+                                    if (modelInstance != null) {
+                                        val modelNode = ModelNode(
+                                            modelInstance = modelInstance,
+                                            scaleToUnits  = 0.20f,
+                                        )
+                                        addChildNode(modelNode)
+                                        node = modelNode
+                                    }
+                                } catch (e: Exception) {}
+                            }
                         }
+                    },
+                    onRelease = { view ->
+                        view.destroy()
+                        node = null
                     },
                 )
 
