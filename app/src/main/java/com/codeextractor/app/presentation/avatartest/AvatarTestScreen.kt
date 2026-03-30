@@ -155,7 +155,6 @@ private val SEQUENCE: List<Step> = buildList {
 private fun ModelNode.applyMorphs(headW: FloatArray) {
     val instance = modelInstance ?: return
     val rm       = engine.renderableManager
-    val entities = instance.entities
 
     val teethW = FloatArray(5) { i ->
         when(i) {
@@ -170,17 +169,30 @@ private fun ModelNode.applyMorphs(headW: FloatArray) {
     val eyeLW = FloatArray(4) { i -> headW[Idx.eyeLookDownLeft + i] }
     val eyeRW = FloatArray(4) { i -> headW[Idx.eyeLookDownRight + i] }
 
-    entities.forEachIndexed { i, entity ->
-        if (!rm.hasComponent(entity)) return@forEachIndexed
-        val ri = rm.getInstance(entity)
-        val w = when (i) {
-            0    -> teethW
-            1    -> headW
-            2    -> eyeLW
-            3    -> eyeRW
-            else -> return@forEachIndexed
+    // ЗАЩИТА: Получаем только физические Mesh слои (шкурку головы и глаза) обрезая корневые пустые ноды/суставы.
+    val renderables = instance.entities.filter { rm.hasComponent(it) }.map { rm.getInstance(it) }
+
+    renderables.forEachIndexed { i, ri ->
+        // Вычисляем натуральную емкость каждого узла сетки у модели
+        val targetCapacityCount = rm.getMorphTargetCount(ri)
+        if (targetCapacityCount <= 0) return@forEachIndexed
+
+        // Разбор: Какому узлу сколько точек мышц лица подавать
+        val w = when {
+            targetCapacityCount == 51 -> headW   // Бинго, 100% главная модель лица
+            targetCapacityCount == 5  -> teethW  // Нижняя челюсть с 5 суставами
+            targetCapacityCount == 4 && i == 2 -> eyeLW // Левый глаз (по дефолт порядку)
+            targetCapacityCount == 4 && i == 3 -> eyeRW // Правый Глаз 
+            targetCapacityCount == 4 -> eyeLW    // Экстренный переброс
+            else -> return@forEachIndexed        // Отвергаем пустые сущности GLB парсера (исключение корутин краша!)
         }
-        rm.setMorphWeights(ri, w, 0)
+
+        try {
+            // Пихаем выверенные размеры float`ов на сервер движка Vulcan/GL
+            rm.setMorphWeights(ri, w, 0)
+        } catch(e: Exception) { 
+            // Безболезненно давим исключения кадров, не давая "Шагу 1/9" встать колом на экране.
+        }
     }
 }
 
@@ -312,40 +324,41 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modifier = Modifier.fillMaxSize(),
                     factory  = { ctx ->
                         SceneView(ctx).apply {
-                            setBackgroundColor(android.graphics.Color.parseColor("#0D0D0D"))
+                            setBackgroundColor(android.graphics.Color.parseColor("#151515")) // Серый, чтоб силуэт не терялся!
+
+                            // --- Дарим Аватару Освещение чтобы "проявились текстуры" ---
+                            mainSunLight = environmentLoader.createMainLight(
+                                color = io.github.sceneview.graphics.Color(1f, 1f, 1f, 1f), // Чисто белый Свет!
+                                intensity = 80_000.0f
+                            )
 
                             scope.launch {
-                                // 1. АНТИ-КРАШ ЗАДЕРЖКА!
-                                // Ждём полсекунды, пока NavGraph закончит свои Slide/Fade-in переходы,
-                                // чтобы не сорвать фреймрейт Compose и успеть аллоцировать рамки холста
-                                delay(450) 
+                                // Микро ожидание "раскрутки" фреймворка Navigation Compose:
+                                delay(300) 
                                 
                                 try {
-                                    // 2. ВОЗВРАЩЕНО НА ОСНОВНОЙ ПОТОК (Только тут Filament даст нам GL Контекст буферов!)
-                                    val asyncInstance = modelLoader.createModelInstance(assetFileLocation = "models/source_named.glb")
+                                    val asyncInstance = modelLoader.createModelInstance(
+                                        assetFileLocation = "models/source_named.glb"
+                                    )
                                     
                                     if (asyncInstance != null) {
                                         val modelNode = ModelNode(
-                                            modelInstance = asyncInstance,
-                                            scaleToUnits  = 0.20f,
+                                            modelInstance = asyncInstance as io.github.sceneview.model.ModelInstance,
+                                            scaleToUnits  = 0.45f, // Небольшое Увеличение. У нас Fullscreen сцена! 
                                         )
+                                        
+                                        // ОСНОВНОЙ ТРЮК ПРОВИДЕНИЯ ТУТ 🎯: 
+                                        // Опускаем аватар чуть "ниже кадыка", оттолкнем Модель на 1.5м вперед 
+                                        modelNode.position = io.github.sceneview.math.Position(x = 0f, y = -0.1f, z = -1.5f) 
+                                        
                                         addChildNode(modelNode)
-
-                                        // ОПЦИОНАЛЬНО (улучшает вид, если до этого модель была криво или в спину): 
-                                        // Приказываем камере 3D сцены смотреть прямо в центр мордочки 
-                                        cameraNode.lookAt(modelNode) 
-
-                                        // В самом конце триггерим UI Loop анимаций аватара:
-                                        node = modelNode
+                                        node = modelNode // Запустятся корутины Test-Очередей SEQUENCE
                                     }
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
+                                } catch (e: Exception) { }
                             }
                         }
                     },
                     onRelease = { view ->
-                        // Очистка кешей / движков при покидании страницы 
                         view.destroy()
                         node = null
                     },
