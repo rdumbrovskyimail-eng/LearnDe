@@ -53,18 +53,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.sceneview.ar.ARScene
-import io.github.sceneview.ar.arcore.getUpdatedPlanes
-import io.github.sceneview.ar.node.ARCameraNode                  // ← ИЗМЕНЕНО
+import io.github.sceneview.Scene
 import io.github.sceneview.math.Position
+import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.node.ModelNode
-import io.github.sceneview.node.Node                             // ← ДОБАВЛЕНО
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberEnvironmentLoader
 import io.github.sceneview.rememberMainLightNode
+import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
-// rememberNodes — УДАЛЁН
-// rememberCameraNode — УДАЛЁН (используем ARCameraNode напрямую)
 import kotlinx.coroutines.delay
 
 private const val TAG = "AvatarTest"
@@ -210,7 +207,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     var isResetting by remember { mutableStateOf(false) }
     var elapsedSec  by remember { mutableIntStateOf(0) }
     var isFinished  by remember { mutableStateOf(false) }
-    var statusText  by remember { mutableStateOf("Init AR…") }
+    var statusText  by remember { mutableStateOf("Loading model…") }
 
     val currentMorphState = remember { FloatArray(51) }
 
@@ -218,31 +215,19 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val modelLoader       = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
 
-    var modelInstance by remember { mutableStateOf<io.github.sceneview.model.ModelInstance?>(null) }
-
-    // ── HDR-окружение: fallback на дефолтное если нет файла ───────────────
-    // ИЗМЕНЕНИЕ 2: environment теперь non-nullable (Environment, не Environment?)
+    // HDR окружение
     val environment = remember(environmentLoader) {
         try {
             environmentLoader.createHDREnvironment("environments/studio_small_09_2k.hdr")
-                ?: environmentLoader.createEnvironment()   // ← fallback
+                ?: environmentLoader.createEnvironment()
         } catch (e: Exception) {
             Log.w(TAG, "HDR env not found, using default: ${e.message}")
-            environmentLoader.createEnvironment()          // ← всегда non-null
+            environmentLoader.createEnvironment()
         }
     }
 
-    LaunchedEffect(modelLoader) {
-        Log.d(TAG, "═══ Model loading START ═══")
-        modelInstance = try {
-            modelLoader.createModelInstance("models/source_named.glb")
-                ?: modelLoader.createModelInstance("source_named.glb")
-        } catch (e: Exception) {
-            Log.e(TAG, "Load failed", e)
-            null
-        }
-        statusText = if (modelInstance != null) "OK" else "FAIL"
-    }
+    // Ссылка на ModelNode (будет заполнена внутри Scene)
+    var modelNode by remember { mutableStateOf<ModelNode?>(null) }
 
     // ── Прогресс / UI state ───────────────────────────────────────────────
     val currentStep  = SEQUENCE.getOrNull(stepIndex)
@@ -256,13 +241,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         while (!isFinished) { delay(1_000); elapsedSec++ }
     }
 
-    var modelNode by remember { mutableStateOf<ModelNode?>(null) }
-    LaunchedEffect(modelInstance) {
-        val inst = modelInstance ?: return@LaunchedEffect
-        val n = ModelNode(modelInstance = inst, scaleToUnits = 0.8f, autoAnimate = false).apply {
-            position = Position(x = 0f, y = 0f, z = -1.5f)
-        }
-        modelNode = n
+    // ── Запуск теста после появления модели ───────────────────────────────
+    LaunchedEffect(modelNode) {
+        val n = modelNode ?: return@LaunchedEffect
         Log.d(TAG, "═══ TEST SEQUENCE START ═══")
         SEQUENCE.forEachIndexed { i, step ->
             stepIndex = i; isResetting = false
@@ -309,24 +290,31 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     .weight(1f)
                     .background(Color.Black)
             ) {
-                ARScene(
-                    modifier          = Modifier.fillMaxSize(),
-                    engine            = engine,
-                    modelLoader       = modelLoader,
+                Scene(
+                    modifier = Modifier.fillMaxSize(),
+                    engine = engine,
+                    modelLoader = modelLoader,
                     environmentLoader = environmentLoader,
-                    planeRenderer     = false,
-                    environment       = environment,
-                    mainLightNode     = rememberMainLightNode(engine) {
+                    environment = environment,
+                    mainLightNode = rememberMainLightNode(engine) {
                         intensity = 80_000f
                     },
-                    cameraNode        = remember(engine) {
-                        ARCameraNode(engine).apply {
-                            position = Position(z = 0.5f)
-                        }
-                    },
-                    onSessionUpdated  = { _, _ -> },
                 ) {
-                    modelNode?.let { node ->
+                    // ← Declarative стиль SceneView 3.5.2
+                    rememberModelInstance(
+                        modelLoader = modelLoader,
+                        assetFileName = "models/source_named.glb"   // ← ТВОЙ ПУТЬ
+                    )?.let { instance: ModelInstance ->
+                        val node = remember(instance) {
+                            ModelNode(
+                                modelInstance = instance,
+                                scaleToUnits = 0.8f,
+                                autoAnimate = false
+                            ).apply {
+                                position = Position(x = 0f, y = 0f, z = -1.5f)
+                            }
+                        }
+                        modelNode = node   // сохраняем ссылку для теста
                         node
                     }
                 }
@@ -396,9 +384,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                         Text(
                             text     = statusText,
                             style    = MaterialTheme.typography.labelMedium,
-                            color    = if (statusText.startsWith("OK")) Color(0xFF2E7D32)
-                                       else if (statusText.contains("FAIL") || statusText.contains("null"))
-                                           Color(0xFFD32F2F)
+                            color    = if (statusText.startsWith("OK") || statusText == "Model loaded") Color(0xFF2E7D32)
+                                       else if (statusText.contains("FAIL")) Color(0xFFD32F2F)
                                        else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -444,7 +431,7 @@ private fun ActiveWeightsRow(weights: FloatArray) {
         for ((idx, value) in active) {
             Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
                 Text(
-                    text     = "#$idx=${"%.2f".format(value)}",
+                    text     = "#\( idx= \){"%.2f".format(value)}",
                     fontSize = 10.sp,
                     color    = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
