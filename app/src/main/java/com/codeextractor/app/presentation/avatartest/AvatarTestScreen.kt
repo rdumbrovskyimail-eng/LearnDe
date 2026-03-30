@@ -1,6 +1,11 @@
 package com.codeextractor.app.presentation.avatartest
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -27,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -49,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,14 +66,177 @@ import io.github.sceneview.Scene
 import io.github.sceneview.math.Position
 import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.node.ModelNode
+import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberEnvironmentLoader
 import io.github.sceneview.rememberMainLightNode
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberModelInstance
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.CopyOnWriteArrayList
 
 private const val TAG = "AvatarTest"
+private const val MODEL_PATH = "models/source_named.glb"
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DIAGNOSTIC LOGGER — собирает все логи в память, потом сохраняет в файл
+// ══════════════════════════════════════════════════════════════════════════════
+
+private object DiagLog {
+    private val lines = CopyOnWriteArrayList<String>()
+    private val startTime = System.currentTimeMillis()
+
+    fun log(level: String, tag: String, msg: String) {
+        val ts = System.currentTimeMillis() - startTime
+        val entry = "[${ts}ms] [$level/$tag] $msg"
+        lines.add(entry)
+        when (level) {
+            "E" -> Log.e(tag, msg)
+            "W" -> Log.w(tag, msg)
+            "I" -> Log.i(tag, msg)
+            else -> Log.d(tag, msg)
+        }
+    }
+
+    fun d(msg: String) = log("D", TAG, msg)
+    fun i(msg: String) = log("I", TAG, msg)
+    fun w(msg: String) = log("W", TAG, msg)
+    fun e(msg: String) = log("E", TAG, msg)
+
+    fun getFullLog(): String {
+        val header = buildString {
+            appendLine("═══════════════════════════════════════════")
+            appendLine("  AVATAR TEST DIAGNOSTIC LOG")
+            appendLine("  Date: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}")
+            appendLine("  Total entries: ${lines.size}")
+            appendLine("═══════════════════════════════════════════")
+            appendLine()
+        }
+        return header + lines.joinToString("\n")
+    }
+
+    fun clear() = lines.clear()
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ASSET VALIDATOR — проверяет GLB файл прямо из assets
+// ══════════════════════════════════════════════════════════════════════════════
+
+private fun validateGlbAsset(context: Context, path: String): String {
+    DiagLog.i("╔══ ASSET VALIDATION START: $path ══╗")
+    return try {
+        // 1) Проверяем что файл вообще открывается
+        val inputStream = context.assets.open(path)
+        DiagLog.d("  assets.open() — OK")
+
+        // 2) Читаем первые 12 байт (GLB header)
+        val header = ByteArray(12)
+        val bytesRead = inputStream.read(header)
+        DiagLog.d("  header bytes read: $bytesRead")
+
+        // 3) Считаем полный размер
+        val available = inputStream.available()
+        // Для больших файлов available() может вернуть 0 или неполное значение,
+        // поэтому читаем всё
+        var totalSize = bytesRead.toLong()
+        val buf = ByteArray(8192)
+        var nonZeroBytes = 0L
+        // Проверяем первые 12 байт на нули
+        for (b in header) { if (b != 0.toByte()) nonZeroBytes++ }
+
+        while (true) {
+            val n = inputStream.read(buf)
+            if (n <= 0) break
+            totalSize += n
+            for (i in 0 until n) { if (buf[i] != 0.toByte()) nonZeroBytes++ }
+        }
+        inputStream.close()
+
+        DiagLog.d("  total size: $totalSize bytes (${totalSize / 1024}KB)")
+        DiagLog.d("  non-zero bytes: $nonZeroBytes / $totalSize")
+
+        // 4) Проверяем GLB magic
+        val magic = String(header, 0, 4, Charsets.US_ASCII)
+        val isGlb = header[0] == 0x67.toByte() && header[1] == 0x6C.toByte() &&
+                header[2] == 0x54.toByte() && header[3] == 0x46.toByte()
+        DiagLog.d("  magic bytes: ${header.take(4).joinToString(" ") { "0x%02X".format(it) }}")
+        DiagLog.d("  magic string: '$magic'")
+        DiagLog.d("  is valid GLB: $isGlb")
+
+        if (isGlb && bytesRead >= 12) {
+            val version = (header[4].toInt() and 0xFF) or
+                    ((header[5].toInt() and 0xFF) shl 8) or
+                    ((header[6].toInt() and 0xFF) shl 16) or
+                    ((header[7].toInt() and 0xFF) shl 24)
+            val fileLength = (header[8].toInt() and 0xFF) or
+                    ((header[9].toInt() and 0xFF) shl 8) or
+                    ((header[10].toInt() and 0xFF) shl 16) or
+                    ((header[11].toInt() and 0xFF) shl 24)
+            DiagLog.d("  GLB version: $version")
+            DiagLog.d("  GLB declared length: $fileLength")
+        }
+
+        if (nonZeroBytes == 0L) {
+            DiagLog.e("  ✖ FILE IS ALL ZEROS! Model is corrupted!")
+            "FAIL: All zeros ($totalSize bytes)"
+        } else if (!isGlb) {
+            DiagLog.e("  ✖ NOT A VALID GLB FILE! Magic: $magic")
+            "FAIL: Not GLB (magic=$magic, ${totalSize}b)"
+        } else {
+            DiagLog.i("  ✔ GLB file looks valid: ${totalSize}b, ${nonZeroBytes} non-zero")
+            "OK: GLB ${totalSize / 1024}KB"
+        }
+    } catch (e: Exception) {
+        DiagLog.e("  ✖ EXCEPTION: ${e::class.simpleName}: ${e.message}")
+        "FAIL: ${e::class.simpleName}: ${e.message}"
+    } finally {
+        DiagLog.i("╚══ ASSET VALIDATION END ══╝")
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Список всех assets в models/
+// ══════════════════════════════════════════════════════════════════════════════
+
+private fun listAssets(context: Context) {
+    DiagLog.i("╔══ LISTING ASSETS ══╗")
+    try {
+        val root = context.assets.list("") ?: emptyArray()
+        DiagLog.d("  root: ${root.joinToString(", ")}")
+
+        if ("models" in root) {
+            val models = context.assets.list("models") ?: emptyArray()
+            DiagLog.d("  models/: ${models.joinToString(", ")}")
+            models.forEach { name ->
+                try {
+                    val s = context.assets.open("models/$name")
+                    val size = s.available()
+                    s.close()
+                    DiagLog.d("    models/$name → ${size}b available")
+                } catch (e: Exception) {
+                    DiagLog.w("    models/$name → ${e.message}")
+                }
+            }
+        } else {
+            DiagLog.w("  'models' directory NOT FOUND in assets!")
+            // Пробуем другие папки
+            root.forEach { dir ->
+                try {
+                    val sub = context.assets.list(dir)
+                    if (sub != null && sub.isNotEmpty()) {
+                        DiagLog.d("  $dir/: ${sub.take(10).joinToString(", ")}${if (sub.size > 10) "..." else ""}")
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    } catch (e: Exception) {
+        DiagLog.e("  Exception listing assets: ${e.message}")
+    }
+    DiagLog.i("╚══ END LISTING ══╝")
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  MORPH TARGET INDICES — ARKit 51 blendshapes
@@ -160,7 +331,7 @@ private val SEQUENCE: List<Step> = buildList {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  MORPH APPLICATION — работает с ModelInstance + Engine напрямую
+//  MORPH APPLICATION — работает с ModelInstance + Engine
 // ══════════════════════════════════════════════════════════════════════════════
 
 private fun applyMorphsToInstance(engine: Engine, instance: ModelInstance, headW: FloatArray) {
@@ -188,7 +359,9 @@ private fun applyMorphsToInstance(engine: Engine, instance: ModelInstance, headW
             4 -> { val r = if (fourIdx == 0) eyeLW else eyeRW; fourIdx++; r }
             else -> return@forEach
         }
-        try { rm.setMorphWeights(ri, w, 0) } catch (_: Exception) {}
+        try { rm.setMorphWeights(ri, w, 0) } catch (ex: Exception) {
+            DiagLog.e("setMorphWeights failed: count=$count err=${ex.message}")
+        }
     }
 }
 
@@ -207,19 +380,22 @@ private suspend fun animateMorphsSmooth(
     }
 }
 
-/** Ручной проигрыш анимации через Filament Animator */
 private suspend fun playAnimationManual(instance: ModelInstance, durationMs: Long) {
-    val animator = instance.animator ?: throw IllegalStateException("No animator")
+    DiagLog.d("playAnimationManual: trying to get animator...")
+    val animator = instance.animator
+    DiagLog.d("playAnimationManual: animator=$animator")
+    if (animator == null) throw IllegalStateException("No animator on ModelInstance")
     val animCount = animator.animationCount
-    if (animCount == 0) throw IllegalStateException("No animations in model")
-    val animDuration = animator.getAnimationDuration(0)  // секунды
+    DiagLog.d("playAnimationManual: animationCount=$animCount")
+    if (animCount == 0) throw IllegalStateException("No animations in model (count=0)")
+    val animDuration = animator.getAnimationDuration(0)
+    DiagLog.d("playAnimationManual: anim[0] duration=${animDuration}s")
     val maxMs = minOf(durationMs, (animDuration * 1000).toLong())
     val start = System.currentTimeMillis()
     while (true) {
-        val elapsed = (System.currentTimeMillis() - start)
+        val elapsed = System.currentTimeMillis() - start
         if (elapsed >= maxMs) break
-        val timeSec = elapsed / 1000f
-        animator.applyAnimation(0, timeSec)
+        animator.applyAnimation(0, elapsed / 1000f)
         animator.updateBoneMatrices()
         delay(16)
     }
@@ -233,42 +409,99 @@ private suspend fun playAnimationManual(instance: ModelInstance, durationMs: Lon
 @Composable
 fun AvatarTestScreen(onBack: () -> Unit) {
 
+    val context = LocalContext.current
+
     var stepIndex   by remember { mutableIntStateOf(0) }
     var isResetting by remember { mutableStateOf(false) }
     var elapsedSec  by remember { mutableIntStateOf(0) }
     var isFinished  by remember { mutableStateOf(false) }
-    var statusText  by remember { mutableStateOf("Loading model…") }
+    var statusText  by remember { mutableStateOf("Initializing…") }
+    var showSaveDialog by remember { mutableStateOf(false) }
 
     val currentMorphState = remember { FloatArray(51) }
 
+    // ── ModelInstance ref — заполняется ИЗНУТРИ Scene ──────────────────────
+    var modelInstanceRef by remember { mutableStateOf<ModelInstance?>(null) }
+
+    // ── Engine & Loaders ──────────────────────────────────────────────────
+    DiagLog.d("Composable: creating engine & loaders")
     val engine            = rememberEngine()
     val modelLoader       = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
 
+    DiagLog.d("Composable: engine=$engine, modelLoader=$modelLoader")
+
     val environment = remember(environmentLoader) {
+        DiagLog.d("Creating environment...")
         try {
-            environmentLoader.createHDREnvironment("environments/studio_small_09_2k.hdr")
-                ?: environmentLoader.createEnvironment()
+            val env = environmentLoader.createHDREnvironment("environments/studio_small_09_2k.hdr")
+            if (env != null) {
+                DiagLog.i("HDR environment created OK")
+                env
+            } else {
+                DiagLog.w("HDR env returned null, using default")
+                environmentLoader.createEnvironment()!!
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "HDR env not found, using default: ${e.message}")
-            environmentLoader.createEnvironment()
+            DiagLog.w("HDR env exception: ${e.message}, using default")
+            environmentLoader.createEnvironment()!!
         }
     }
 
     val mainLightNode = rememberMainLightNode(engine) {
-        intensity = 80_000f
+        intensity = 100_000f
+        DiagLog.d("MainLightNode created, intensity=100000")
     }
 
-    // ── Модель — загружается ВНЕ Scene ────────────────────────────────────
-    val modelInstance = rememberModelInstance(
-        modelLoader = modelLoader,
-        assetFileLocation = "models/source_named.glb"
-    )
+    val cameraNode = rememberCameraNode(engine) {
+        position = Position(z = 2.5f)
+        DiagLog.d("CameraNode created, position z=2.5")
+    }
 
-    LaunchedEffect(modelInstance) {
-        if (modelInstance != null) {
-            statusText = "Model loaded"
-            Log.d(TAG, "Model loaded, entities: ${modelInstance.entities.size}")
+    // ── Asset validation при первом запуске ───────────────────────────────
+    LaunchedEffect(Unit) {
+        DiagLog.clear()
+        DiagLog.i("╔══════════════════════════════════════════╗")
+        DiagLog.i("║     AVATAR TEST DIAGNOSTIC SESSION       ║")
+        DiagLog.i("╚══════════════════════════════════════════╝")
+        DiagLog.d("Android SDK: ${android.os.Build.VERSION.SDK_INT}")
+        DiagLog.d("Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+        DiagLog.d("SceneView arsceneview:3.5.2")
+        DiagLog.d("Model path: $MODEL_PATH")
+
+        listAssets(context)
+        val validationResult = validateGlbAsset(context, MODEL_PATH)
+        statusText = "Asset: $validationResult"
+
+        DiagLog.d("Waiting for model to load via rememberModelInstance...")
+    }
+
+    // ── Таймер ────────────────────────────────────────────────────────────
+    LaunchedEffect(isFinished) {
+        while (!isFinished) { delay(1_000); elapsedSec++ }
+    }
+
+    // ── Авто-показ диалога сохранения через 50с ──────────────────────────
+    LaunchedEffect(Unit) {
+        delay(50_000)
+        DiagLog.i("50s elapsed — triggering save dialog")
+        showSaveDialog = true
+    }
+
+    // ── SAF launcher для сохранения лога ─────────────────────────────────
+    val saveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(DiagLog.getFullLog().toByteArray())
+                }
+                DiagLog.i("Log saved to: $uri")
+                statusText = "Log saved!"
+            } catch (e: Exception) {
+                DiagLog.e("Failed to save log: ${e.message}")
+            }
         }
     }
 
@@ -280,31 +513,55 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         animationSpec = tween(600), label = "progress",
     )
 
-    LaunchedEffect(isFinished) {
-        while (!isFinished) { delay(1_000); elapsedSec++ }
-    }
+    // ── Запуск теста когда modelInstance готов ─────────────────────────────
+    LaunchedEffect(modelInstanceRef) {
+        val inst = modelInstanceRef
+        if (inst == null) {
+            DiagLog.d("LaunchedEffect(modelInstanceRef): still null, waiting...")
+            return@LaunchedEffect
+        }
 
-    // ── Тест-сиквенс — использует modelInstance + engine напрямую ─────────
-    LaunchedEffect(modelInstance) {
-        val inst = modelInstance ?: return@LaunchedEffect
-        Log.d(TAG, "═══ TEST SEQUENCE START ═══")
+        DiagLog.i("╔══ MODEL INSTANCE READY ══╗")
+        DiagLog.d("  entities count: ${inst.entities.size}")
+        DiagLog.d("  animator: ${inst.animator}")
+        DiagLog.d("  animator?.animationCount: ${inst.animator?.animationCount}")
+
+        // Проверяем morph targets
+        val rm = engine.renderableManager
+        inst.entities.forEachIndexed { idx, entity ->
+            val hasComp = rm.hasComponent(entity)
+            if (hasComp) {
+                val ri = rm.getInstance(entity)
+                val morphCount = rm.getMorphTargetCount(ri)
+                DiagLog.d("  entity[$idx]=$entity renderable morphTargets=$morphCount")
+            } else {
+                DiagLog.d("  entity[$idx]=$entity — no renderable component")
+            }
+        }
+
+        statusText = "Model loaded! Starting test..."
+        DiagLog.i("═══ TEST SEQUENCE START ═══")
         delay(500)
 
         SEQUENCE.forEachIndexed { i, step ->
             stepIndex = i; isResetting = false
             statusText = step.label
+            DiagLog.d("Step[$i]: ${step.category.label} — ${step.label}")
 
             if (step.headWeights == null) {
-                // Animation step
+                DiagLog.d("  → Animation step")
                 animateMorphsSmooth(engine, inst, currentMorphState, FloatArray(51), 300)
                 try {
                     playAnimationManual(inst, step.durationMs)
                     statusText = "OK: Anim played"
+                    DiagLog.i("  → Animation OK")
                 } catch (e: Exception) {
                     statusText = "FAIL: ${e.message}"
+                    DiagLog.e("  → Animation FAIL: ${e.message}")
                     delay(step.durationMs)
                 }
             } else {
+                DiagLog.d("  → Morph step: active=${step.headWeights.count { it > 0f }}")
                 animateMorphsSmooth(engine, inst, currentMorphState, step.headWeights, 450)
                 statusText = "OK: ${step.label}"
                 delay((step.durationMs - 450).coerceAtLeast(200))
@@ -313,14 +570,37 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                 delay(100)
             }
         }
+        DiagLog.i("═══ TEST SEQUENCE COMPLETE ═══")
         statusText = "All tests complete"
         isFinished = true
+        showSaveDialog = true
     }
 
+    // ── Save dialog ──────────────────────────────────────────────────────
+    if (showSaveDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveDialog = false },
+            title = { Text("Save Diagnostic Log") },
+            text = {
+                Text("${DiagLog.getFullLog().lines().size} log entries collected.\nModel: ${if (modelInstanceRef != null) "LOADED" else "NOT LOADED"}\nElapsed: ${elapsedSec}s")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSaveDialog = false
+                    saveLauncher.launch("avatar_test_${System.currentTimeMillis()}.txt")
+                }) { Text("Save to file") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveDialog = false }) { Text("Later") }
+            }
+        )
+    }
+
+    // ── UI ────────────────────────────────────────────────────────────────
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Avatar Test", fontWeight = FontWeight.SemiBold) },
+                title = { Text("Avatar Test DIAG", fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -354,9 +634,28 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     environmentLoader = environmentLoader,
                     environment = environment,
                     mainLightNode = mainLightNode,
+                    cameraNode = cameraNode,
                 ) {
-                    // ModelNode — composable внутри SceneScope
-                    modelInstance?.let { inst ->
+                    // rememberModelInstance ВНУТРИ Scene content lambda!
+                    val instance = rememberModelInstance(
+                        modelLoader = modelLoader,
+                        assetFileLocation = MODEL_PATH,
+                    )
+
+                    // Пробрасываем наружу через state
+                    LaunchedEffect(instance) {
+                        DiagLog.d("Scene content: rememberModelInstance result = $instance")
+                        if (instance != null) {
+                            DiagLog.i("Scene content: MODEL INSTANCE LOADED!")
+                            DiagLog.d("  entities: ${instance.entities.size}")
+                            modelInstanceRef = instance
+                        } else {
+                            DiagLog.d("Scene content: instance is null (still loading or failed)")
+                        }
+                    }
+
+                    instance?.let { inst ->
+                        DiagLog.d("Scene content: rendering ModelNode")
                         ModelNode(
                             modelInstance = inst,
                             scaleToUnits = 0.8f,
@@ -366,6 +665,19 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                 }
 
                 if (!isFinished) ScanlineOverlay()
+
+                // Overlay с текущим статусом прямо на Scene
+                Text(
+                    text = if (modelInstanceRef != null) "✓ Model OK" else "⏳ Loading...",
+                    color = if (modelInstanceRef != null) Color.Green else Color.Yellow,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                        .padding(4.dp)
+                )
             }
 
             Surface(
@@ -430,9 +742,10 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                         Text(
                             text     = statusText,
                             style    = MaterialTheme.typography.labelMedium,
-                            color    = if (statusText.startsWith("OK") || statusText == "Model loaded" || statusText == "All tests complete")
+                            color    = if (statusText.startsWith("OK") || statusText.contains("loaded") || statusText.contains("complete"))
                                            Color(0xFF2E7D32)
-                                       else if (statusText.contains("FAIL")) Color(0xFFD32F2F)
+                                       else if (statusText.contains("FAIL") || statusText.contains("error", ignoreCase = true))
+                                           Color(0xFFD32F2F)
                                        else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -443,6 +756,15 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+
+                    // Кнопка ручного сохранения лога
+                    TextButton(
+                        onClick = {
+                            saveLauncher.launch("avatar_diag_${System.currentTimeMillis()}.txt")
+                        }
+                    ) {
+                        Text("📋 Save log now", fontSize = 11.sp)
                     }
                 }
             }
