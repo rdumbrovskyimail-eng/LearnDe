@@ -365,18 +365,17 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     engine            = engine,
                     modelLoader       = modelLoader,
                     environmentLoader = environmentLoader,
-                    nodes             = childNodes,          // ИЗМЕНЕНИЕ 4: childNodes → nodes
+                    childNodes        = childNodes,
                     planeRenderer     = false,
                     mainLightNode     = rememberMainLightNode(engine) {
                         intensity = 80_000f
                     },
-                    // ИЗМЕНЕНИЕ 5: ARCameraNode вместо CameraNode
                     cameraNode        = remember(engine) {
                         ARCameraNode(engine).apply {
                             position = Position(z = 0.5f)
                         }
                     },
-                    environment       = environment,         // ИЗМЕНЕНИЕ 6: non-nullable
+                    environment       = environment,
                     onSessionUpdated  = { _, _ -> },
                 )
 
