@@ -53,16 +53,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.sceneview.ar.ARScene                    // ← arsceneview
-import io.github.sceneview.ar.arcore.getUpdatedPlanes    // ← arsceneview
+import io.github.sceneview.ar.ARScene
+import io.github.sceneview.ar.arcore.getUpdatedPlanes
+import io.github.sceneview.ar.node.ARCameraNode                  // ← ИЗМЕНЕНО
 import io.github.sceneview.math.Position
 import io.github.sceneview.node.ModelNode
-import io.github.sceneview.rememberCameraNode
+import io.github.sceneview.node.Node                             // ← ДОБАВЛЕНО
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberEnvironmentLoader
 import io.github.sceneview.rememberMainLightNode
 import io.github.sceneview.rememberModelLoader
-import io.github.sceneview.rememberNodes
+// rememberNodes — УДАЛЁН
+// rememberCameraNode — УДАЛЁН (используем ARCameraNode напрямую)
 import kotlinx.coroutines.delay
 
 private const val TAG = "AvatarTest"
@@ -197,7 +199,7 @@ private suspend fun ModelNode.animateMorphsSmooth(cur: FloatArray, tgt: FloatArr
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  SCREEN — AR-версия
+//  SCREEN
 // ══════════════════════════════════════════════════════════════════════════════
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -218,19 +220,24 @@ fun AvatarTestScreen(onBack: () -> Unit) {
 
     var modelNodeRef by remember { mutableStateOf<ModelNode?>(null) }
 
-    // ── HDR-окружение (необязательный файл; при отсутствии вернётся null) ──
+    // ── ИЗМЕНЕНИЕ 1: вместо rememberNodes — обычный remember ──────────────
+    val childNodes = remember { mutableListOf<Node>() }
+
+    // ── HDR-окружение: fallback на дефолтное если нет файла ───────────────
+    // ИЗМЕНЕНИЕ 2: environment теперь non-nullable (Environment, не Environment?)
     val environment = remember(environmentLoader) {
         try {
             environmentLoader.createHDREnvironment("environments/studio_small_09_2k.hdr")
+                ?: environmentLoader.createEnvironment()   // ← fallback
         } catch (e: Exception) {
             Log.w(TAG, "HDR env not found, using default: ${e.message}")
-            null
+            environmentLoader.createEnvironment()          // ← всегда non-null
         }
     }
 
-    // ── Загрузка модели — три попытки (аналогично оригиналу) ──
-    val childNodes = rememberNodes {
-        Log.d(TAG, "═══ rememberNodes (AR) START ═══")
+    // ── ИЗМЕНЕНИЕ 3: загрузка модели перенесена в LaunchedEffect ──────────
+    LaunchedEffect(modelLoader) {
+        Log.d(TAG, "═══ Model loading START ═══")
 
         fun tryLoad(path: String): Boolean {
             return try {
@@ -244,7 +251,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     ).apply {
                         position = Position(x = 0f, y = 0f, z = -1.5f)
                     }
-                    add(mn)
+                    childNodes.add(mn)   // ← теперь просто MutableList.add()
                     modelNodeRef = mn
                     statusText = "OK: $path"
                     Log.d(TAG, "✓ Loaded: $path")
@@ -261,7 +268,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
 
         if (!tryLoad("models/source_named.glb") &&
             !tryLoad("source_named.glb")) {
-            // Попытка через двухступенчатый createModel + createInstance
             try {
                 val model = modelLoader.createModel("models/source_named.glb")
                 if (model != null) {
@@ -275,7 +281,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                         ).apply {
                             position = Position(x = 0f, y = 0f, z = -1.5f)
                         }
-                        add(mn)
+                        childNodes.add(mn)   // ← то же
                         modelNodeRef = mn
                         statusText = "OK: 2-step"
                         Log.d(TAG, "✓ Fallback 2-step OK")
@@ -294,7 +300,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         }
     }
 
-    // ── Прогресс / UI state ──
+    // ── Прогресс / UI state ───────────────────────────────────────────────
     val currentStep  = SEQUENCE.getOrNull(stepIndex)
     val totalSteps   = SEQUENCE.size
     val animProgress by animateFloatAsState(
@@ -302,12 +308,10 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         animationSpec = tween(600), label = "progress",
     )
 
-    // Таймер
     LaunchedEffect(isFinished) {
         while (!isFinished) { delay(1_000); elapsedSec++ }
     }
 
-    // Тестовая последовательность
     LaunchedEffect(modelNodeRef) {
         val n = modelNodeRef ?: return@LaunchedEffect
         Log.d(TAG, "═══ TEST SEQUENCE START ═══")
@@ -350,7 +354,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
 
-            // ── AR Viewport ───────────────────────────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -358,29 +361,28 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     .background(Color.Black)
             ) {
                 ARScene(
-                    modifier      = Modifier.fillMaxSize(),
-                    engine        = engine,
-                    modelLoader   = modelLoader,
+                    modifier          = Modifier.fillMaxSize(),
+                    engine            = engine,
+                    modelLoader       = modelLoader,
                     environmentLoader = environmentLoader,
-                    childNodes    = childNodes,
-                    // Плоскости здесь не нужны (аватар — не AR-объект на полу)
-                    planeRenderer = false,
-                    mainLightNode = rememberMainLightNode(engine) {
+                    nodes             = childNodes,          // ИЗМЕНЕНИЕ 4: childNodes → nodes
+                    planeRenderer     = false,
+                    mainLightNode     = rememberMainLightNode(engine) {
                         intensity = 80_000f
                     },
-                    cameraNode = rememberCameraNode(engine) {
-                        position = Position(z = 0.5f)
+                    // ИЗМЕНЕНИЕ 5: ARCameraNode вместо CameraNode
+                    cameraNode        = remember(engine) {
+                        ARCameraNode(engine).apply {
+                            position = Position(z = 0.5f)
+                        }
                     },
-                    environment   = environment,
-                    onSessionUpdated = { _, _ ->
-                        // Место для ARCore-логики при необходимости
-                    },
+                    environment       = environment,         // ИЗМЕНЕНИЕ 6: non-nullable
+                    onSessionUpdated  = { _, _ -> },
                 )
 
                 if (!isFinished) ScanlineOverlay()
             }
 
-            // ── HUD ───────────────────────────────────────────────
             Surface(
                 modifier       = Modifier.fillMaxWidth(),
                 color          = MaterialTheme.colorScheme.surface,
@@ -406,7 +408,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                         ) { idx ->
                             val step = SEQUENCE.getOrNull(idx) ?: return@AnimatedContent
                             Row(
-                                verticalAlignment    = Alignment.CenterVertically,
+                                verticalAlignment     = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 CategoryChip(step.category)
