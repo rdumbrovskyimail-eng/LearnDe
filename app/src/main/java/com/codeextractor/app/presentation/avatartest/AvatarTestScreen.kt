@@ -324,16 +324,11 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modifier = Modifier.fillMaxSize(),
                     factory  = { ctx ->
                         SceneView(ctx).apply {
-                            setBackgroundColor(android.graphics.Color.parseColor("#151515")) // Серый, чтоб силуэт не терялся!
-
-                            // --- Дарим Аватару Освещение чтобы "проявились текстуры" ---
-                            mainSunLight = environmentLoader.createMainLight(
-                                color = io.github.sceneview.graphics.Color(1f, 1f, 1f, 1f), // Чисто белый Свет!
-                                intensity = 80_000.0f
-                            )
+                            // Фон серого оттенка
+                            setBackgroundColor(android.graphics.Color.parseColor("#151515")) 
 
                             scope.launch {
-                                // Микро ожидание "раскрутки" фреймворка Navigation Compose:
+                                // Даем время Nav-системе UI запустить холст 
                                 delay(300) 
                                 
                                 try {
@@ -344,17 +339,18 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                                     if (asyncInstance != null) {
                                         val modelNode = ModelNode(
                                             modelInstance = asyncInstance as io.github.sceneview.model.ModelInstance,
-                                            scaleToUnits  = 0.45f, // Небольшое Увеличение. У нас Fullscreen сцена! 
+                                            scaleToUnits  = 0.45f, 
                                         )
                                         
-                                        // ОСНОВНОЙ ТРЮК ПРОВИДЕНИЯ ТУТ 🎯: 
-                                        // Опускаем аватар чуть "ниже кадыка", оттолкнем Модель на 1.5м вперед 
+                                        // Опускаем аватар вниз, отталкиваем назад (Обязательное условие рендера!) 
                                         modelNode.position = io.github.sceneview.math.Position(x = 0f, y = -0.1f, z = -1.5f) 
                                         
                                         addChildNode(modelNode)
-                                        node = modelNode // Запустятся корутины Test-Очередей SEQUENCE
+                                        node = modelNode 
                                     }
-                                } catch (e: Exception) { }
+                                } catch (e: Exception) { 
+                                    e.printStackTrace()
+                                }
                             }
                         }
                     },
