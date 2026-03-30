@@ -66,6 +66,7 @@ import io.github.sceneview.Scene
 import io.github.sceneview.math.Position
 import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.node.ModelNode
+import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberEnvironmentLoader
@@ -634,7 +635,10 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     environmentLoader = environmentLoader,
                     environment = environment,
                     mainLightNode = mainLightNode,
-                    cameraNode = cameraNode,
+                    cameraNode = rememberCameraNode(engine) {
+                        position = Position(z = 4.0f)
+                    },
+                    cameraManipulator = rememberCameraManipulator(),
                 ) {
                     // rememberModelInstance ВНУТРИ Scene content lambda!
                     val instance = rememberModelInstance(
@@ -658,7 +662,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                         DiagLog.d("Scene content: rendering ModelNode")
                         ModelNode(
                             modelInstance = inst,
-                            scaleToUnits = 0.8f,
+                            scaleToUnits = 2.0f,
+                            centerOrigin = Position(0f, 0f, 0f),
                             autoAnimate = false,
                         )
                     }
