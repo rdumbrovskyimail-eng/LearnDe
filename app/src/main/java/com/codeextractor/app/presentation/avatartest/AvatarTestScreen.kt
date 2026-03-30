@@ -53,15 +53,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.android.filament.Engine
 import io.github.sceneview.Scene
 import io.github.sceneview.math.Position
-import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberEnvironmentLoader
 import io.github.sceneview.rememberMainLightNode
-import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
+import io.github.sceneview.rememberModelInstance
 import kotlinx.coroutines.delay
 
 private const val TAG = "AvatarTest"
@@ -159,22 +159,32 @@ private val SEQUENCE: List<Step> = buildList {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  MORPH APPLICATION
+//  MORPH APPLICATION  (engine передаётся явно)
 // ══════════════════════════════════════════════════════════════════════════════
 
-private fun ModelNode.applyMorphs(headW: FloatArray) {
+private fun ModelNode.applyMorphs(engine: Engine, headW: FloatArray) {
     val instance = modelInstance ?: return
     val rm = engine.renderableManager
-    val teethW = floatArrayOf(headW[Idx.jawForward], headW[Idx.jawLeft], headW[Idx.jawRight], headW[Idx.jawOpen], headW[Idx.mouthClose])
-    val eyeLW  = floatArrayOf(headW[Idx.eyeLookDownLeft],  headW[Idx.eyeLookInLeft],  headW[Idx.eyeLookOutLeft],  headW[Idx.eyeLookUpLeft])
-    val eyeRW  = floatArrayOf(headW[Idx.eyeLookDownRight], headW[Idx.eyeLookInRight], headW[Idx.eyeLookOutRight], headW[Idx.eyeLookUpRight])
+    val teethW = floatArrayOf(
+        headW[Idx.jawForward], headW[Idx.jawLeft], headW[Idx.jawRight],
+        headW[Idx.jawOpen], headW[Idx.mouthClose]
+    )
+    val eyeLW = floatArrayOf(
+        headW[Idx.eyeLookDownLeft], headW[Idx.eyeLookInLeft],
+        headW[Idx.eyeLookOutLeft], headW[Idx.eyeLookUpLeft]
+    )
+    val eyeRW = floatArrayOf(
+        headW[Idx.eyeLookDownRight], headW[Idx.eyeLookInRight],
+        headW[Idx.eyeLookOutRight], headW[Idx.eyeLookUpRight]
+    )
     val renderables = instance.entities.filter { rm.hasComponent(it) }.map { rm.getInstance(it) }
     var fourIdx = 0
     renderables.forEach { ri ->
         val count = rm.getMorphTargetCount(ri)
         if (count <= 0) return@forEach
         val w = when (count) {
-            51 -> headW; 5 -> teethW
+            51 -> headW
+            5 -> teethW
             4 -> { val r = if (fourIdx == 0) eyeLW else eyeRW; fourIdx++; r }
             else -> return@forEach
         }
@@ -182,14 +192,16 @@ private fun ModelNode.applyMorphs(headW: FloatArray) {
     }
 }
 
-private suspend fun ModelNode.animateMorphsSmooth(cur: FloatArray, tgt: FloatArray, durMs: Long) {
+private suspend fun ModelNode.animateMorphsSmooth(
+    engine: Engine, cur: FloatArray, tgt: FloatArray, durMs: Long
+) {
     val start = System.currentTimeMillis()
     val tmp = FloatArray(51)
     while (true) {
         val frac = ((System.currentTimeMillis() - start).toFloat() / durMs).coerceAtMost(1f)
         val t = if (frac < 0.5f) 2f * frac * frac else 1f - (-2f * frac + 2f).let { it * it } / 2f
         for (i in 0 until 51) tmp[i] = cur[i] + (tgt[i] - cur[i]) * t
-        applyMorphs(tmp)
+        applyMorphs(engine, tmp)
         if (frac >= 1f) { tgt.copyInto(cur); break }
         delay(16)
     }
@@ -226,8 +238,35 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         }
     }
 
-    // Ссылка на ModelNode (будет заполнена внутри Scene)
-    var modelNode by remember { mutableStateOf<ModelNode?>(null) }
+    val mainLightNode = rememberMainLightNode(engine) {
+        intensity = 80_000f
+    }
+
+    // ── Модель загружается СНАРУЖИ Scene ──────────────────────────────────
+    val modelInstance = rememberModelInstance(
+        modelLoader = modelLoader,
+        assetFileName = "models/source_named.glb"
+    )
+
+    val modelNode = remember(modelInstance) {
+        modelInstance?.let { inst ->
+            ModelNode(
+                modelInstance = inst,
+                scaleToUnits = 0.8f,
+                autoAnimate = false
+            ).apply {
+                position = Position(x = 0f, y = 0f, z = -1.5f)
+            }
+        }
+    }
+
+    // Обновляем statusText при загрузке модели
+    LaunchedEffect(modelNode) {
+        if (modelNode != null) {
+            statusText = "Model loaded"
+            Log.d(TAG, "Model loaded, entities: ${modelNode.modelInstance?.entities?.size}")
+        }
+    }
 
     // ── Прогресс / UI state ───────────────────────────────────────────────
     val currentStep  = SEQUENCE.getOrNull(stepIndex)
@@ -245,26 +284,44 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     LaunchedEffect(modelNode) {
         val n = modelNode ?: return@LaunchedEffect
         Log.d(TAG, "═══ TEST SEQUENCE START ═══")
+
+        // Небольшая пауза чтобы Scene успел отрендериться
+        delay(500)
+
         SEQUENCE.forEachIndexed { i, step ->
             stepIndex = i; isResetting = false
+            statusText = step.label
+
             if (step.headWeights == null) {
-                n.animateMorphsSmooth(currentMorphState, FloatArray(51), 300)
-                n.playAnimation(0); delay(step.durationMs); n.stopAnimation(0)
+                // Animation step
+                n.animateMorphsSmooth(engine, currentMorphState, FloatArray(51), 300)
+                val animCount = n.modelInstance?.animationCount ?: 0
+                if (animCount > 0) {
+                    n.playAnimation(0)
+                    delay(step.durationMs)
+                    n.stopAnimation(0)
+                    statusText = "OK: Anim played ($animCount available)"
+                } else {
+                    statusText = "FAIL: No animations in model"
+                    delay(step.durationMs)
+                }
             } else {
-                n.animateMorphsSmooth(currentMorphState, step.headWeights, 450)
+                n.animateMorphsSmooth(engine, currentMorphState, step.headWeights, 450)
+                statusText = "OK: ${step.label}"
                 delay((step.durationMs - 450).coerceAtLeast(200))
                 isResetting = true
-                n.animateMorphsSmooth(currentMorphState, FloatArray(51), 400)
+                n.animateMorphsSmooth(engine, currentMorphState, FloatArray(51), 400)
                 delay(100)
             }
         }
+        statusText = "All tests complete"
         isFinished = true
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Avatar Test AR", fontWeight = FontWeight.SemiBold) },
+                title = { Text("Avatar Test", fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -296,28 +353,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelLoader = modelLoader,
                     environmentLoader = environmentLoader,
                     environment = environment,
-                    mainLightNode = rememberMainLightNode(engine) {
-                        intensity = 80_000f
-                    },
-                ) {
-                    // ← Declarative стиль SceneView 3.5.2
-                    rememberModelInstance(
-                        modelLoader = modelLoader,
-                        assetFileName = "models/source_named.glb"   // ← ТВОЙ ПУТЬ
-                    )?.let { instance: ModelInstance ->
-                        val node = remember(instance) {
-                            ModelNode(
-                                modelInstance = instance,
-                                scaleToUnits = 0.8f,
-                                autoAnimate = false
-                            ).apply {
-                                position = Position(x = 0f, y = 0f, z = -1.5f)
-                            }
-                        }
-                        modelNode = node   // сохраняем ссылку для теста
-                        node
-                    }
-                }
+                    mainLightNode = mainLightNode,
+                    childNodes = listOfNotNull(modelNode),
+                )
 
                 if (!isFinished) ScanlineOverlay()
             }
@@ -384,7 +422,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                         Text(
                             text     = statusText,
                             style    = MaterialTheme.typography.labelMedium,
-                            color    = if (statusText.startsWith("OK") || statusText == "Model loaded") Color(0xFF2E7D32)
+                            color    = if (statusText.startsWith("OK") || statusText == "Model loaded" || statusText == "All tests complete")
+                                           Color(0xFF2E7D32)
                                        else if (statusText.contains("FAIL")) Color(0xFFD32F2F)
                                        else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -431,7 +470,7 @@ private fun ActiveWeightsRow(weights: FloatArray) {
         for ((idx, value) in active) {
             Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
                 Text(
-                    text     = "#\( idx= \){"%.2f".format(value)}",
+                    text     = "#$idx=${"%.2f".format(value)}",
                     fontSize = 10.sp,
                     color    = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
