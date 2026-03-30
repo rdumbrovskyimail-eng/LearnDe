@@ -106,9 +106,6 @@ dependencies {
     implementation("com.jakewharton.timber:timber:5.0.1")
 
     // ====================== SCENEVIEW ======================
-    // 3D (рекомендуется для начала)
-    implementation("io.github.sceneview:sceneview:3.5.2")
-
-    // Если нужен AR (ARCore + RealityKit-подобный API) — замени строку выше на:
-    // implementation("io.github.sceneview:arsceneview:3.5.2")
+    // AR (ARCore + RealityKit-подобный API)
+    implementation("io.github.sceneview:arsceneview:3.5.2")
 }
