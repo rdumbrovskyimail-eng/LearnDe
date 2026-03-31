@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import com.google.android.filament.Engine
 import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.Scene
+import io.github.sceneview.SceneView
 import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.rememberCameraManipulator
@@ -518,7 +519,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                 //  ARCore meta-data = "optional" в manifest →
                 //     arsceneview не инициализирует AR-сессию
                 // ═══════════════════════════════════════════════════════════
-                SceneView(
+                Scene(
                     modifier          = Modifier.fillMaxSize(),
                     engine            = engine,
                     modelLoader       = modelLoader,
