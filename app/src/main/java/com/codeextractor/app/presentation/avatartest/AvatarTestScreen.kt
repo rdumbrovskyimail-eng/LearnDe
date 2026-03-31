@@ -63,7 +63,6 @@ import com.google.android.filament.Engine
 import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.SceneView
 import io.github.sceneview.model.ModelInstance
-import io.github.sceneview.node.ModelNode
 import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
@@ -255,13 +254,6 @@ private val SEQUENCE: List<Step> = buildList {
 //  MORPH APPLICATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-/*
- * Model mesh → morph count:
- *   head_lod0_ORIGINAL  → 51   (full ARKit set)
- *   teeth_ORIGINAL      →  5   (jaw* + mouthClose)
- *   eyeLeft_ORIGINAL    →  4   (eyeLook* Left)
- *   eyeRight_ORIGINAL   →  4   (eyeLook* Right)
- */
 private fun applyMorphs(engine: Engine, instance: ModelInstance, headW: FloatArray) {
     val rm     = engine.renderableManager
     val teethW = floatArrayOf(
@@ -349,38 +341,21 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val morphState     = remember { FloatArray(51) }
 
     // ─────────────────────────────────────────────────────────────────────
-    //  SceneView 3.x resources
-    //  Pattern taken verbatim from SamplesScreen.kt → ModelViewerDemo
+    //  SceneView 3.x resources — паттерн из SamplesScreen.kt
     // ─────────────────────────────────────────────────────────────────────
     val engine            = rememberEngine()
     val modelLoader       = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
 
-    // Camera — same as ModelViewerDemo:
-    //   position = Float3(z = 2.5f, y = 0.2f)  +  lookAt(0,0,0)
-    // For a head model centred at origin with scaleToUnits=1.0 →
-    //   z=1.8 gives a comfortable tight close-up.
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 0f, z = 1.8f)
+        position = Float3(x = 0f, y = 0.05f, z = 1.8f)
         lookAt(Float3(0f, 0f, 0f))
     }
 
-    // Environment — exact rememberEnvironment() signature from SamplesScreen.kt
-    // Fallback chain: project HDR → demo HDRs → default env
-    val environment = rememberEnvironment(environmentLoader) {
-        environmentLoader.createHDREnvironment("environments/studio_small_09_2k.hdr")
-            ?: environmentLoader.createHDREnvironment("environments/studio_warm_2k.hdr")
-            ?: environmentLoader.createHDREnvironment("environments/studio_2k.hdr")
-            ?: environmentLoader.createHDREnvironment("environments/rooftop_night_2k.hdr")
-            ?: environmentLoader.createEnvironment()
-    }
+    // Neutral environment — встроен в sceneview library, не требует HDR в assets
+    val environment = rememberEnvironment(environmentLoader)
 
-    // Model instance — declared OUTSIDE SceneView, same as every demo in
-    // SamplesScreen.kt (ModelViewerDemo, AnimationControlDemo, etc.).
-    // Returns null while loading, non-null once the GLB is decoded.
-    // The SAME reference is used:
-    //   1) inside SceneView  → ModelNode renders it
-    //   2) in LaunchedEffect → morph weights are applied to it
+    // Модель — null пока грузится, non-null когда готова
     val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
 
     // ── One-shot diagnostics ──────────────────────────────────────────────
@@ -402,9 +377,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { delay(50_000); showSaveDialog = true }
 
     // ── Test sequence ─────────────────────────────────────────────────────
-    // LaunchedEffect(modelInstance) fires once when the instance transitions
-    // from null → non-null (i.e. when GLB finishes loading).
-    // This is the canonical SceneView 3.x pattern for driving post-load logic.
     LaunchedEffect(modelInstance) {
         val inst = modelInstance ?: run {
             DiagLog.d("modelInstance null — waiting for load")
@@ -532,14 +504,15 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     .background(Color(0xFF0A0A0A))
             ) {
                 // ═══════════════════════════════════════════════════════════
-                //  SceneView — pattern from SamplesScreen.kt ModelViewerDemo
+                //  SceneView — паттерн из SamplesScreen.kt ModelViewerDemo
                 //
-                //  Key points vs the broken original:
-                //   ✓  SceneView  (not ARScene / Scene)
-                //   ✓  rememberEnvironment()  (not remember { loader.create... })
-                //   ✓  modelInstance declared OUTSIDE → same ref used here + LaunchedEffect
-                //   ✓  single cameraNode  (was duplicated before)
-                //   ✓  autoAnimate = false  (we control animation manually)
+                //  Ключевые отличия от сломанного варианта:
+                //   ✓  sceneview:3.5.2  (НЕ arsceneview — нет ARCore passthrough)
+                //   ✓  centerOrigin = Float3(0f,0f,0f) — модель центрирована
+                //      (bbox Z=1.37..1.76 сдвигается в origin)
+                //   ✓  default environment (neutral KTX из библиотеки)
+                //   ✓  default mainLightNode (directional, 100K lux)
+                //   ✓  autoAnimate = false — управляем вручную через morphs
                 // ═══════════════════════════════════════════════════════════
                 SceneView(
                     modifier          = Modifier.fillMaxSize(),
@@ -547,7 +520,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
                     cameraManipulator = rememberCameraManipulator(
-                        orbitHomePosition = Float3(x = 0f, y = 0f, z = 1.8f),
+                        orbitHomePosition = Float3(x = 0f, y = 0.05f, z = 1.8f),
                         targetPosition    = Float3(0f, 0f, 0f)
                     ),
                     environment       = environment,
@@ -555,8 +528,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelInstance?.let { inst ->
                         ModelNode(
                             modelInstance = inst,
-                            scaleToUnits  = 1.0f,   // head fits in 1 m sphere
-                            autoAnimate   = false,  // driven manually via morphs / animator
+                            scaleToUnits  = 1.0f,
+                            centerOrigin  = Float3(0f, 0f, 0f),
+                            autoAnimate   = false,
                         )
                     }
                 }
