@@ -12,6 +12,10 @@
 
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
 
+    <!-- AR-камера НЕ required — мы используем SceneView, не ARSceneView -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
+
     <application
         android:name=".GeminiLiveApplication"
         android:allowBackup="false"
@@ -42,6 +46,12 @@
             android:name=".GeminiLiveForegroundService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
+
+        <!-- Перебиваем arsceneview-библиотечный manifest: ARCore optional -->
+        <meta-data
+            android:name="com.google.ar.core"
+            android:value="optional"
+            tools:replace="android:value" />
 
     </application>
 
