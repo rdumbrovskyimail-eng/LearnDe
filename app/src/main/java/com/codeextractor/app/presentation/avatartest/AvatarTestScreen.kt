@@ -1,8 +1,6 @@
 package com.codeextractor.app.presentation.avatartest
 
-import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -62,186 +60,103 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.android.filament.Engine
-import io.github.sceneview.Scene
-import io.github.sceneview.math.Position
+import dev.romainguy.kotlin.math.Float3
+import io.github.sceneview.SceneView
 import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
+import io.github.sceneview.rememberEnvironment
 import io.github.sceneview.rememberEnvironmentLoader
-import io.github.sceneview.rememberMainLightNode
-import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberModelInstance
+import io.github.sceneview.rememberModelLoader
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 
-private const val TAG = "AvatarTest"
+// ─────────────────────────────────────────────────────────────────────────────
+private const val TAG        = "AvatarTest"
 private const val MODEL_PATH = "models/source_named.glb"
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  DIAGNOSTIC LOGGER — собирает все логи в память, потом сохраняет в файл
-// ══════════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+//  DIAGNOSTIC LOGGER
+// ─────────────────────────────────────────────────────────────────────────────
 
 private object DiagLog {
-    private val lines = CopyOnWriteArrayList<String>()
+    private val lines     = CopyOnWriteArrayList<String>()
     private val startTime = System.currentTimeMillis()
 
-    fun log(level: String, tag: String, msg: String) {
+    private fun log(level: String, msg: String) {
         val ts = System.currentTimeMillis() - startTime
-        val entry = "[${ts}ms] [$level/$tag] $msg"
-        lines.add(entry)
+        lines.add("[${ts}ms][$level] $msg")
         when (level) {
-            "E" -> Log.e(tag, msg)
-            "W" -> Log.w(tag, msg)
-            "I" -> Log.i(tag, msg)
-            else -> Log.d(tag, msg)
+            "E" -> Log.e(TAG, msg)
+            "W" -> Log.w(TAG, msg)
+            "I" -> Log.i(TAG, msg)
+            else -> Log.d(TAG, msg)
         }
     }
 
-    fun d(msg: String) = log("D", TAG, msg)
-    fun i(msg: String) = log("I", TAG, msg)
-    fun w(msg: String) = log("W", TAG, msg)
-    fun e(msg: String) = log("E", TAG, msg)
+    fun d(msg: String) = log("D", msg)
+    fun i(msg: String) = log("I", msg)
+    fun w(msg: String) = log("W", msg)
+    fun e(msg: String) = log("E", msg)
 
-    fun getFullLog(): String {
-        val header = buildString {
-            appendLine("═══════════════════════════════════════════")
-            appendLine("  AVATAR TEST DIAGNOSTIC LOG")
-            appendLine("  Date: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}")
-            appendLine("  Total entries: ${lines.size}")
-            appendLine("═══════════════════════════════════════════")
-            appendLine()
-        }
-        return header + lines.joinToString("\n")
+    fun getFullLog(): String = buildString {
+        appendLine("══════════════════════════════════════════")
+        appendLine("  AVATAR TEST DIAGNOSTIC LOG")
+        appendLine("  ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}")
+        appendLine("  Entries: ${lines.size}")
+        appendLine("══════════════════════════════════════════")
+        appendLine()
+        lines.forEach { appendLine(it) }
     }
 
     fun clear() = lines.clear()
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  ASSET VALIDATOR — проверяет GLB файл прямо из assets
-// ══════════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+//  ASSET VALIDATOR
+// ─────────────────────────────────────────────────────────────────────────────
 
 private fun validateGlbAsset(context: Context, path: String): String {
-    DiagLog.i("╔══ ASSET VALIDATION START: $path ══╗")
     return try {
-        // 1) Проверяем что файл вообще открывается
-        val inputStream = context.assets.open(path)
-        DiagLog.d("  assets.open() — OK")
-
-        // 2) Читаем первые 12 байт (GLB header)
+        val stream = context.assets.open(path)
         val header = ByteArray(12)
-        val bytesRead = inputStream.read(header)
-        DiagLog.d("  header bytes read: $bytesRead")
-
-        // 3) Считаем полный размер
-        val available = inputStream.available()
-        // Для больших файлов available() может вернуть 0 или неполное значение,
-        // поэтому читаем всё
-        var totalSize = bytesRead.toLong()
-        val buf = ByteArray(8192)
-        var nonZeroBytes = 0L
-        // Проверяем первые 12 байт на нули
-        for (b in header) { if (b != 0.toByte()) nonZeroBytes++ }
-
-        while (true) {
-            val n = inputStream.read(buf)
-            if (n <= 0) break
-            totalSize += n
-            for (i in 0 until n) { if (buf[i] != 0.toByte()) nonZeroBytes++ }
-        }
-        inputStream.close()
-
-        DiagLog.d("  total size: $totalSize bytes (${totalSize / 1024}KB)")
-        DiagLog.d("  non-zero bytes: $nonZeroBytes / $totalSize")
-
-        // 4) Проверяем GLB magic
-        val magic = String(header, 0, 4, Charsets.US_ASCII)
-        val isGlb = header[0] == 0x67.toByte() && header[1] == 0x6C.toByte() &&
-                header[2] == 0x54.toByte() && header[3] == 0x46.toByte()
-        DiagLog.d("  magic bytes: ${header.take(4).joinToString(" ") { "0x%02X".format(it) }}")
-        DiagLog.d("  magic string: '$magic'")
-        DiagLog.d("  is valid GLB: $isGlb")
-
-        if (isGlb && bytesRead >= 12) {
-            val version = (header[4].toInt() and 0xFF) or
-                    ((header[5].toInt() and 0xFF) shl 8) or
-                    ((header[6].toInt() and 0xFF) shl 16) or
-                    ((header[7].toInt() and 0xFF) shl 24)
-            val fileLength = (header[8].toInt() and 0xFF) or
-                    ((header[9].toInt() and 0xFF) shl 8) or
-                    ((header[10].toInt() and 0xFF) shl 16) or
-                    ((header[11].toInt() and 0xFF) shl 24)
-            DiagLog.d("  GLB version: $version")
-            DiagLog.d("  GLB declared length: $fileLength")
-        }
-
-        if (nonZeroBytes == 0L) {
-            DiagLog.e("  ✖ FILE IS ALL ZEROS! Model is corrupted!")
-            "FAIL: All zeros ($totalSize bytes)"
-        } else if (!isGlb) {
-            DiagLog.e("  ✖ NOT A VALID GLB FILE! Magic: $magic")
-            "FAIL: Not GLB (magic=$magic, ${totalSize}b)"
-        } else {
-            DiagLog.i("  ✔ GLB file looks valid: ${totalSize}b, ${nonZeroBytes} non-zero")
-            "OK: GLB ${totalSize / 1024}KB"
-        }
+        val read   = stream.read(header)
+        var total  = read.toLong()
+        val buf    = ByteArray(8192)
+        while (true) { val n = stream.read(buf); if (n <= 0) break; total += n }
+        stream.close()
+        val isGlb = read >= 4 &&
+            header[0] == 0x67.toByte() && header[1] == 0x6C.toByte() &&
+            header[2] == 0x54.toByte() && header[3] == 0x46.toByte()
+        DiagLog.i("GLB valid=$isGlb  size=${total / 1024}KB")
+        if (isGlb) "OK ${total / 1024}KB" else "FAIL: not GLB"
     } catch (e: Exception) {
-        DiagLog.e("  ✖ EXCEPTION: ${e::class.simpleName}: ${e.message}")
-        "FAIL: ${e::class.simpleName}: ${e.message}"
-    } finally {
-        DiagLog.i("╚══ ASSET VALIDATION END ══╝")
+        DiagLog.e("validateGlb: ${e.message}")
+        "FAIL: ${e.message}"
     }
 }
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  Список всех assets в models/
-// ══════════════════════════════════════════════════════════════════════════════
 
 private fun listAssets(context: Context) {
-    DiagLog.i("╔══ LISTING ASSETS ══╗")
     try {
         val root = context.assets.list("") ?: emptyArray()
-        DiagLog.d("  root: ${root.joinToString(", ")}")
-
+        DiagLog.d("assets root: ${root.joinToString()}")
         if ("models" in root) {
-            val models = context.assets.list("models") ?: emptyArray()
-            DiagLog.d("  models/: ${models.joinToString(", ")}")
-            models.forEach { name ->
-                try {
-                    val s = context.assets.open("models/$name")
-                    val size = s.available()
-                    s.close()
-                    DiagLog.d("    models/$name → ${size}b available")
-                } catch (e: Exception) {
-                    DiagLog.w("    models/$name → ${e.message}")
-                }
-            }
+            DiagLog.d("models/: ${context.assets.list("models")?.joinToString()}")
         } else {
-            DiagLog.w("  'models' directory NOT FOUND in assets!")
-            // Пробуем другие папки
-            root.forEach { dir ->
-                try {
-                    val sub = context.assets.list(dir)
-                    if (sub != null && sub.isNotEmpty()) {
-                        DiagLog.d("  $dir/: ${sub.take(10).joinToString(", ")}${if (sub.size > 10) "..." else ""}")
-                    }
-                } catch (_: Exception) {}
-            }
+            DiagLog.e("'models' dir NOT found in assets!")
         }
-    } catch (e: Exception) {
-        DiagLog.e("  Exception listing assets: ${e.message}")
-    }
-    DiagLog.i("╚══ END LISTING ══╝")
+    } catch (e: Exception) { DiagLog.e("listAssets: ${e.message}") }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  MORPH TARGET INDICES — ARKit 51 blendshapes
-// ══════════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+//  ARKit 52 morph-target indices   (head_lod0_ORIGINAL mesh)
+// ─────────────────────────────────────────────────────────────────────────────
 
 private object Idx {
     const val eyeBlinkLeft        = 0;  const val eyeLookDownLeft     = 1
@@ -272,139 +187,151 @@ private object Idx {
     const val noseSneerRight      = 50
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
 //  TEST SEQUENCE
-// ══════════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
 
 private enum class Category(val label: String, val color: Color) {
-    EYES("Eyes", Color(0xFF1565C0)), BROWS("Brows", Color(0xFF6A1B9A)),
-    JAW("Jaw", Color(0xFF00695C)), MOUTH("Mouth", Color(0xFF2E7D32)),
-    CHEEKS("Cheeks", Color(0xFF795548)), NOSE("Nose", Color(0xFF607D8B)),
-    EMOTION("Emotion", Color(0xFFC62828)), VISEME("Viseme", Color(0xFF0097A7)),
-    COMBO("Combo", Color(0xFFAD1457)), STRESS("Stress", Color(0xFFFF6F00)),
-    ANIMATION("Animation", Color(0xFF37474F)),
+    EYES("Eyes",       Color(0xFF1565C0)),
+    BROWS("Brows",     Color(0xFF6A1B9A)),
+    JAW("Jaw",         Color(0xFF00695C)),
+    MOUTH("Mouth",     Color(0xFF2E7D32)),
+    CHEEKS("Cheeks",   Color(0xFF795548)),
+    NOSE("Nose",       Color(0xFF607D8B)),
+    EMOTION("Emotion", Color(0xFFC62828)),
+    VISEME("Viseme",   Color(0xFF0097A7)),
+    ANIMATION("Anim",  Color(0xFF37474F)),
 }
 
 private data class Step(
-    val label: String, val category: Category,
-    val headWeights: FloatArray? = FloatArray(51), val durationMs: Long = 1_800,
+    val label: String,
+    val category: Category,
+    val headWeights: FloatArray? = FloatArray(51),
+    val durationMs: Long = 1_800,
 ) {
     companion object {
-        fun head(label: String, cat: Category, dur: Long = 1_800, block: FloatArray.() -> Unit): Step {
-            val w = FloatArray(51); w.block(); return Step(label, cat, w, dur)
+        fun head(l: String, c: Category, dur: Long = 1_800, b: FloatArray.() -> Unit): Step {
+            val w = FloatArray(51); w.b(); return Step(l, c, w, dur)
         }
-        fun anim(label: String, dur: Long = 20_500): Step =
-            Step(label, Category.ANIMATION, headWeights = null, durationMs = dur)
+        fun anim(l: String, dur: Long = 20_500) =
+            Step(l, Category.ANIMATION, headWeights = null, durationMs = dur)
     }
 }
 
 private val SEQUENCE: List<Step> = buildList {
-    add(Step.head("Blink Both", Category.EYES) { this[Idx.eyeBlinkLeft]=1f; this[Idx.eyeBlinkRight]=1f })
-    add(Step.head("Look Left", Category.EYES) { this[Idx.eyeLookOutLeft]=1f; this[Idx.eyeLookInRight]=1f })
-    add(Step.head("Look Up", Category.EYES) { this[Idx.eyeLookUpLeft]=1f; this[Idx.eyeLookUpRight]=1f })
-    add(Step.head("Wide Eyes", Category.EYES) { this[Idx.eyeWideLeft]=1f; this[Idx.eyeWideRight]=1f })
-    add(Step.head("Brow Down", Category.BROWS) { this[Idx.browDownLeft]=1f; this[Idx.browDownRight]=1f })
+    add(Step.head("Blink Both",    Category.EYES)  { this[Idx.eyeBlinkLeft]=1f;  this[Idx.eyeBlinkRight]=1f })
+    add(Step.head("Look Left",     Category.EYES)  { this[Idx.eyeLookOutLeft]=1f;this[Idx.eyeLookInRight]=1f })
+    add(Step.head("Look Up",       Category.EYES)  { this[Idx.eyeLookUpLeft]=1f; this[Idx.eyeLookUpRight]=1f })
+    add(Step.head("Wide Eyes",     Category.EYES)  { this[Idx.eyeWideLeft]=1f;   this[Idx.eyeWideRight]=1f })
+    add(Step.head("Brow Down",     Category.BROWS) { this[Idx.browDownLeft]=1f;  this[Idx.browDownRight]=1f })
     add(Step.head("Brow Inner Up", Category.BROWS) { this[Idx.browInnerUp]=1f })
-    add(Step.head("Jaw Open", Category.JAW) { this[Idx.jawOpen]=1f })
-    add(Step.head("Jaw Forward", Category.JAW) { this[Idx.jawForward]=1f })
-    add(Step.head("Smile", Category.MOUTH) { this[Idx.mouthSmileLeft]=1f; this[Idx.mouthSmileRight]=1f })
-    add(Step.head("Frown", Category.MOUTH) { this[Idx.mouthFrownLeft]=1f; this[Idx.mouthFrownRight]=1f })
-    add(Step.head("Pucker", Category.MOUTH) { this[Idx.mouthPucker]=1f })
-    add(Step.head("Funnel", Category.MOUTH) { this[Idx.mouthFunnel]=1f })
-    add(Step.head("Cheek Puff", Category.CHEEKS) { this[Idx.cheekPuff]=1f })
-    add(Step.head("Nose Sneer", Category.NOSE) { this[Idx.noseSneerLeft]=1f; this[Idx.noseSneerRight]=1f })
-    add(Step.head("Happy", Category.EMOTION, dur=2500) {
+    add(Step.head("Jaw Open",      Category.JAW)   { this[Idx.jawOpen]=1f })
+    add(Step.head("Jaw Forward",   Category.JAW)   { this[Idx.jawForward]=1f })
+    add(Step.head("Smile",         Category.MOUTH) { this[Idx.mouthSmileLeft]=1f; this[Idx.mouthSmileRight]=1f })
+    add(Step.head("Frown",         Category.MOUTH) { this[Idx.mouthFrownLeft]=1f; this[Idx.mouthFrownRight]=1f })
+    add(Step.head("Pucker",        Category.MOUTH) { this[Idx.mouthPucker]=1f })
+    add(Step.head("Funnel",        Category.MOUTH) { this[Idx.mouthFunnel]=1f })
+    add(Step.head("Cheek Puff",    Category.CHEEKS){ this[Idx.cheekPuff]=1f })
+    add(Step.head("Nose Sneer",    Category.NOSE)  { this[Idx.noseSneerLeft]=1f; this[Idx.noseSneerRight]=1f })
+    add(Step.head("Happy", Category.EMOTION, 2500) {
         this[Idx.mouthSmileLeft]=0.9f; this[Idx.mouthSmileRight]=0.9f
         this[Idx.cheekSquintLeft]=0.6f; this[Idx.cheekSquintRight]=0.6f
     })
-    add(Step.head("Angry", Category.EMOTION, dur=2500) {
-        this[Idx.browDownLeft]=1f; this[Idx.browDownRight]=1f
-        this[Idx.noseSneerLeft]=0.6f; this[Idx.noseSneerRight]=0.6f; this[Idx.jawForward]=0.3f
+    add(Step.head("Angry", Category.EMOTION, 2500) {
+        this[Idx.browDownLeft]=1f;    this[Idx.browDownRight]=1f
+        this[Idx.noseSneerLeft]=0.6f; this[Idx.noseSneerRight]=0.6f
+        this[Idx.jawForward]=0.3f
     })
-    add(Step.head("Surprised", Category.EMOTION, dur=2500) {
-        this[Idx.eyeWideLeft]=0.9f; this[Idx.eyeWideRight]=0.9f
-        this[Idx.browInnerUp]=0.8f; this[Idx.jawOpen]=0.6f
+    add(Step.head("Surprised", Category.EMOTION, 2500) {
+        this[Idx.eyeWideLeft]=0.9f;  this[Idx.eyeWideRight]=0.9f
+        this[Idx.browInnerUp]=0.8f;  this[Idx.jawOpen]=0.6f
     })
-    add(Step.head("Viseme: AA", Category.VISEME, dur=1200) { this[Idx.jawOpen]=0.7f })
-    add(Step.head("Viseme: OO", Category.VISEME, dur=1200) { this[Idx.mouthFunnel]=0.8f; this[Idx.mouthPucker]=0.5f })
-    add(Step.head("Stress: Max All", Category.STRESS, dur=2500) { for(i in 0 until 51) this[i]=1f })
+    add(Step.head("Viseme AA", Category.VISEME, 1200) { this[Idx.jawOpen]=0.7f })
+    add(Step.head("Viseme OO", Category.VISEME, 1200) { this[Idx.mouthFunnel]=0.8f; this[Idx.mouthPucker]=0.5f })
     add(Step.anim("Built-in Anim"))
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  MORPH APPLICATION — работает с ModelInstance + Engine
-// ══════════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+//  MORPH APPLICATION
+// ─────────────────────────────────────────────────────────────────────────────
 
-private fun applyMorphsToInstance(engine: Engine, instance: ModelInstance, headW: FloatArray) {
-    val rm = engine.renderableManager
+/*
+ * Model mesh → morph count:
+ *   head_lod0_ORIGINAL  → 51   (full ARKit set)
+ *   teeth_ORIGINAL      →  5   (jaw* + mouthClose)
+ *   eyeLeft_ORIGINAL    →  4   (eyeLook* Left)
+ *   eyeRight_ORIGINAL   →  4   (eyeLook* Right)
+ */
+private fun applyMorphs(engine: Engine, instance: ModelInstance, headW: FloatArray) {
+    val rm     = engine.renderableManager
     val teethW = floatArrayOf(
         headW[Idx.jawForward], headW[Idx.jawLeft], headW[Idx.jawRight],
-        headW[Idx.jawOpen], headW[Idx.mouthClose]
+        headW[Idx.jawOpen],    headW[Idx.mouthClose]
     )
     val eyeLW = floatArrayOf(
         headW[Idx.eyeLookDownLeft], headW[Idx.eyeLookInLeft],
-        headW[Idx.eyeLookOutLeft], headW[Idx.eyeLookUpLeft]
+        headW[Idx.eyeLookOutLeft],  headW[Idx.eyeLookUpLeft]
     )
     val eyeRW = floatArrayOf(
         headW[Idx.eyeLookDownRight], headW[Idx.eyeLookInRight],
-        headW[Idx.eyeLookOutRight], headW[Idx.eyeLookUpRight]
+        headW[Idx.eyeLookOutRight],  headW[Idx.eyeLookUpRight]
     )
-    val renderables = instance.entities.filter { rm.hasComponent(it) }.map { rm.getInstance(it) }
-    var fourIdx = 0
-    renderables.forEach { ri ->
-        val count = rm.getMorphTargetCount(ri)
-        if (count <= 0) return@forEach
-        val w = when (count) {
-            51 -> headW
-            5 -> teethW
-            4 -> { val r = if (fourIdx == 0) eyeLW else eyeRW; fourIdx++; r }
-            else -> return@forEach
+    var eye4 = 0
+    instance.entities
+        .filter { rm.hasComponent(it) }
+        .map    { rm.getInstance(it) }
+        .forEach { ri ->
+            val count = rm.getMorphTargetCount(ri)
+            if (count <= 0) return@forEach
+            val w = when (count) {
+                51 -> headW
+                5  -> teethW
+                4  -> if (eye4++ == 0) eyeLW else eyeRW
+                else -> { DiagLog.w("unexpected morphCount=$count"); return@forEach }
+            }
+            try { rm.setMorphWeights(ri, w, 0) }
+            catch (ex: Exception) { DiagLog.e("setMorphWeights count=$count: ${ex.message}") }
         }
-        try { rm.setMorphWeights(ri, w, 0) } catch (ex: Exception) {
-            DiagLog.e("setMorphWeights failed: count=$count err=${ex.message}")
-        }
-    }
 }
 
-private suspend fun animateMorphsSmooth(
-    engine: Engine, instance: ModelInstance, cur: FloatArray, tgt: FloatArray, durMs: Long
+private suspend fun animateSmooth(
+    engine: Engine, instance: ModelInstance,
+    cur: FloatArray, tgt: FloatArray, durMs: Long,
 ) {
     val start = System.currentTimeMillis()
-    val tmp = FloatArray(51)
+    val tmp   = FloatArray(51)
     while (true) {
         val frac = ((System.currentTimeMillis() - start).toFloat() / durMs).coerceAtMost(1f)
-        val t = if (frac < 0.5f) 2f * frac * frac else 1f - (-2f * frac + 2f).let { it * it } / 2f
+        val t    = if (frac < 0.5f) 2f * frac * frac
+                   else 1f - (-2f * frac + 2f).let { it * it } / 2f
         for (i in 0 until 51) tmp[i] = cur[i] + (tgt[i] - cur[i]) * t
-        applyMorphsToInstance(engine, instance, tmp)
+        applyMorphs(engine, instance, tmp)
         if (frac >= 1f) { tgt.copyInto(cur); break }
         delay(16)
     }
 }
 
-private suspend fun playAnimationManual(instance: ModelInstance, durationMs: Long) {
-    DiagLog.d("playAnimationManual: trying to get animator...")
+private suspend fun playAnimation(instance: ModelInstance, maxMs: Long) {
     val animator = instance.animator
-    DiagLog.d("playAnimationManual: animator=$animator")
-    if (animator == null) throw IllegalStateException("No animator on ModelInstance")
-    val animCount = animator.animationCount
-    DiagLog.d("playAnimationManual: animationCount=$animCount")
-    if (animCount == 0) throw IllegalStateException("No animations in model (count=0)")
-    val animDuration = animator.getAnimationDuration(0)
-    DiagLog.d("playAnimationManual: anim[0] duration=${animDuration}s")
-    val maxMs = minOf(durationMs, (animDuration * 1000).toLong())
-    val start = System.currentTimeMillis()
+        ?: throw IllegalStateException("No animator on instance")
+    if (animator.animationCount == 0)
+        throw IllegalStateException("Model has 0 animations")
+    val durMs = (animator.getAnimationDuration(0) * 1000).toLong()
+    val limit  = minOf(maxMs, durMs)
+    val start  = System.currentTimeMillis()
+    DiagLog.i("playAnimation dur=${durMs}ms limit=${limit}ms")
     while (true) {
         val elapsed = System.currentTimeMillis() - start
-        if (elapsed >= maxMs) break
+        if (elapsed >= limit) break
         animator.applyAnimation(0, elapsed / 1000f)
         animator.updateBoneMatrices()
         delay(16)
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
 //  SCREEN
-// ══════════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -412,184 +339,154 @@ fun AvatarTestScreen(onBack: () -> Unit) {
 
     val context = LocalContext.current
 
-    var stepIndex   by remember { mutableIntStateOf(0) }
-    var isResetting by remember { mutableStateOf(false) }
-    var elapsedSec  by remember { mutableIntStateOf(0) }
-    var isFinished  by remember { mutableStateOf(false) }
-    var statusText  by remember { mutableStateOf("Initializing…") }
+    // ── UI state ──────────────────────────────────────────────────────────
+    var stepIndex      by remember { mutableIntStateOf(0) }
+    var isResetting    by remember { mutableStateOf(false) }
+    var elapsedSec     by remember { mutableIntStateOf(0) }
+    var isFinished     by remember { mutableStateOf(false) }
+    var statusText     by remember { mutableStateOf("Initializing…") }
     var showSaveDialog by remember { mutableStateOf(false) }
+    val morphState     = remember { FloatArray(51) }
 
-    val currentMorphState = remember { FloatArray(51) }
-
-    // ── ModelInstance ref — заполняется ИЗНУТРИ Scene ──────────────────────
-    var modelInstanceRef by remember { mutableStateOf<ModelInstance?>(null) }
-
-    // ── Engine & Loaders ──────────────────────────────────────────────────
-    DiagLog.d("Composable: creating engine & loaders")
+    // ─────────────────────────────────────────────────────────────────────
+    //  SceneView 3.x resources
+    //  Pattern taken verbatim from SamplesScreen.kt → ModelViewerDemo
+    // ─────────────────────────────────────────────────────────────────────
     val engine            = rememberEngine()
     val modelLoader       = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
 
-    DiagLog.d("Composable: engine=$engine, modelLoader=$modelLoader")
-
-    val environment = remember(environmentLoader) {
-        DiagLog.d("Creating environment...")
-        try {
-            val env = environmentLoader.createHDREnvironment("environments/studio_small_09_2k.hdr")
-            if (env != null) {
-                DiagLog.i("HDR environment created OK")
-                env
-            } else {
-                DiagLog.w("HDR env returned null, using default")
-                environmentLoader.createEnvironment()!!
-            }
-        } catch (e: Exception) {
-            DiagLog.w("HDR env exception: ${e.message}, using default")
-            environmentLoader.createEnvironment()!!
-        }
-    }
-
-    val mainLightNode = rememberMainLightNode(engine) {
-        intensity = 100_000f
-        DiagLog.d("MainLightNode created, intensity=100000")
-    }
-
+    // Camera — same as ModelViewerDemo:
+    //   position = Float3(z = 2.5f, y = 0.2f)  +  lookAt(0,0,0)
+    // For a head model centred at origin with scaleToUnits=1.0 →
+    //   z=1.8 gives a comfortable tight close-up.
     val cameraNode = rememberCameraNode(engine) {
-        position = Position(z = 2.5f)
-        DiagLog.d("CameraNode created, position z=2.5")
+        position = Float3(x = 0f, y = 0f, z = 1.8f)
+        lookAt(Float3(0f, 0f, 0f))
     }
 
-    // ── Asset validation при первом запуске ───────────────────────────────
+    // Environment — exact rememberEnvironment() signature from SamplesScreen.kt
+    // Fallback chain: project HDR → demo HDRs → default env
+    val environment = rememberEnvironment(environmentLoader) {
+        environmentLoader.createHDREnvironment("environments/studio_small_09_2k.hdr")
+            ?: environmentLoader.createHDREnvironment("environments/studio_warm_2k.hdr")
+            ?: environmentLoader.createHDREnvironment("environments/studio_2k.hdr")
+            ?: environmentLoader.createHDREnvironment("environments/rooftop_night_2k.hdr")
+            ?: environmentLoader.createEnvironment()
+    }
+
+    // Model instance — declared OUTSIDE SceneView, same as every demo in
+    // SamplesScreen.kt (ModelViewerDemo, AnimationControlDemo, etc.).
+    // Returns null while loading, non-null once the GLB is decoded.
+    // The SAME reference is used:
+    //   1) inside SceneView  → ModelNode renders it
+    //   2) in LaunchedEffect → morph weights are applied to it
+    val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
+
+    // ── One-shot diagnostics ──────────────────────────────────────────────
     LaunchedEffect(Unit) {
         DiagLog.clear()
-        DiagLog.i("╔══════════════════════════════════════════╗")
-        DiagLog.i("║     AVATAR TEST DIAGNOSTIC SESSION       ║")
-        DiagLog.i("╚══════════════════════════════════════════╝")
-        DiagLog.d("Android SDK: ${android.os.Build.VERSION.SDK_INT}")
-        DiagLog.d("Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
-        DiagLog.d("SceneView arsceneview:3.5.2")
-        DiagLog.d("Model path: $MODEL_PATH")
-
+        DiagLog.i("═══ AVATAR TEST SESSION ═══")
+        DiagLog.d("SDK=${android.os.Build.VERSION.SDK_INT}  " +
+            "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
         listAssets(context)
-        val validationResult = validateGlbAsset(context, MODEL_PATH)
-        statusText = "Asset: $validationResult"
-
-        DiagLog.d("Waiting for model to load via rememberModelInstance...")
+        statusText = "Asset: ${validateGlbAsset(context, MODEL_PATH)}"
     }
 
-    // ── Таймер ────────────────────────────────────────────────────────────
+    // ── Timer ─────────────────────────────────────────────────────────────
     LaunchedEffect(isFinished) {
         while (!isFinished) { delay(1_000); elapsedSec++ }
     }
 
-    // ── Авто-показ диалога сохранения через 50с ──────────────────────────
-    LaunchedEffect(Unit) {
-        delay(50_000)
-        DiagLog.i("50s elapsed — triggering save dialog")
-        showSaveDialog = true
-    }
+    // ── Auto-show save dialog at 50 s ─────────────────────────────────────
+    LaunchedEffect(Unit) { delay(50_000); showSaveDialog = true }
 
-    // ── SAF launcher для сохранения лога ─────────────────────────────────
-    val saveLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain")
-    ) { uri ->
-        if (uri != null) {
-            try {
-                context.contentResolver.openOutputStream(uri)?.use { out ->
-                    out.write(DiagLog.getFullLog().toByteArray())
-                }
-                DiagLog.i("Log saved to: $uri")
-                statusText = "Log saved!"
-            } catch (e: Exception) {
-                DiagLog.e("Failed to save log: ${e.message}")
-            }
-        }
-    }
-
-    // ── Прогресс ──────────────────────────────────────────────────────────
-    val currentStep  = SEQUENCE.getOrNull(stepIndex)
-    val totalSteps   = SEQUENCE.size
-    val animProgress by animateFloatAsState(
-        targetValue   = (stepIndex + 1).toFloat() / totalSteps,
-        animationSpec = tween(600), label = "progress",
-    )
-
-    // ── Запуск теста когда modelInstance готов ─────────────────────────────
-    LaunchedEffect(modelInstanceRef) {
-        val inst = modelInstanceRef
-        if (inst == null) {
-            DiagLog.d("LaunchedEffect(modelInstanceRef): still null, waiting...")
+    // ── Test sequence ─────────────────────────────────────────────────────
+    // LaunchedEffect(modelInstance) fires once when the instance transitions
+    // from null → non-null (i.e. when GLB finishes loading).
+    // This is the canonical SceneView 3.x pattern for driving post-load logic.
+    LaunchedEffect(modelInstance) {
+        val inst = modelInstance ?: run {
+            DiagLog.d("modelInstance null — waiting for load")
             return@LaunchedEffect
         }
 
-        DiagLog.i("╔══ MODEL INSTANCE READY ══╗")
-        DiagLog.d("  entities count: ${inst.entities.size}")
-        DiagLog.d("  animator: ${inst.animator}")
-        DiagLog.d("  animator?.animationCount: ${inst.animator?.animationCount}")
-
-        // Проверяем morph targets
+        DiagLog.i("╔══ MODEL READY ══╗")
+        DiagLog.d("  entities: ${inst.entities.size}")
+        DiagLog.d("  animationCount: ${inst.animator?.animationCount}")
         val rm = engine.renderableManager
-        inst.entities.forEachIndexed { idx, entity ->
-            val hasComp = rm.hasComponent(entity)
-            if (hasComp) {
-                val ri = rm.getInstance(entity)
-                val morphCount = rm.getMorphTargetCount(ri)
-                DiagLog.d("  entity[$idx]=$entity renderable morphTargets=$morphCount")
-            } else {
-                DiagLog.d("  entity[$idx]=$entity — no renderable component")
-            }
+        inst.entities.forEachIndexed { i, e ->
+            if (rm.hasComponent(e))
+                DiagLog.d("  entity[$i] morphTargets=${rm.getMorphTargetCount(rm.getInstance(e))}")
         }
 
-        statusText = "Model loaded! Starting test..."
-        DiagLog.i("═══ TEST SEQUENCE START ═══")
-        delay(500)
+        statusText = "Model loaded! Starting test…"
+        delay(600)
 
         SEQUENCE.forEachIndexed { i, step ->
             stepIndex = i; isResetting = false
             statusText = step.label
-            DiagLog.d("Step[$i]: ${step.category.label} — ${step.label}")
+            DiagLog.d("Step[$i] ${step.category.label}: ${step.label}")
 
             if (step.headWeights == null) {
-                DiagLog.d("  → Animation step")
-                animateMorphsSmooth(engine, inst, currentMorphState, FloatArray(51), 300)
+                // ── Built-in animation step ───────────────────────────────
+                animateSmooth(engine, inst, morphState, FloatArray(51), 300)
                 try {
-                    playAnimationManual(inst, step.durationMs)
-                    statusText = "OK: Anim played"
-                    DiagLog.i("  → Animation OK")
-                } catch (e: Exception) {
-                    statusText = "FAIL: ${e.message}"
-                    DiagLog.e("  → Animation FAIL: ${e.message}")
+                    playAnimation(inst, step.durationMs)
+                    statusText = "OK: anim played"
+                    DiagLog.i("  → anim OK")
+                } catch (ex: Exception) {
+                    statusText = "SKIP: ${ex.message}"
+                    DiagLog.w("  → anim skip: ${ex.message}")
                     delay(step.durationMs)
                 }
             } else {
-                DiagLog.d("  → Morph step: active=${step.headWeights.count { it > 0f }}")
-                animateMorphsSmooth(engine, inst, currentMorphState, step.headWeights, 450)
+                // ── Morph target step ─────────────────────────────────────
+                animateSmooth(engine, inst, morphState, step.headWeights, 450)
                 statusText = "OK: ${step.label}"
                 delay((step.durationMs - 450).coerceAtLeast(200))
                 isResetting = true
-                animateMorphsSmooth(engine, inst, currentMorphState, FloatArray(51), 400)
+                animateSmooth(engine, inst, morphState, FloatArray(51), 400)
                 delay(100)
             }
         }
-        DiagLog.i("═══ TEST SEQUENCE COMPLETE ═══")
-        statusText = "All tests complete"
-        isFinished = true
+
+        DiagLog.i("═══ SEQUENCE COMPLETE ═══")
+        statusText  = "All ${SEQUENCE.size} tests complete"
+        isFinished  = true
         showSaveDialog = true
     }
 
-    // ── Save dialog ──────────────────────────────────────────────────────
+    // ── SAF launcher ──────────────────────────────────────────────────────
+    val saveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        try {
+            context.contentResolver.openOutputStream(uri)?.use {
+                it.write(DiagLog.getFullLog().toByteArray())
+            }
+            statusText = "Log saved!"
+        } catch (e: Exception) { DiagLog.e("save: ${e.message}") }
+    }
+
+    // ── Save dialog ───────────────────────────────────────────────────────
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
-            title = { Text("Save Diagnostic Log") },
-            text = {
-                Text("${DiagLog.getFullLog().lines().size} log entries collected.\nModel: ${if (modelInstanceRef != null) "LOADED" else "NOT LOADED"}\nElapsed: ${elapsedSec}s")
+            title = { Text("Diagnostic Log") },
+            text  = {
+                Text(
+                    "${DiagLog.getFullLog().lines().size} entries\n" +
+                    "Model: ${if (modelInstance != null) "✓ LOADED" else "✖ NOT LOADED"}\n" +
+                    "Elapsed: ${elapsedSec}s"
+                )
             },
             confirmButton = {
                 TextButton(onClick = {
                     showSaveDialog = false
                     saveLauncher.launch("avatar_test_${System.currentTimeMillis()}.txt")
-                }) { Text("Save to file") }
+                }) { Text("Save") }
             },
             dismissButton = {
                 TextButton(onClick = { showSaveDialog = false }) { Text("Later") }
@@ -597,98 +494,90 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         )
     }
 
-    // ── UI ────────────────────────────────────────────────────────────────
+    // ── Progress ──────────────────────────────────────────────────────────
+    val currentStep  = SEQUENCE.getOrNull(stepIndex)
+    val totalSteps   = SEQUENCE.size
+    val animProgress by animateFloatAsState(
+        targetValue   = (stepIndex + 1).toFloat() / totalSteps,
+        animationSpec = tween(600),
+        label         = "progress",
+    )
+
+    // ── Layout ────────────────────────────────────────────────────────────
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Avatar Test DIAG", fontWeight = FontWeight.SemiBold) },
+                title = { Text("Avatar Morph Test", fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
             )
         }
     ) { padding ->
-
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier            = Modifier.fillMaxSize().padding(padding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
 
+            // ── 3-D viewport ───────────────────────────────────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .background(Color.Black)
+                    .background(Color(0xFF0A0A0A))
             ) {
-                // Настраиваем камеру так, чтобы она видела центр сцены
-                val cameraNode = rememberCameraNode(engine) {
-                    position = Position(x = 0.0f, y = 0.0f, z = 3.0f) // Отходим на 3 метра
-                    lookAt(Position(0f, 0f, 0f)) // Смотрим строго в ноль
-                }
-
-                Scene(
-                    modifier = Modifier.fillMaxSize(),
-                    engine = engine,
-                    modelLoader = modelLoader,
-                    environmentLoader = environmentLoader,
-                    environment = environment,
-                    mainLightNode = mainLightNode,
-                    cameraNode = cameraNode,
-                    cameraManipulator = rememberCameraManipulator(),
+                // ═══════════════════════════════════════════════════════════
+                //  SceneView — pattern from SamplesScreen.kt ModelViewerDemo
+                //
+                //  Key points vs the broken original:
+                //   ✓  SceneView  (not ARScene / Scene)
+                //   ✓  rememberEnvironment()  (not remember { loader.create... })
+                //   ✓  modelInstance declared OUTSIDE → same ref used here + LaunchedEffect
+                //   ✓  single cameraNode  (was duplicated before)
+                //   ✓  autoAnimate = false  (we control animation manually)
+                // ═══════════════════════════════════════════════════════════
+                SceneView(
+                    modifier          = Modifier.fillMaxSize(),
+                    engine            = engine,
+                    modelLoader       = modelLoader,
+                    cameraNode        = cameraNode,
+                    cameraManipulator = rememberCameraManipulator(
+                        orbitHomePosition = Float3(x = 0f, y = 0f, z = 1.8f),
+                        targetPosition    = Float3(0f, 0f, 0f)
+                    ),
+                    environment       = environment,
                 ) {
-                    // Мы не добавляем куб, чтобы не усложнять.
-                    // Сразу пытаемся отрендерить аватар.
-
-                    val modelInstance = rememberModelInstance(
-                        modelLoader = modelLoader,
-                        assetFileLocation = MODEL_PATH,
-                    )
-
-                    LaunchedEffect(modelInstance) {
-                        if (modelInstance != null) {
-                            DiagLog.i("SUCCESS: Model instance loaded")
-                            modelInstanceRef = modelInstance
-                        } else {
-                            DiagLog.e("ERROR: ModelInstance is null")
-                        }
-                    }
-
                     modelInstance?.let { inst ->
-                        // В версии 3.5.2 параметры задаются через свойства или внутри apply
                         ModelNode(
                             modelInstance = inst,
-                        ).apply {
-                            // Центрируем модель: игнорируем встроенные координаты glb
-                            centerModel() 
-                            // Включаем/выключаем анимацию
-                            autoAnimate = false
-                        }
+                            scaleToUnits  = 1.0f,   // head fits in 1 m sphere
+                            autoAnimate   = false,  // driven manually via morphs / animator
+                        )
                     }
                 }
 
-                // Визуальный индикатор работы (Scanline)
                 if (!isFinished) ScanlineOverlay()
 
-                // Информационный текст поверх
+                // Status badge (top-left overlay)
                 Text(
-                    text = if (modelInstanceRef != null) "✓ Model Instance Found" else "⏳ Waiting for GLB...",
-                    color = if (modelInstanceRef != null) Color.Green else Color.Yellow,
-                    fontSize = 12.sp,
-                    modifier = Modifier
+                    text = if (modelInstance != null) "✓ Model loaded" else "⏳ Loading…",
+                    color = if (modelInstance != null) Color(0xFF69F0AE) else Color(0xFFFFD740),
+                    fontSize   = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier   = Modifier
                         .align(Alignment.TopStart)
                         .padding(8.dp)
-                        .background(Color.Black.copy(alpha = 0.6f))
-                        .padding(4.dp)
+                        .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
                 )
             }
 
+            // ── Bottom panel ────────────────────────────────────────────────
             Surface(
                 modifier       = Modifier.fillMaxWidth(),
                 color          = MaterialTheme.colorScheme.surface,
@@ -699,11 +588,11 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     LinearProgressIndicator(
-                        progress   = { animProgress },
-                        modifier   = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
-                        strokeCap  = StrokeCap.Round,
-                        color      = currentStep?.category?.color ?: MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        progress      = { animProgress },
+                        modifier      = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
+                        strokeCap     = StrokeCap.Round,
+                        color         = currentStep?.category?.color ?: MaterialTheme.colorScheme.primary,
+                        trackColor    = MaterialTheme.colorScheme.surfaceVariant,
                     )
 
                     if (!isFinished && currentStep != null) {
@@ -725,7 +614,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                                 )
                             }
                         }
-
                         if (currentStep.headWeights != null && !isResetting) {
                             ActiveWeightsRow(currentStep.headWeights)
                         }
@@ -733,7 +621,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
 
                     if (isFinished) {
                         Text(
-                            text       = "All $totalSteps steps complete",
+                            "✓ All $totalSteps steps complete",
                             fontWeight = FontWeight.Bold,
                             color      = Color(0xFF2E7D32),
                         )
@@ -742,38 +630,39 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     Row(
                         modifier              = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment     = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text  = "Step ${(stepIndex + 1).coerceAtMost(totalSteps)} / $totalSteps",
+                            "Step ${(stepIndex + 1).coerceAtMost(totalSteps)} / $totalSteps",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
                             text     = statusText,
                             style    = MaterialTheme.typography.labelMedium,
-                            color    = if (statusText.startsWith("OK") || statusText.contains("loaded") || statusText.contains("complete"))
-                                           Color(0xFF2E7D32)
-                                       else if (statusText.contains("FAIL") || statusText.contains("error", ignoreCase = true))
-                                           Color(0xFFD32F2F)
-                                       else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color    = when {
+                                statusText.startsWith("OK") ||
+                                statusText.contains("loaded") ||
+                                statusText.contains("complete") -> Color(0xFF2E7D32)
+                                statusText.contains("FAIL") ||
+                                statusText.contains("error", ignoreCase = true) -> Color(0xFFD32F2F)
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                         )
                         Text(
-                            text  = "${elapsedSec}s",
+                            "${elapsedSec}s",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
 
-                    // Кнопка ручного сохранения лога
-                    TextButton(
-                        onClick = {
-                            saveLauncher.launch("avatar_diag_${System.currentTimeMillis()}.txt")
-                        }
-                    ) {
-                        Text("📋 Save log now", fontSize = 11.sp)
+                    TextButton(onClick = {
+                        saveLauncher.launch("avatar_diag_${System.currentTimeMillis()}.txt")
+                    }) {
+                        Text("📋 Save diagnostic log", fontSize = 11.sp)
                     }
                 }
             }
@@ -781,9 +670,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  COMPONENTS
-// ══════════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+//  HELPER COMPOSABLES
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun CategoryChip(category: Category) {
@@ -800,14 +689,20 @@ private fun CategoryChip(category: Category) {
 
 @Composable
 private fun ActiveWeightsRow(weights: FloatArray) {
-    val active = weights.indices.filter { weights[it] > 0.001f }.take(8).map { it to weights[it] }
+    val active = weights.indices
+        .filter { weights[it] > 0.001f }
+        .take(8)
+        .map { it to weights[it] }
     if (active.isEmpty()) return
     Row(
         modifier              = Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         for ((idx, value) in active) {
-            Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
                 Text(
                     text     = "#$idx=${"%.2f".format(value)}",
                     fontSize = 10.sp,
@@ -823,9 +718,13 @@ private fun ActiveWeightsRow(weights: FloatArray) {
 private fun ScanlineOverlay() {
     val inf   = rememberInfiniteTransition(label = "scan")
     val alpha by inf.animateFloat(
-        0f, 0.06f,
-        infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
+        initialValue  = 0f,
+        targetValue   = 0.05f,
+        animationSpec = infiniteRepeatable(
+            tween(1200, easing = LinearEasing),
+            RepeatMode.Reverse,
+        ),
         label = "a",
     )
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF00E5FF).copy(alpha = alpha)))
+    Box(Modifier.fillMaxSize().background(Color(0xFF00E5FF).copy(alpha = alpha)))
 }
