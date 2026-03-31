@@ -63,6 +63,7 @@ import com.google.android.filament.Engine
 import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.SceneView
 import io.github.sceneview.model.ModelInstance
+import io.github.sceneview.node.ModelNode
 import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
@@ -341,7 +342,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val morphState     = remember { FloatArray(51) }
 
     // ─────────────────────────────────────────────────────────────────────
-    //  SceneView 3.x resources — паттерн из SamplesScreen.kt
+    //  SceneView 3.x resources
     // ─────────────────────────────────────────────────────────────────────
     val engine            = rememberEngine()
     val modelLoader       = rememberModelLoader(engine)
@@ -352,8 +353,14 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         lookAt(Float3(0f, 0f, 0f))
     }
 
-    // Neutral environment — встроен в sceneview library, не требует HDR в assets
-    val environment = rememberEnvironment(environmentLoader)
+    // Безопасная цепочка: HDR если есть → neutral KTX из библиотеки
+    val environment = rememberEnvironment(environmentLoader) {
+        environmentLoader.createHDREnvironment("environments/studio_small_09_2k.hdr")
+            ?: environmentLoader.createHDREnvironment("environments/studio_warm_2k.hdr")
+            ?: environmentLoader.createHDREnvironment("environments/studio_2k.hdr")
+            ?: environmentLoader.createHDREnvironment("environments/rooftop_night_2k.hdr")
+            ?: io.github.sceneview.createEnvironment(environmentLoader)
+    }
 
     // Модель — null пока грузится, non-null когда готова
     val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
@@ -401,7 +408,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             DiagLog.d("Step[$i] ${step.category.label}: ${step.label}")
 
             if (step.headWeights == null) {
-                // ── Built-in animation step ───────────────────────────────
                 animateSmooth(engine, inst, morphState, FloatArray(51), 300)
                 try {
                     playAnimation(inst, step.durationMs)
@@ -413,7 +419,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     delay(step.durationMs)
                 }
             } else {
-                // ── Morph target step ─────────────────────────────────────
                 animateSmooth(engine, inst, morphState, step.headWeights, 450)
                 statusText = "OK: ${step.label}"
                 delay((step.durationMs - 450).coerceAtLeast(200))
@@ -504,15 +509,14 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     .background(Color(0xFF0A0A0A))
             ) {
                 // ═══════════════════════════════════════════════════════════
-                //  SceneView — паттерн из SamplesScreen.kt ModelViewerDemo
+                //  SceneView (НЕ ARSceneView) — без ARCore camera passthrough
                 //
-                //  Ключевые отличия от сломанного варианта:
-                //   ✓  sceneview:3.5.2  (НЕ arsceneview — нет ARCore passthrough)
-                //   ✓  centerOrigin = Float3(0f,0f,0f) — модель центрирована
-                //      (bbox Z=1.37..1.76 сдвигается в origin)
-                //   ✓  default environment (neutral KTX из библиотеки)
-                //   ✓  default mainLightNode (directional, 100K lux)
-                //   ✓  autoAnimate = false — управляем вручную через morphs
+                //  centerOrigin = Float3(0f,0f,0f) — КРИТИЧНО:
+                //     bbox модели Z=1.37..1.76, без centerOrigin голова
+                //     висит в 1.5м от камеры-цели → пустой viewport
+                //
+                //  ARCore meta-data = "optional" в manifest →
+                //     arsceneview не инициализирует AR-сессию
                 // ═══════════════════════════════════════════════════════════
                 SceneView(
                     modifier          = Modifier.fillMaxSize(),
@@ -537,7 +541,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
 
                 if (!isFinished) ScanlineOverlay()
 
-                // Status badge (top-left overlay)
                 Text(
                     text = if (modelInstance != null) "✓ Model loaded" else "⏳ Loading…",
                     color = if (modelInstance != null) Color(0xFF69F0AE) else Color(0xFFFFD740),
