@@ -9,10 +9,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CAMERA" />
 
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
-    <uses-feature android:name="android.hardware.camera.ar" android:required="true" />
 
     <application
         android:name=".GeminiLiveApplication"
@@ -44,11 +42,6 @@
             android:name=".GeminiLiveForegroundService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
-
-        <meta-data
-            android:name="com.google.ar.core"
-            android:value="required"
-            tools:replace="android:value" />
 
     </application>
 
