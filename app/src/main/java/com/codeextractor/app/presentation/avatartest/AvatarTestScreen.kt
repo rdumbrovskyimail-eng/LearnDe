@@ -339,6 +339,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     var statusText     by remember { mutableStateOf("Initializing…") }
     var showSaveDialog by remember { mutableStateOf(false) }
     val morphState     = remember { FloatArray(51) }
+    var camPosText     by remember { mutableStateOf("...") }
+    var camDistText    by remember { mutableStateOf("...") }
 
     // ─────────────────────────────────────────────────────────────────────
     //  SceneView 3.x resources
@@ -348,8 +350,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val environmentLoader = rememberEnvironmentLoader(engine)
 
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 0.08f, z = 0.45f)
-        lookAt(Float3(0f, 0.08f, 0f))
+        position = Float3(x = 0f, y = 0f, z = 0.45f)
+        lookAt(Float3(0f, 0f, 0f))
     }
 
     val environment = rememberEnvironment(engine)
@@ -514,13 +516,22 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     engine            = engine,
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
-                    cameraManipulator = null,
+                    cameraManipulator = rememberCameraManipulator(
+                        orbitHomePosition = Float3(x = 0f, y = 0f, z = 0.45f),
+                        targetPosition    = Float3(0f, 0f, 0f)
+                    ),
                     environment       = environment,
+                    onFrame           = {
+                        val p = cameraNode.worldPosition
+                        camPosText = "x=%.3f y=%.3f z=%.3f".format(p.x, p.y, p.z)
+                        val d = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+                        camDistText = "dist=%.3f".format(d)
+                    },
                 ) {
                     modelInstance?.let { inst ->
                         ModelNode(
                             modelInstance = inst,
-                            scaleToUnits  = 0.4f,
+                            scaleToUnits  = 0.25f,
                             centerOrigin  = Float3(0f, 0f, 0f),
                             autoAnimate   = false,
                         )
@@ -528,6 +539,17 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                 }
 
                 if (!isFinished) ScanlineOverlay()
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(camPosText, color = Color.Yellow, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(camDistText, color = Color.Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
 
                 Text(
                     text = if (modelInstance != null) "✓ Model loaded" else "⏳ Loading…",
