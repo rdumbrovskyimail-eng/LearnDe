@@ -390,15 +390,12 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         inst.entities.forEachIndexed { i, e ->
             if (rm.hasComponent(e)) {
                 val ri = rm.getInstance(e)
-                val box = rm.getAxisAlignedBoundingBox(ri)
-                DiagLog.d("  entity[$i] bbox center=(${box.center.joinToString()}) half=(${box.halfExtent.joinToString()})")
                 DiagLog.d("  entity[$i] morphTargets=${rm.getMorphTargetCount(ri)}")
             }
             if (tm.hasComponent(e)) {
                 val ti = tm.getInstance(e)
-                val mat = FloatArray(16)
-                tm.getWorldTransformAccurate(ti, mat)
-                DiagLog.d("  entity[$i] worldPos=(${mat[12]}, ${mat[13]}, ${mat[14]})")
+                val mat = tm.getTransform(ti)
+                DiagLog.d("  entity[$i] transform=[${mat[12]}, ${mat[13]}, ${mat[14]}]")
             }
         }
 
