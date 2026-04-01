@@ -515,10 +515,16 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
                     cameraManipulator = rememberCameraManipulator(
-                        orbitHomePosition = Float3(x = 0f, y = 0.1f, z = 0.7f),
+                        orbitHomePosition = Float3(x = 0f, y = 0.1f, z = 0.5f),
                         targetPosition    = Float3(0f, 0f, 0f)
                     ),
                     environment       = environment,
+                    onFrame           = {
+                        // Логируем раз в ~2 секунды (каждый 120-й кадр)
+                        if (it % 120_000_000_000L < 17_000_000L) {
+                            Log.d("AvatarCam", "pos=${cameraNode.position} scale=${cameraNode.scale}")
+                        }
+                    },
                 ) {
                     modelInstance?.let { inst ->
                         ModelNode(
