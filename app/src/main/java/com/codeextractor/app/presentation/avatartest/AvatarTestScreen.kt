@@ -341,6 +341,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val morphState     = remember { FloatArray(51) }
     var camPosText     by remember { mutableStateOf("...") }
     var camDistText    by remember { mutableStateOf("...") }
+    var frameCount     by remember { mutableIntStateOf(0) }
 
     // ─────────────────────────────────────────────────────────────────────
     //  SceneView 3.x resources
@@ -350,7 +351,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val environmentLoader = rememberEnvironmentLoader(engine)
 
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 0f, z = 0.45f)
+        position = Float3(x = 0f, y = 0f, z = 2.5f)
         lookAt(Float3(0f, 0f, 0f))
     }
 
@@ -391,6 +392,14 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         inst.entities.forEachIndexed { i, e ->
             if (rm.hasComponent(e))
                 DiagLog.d("  entity[$i] morphTargets=${rm.getMorphTargetCount(rm.getInstance(e))}")
+        }
+        val tm = engine.transformManager
+        val rootEntity = inst.root
+        if (tm.hasComponent(rootEntity)) {
+            val ti = tm.getInstance(rootEntity)
+            val mat = FloatArray(16)
+            tm.getTransform(ti, mat)
+            DiagLog.i("ROOT TRANSFORM: ${mat.joinToString { "%.3f".format(it) }}")
         }
 
         statusText = "Model loaded! Starting test…"
@@ -516,22 +525,22 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     engine            = engine,
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
-                    cameraManipulator = rememberCameraManipulator(
-                        orbitHomePosition = Float3(x = 0f, y = 0f, z = 0.45f),
-                        targetPosition    = Float3(0f, 0f, 0f)
-                    ),
                     environment       = environment,
                     onFrame           = {
                         val p = cameraNode.worldPosition
                         camPosText = "x=%.3f y=%.3f z=%.3f".format(p.x, p.y, p.z)
                         val d = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
                         camDistText = "dist=%.3f".format(d)
+                        if (frameCount < 5) {
+                            frameCount++
+                            DiagLog.i("FRAME[$frameCount] cam=${camPosText} dist=${camDistText}")
+                        }
                     },
                 ) {
                     modelInstance?.let { inst ->
                         ModelNode(
                             modelInstance = inst,
-                            scaleToUnits  = 0.25f,
+                            scaleToUnits  = 1.8f,
                             centerOrigin  = Float3(0f, 0f, 0f),
                             autoAnimate   = false,
                         )
