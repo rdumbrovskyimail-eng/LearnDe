@@ -47,6 +47,7 @@ jobs:
             -Dandroid.enableJetifier=false
 
       - name: Create Release
+        id: release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
@@ -57,3 +58,29 @@ jobs:
           files: app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send APK to Telegram
+        run: |
+          CAPTION="🚀 *Build v1.0.${{ github.run_number }} успешен*
+
+          📝 *Коммит:* ${{ github.event.head_commit.message }}
+          👤 *Автор:* ${{ github.event.head_commit.author.name }}
+          🔗 [Открыть релиз](${{ github.server_url }}/${{ github.repository }}/releases/tag/v1.0.${{ github.run_number }})"
+
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
+            -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -F document=@"app/build/outputs/apk/debug/app-debug.apk" \
+            -F caption="$CAPTION" \
+            -F parse_mode="Markdown"
+
+      - name: Notify Telegram on failure
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -F text="❌ *Build v1.0.${{ github.run_number }} упал*
+
+          📝 *Коммит:* ${{ github.event.head_commit.message }}
+          👤 *Автор:* ${{ github.event.head_commit.author.name }}
+          🔗 [Посмотреть логи](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+            -F parse_mode="Markdown"
