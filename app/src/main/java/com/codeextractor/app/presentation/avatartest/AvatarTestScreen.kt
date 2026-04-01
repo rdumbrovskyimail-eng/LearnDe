@@ -348,8 +348,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val environmentLoader = rememberEnvironmentLoader(engine)
 
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 0.02f, z = 0.4f)
-        lookAt(Float3(0f, 0.02f, 0f))
+        position = Float3(x = 0f, y = 1.56f, z = 0.7f)
+        lookAt(Float3(0f, 1.56f, 0f))
     }
 
     val environment = rememberEnvironment(engine)
@@ -386,9 +386,20 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         DiagLog.d("  entities: ${inst.entities.size}")
         DiagLog.d("  animationCount: ${inst.animator?.animationCount}")
         val rm = engine.renderableManager
+        val tm = engine.transformManager
         inst.entities.forEachIndexed { i, e ->
-            if (rm.hasComponent(e))
-                DiagLog.d("  entity[$i] morphTargets=${rm.getMorphTargetCount(rm.getInstance(e))}")
+            if (rm.hasComponent(e)) {
+                val ri = rm.getInstance(e)
+                val box = rm.getAxisAlignedBoundingBox(ri)
+                DiagLog.d("  entity[$i] bbox center=(${box.center.joinToString()}) half=(${box.halfExtent.joinToString()})")
+                DiagLog.d("  entity[$i] morphTargets=${rm.getMorphTargetCount(ri)}")
+            }
+            if (tm.hasComponent(e)) {
+                val ti = tm.getInstance(e)
+                val mat = FloatArray(16)
+                tm.getWorldTransformAccurate(ti, mat)
+                DiagLog.d("  entity[$i] worldPos=(${mat[12]}, ${mat[13]}, ${mat[14]})")
+            }
         }
 
         statusText = "Model loaded! Starting test…"
@@ -516,18 +527,10 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     cameraNode        = cameraNode,
                     cameraManipulator = null,
                     environment       = environment,
-                    onFrame           = {
-                        // Логируем раз в ~2 секунды (каждый 120-й кадр)
-                        if (it % 120_000_000_000L < 17_000_000L) {
-                            Log.d("AvatarCam", "pos=${cameraNode.position} scale=${cameraNode.scale}")
-                        }
-                    },
                 ) {
                     modelInstance?.let { inst ->
                         ModelNode(
                             modelInstance = inst,
-                            scaleToUnits  = 0.5f,
-                            centerOrigin  = Float3(0f, 0f, 0f),
                             autoAnimate   = false,
                         )
                     }
