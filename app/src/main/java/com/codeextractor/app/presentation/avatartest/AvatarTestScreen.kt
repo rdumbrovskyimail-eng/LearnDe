@@ -353,14 +353,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         lookAt(Float3(0f, 0f, 0f))
     }
 
-    // Безопасная цепочка: HDR если есть → neutral KTX из библиотеки
-    val environment = rememberEnvironment(environmentLoader) {
-        environmentLoader.createHDREnvironment("environments/studio_small_09_2k.hdr")
-            ?: environmentLoader.createHDREnvironment("environments/studio_warm_2k.hdr")
-            ?: environmentLoader.createHDREnvironment("environments/studio_2k.hdr")
-            ?: environmentLoader.createHDREnvironment("environments/rooftop_night_2k.hdr")
-            ?: io.github.sceneview.createEnvironment(environmentLoader)
-    }
+    val environment = rememberEnvironment(engine)
 
     // Модель — null пока грузится, non-null когда готова
     val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
