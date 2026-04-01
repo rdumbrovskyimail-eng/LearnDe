@@ -394,8 +394,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             }
             if (tm.hasComponent(e)) {
                 val ti = tm.getInstance(e)
-                val mat = tm.getTransform(ti)
-                DiagLog.d("  entity[$i] transform=[${mat[12]}, ${mat[13]}, ${mat[14]}]")
+                val mat = FloatArray(16)
+                tm.getTransform(ti, mat)
+                DiagLog.d("  entity[$i] pos=[${mat[12]}, ${mat[13]}, ${mat[14]}]")
             }
         }
 
