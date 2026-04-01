@@ -348,8 +348,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val environmentLoader = rememberEnvironmentLoader(engine)
 
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 0f, z = 0.35f)
-        lookAt(Float3(0f, 0f, 0f))
+        position = Float3(x = 0f, y = -0.02f, z = 2.0f)
+        lookAt(Float3(0f, -0.02f, 1.56f))
     }
 
     val environment = rememberEnvironment(engine)
@@ -515,8 +515,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
                     cameraManipulator = rememberCameraManipulator(
-                        orbitHomePosition = Float3(x = 0f, y = 0f, z = 0.35f),
-                        targetPosition    = Float3(0f, 0f, 0f)
+                        orbitHomePosition = Float3(x = 0f, y = -0.02f, z = 2.0f),
+                        targetPosition    = Float3(0f, -0.02f, 1.56f)
                     ),
                     environment       = environment,
                     onFrame           = {
@@ -529,8 +529,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelInstance?.let { inst ->
                         ModelNode(
                             modelInstance = inst,
-                            scaleToUnits  = 0.5f,
-                            centerOrigin  = Float3(0f, -1f, 0f),
                             autoAnimate   = false,
                         )
                     }
