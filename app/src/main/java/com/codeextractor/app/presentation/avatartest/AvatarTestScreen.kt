@@ -348,8 +348,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val environmentLoader = rememberEnvironmentLoader(engine)
 
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 1.56f, z = 0.7f)
-        lookAt(Float3(0f, 1.56f, 0f))
+        position = Float3(x = 0f, y = 0.08f, z = 0.45f)
+        lookAt(Float3(0f, 0.08f, 0f))
     }
 
     val environment = rememberEnvironment(engine)
@@ -386,18 +386,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         DiagLog.d("  entities: ${inst.entities.size}")
         DiagLog.d("  animationCount: ${inst.animator?.animationCount}")
         val rm = engine.renderableManager
-        val tm = engine.transformManager
         inst.entities.forEachIndexed { i, e ->
-            if (rm.hasComponent(e)) {
-                val ri = rm.getInstance(e)
-                DiagLog.d("  entity[$i] morphTargets=${rm.getMorphTargetCount(ri)}")
-            }
-            if (tm.hasComponent(e)) {
-                val ti = tm.getInstance(e)
-                val mat = FloatArray(16)
-                tm.getTransform(ti, mat)
-                DiagLog.d("  entity[$i] pos=[${mat[12]}, ${mat[13]}, ${mat[14]}]")
-            }
+            if (rm.hasComponent(e))
+                DiagLog.d("  entity[$i] morphTargets=${rm.getMorphTargetCount(rm.getInstance(e))}")
         }
 
         statusText = "Model loaded! Starting test…"
@@ -529,6 +520,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelInstance?.let { inst ->
                         ModelNode(
                             modelInstance = inst,
+                            scaleToUnits  = 0.4f,
+                            centerOrigin  = Float3(0f, 0f, 0f),
                             autoAnimate   = false,
                         )
                     }
