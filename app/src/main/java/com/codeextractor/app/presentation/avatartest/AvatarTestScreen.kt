@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -351,7 +352,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val environmentLoader = rememberEnvironmentLoader(engine)
 
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 0f, z = 0.7f)
+        position = Float3(x = 0f, y = 0f, z = 4.0f)
         lookAt(Float3(0f, 0f, 0f))
     }
 
@@ -521,11 +522,16 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                 //     arsceneview не инициализирует AR-сессию
                 // ═══════════════════════════════════════════════════════════
                 Scene(
-                    modifier          = Modifier.fillMaxSize(),
+                    modifier          = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) { },
                     engine            = engine,
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
-                    cameraManipulator = null,
+                    cameraManipulator = rememberCameraManipulator(
+                        orbitHomePosition = Float3(0f, 0f, 4.0f),
+                        targetPosition    = Float3(0f, 0f, 0f),
+                    ),
                     environment       = environment,
                     onFrame           = {
                         val p = cameraNode.worldPosition
@@ -541,7 +547,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelInstance?.let { inst ->
                         ModelNode(
                             modelInstance = inst,
-                            scaleToUnits  = 0.5f,
+                            scaleToUnits  = 1.0f,
                             centerOrigin  = Float3(0f, 0f, 0f),
                             autoAnimate   = false,
                         )
