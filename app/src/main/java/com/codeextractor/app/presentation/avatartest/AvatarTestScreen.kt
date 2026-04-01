@@ -499,7 +499,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .background(Color(0xFF0A0A0A))
             ) {
                 // ═══════════════════════════════════════════════════════════
                 //  SceneView (НЕ ARSceneView) — без ARCore camera passthrough
