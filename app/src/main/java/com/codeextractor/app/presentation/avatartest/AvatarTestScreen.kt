@@ -323,7 +323,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     //  CAM_HOME  = начальная позиция камеры
     //  CAM_TARGET = точка куда камера смотрит
     // ═════════════════════════════════════════════════════════════════════
-    val CAM_HOME   = Float3(0f, 1.30f, 0.53f)
+    val CAM_HOME   = Float3(0f, 1.56f, 2.0f)
     val CAM_TARGET = Float3(0f, 1.56f, 0f)
 
     val cameraNode = rememberCameraNode(engine) {
