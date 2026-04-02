@@ -62,7 +62,6 @@ import androidx.compose.ui.unit.sp
 import com.google.android.filament.Engine
 import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.Scene
-import io.github.sceneview.math.Position
 import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.rememberCameraNode
@@ -77,13 +76,10 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 
-// ─────────────────────────────────────────────────────────────────────────────
 private const val TAG        = "AvatarTest"
 private const val MODEL_PATH = "models/source_named.glb"
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DIAGNOSTIC LOGGER
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── DIAGNOSTIC LOGGER ───────────────────────────────────────────────────────
 
 private object DiagLog {
     private val lines     = CopyOnWriteArrayList<String>()
@@ -93,13 +89,10 @@ private object DiagLog {
         val ts = System.currentTimeMillis() - startTime
         lines.add("[${ts}ms][$level] $msg")
         when (level) {
-            "E" -> Log.e(TAG, msg)
-            "W" -> Log.w(TAG, msg)
-            "I" -> Log.i(TAG, msg)
-            else -> Log.d(TAG, msg)
+            "E" -> Log.e(TAG, msg); "W" -> Log.w(TAG, msg)
+            "I" -> Log.i(TAG, msg); else -> Log.d(TAG, msg)
         }
     }
-
     fun d(msg: String) = log("D", msg)
     fun i(msg: String) = log("I", msg)
     fun w(msg: String) = log("W", msg)
@@ -114,13 +107,10 @@ private object DiagLog {
         appendLine()
         lines.forEach { appendLine(it) }
     }
-
     fun clear() = lines.clear()
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ASSET VALIDATOR
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── ASSET VALIDATOR ─────────────────────────────────────────────────────────
 
 private fun validateGlbAsset(context: Context, path: String): String {
     return try {
@@ -148,66 +138,45 @@ private fun listAssets(context: Context) {
         DiagLog.d("assets root: ${root.joinToString()}")
         if ("models" in root) {
             DiagLog.d("models/: ${context.assets.list("models")?.joinToString()}")
-        } else {
-            DiagLog.e("'models' dir NOT found in assets!")
-        }
+        } else DiagLog.e("'models' dir NOT found in assets!")
     } catch (e: Exception) { DiagLog.e("listAssets: ${e.message}") }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ARKit 52 morph-target indices   (head_lod0_ORIGINAL mesh)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── ARKit 52 morph-target indices ───────────────────────────────────────────
 
 private object Idx {
-    const val eyeBlinkLeft        = 0;  const val eyeLookDownLeft     = 1
-    const val eyeLookInLeft       = 2;  const val eyeLookOutLeft      = 3
-    const val eyeLookUpLeft       = 4;  const val eyeSquintLeft       = 5
-    const val eyeWideLeft         = 6;  const val eyeBlinkRight       = 7
-    const val eyeLookDownRight    = 8;  const val eyeLookInRight      = 9
-    const val eyeLookOutRight     = 10; const val eyeLookUpRight      = 11
-    const val eyeSquintRight      = 12; const val eyeWideRight        = 13
-    const val jawForward          = 14; const val jawLeft             = 15
-    const val jawRight            = 16; const val jawOpen             = 17
-    const val mouthClose          = 18; const val mouthFunnel         = 19
-    const val mouthPucker         = 20; const val mouthRight          = 21
-    const val mouthLeft           = 22; const val mouthSmileLeft      = 23
-    const val mouthSmileRight     = 24; const val mouthFrownLeft      = 25
-    const val mouthFrownRight     = 26; const val mouthDimpleLeft     = 27
-    const val mouthDimpleRight    = 28; const val mouthStretchLeft    = 29
-    const val mouthStretchRight   = 30; const val mouthRollLower      = 31
-    const val mouthRollUpper      = 32; const val mouthShrugLower     = 33
-    const val mouthShrugUpper     = 34; const val mouthPressLeft      = 35
-    const val mouthPressRight     = 36; const val mouthLowerDownLeft  = 37
-    const val mouthLowerDownRight = 38; const val mouthUpperUpLeft    = 39
-    const val mouthUpperUpRight   = 40; const val browDownLeft        = 41
-    const val browDownRight       = 42; const val browInnerUp         = 43
-    const val browOuterUpLeft     = 44; const val browOuterUpRight    = 45
-    const val cheekPuff           = 46; const val cheekSquintLeft     = 47
-    const val cheekSquintRight    = 48; const val noseSneerLeft       = 49
-    const val noseSneerRight      = 50
+    const val eyeBlinkLeft=0; const val eyeLookDownLeft=1; const val eyeLookInLeft=2
+    const val eyeLookOutLeft=3; const val eyeLookUpLeft=4; const val eyeSquintLeft=5
+    const val eyeWideLeft=6; const val eyeBlinkRight=7; const val eyeLookDownRight=8
+    const val eyeLookInRight=9; const val eyeLookOutRight=10; const val eyeLookUpRight=11
+    const val eyeSquintRight=12; const val eyeWideRight=13; const val jawForward=14
+    const val jawLeft=15; const val jawRight=16; const val jawOpen=17
+    const val mouthClose=18; const val mouthFunnel=19; const val mouthPucker=20
+    const val mouthRight=21; const val mouthLeft=22; const val mouthSmileLeft=23
+    const val mouthSmileRight=24; const val mouthFrownLeft=25; const val mouthFrownRight=26
+    const val mouthDimpleLeft=27; const val mouthDimpleRight=28; const val mouthStretchLeft=29
+    const val mouthStretchRight=30; const val mouthRollLower=31; const val mouthRollUpper=32
+    const val mouthShrugLower=33; const val mouthShrugUpper=34; const val mouthPressLeft=35
+    const val mouthPressRight=36; const val mouthLowerDownLeft=37; const val mouthLowerDownRight=38
+    const val mouthUpperUpLeft=39; const val mouthUpperUpRight=40; const val browDownLeft=41
+    const val browDownRight=42; const val browInnerUp=43; const val browOuterUpLeft=44
+    const val browOuterUpRight=45; const val cheekPuff=46; const val cheekSquintLeft=47
+    const val cheekSquintRight=48; const val noseSneerLeft=49; const val noseSneerRight=50
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  TEST SEQUENCE
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── TEST SEQUENCE ───────────────────────────────────────────────────────────
 
 private enum class Category(val label: String, val color: Color) {
-    EYES("Eyes",       Color(0xFF1565C0)),
-    BROWS("Brows",     Color(0xFF6A1B9A)),
-    JAW("Jaw",         Color(0xFF00695C)),
-    MOUTH("Mouth",     Color(0xFF2E7D32)),
-    CHEEKS("Cheeks",   Color(0xFF795548)),
-    NOSE("Nose",       Color(0xFF607D8B)),
-    EMOTION("Emotion", Color(0xFFC62828)),
-    VISEME("Viseme",   Color(0xFF0097A7)),
-    ANIMATION("Anim",  Color(0xFF37474F)),
+    EYES("Eyes", Color(0xFF1565C0)), BROWS("Brows", Color(0xFF6A1B9A)),
+    JAW("Jaw", Color(0xFF00695C)), MOUTH("Mouth", Color(0xFF2E7D32)),
+    CHEEKS("Cheeks", Color(0xFF795548)), NOSE("Nose", Color(0xFF607D8B)),
+    EMOTION("Emotion", Color(0xFFC62828)), VISEME("Viseme", Color(0xFF0097A7)),
+    ANIMATION("Anim", Color(0xFF37474F)),
 }
 
 private data class Step(
-    val label: String,
-    val category: Category,
-    val headWeights: FloatArray? = FloatArray(51),
-    val durationMs: Long = 1_800,
+    val label: String, val category: Category,
+    val headWeights: FloatArray? = FloatArray(51), val durationMs: Long = 1_800,
 ) {
     companion object {
         fun head(l: String, c: Category, dur: Long = 1_800, b: FloatArray.() -> Unit): Step {
@@ -219,67 +188,63 @@ private data class Step(
 }
 
 private val SEQUENCE: List<Step> = buildList {
-    add(Step.head("Blink Both",    Category.EYES)  { this[Idx.eyeBlinkLeft]=1f;  this[Idx.eyeBlinkRight]=1f })
-    add(Step.head("Look Left",     Category.EYES)  { this[Idx.eyeLookOutLeft]=1f;this[Idx.eyeLookInRight]=1f })
-    add(Step.head("Look Up",       Category.EYES)  { this[Idx.eyeLookUpLeft]=1f; this[Idx.eyeLookUpRight]=1f })
-    add(Step.head("Wide Eyes",     Category.EYES)  { this[Idx.eyeWideLeft]=1f;   this[Idx.eyeWideRight]=1f })
-    add(Step.head("Brow Down",     Category.BROWS) { this[Idx.browDownLeft]=1f;  this[Idx.browDownRight]=1f })
+    add(Step.head("Blink Both", Category.EYES) { this[Idx.eyeBlinkLeft]=1f; this[Idx.eyeBlinkRight]=1f })
+    add(Step.head("Look Left", Category.EYES) { this[Idx.eyeLookOutLeft]=1f; this[Idx.eyeLookInRight]=1f })
+    add(Step.head("Look Up", Category.EYES) { this[Idx.eyeLookUpLeft]=1f; this[Idx.eyeLookUpRight]=1f })
+    add(Step.head("Wide Eyes", Category.EYES) { this[Idx.eyeWideLeft]=1f; this[Idx.eyeWideRight]=1f })
+    add(Step.head("Brow Down", Category.BROWS) { this[Idx.browDownLeft]=1f; this[Idx.browDownRight]=1f })
     add(Step.head("Brow Inner Up", Category.BROWS) { this[Idx.browInnerUp]=1f })
-    add(Step.head("Jaw Open",      Category.JAW)   { this[Idx.jawOpen]=1f })
-    add(Step.head("Jaw Forward",   Category.JAW)   { this[Idx.jawForward]=1f })
-    add(Step.head("Smile",         Category.MOUTH) { this[Idx.mouthSmileLeft]=1f; this[Idx.mouthSmileRight]=1f })
-    add(Step.head("Frown",         Category.MOUTH) { this[Idx.mouthFrownLeft]=1f; this[Idx.mouthFrownRight]=1f })
-    add(Step.head("Pucker",        Category.MOUTH) { this[Idx.mouthPucker]=1f })
-    add(Step.head("Funnel",        Category.MOUTH) { this[Idx.mouthFunnel]=1f })
-    add(Step.head("Cheek Puff",    Category.CHEEKS){ this[Idx.cheekPuff]=1f })
-    add(Step.head("Nose Sneer",    Category.NOSE)  { this[Idx.noseSneerLeft]=1f; this[Idx.noseSneerRight]=1f })
+    add(Step.head("Jaw Open", Category.JAW) { this[Idx.jawOpen]=1f })
+    add(Step.head("Jaw Forward", Category.JAW) { this[Idx.jawForward]=1f })
+    add(Step.head("Smile", Category.MOUTH) { this[Idx.mouthSmileLeft]=1f; this[Idx.mouthSmileRight]=1f })
+    add(Step.head("Frown", Category.MOUTH) { this[Idx.mouthFrownLeft]=1f; this[Idx.mouthFrownRight]=1f })
+    add(Step.head("Pucker", Category.MOUTH) { this[Idx.mouthPucker]=1f })
+    add(Step.head("Funnel", Category.MOUTH) { this[Idx.mouthFunnel]=1f })
+    add(Step.head("Cheek Puff", Category.CHEEKS) { this[Idx.cheekPuff]=1f })
+    add(Step.head("Nose Sneer", Category.NOSE) { this[Idx.noseSneerLeft]=1f; this[Idx.noseSneerRight]=1f })
     add(Step.head("Happy", Category.EMOTION, 2500) {
         this[Idx.mouthSmileLeft]=0.9f; this[Idx.mouthSmileRight]=0.9f
         this[Idx.cheekSquintLeft]=0.6f; this[Idx.cheekSquintRight]=0.6f
     })
     add(Step.head("Angry", Category.EMOTION, 2500) {
-        this[Idx.browDownLeft]=1f;    this[Idx.browDownRight]=1f
-        this[Idx.noseSneerLeft]=0.6f; this[Idx.noseSneerRight]=0.6f
-        this[Idx.jawForward]=0.3f
+        this[Idx.browDownLeft]=1f; this[Idx.browDownRight]=1f
+        this[Idx.noseSneerLeft]=0.6f; this[Idx.noseSneerRight]=0.6f; this[Idx.jawForward]=0.3f
     })
     add(Step.head("Surprised", Category.EMOTION, 2500) {
-        this[Idx.eyeWideLeft]=0.9f;  this[Idx.eyeWideRight]=0.9f
-        this[Idx.browInnerUp]=0.8f;  this[Idx.jawOpen]=0.6f
+        this[Idx.eyeWideLeft]=0.9f; this[Idx.eyeWideRight]=0.9f
+        this[Idx.browInnerUp]=0.8f; this[Idx.jawOpen]=0.6f
     })
     add(Step.head("Viseme AA", Category.VISEME, 1200) { this[Idx.jawOpen]=0.7f })
     add(Step.head("Viseme OO", Category.VISEME, 1200) { this[Idx.mouthFunnel]=0.8f; this[Idx.mouthPucker]=0.5f })
     add(Step.anim("Built-in Anim"))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  MORPH APPLICATION
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── MORPH APPLICATION ───────────────────────────────────────────────────────
 
 private fun applyMorphs(engine: Engine, instance: ModelInstance, headW: FloatArray) {
-    val rm     = engine.renderableManager
+    val rm = engine.renderableManager
     val teethW = floatArrayOf(
         headW[Idx.jawForward], headW[Idx.jawLeft], headW[Idx.jawRight],
-        headW[Idx.jawOpen],    headW[Idx.mouthClose]
+        headW[Idx.jawOpen], headW[Idx.mouthClose]
     )
     val eyeLW = floatArrayOf(
         headW[Idx.eyeLookDownLeft], headW[Idx.eyeLookInLeft],
-        headW[Idx.eyeLookOutLeft],  headW[Idx.eyeLookUpLeft]
+        headW[Idx.eyeLookOutLeft], headW[Idx.eyeLookUpLeft]
     )
     val eyeRW = floatArrayOf(
         headW[Idx.eyeLookDownRight], headW[Idx.eyeLookInRight],
-        headW[Idx.eyeLookOutRight],  headW[Idx.eyeLookUpRight]
+        headW[Idx.eyeLookOutRight], headW[Idx.eyeLookUpRight]
     )
     var eye4 = 0
     instance.entities
         .filter { rm.hasComponent(it) }
-        .map    { rm.getInstance(it) }
+        .map { rm.getInstance(it) }
         .forEach { ri ->
             val count = rm.getMorphTargetCount(ri)
             if (count <= 0) return@forEach
             val w = when (count) {
-                51 -> headW
-                5  -> teethW
-                4  -> if (eye4++ == 0) eyeLW else eyeRW
+                51 -> headW; 5 -> teethW
+                4 -> if (eye4++ == 0) eyeLW else eyeRW
                 else -> { DiagLog.w("unexpected morphCount=$count"); return@forEach }
             }
             try { rm.setMorphWeights(ri, w, 0) }
@@ -292,11 +257,11 @@ private suspend fun animateSmooth(
     cur: FloatArray, tgt: FloatArray, durMs: Long,
 ) {
     val start = System.currentTimeMillis()
-    val tmp   = FloatArray(51)
+    val tmp = FloatArray(51)
     while (true) {
         val frac = ((System.currentTimeMillis() - start).toFloat() / durMs).coerceAtMost(1f)
-        val t    = if (frac < 0.5f) 2f * frac * frac
-                   else 1f - (-2f * frac + 2f).let { it * it } / 2f
+        val t = if (frac < 0.5f) 2f * frac * frac
+                else 1f - (-2f * frac + 2f).let { it * it } / 2f
         for (i in 0 until 51) tmp[i] = cur[i] + (tgt[i] - cur[i]) * t
         applyMorphs(engine, instance, tmp)
         if (frac >= 1f) { tgt.copyInto(cur); break }
@@ -305,13 +270,11 @@ private suspend fun animateSmooth(
 }
 
 private suspend fun playAnimation(instance: ModelInstance, maxMs: Long) {
-    val animator = instance.animator
-        ?: throw IllegalStateException("No animator on instance")
-    if (animator.animationCount == 0)
-        throw IllegalStateException("Model has 0 animations")
+    val animator = instance.animator ?: throw IllegalStateException("No animator")
+    if (animator.animationCount == 0) throw IllegalStateException("0 animations")
     val durMs = (animator.getAnimationDuration(0) * 1000).toLong()
-    val limit  = minOf(maxMs, durMs)
-    val start  = System.currentTimeMillis()
+    val limit = minOf(maxMs, durMs)
+    val start = System.currentTimeMillis()
     DiagLog.i("playAnimation dur=${durMs}ms limit=${limit}ms")
     while (true) {
         val elapsed = System.currentTimeMillis() - start
@@ -322,9 +285,7 @@ private suspend fun playAnimation(instance: ModelInstance, maxMs: Long) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SCREEN
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── SCREEN ──────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -332,7 +293,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
 
     val context = LocalContext.current
 
-    // ── UI state ──────────────────────────────────────────────────────────
     var stepIndex      by remember { mutableIntStateOf(0) }
     var isResetting    by remember { mutableStateOf(false) }
     var elapsedSec     by remember { mutableIntStateOf(0) }
@@ -340,65 +300,61 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     var statusText     by remember { mutableStateOf("Initializing…") }
     var showSaveDialog by remember { mutableStateOf(false) }
     val morphState     = remember { FloatArray(51) }
-    var camPosText     by remember { mutableStateOf("...") }
-    var camDistText    by remember { mutableStateOf("...") }
     var frameCount     by remember { mutableIntStateOf(0) }
 
-    // ─────────────────────────────────────────────────────────────────────
-    //  SceneView 3.x resources
-    // ─────────────────────────────────────────────────────────────────────
+    // ── Live debug (обновляются в onFrame) ────────────────────────────────
+    var dbgCamPos      by remember { mutableStateOf("...") }
+    var dbgCamDist     by remember { mutableStateOf("...") }
+    var dbgBboxCenter  by remember { mutableStateOf("...") }
+    var dbgBboxExtent  by remember { mutableStateOf("...") }
+
+    // ── SceneView resources ───────────────────────────────────────────────
     val engine            = rememberEngine()
     val modelLoader       = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
 
-    // ═══════════════════════════════════════════════════════════════════════
-    //  FIX #1: Камера смотрит на origin (0,0,0) — модель будет туда
-    //  перемещена через position offset в ModelNode.apply {}
+    // ═════════════════════════════════════════════════════════════════════
+    //  КАМЕРА — направлена на реальную позицию модели
     //
-    //  Z=0.55 — расстояние от камеры до лица для крупного плана.
-    //  Подбирай под свой вкус: 0.4 = очень крупно, 0.8 = средне, 1.5 = далеко
-    // ═══════════════════════════════════════════════════════════════════════
+    //  Из твоего рабочего скриншота 1:
+    //    cam x=0.015  y=1.297  z=0.525   dist=1.399
+    //
+    //  Модель сидит на Y≈1.56 (центр bbox в world-space).
+    //  CAM_HOME  = начальная позиция камеры
+    //  CAM_TARGET = точка куда камера смотрит
+    // ═════════════════════════════════════════════════════════════════════
+    val CAM_HOME   = Float3(0f, 1.30f, 0.53f)
+    val CAM_TARGET = Float3(0f, 1.56f, 0f)
+
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 0f, z = 0.55f)
-        lookAt(Float3(0f, 0f, 0f))
+        position = CAM_HOME
+        lookAt(CAM_TARGET)
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    //  FIX #2: Environment с IBL-освещением (нейтральный из библиотеки)
-    //
-    //  БЫЛО:   rememberEnvironment(engine)  — пустой environment, нет IBL
-    //  СТАЛО:  rememberEnvironment(environmentLoader) — загружает neutral_ibl.ktx
-    // ═══════════════════════════════════════════════════════════════════════
     val environment = rememberEnvironment(environmentLoader)
-
-    // Модель — null пока грузится, non-null когда готова
     val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
 
     // ── One-shot diagnostics ──────────────────────────────────────────────
     LaunchedEffect(Unit) {
         DiagLog.clear()
         DiagLog.i("═══ AVATAR TEST SESSION ═══")
+        DiagLog.i("CAM_HOME=(%.2f,%.2f,%.2f) CAM_TARGET=(%.2f,%.2f,%.2f)".format(
+            CAM_HOME.x, CAM_HOME.y, CAM_HOME.z, CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z
+        ))
         DiagLog.d("SDK=${android.os.Build.VERSION.SDK_INT}  " +
             "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
         listAssets(context)
         statusText = "Asset: ${validateGlbAsset(context, MODEL_PATH)}"
     }
 
-    // ── Timer ─────────────────────────────────────────────────────────────
-    LaunchedEffect(isFinished) {
-        while (!isFinished) { delay(1_000); elapsedSec++ }
-    }
-
-    // ── Auto-show save dialog at 50 s ─────────────────────────────────────
+    LaunchedEffect(isFinished) { while (!isFinished) { delay(1_000); elapsedSec++ } }
     LaunchedEffect(Unit) { delay(50_000); showSaveDialog = true }
 
     // ── Test sequence ─────────────────────────────────────────────────────
     LaunchedEffect(modelInstance) {
         val inst = modelInstance ?: run {
-            DiagLog.d("modelInstance null — waiting for load")
-            return@LaunchedEffect
+            DiagLog.d("modelInstance null — waiting"); return@LaunchedEffect
         }
-
         DiagLog.i("╔══ MODEL READY ══╗")
         DiagLog.d("  entities: ${inst.entities.size}")
         DiagLog.d("  animationCount: ${inst.animator?.animationCount}")
@@ -407,31 +363,28 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             if (rm.hasComponent(e))
                 DiagLog.d("  entity[$i] morphTargets=${rm.getMorphTargetCount(rm.getInstance(e))}")
         }
-
-        // Лог bounding box для диагностики
         val bbox = inst.asset.boundingBox
-        val c = bbox.center
-        val he = bbox.halfExtent
-        DiagLog.i("BBOX center=[${c[0]}, ${c[1]}, ${c[2]}]  halfExtent=[${he[0]}, ${he[1]}, ${he[2]}]")
+        val c = bbox.center; val he = bbox.halfExtent
+        DiagLog.i("BBOX center=[%.3f,%.3f,%.3f] halfExtent=[%.3f,%.3f,%.3f]".format(
+            c[0], c[1], c[2], he[0], he[1], he[2]
+        ))
+        dbgBboxCenter = "bbox.c=(%.3f,%.3f,%.3f)".format(c[0], c[1], c[2])
+        dbgBboxExtent = "bbox.he=(%.3f,%.3f,%.3f)".format(he[0], he[1], he[2])
 
         statusText = "Model loaded! Starting test…"
         delay(600)
 
         SEQUENCE.forEachIndexed { i, step ->
-            stepIndex = i; isResetting = false
-            statusText = step.label
+            stepIndex = i; isResetting = false; statusText = step.label
             DiagLog.d("Step[$i] ${step.category.label}: ${step.label}")
-
             if (step.headWeights == null) {
                 animateSmooth(engine, inst, morphState, FloatArray(51), 300)
                 try {
                     playAnimation(inst, step.durationMs)
-                    statusText = "OK: anim played"
-                    DiagLog.i("  → anim OK")
+                    statusText = "OK: anim played"; DiagLog.i("  → anim OK")
                 } catch (ex: Exception) {
                     statusText = "SKIP: ${ex.message}"
-                    DiagLog.w("  → anim skip: ${ex.message}")
-                    delay(step.durationMs)
+                    DiagLog.w("  → anim skip: ${ex.message}"); delay(step.durationMs)
                 }
             } else {
                 animateSmooth(engine, inst, morphState, step.headWeights, 450)
@@ -442,11 +395,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                 delay(100)
             }
         }
-
         DiagLog.i("═══ SEQUENCE COMPLETE ═══")
-        statusText  = "All ${SEQUENCE.size} tests complete"
-        isFinished  = true
-        showSaveDialog = true
+        statusText = "All ${SEQUENCE.size} tests complete"
+        isFinished = true; showSaveDialog = true
     }
 
     // ── SAF launcher ──────────────────────────────────────────────────────
@@ -457,42 +408,29 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         try {
             context.contentResolver.openOutputStream(uri)?.use {
                 it.write(DiagLog.getFullLog().toByteArray())
-            }
-            statusText = "Log saved!"
+            }; statusText = "Log saved!"
         } catch (e: Exception) { DiagLog.e("save: ${e.message}") }
     }
 
-    // ── Save dialog ───────────────────────────────────────────────────────
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
             title = { Text("Diagnostic Log") },
-            text  = {
-                Text(
-                    "${DiagLog.getFullLog().lines().size} entries\n" +
-                    "Model: ${if (modelInstance != null) "✓ LOADED" else "✖ NOT LOADED"}\n" +
-                    "Elapsed: ${elapsedSec}s"
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showSaveDialog = false
-                    saveLauncher.launch("avatar_test_${System.currentTimeMillis()}.txt")
-                }) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSaveDialog = false }) { Text("Later") }
-            }
+            text = { Text("${DiagLog.getFullLog().lines().size} entries\n" +
+                "Model: ${if (modelInstance != null) "✓" else "✖"}\nElapsed: ${elapsedSec}s") },
+            confirmButton = { TextButton(onClick = {
+                showSaveDialog = false
+                saveLauncher.launch("avatar_test_${System.currentTimeMillis()}.txt")
+            }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { showSaveDialog = false }) { Text("Later") } }
         )
     }
 
-    // ── Progress ──────────────────────────────────────────────────────────
-    val currentStep  = SEQUENCE.getOrNull(stepIndex)
-    val totalSteps   = SEQUENCE.size
+    val currentStep = SEQUENCE.getOrNull(stepIndex)
+    val totalSteps = SEQUENCE.size
     val animProgress by animateFloatAsState(
-        targetValue   = (stepIndex + 1).toFloat() / totalSteps,
-        animationSpec = tween(600),
-        label         = "progress",
+        targetValue = (stepIndex + 1).toFloat() / totalSteps,
+        animationSpec = tween(600), label = "progress",
     )
 
     // ── Layout ────────────────────────────────────────────────────────────
@@ -512,242 +450,174 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         }
     ) { padding ->
         Column(
-            modifier            = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // ── 3-D viewport ───────────────────────────────────────────
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
 
-            // ── 3-D viewport ───────────────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                // ═══════════════════════════════════════════════════════════
-                //  FIX #3: ModelNode с ручным центрированием
-                //
-                //  centerOrigin(Float3(0,0,0)) в SceneView НЕ центрирует
-                //  модель — оно делает position += origin * size, а при
-                //  origin=(0,0,0) это position += 0.
-                //
-                //  Вместо этого вычисляем offset из boundingBox.center
-                //  в apply {} блоке ModelNode после scaleToUnitCube.
-                // ═══════════════════════════════════════════════════════════
                 Scene(
                     modifier          = Modifier.fillMaxSize(),
                     engine            = engine,
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
                     cameraManipulator = rememberCameraManipulator(
-                        orbitHomePosition = Float3(0f, 0f, 0.55f),
-                        targetPosition    = Float3(0f, 0f, 0f),
+                        orbitHomePosition = CAM_HOME,
+                        targetPosition    = CAM_TARGET,
                     ),
                     environment       = environment,
                     onFrame           = {
                         val p = cameraNode.worldPosition
-                        camPosText = "x=%.3f y=%.3f z=%.3f".format(p.x, p.y, p.z)
-                        val d = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
-                        camDistText = "dist=%.3f".format(d)
+                        dbgCamPos = "cam=(%.3f,%.3f,%.3f)".format(p.x, p.y, p.z)
+                        val d = kotlin.math.sqrt(p.x*p.x + p.y*p.y + p.z*p.z)
+                        dbgCamDist = "dist=%.3f".format(d)
                         if (frameCount < 5) {
                             frameCount++
-                            DiagLog.i("FRAME[$frameCount] cam=${camPosText} dist=${camDistText}")
+                            DiagLog.i("FRAME[$frameCount] $dbgCamPos $dbgCamDist")
                         }
                     },
                 ) {
                     modelInstance?.let { inst ->
+                        // Модель без scaleToUnits/centerOrigin — на своём месте Y≈1.56
+                        // Камера направлена туда через CAM_HOME / CAM_TARGET
                         ModelNode(
                             modelInstance = inst,
-                            // ═══════════════════════════════════════════════
-                            //  scaleToUnits = 0.35f — масштабирует модель
-                            //  так что максимальная размерность = 0.35м
-                            //  (голова ~35см при расстоянии камеры 0.55м
-                            //  → занимает большую часть экрана)
-                            // ═══════════════════════════════════════════════
-                            scaleToUnits  = 0.35f,
-                            // НЕ используем centerOrigin — оно бесполезно
-                            // для этой задачи (см. объяснение выше)
+                            scaleToUnits  = null,
                             centerOrigin  = null,
                             autoAnimate   = false,
-                            apply = {
-                                // ═══════════════════════════════════════════
-                                //  FIX #3 (главный):
-                                //  После scaleToUnitCube() модель
-                                //  масштабирована, но её центр по-прежнему
-                                //  смещён (boundingBox.center ≈ [0, 1.56, 0]).
-                                //
-                                //  Компенсируем: position = -center * scale
-                                //  Это ставит центр bounding box в origin.
-                                // ═══════════════════════════════════════════
-                                val c = center  // bbox center из FilamentAsset
-                                val s = scale   // scale выставлен scaleToUnitCube
-                                position = Position(
-                                    x = -c.x * s.x,
-                                    y = -c.y * s.y,
-                                    z = -c.z * s.z
-                                )
-                                DiagLog.i("ModelNode FIX: center=$c scale=$s → position=$position")
-                            }
                         )
                     }
                 }
 
                 if (!isFinished) ScanlineOverlay()
 
+                // ══════════════════════════════════════════════════════════
+                //  DEBUG OVERLAY — все параметры в реальном времени
+                //  Жёлтый: текущая камера (меняется при жестах)
+                //  Оранж:  начальные значения CAM_HOME / CAM_TARGET
+                //  Бирюз:  bounding box модели
+                //  Фиолет: scaleToUnits / centerOrigin
+                //
+                //  Когда экран чёрный → двигай модель жестами →
+                //  жёлтая строка cam=(...) покажет рабочие координаты.
+                //  Скинь мне эти цифры и я обновлю CAM_HOME.
+                // ══════════════════════════════════════════════════════════
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .padding(4.dp)
+                        .background(Color.Black.copy(alpha = 0.82f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
-                    Text(camPosText, color = Color.Yellow, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text(camDistText, color = Color.Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    val fs = 9.sp; val bld = FontWeight.Bold
+                    Text(dbgCamPos,  color = Color.Yellow,      fontSize = fs, fontWeight = bld)
+                    Text(dbgCamDist, color = Color.Cyan,        fontSize = fs, fontWeight = bld)
+                    Text("home=(%.2f,%.2f,%.2f)".format(CAM_HOME.x, CAM_HOME.y, CAM_HOME.z),
+                        color = Color(0xFFFF9800), fontSize = fs, fontWeight = bld)
+                    Text("tgt=(%.2f,%.2f,%.2f)".format(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z),
+                        color = Color(0xFFFF9800), fontSize = fs, fontWeight = bld)
+                    Text(dbgBboxCenter, color = Color(0xFF80CBC4), fontSize = fs, fontWeight = bld)
+                    Text(dbgBboxExtent, color = Color(0xFF80CBC4), fontSize = fs, fontWeight = bld)
+                    Text("scaleToUnits=null",  color = Color(0xFFCE93D8), fontSize = fs, fontWeight = bld)
+                    Text("centerOrigin=null",  color = Color(0xFFCE93D8), fontSize = fs, fontWeight = bld)
                 }
 
                 Text(
                     text = if (modelInstance != null) "✓ Model loaded" else "⏳ Loading…",
                     color = if (modelInstance != null) Color(0xFF69F0AE) else Color(0xFFFFD740),
-                    fontSize   = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier   = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
                         .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
                         .padding(horizontal = 6.dp, vertical = 3.dp),
                 )
             }
 
-            // ── Bottom panel ────────────────────────────────────────────────
+            // ── Bottom panel ────────────────────────────────────────────
             Surface(
-                modifier       = Modifier.fillMaxWidth(),
-                color          = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp,
             ) {
                 Column(
-                    modifier            = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     LinearProgressIndicator(
-                        progress      = { animProgress },
-                        modifier      = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
-                        strokeCap     = StrokeCap.Round,
-                        color         = currentStep?.category?.color ?: MaterialTheme.colorScheme.primary,
-                        trackColor    = MaterialTheme.colorScheme.surfaceVariant,
+                        progress = { animProgress },
+                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
+                        strokeCap = StrokeCap.Round,
+                        color = currentStep?.category?.color ?: MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
                     )
-
                     if (!isFinished && currentStep != null) {
                         AnimatedContent(
-                            targetState    = stepIndex,
+                            targetState = stepIndex,
                             transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
-                            label          = "step",
+                            label = "step",
                         ) { idx ->
                             val step = SEQUENCE.getOrNull(idx) ?: return@AnimatedContent
-                            Row(
-                                verticalAlignment     = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
+                            Row(verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 CategoryChip(step.category)
-                                Text(
-                                    text       = if (isResetting) "Reset…" else step.label,
-                                    style      = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
+                                Text(if (isResetting) "Reset…" else step.label,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold)
                             }
                         }
-                        if (currentStep.headWeights != null && !isResetting) {
+                        if (currentStep.headWeights != null && !isResetting)
                             ActiveWeightsRow(currentStep.headWeights)
-                        }
                     }
-
-                    if (isFinished) {
-                        Text(
-                            "✓ All $totalSteps steps complete",
-                            fontWeight = FontWeight.Bold,
-                            color      = Color(0xFF2E7D32),
-                        )
-                    }
-
-                    Row(
-                        modifier              = Modifier.fillMaxWidth(),
+                    if (isFinished) Text("✓ All $totalSteps steps complete",
+                        fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                    Row(modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment     = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "Step ${(stepIndex + 1).coerceAtMost(totalSteps)} / $totalSteps",
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("Step ${(stepIndex+1).coerceAtMost(totalSteps)} / $totalSteps",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text     = statusText,
-                            style    = MaterialTheme.typography.labelMedium,
-                            color    = when {
-                                statusText.startsWith("OK") ||
-                                statusText.contains("loaded") ||
-                                statusText.contains("complete") -> Color(0xFF2E7D32)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(statusText, style = MaterialTheme.typography.labelMedium,
+                            color = when {
+                                statusText.startsWith("OK") || statusText.contains("loaded") ||
+                                    statusText.contains("complete") -> Color(0xFF2E7D32)
                                 statusText.contains("FAIL") ||
-                                statusText.contains("error", ignoreCase = true) -> Color(0xFFD32F2F)
+                                    statusText.contains("error", ignoreCase = true) -> Color(0xFFD32F2F)
                                 else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                        )
-                        Text(
-                            "${elapsedSec}s",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                            }, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
+                        Text("${elapsedSec}s", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-
                     TextButton(onClick = {
                         saveLauncher.launch("avatar_diag_${System.currentTimeMillis()}.txt")
-                    }) {
-                        Text("📋 Save diagnostic log", fontSize = 11.sp)
-                    }
+                    }) { Text("📋 Save diagnostic log", fontSize = 11.sp) }
                 }
             }
         }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  HELPER COMPOSABLES
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 @Composable
 private fun CategoryChip(category: Category) {
     Surface(shape = RoundedCornerShape(6.dp), color = category.color.copy(alpha = 0.15f)) {
-        Text(
-            text       = category.label,
-            color      = category.color,
-            fontSize   = 11.sp,
+        Text(category.label, color = category.color, fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            modifier   = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-        )
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
     }
 }
 
 @Composable
 private fun ActiveWeightsRow(weights: FloatArray) {
-    val active = weights.indices
-        .filter { weights[it] > 0.001f }
-        .take(8)
-        .map { it to weights[it] }
+    val active = weights.indices.filter { weights[it] > 0.001f }.take(8).map { it to weights[it] }
     if (active.isEmpty()) return
-    Row(
-        modifier              = Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
+    Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for ((idx, value) in active) {
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-            ) {
-                Text(
-                    text     = "#$idx=${"%.2f".format(value)}",
-                    fontSize = 10.sp,
-                    color    = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                )
+            Surface(shape = RoundedCornerShape(4.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer) {
+                Text("#$idx=${"%.2f".format(value)}", fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
             }
         }
     }
@@ -755,15 +625,8 @@ private fun ActiveWeightsRow(weights: FloatArray) {
 
 @Composable
 private fun ScanlineOverlay() {
-    val inf   = rememberInfiniteTransition(label = "scan")
-    val alpha by inf.animateFloat(
-        initialValue  = 0f,
-        targetValue   = 0.05f,
-        animationSpec = infiniteRepeatable(
-            tween(1200, easing = LinearEasing),
-            RepeatMode.Reverse,
-        ),
-        label = "a",
-    )
+    val inf = rememberInfiniteTransition(label = "scan")
+    val alpha by inf.animateFloat(0f, 0.05f,
+        infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse), label = "a")
     Box(Modifier.fillMaxSize().background(Color(0xFF00E5FF).copy(alpha = alpha)))
 }
