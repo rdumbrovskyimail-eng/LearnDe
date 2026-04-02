@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import com.google.android.filament.Engine
 import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.Scene
+import io.github.sceneview.math.Position
 import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.rememberCameraNode
@@ -352,12 +353,25 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val modelLoader       = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  FIX #1: Камера смотрит на origin (0,0,0) — модель будет туда
+    //  перемещена через position offset в ModelNode.apply {}
+    //
+    //  Z=0.55 — расстояние от камеры до лица для крупного плана.
+    //  Подбирай под свой вкус: 0.4 = очень крупно, 0.8 = средне, 1.5 = далеко
+    // ═══════════════════════════════════════════════════════════════════════
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 0f, z = 4.0f)
+        position = Float3(x = 0f, y = 0f, z = 0.55f)
         lookAt(Float3(0f, 0f, 0f))
     }
 
-    val environment = rememberEnvironment(engine)
+    // ═══════════════════════════════════════════════════════════════════════
+    //  FIX #2: Environment с IBL-освещением (нейтральный из библиотеки)
+    //
+    //  БЫЛО:   rememberEnvironment(engine)  — пустой environment, нет IBL
+    //  СТАЛО:  rememberEnvironment(environmentLoader) — загружает neutral_ibl.ktx
+    // ═══════════════════════════════════════════════════════════════════════
+    val environment = rememberEnvironment(environmentLoader)
 
     // Модель — null пока грузится, non-null когда готова
     val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
@@ -395,14 +409,12 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             if (rm.hasComponent(e))
                 DiagLog.d("  entity[$i] morphTargets=${rm.getMorphTargetCount(rm.getInstance(e))}")
         }
-        val tm = engine.transformManager
-        val rootEntity = inst.root
-        if (tm.hasComponent(rootEntity)) {
-            val ti = tm.getInstance(rootEntity)
-            val mat = FloatArray(16)
-            tm.getTransform(ti, mat)
-            DiagLog.i("ROOT TRANSFORM: ${mat.joinToString { "%.3f".format(it) }}")
-        }
+
+        // Лог bounding box для диагностики
+        val bbox = inst.asset.boundingBox
+        val c = bbox.center
+        val he = bbox.halfExtent
+        DiagLog.i("BBOX center=[${c[0]}, ${c[1]}, ${c[2]}]  halfExtent=[${he[0]}, ${he[1]}, ${he[2]}]")
 
         statusText = "Model loaded! Starting test…"
         delay(600)
@@ -513,14 +525,14 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     .weight(1f)
             ) {
                 // ═══════════════════════════════════════════════════════════
-                //  SceneView (НЕ ARSceneView) — без ARCore camera passthrough
+                //  FIX #3: ModelNode с ручным центрированием
                 //
-                //  centerOrigin = Float3(0f,0f,0f) — КРИТИЧНО:
-                //     bbox модели Z=1.37..1.76, без centerOrigin голова
-                //     висит в 1.5м от камеры-цели → пустой viewport
+                //  centerOrigin(Float3(0,0,0)) в SceneView НЕ центрирует
+                //  модель — оно делает position += origin * size, а при
+                //  origin=(0,0,0) это position += 0.
                 //
-                //  ARCore meta-data = "optional" в manifest →
-                //     arsceneview не инициализирует AR-сессию
+                //  Вместо этого вычисляем offset из boundingBox.center
+                //  в apply {} блоке ModelNode после scaleToUnitCube.
                 // ═══════════════════════════════════════════════════════════
                 Scene(
                     modifier          = Modifier
@@ -536,7 +548,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
                     cameraManipulator = rememberCameraManipulator(
-                        orbitHomePosition = Float3(0f, 0f, 4.0f),
+                        orbitHomePosition = Float3(0f, 0f, 0.55f),
                         targetPosition    = Float3(0f, 0f, 0f),
                     ),
                     environment       = environment,
@@ -554,9 +566,36 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelInstance?.let { inst ->
                         ModelNode(
                             modelInstance = inst,
-                            scaleToUnits  = 1.0f,
-                            centerOrigin  = Float3(0f, 0f, 0f),
+                            // ═══════════════════════════════════════════════
+                            //  scaleToUnits = 0.35f — масштабирует модель
+                            //  так что максимальная размерность = 0.35м
+                            //  (голова ~35см при расстоянии камеры 0.55м
+                            //  → занимает большую часть экрана)
+                            // ═══════════════════════════════════════════════
+                            scaleToUnits  = 0.35f,
+                            // НЕ используем centerOrigin — оно бесполезно
+                            // для этой задачи (см. объяснение выше)
+                            centerOrigin  = null,
                             autoAnimate   = false,
+                            apply = {
+                                // ═══════════════════════════════════════════
+                                //  FIX #3 (главный):
+                                //  После scaleToUnitCube() модель
+                                //  масштабирована, но её центр по-прежнему
+                                //  смещён (boundingBox.center ≈ [0, 1.56, 0]).
+                                //
+                                //  Компенсируем: position = -center * scale
+                                //  Это ставит центр bounding box в origin.
+                                // ═══════════════════════════════════════════
+                                val c = center  // bbox center из FilamentAsset
+                                val s = scale   // scale выставлен scaleToUnitCube
+                                position = Position(
+                                    x = -c.x * s.x,
+                                    y = -c.y * s.y,
+                                    z = -c.z * s.z
+                                )
+                                DiagLog.i("ModelNode FIX: center=$c scale=$s → position=$position")
+                            }
                         )
                     }
                 }
