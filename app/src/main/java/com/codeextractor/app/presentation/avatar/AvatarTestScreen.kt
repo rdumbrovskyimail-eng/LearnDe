@@ -352,11 +352,11 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val environmentLoader = rememberEnvironmentLoader(engine)
 
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 0f, z = 4.0f)
+        position = Float3(x = 0f, y = 0f, z = 0.55f)
         lookAt(Float3(0f, 0f, 0f))
     }
 
-    val environment = rememberEnvironment(engine)
+    val environment = rememberEnvironment(environmentLoader, "environments/neutral_ibl.ktx")
 
     // Модель — null пока грузится, non-null когда готова
     val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
@@ -535,7 +535,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
                     cameraManipulator = rememberCameraManipulator(
-                        orbitHomePosition = Float3(0f, 0f, 4.0f),
+                        orbitHomePosition = Float3(0f, 0f, 0.55f),
                         targetPosition    = Float3(0f, 0f, 0f),
                     ),
                     environment       = environment,
@@ -553,10 +553,14 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     modelInstance?.let { inst ->
                         ModelNode(
                             modelInstance = inst,
-                            scaleToUnits  = 1.0f,
-                            centerOrigin  = Float3(0f, 0f, 0f),
+                            scaleToUnits  = 0.35f,
                             autoAnimate   = false,
-                        )
+                        ).apply {
+                            val c = boundingBox.center
+                            val s = scale
+                            position = Float3(-c.x * s.x, -c.y * s.y, -c.z * s.z)
+                            DiagLog.d("ModelNode FIX: center=$c scale=$s position=$position")
+                        }
                     }
                 }
 
