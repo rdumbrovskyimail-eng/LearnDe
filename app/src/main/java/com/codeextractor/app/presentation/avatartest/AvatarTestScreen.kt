@@ -54,9 +54,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.awaitPointerEvent
-import androidx.compose.ui.input.pointer.awaitPointerEvent
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -536,15 +533,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                 //  в apply {} блоке ModelNode после scaleToUnitCube.
                 // ═══════════════════════════════════════════════════════════
                 Scene(
-                    modifier          = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    awaitPointerEvent()
-                                }
-                            }
-                        },
+                    modifier          = Modifier.fillMaxSize(),
                     engine            = engine,
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
