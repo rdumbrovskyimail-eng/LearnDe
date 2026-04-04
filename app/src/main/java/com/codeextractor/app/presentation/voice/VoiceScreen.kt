@@ -108,6 +108,9 @@ fun VoiceScreen(
                 AvatarScene(
                     modifier     = Modifier.fillMaxSize(),
                     morphWeights = renderState.morphWeights,
+                    headPitch    = renderState.headPitch,
+                    headYaw      = renderState.headYaw,
+                    headRoll     = renderState.headRoll,
                 )
 
                 // Status overlay on top of avatar
