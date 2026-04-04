@@ -8,6 +8,7 @@ import com.codeextractor.app.data.settings.AppSettings
 import com.codeextractor.app.domain.AudioEngine
 import com.codeextractor.app.domain.LiveClient
 import com.codeextractor.app.domain.ToolResponse
+import com.codeextractor.app.domain.avatar.AvatarAnimator
 import com.codeextractor.app.domain.model.ConversationMessage
 import com.codeextractor.app.domain.model.GeminiEvent
 import com.codeextractor.app.domain.model.LatencyProfile
