@@ -65,6 +65,10 @@ fun VoiceScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    val renderState by viewModel.avatarAnimator
+        .renderState
+        .collectAsStateWithLifecycle()
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
