@@ -54,7 +54,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.codeextractor.app.domain.model.ConversationMessage
-import com.codeextractor.app.presentation.avatar.AvatarAnimator
 import com.codeextractor.app.presentation.avatar.AvatarScene
 import com.codeextractor.app.util.resolve
 
@@ -64,10 +63,6 @@ fun VoiceScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-
-    val renderState by viewModel.avatarAnimator
-        .renderState
-        .collectAsStateWithLifecycle()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
