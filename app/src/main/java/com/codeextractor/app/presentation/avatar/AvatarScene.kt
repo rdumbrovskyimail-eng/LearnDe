@@ -61,8 +61,9 @@ fun AvatarScene(
             environment = environment,
             onFrame     = {
                 // Apply morph weights every frame if provided
-                if (morphWeights != null && modelInstance != null) {
-                    applyMorphsInternal(engine, modelInstance!!, morphWeights)
+                val mi = modelInstance
+                if (morphWeights != null && mi != null) {
+                    applyMorphsInternal(engine, mi, morphWeights)
                 }
             },
         ) {
