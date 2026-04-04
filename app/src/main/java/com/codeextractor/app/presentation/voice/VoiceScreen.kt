@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.codeextractor.app.domain.model.ConversationMessage
+import com.codeextractor.app.presentation.avatar.AvatarScene
 import com.codeextractor.app.util.resolve
 
 @Composable
@@ -91,47 +92,76 @@ fun VoiceScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(innerPadding),
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
-
-            StatusHeader(state = state)
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (state.showApiKeyInput) {
-                ApiKeyInput(onSubmit = { viewModel.onIntent(VoiceIntent.SubmitApiKey(it)) })
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            LazyColumn(
-                state = listState,
+            // ══════════════════════════════════════════════════════
+            //  TOP HALF — 3D Avatar
+            // ══════════════════════════════════════════════════════
+            Box(
                 modifier = Modifier
-                    .weight(1f)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .weight(1f)
             ) {
-                items(state.transcript, key = { "${it.timestamp}_${it.role}" }) { msg ->
-                    ChatBubble(message = msg)
-                }
+                AvatarScene(
+                    modifier     = Modifier.fillMaxSize(),
+                    morphWeights = null, // TODO: подключить AvatarAnimator
+                )
+
+                // Status overlay on top of avatar
+                StatusBadge(
+                    state    = state,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp),
+                )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            // ══════════════════════════════════════════════════════
+            //  BOTTOM HALF — Chat + Controls
+            // ══════════════════════════════════════════════════════
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(modifier = Modifier.height(6.dp))
 
-            ControlButtons(
-                state             = state,
-                onToggleMic       = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                onStop            = { viewModel.onIntent(VoiceIntent.ToggleMic) },
-                onSaveLog         = { viewModel.onIntent(VoiceIntent.SaveLog) },
-                onTestAvatar      = onNavigateToAvatarTest,
-            )
+                if (state.showApiKeyInput) {
+                    ApiKeyInput(onSubmit = { viewModel.onIntent(VoiceIntent.SubmitApiKey(it)) })
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                // Chat messages
+                LazyColumn(
+                    state    = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(state.transcript, key = { "${it.timestamp}_${it.role}" }) { msg ->
+                        ChatBubble(message = msg)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Control buttons
+                ControlButtons(
+                    state        = state,
+                    onToggleMic  = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                    onStop       = { viewModel.onIntent(VoiceIntent.ToggleMic) },
+                    onSaveLog    = { viewModel.onIntent(VoiceIntent.SaveLog) },
+                    onTestAvatar = onNavigateToAvatarTest,
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
     }
 }
@@ -141,34 +171,41 @@ fun VoiceScreen(
 // ════════════════════════════════════════════════════════════════
 
 @Composable
-private fun StatusHeader(state: VoiceState) {
+private fun StatusBadge(state: VoiceState, modifier: Modifier = Modifier) {
     val statusColor = when (state.connectionStatus) {
-        ConnectionStatus.Disconnected                                                          -> Color(0xFFF44336)
+        ConnectionStatus.Disconnected -> Color(0xFFF44336)
         ConnectionStatus.Connecting, ConnectionStatus.Negotiating, ConnectionStatus.Reconnecting -> Color(0xFFFFC107)
-        ConnectionStatus.Ready                                                                 -> Color(0xFF4CAF50)
-        ConnectionStatus.Recording                                                             -> Color(0xFFFF5252)
+        ConnectionStatus.Ready -> Color(0xFF4CAF50)
+        ConnectionStatus.Recording -> Color(0xFFFF5252)
     }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier          = Modifier.fillMaxWidth()
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         if (state.connectionStatus == ConnectionStatus.Recording) {
             PulsingDot(color = statusColor)
         } else {
             Box(
                 modifier = Modifier
-                    .size(12.dp)
+                    .size(10.dp)
                     .clip(CircleShape)
                     .background(statusColor)
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Text(
             text       = state.connectionStatus.label,
-            style      = MaterialTheme.typography.titleMedium,
+            color      = Color.White,
+            fontSize   = 12.sp,
             fontWeight = FontWeight.SemiBold,
         )
+        if (state.isAiSpeaking) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("🔊", fontSize = 12.sp)
+        }
     }
 }
 
@@ -184,8 +221,8 @@ private fun PulsingDot(color: Color) {
         animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Restart), label = "alpha",
     )
     Box(contentAlignment = Alignment.Center) {
-        Box(modifier = Modifier.size(20.dp).scale(scale).alpha(alpha).clip(CircleShape).background(color))
-        Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(color))
+        Box(modifier = Modifier.size(16.dp).scale(scale).alpha(alpha).clip(CircleShape).background(color))
+        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(color))
     }
 }
 
@@ -216,7 +253,7 @@ private fun ChatBubble(message: ConversationMessage) {
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
         Text(
             text     = label,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             color    = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
@@ -224,11 +261,11 @@ private fun ChatBubble(message: ConversationMessage) {
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
                 .background(bubbleColor)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Text(
                 text  = message.text,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
@@ -246,40 +283,32 @@ private fun ControlButtons(
     val isReady     = state.connectionStatus == ConnectionStatus.Ready
     val isRecording = state.connectionStatus == ConnectionStatus.Recording
 
-    Column(
-        modifier            = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    Row(
+        modifier              = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
     ) {
-        Row(
-            modifier                = Modifier.fillMaxWidth(),
-            horizontalArrangement   = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-        ) {
-            Button(
-                onClick  = onToggleMic,
-                enabled  = isReady,
-                modifier = Modifier.weight(1f),
-                colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-            ) { Text("Start", color = Color.White) }
+        Button(
+            onClick  = onToggleMic,
+            enabled  = isReady,
+            modifier = Modifier.weight(1f),
+            colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+        ) { Text("Start", color = Color.White, fontSize = 12.sp) }
 
-            Button(
-                onClick  = onStop,
-                enabled  = isRecording,
-                modifier = Modifier.weight(1f),
-                colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
-            ) { Text("Stop", color = Color.White) }
+        Button(
+            onClick  = onStop,
+            enabled  = isRecording,
+            modifier = Modifier.weight(1f),
+            colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+        ) { Text("Stop", color = Color.White, fontSize = 12.sp) }
 
-            OutlinedButton(
-                onClick  = onSaveLog,
-                modifier = Modifier.weight(1f),
-            ) { Text("Log", textAlign = TextAlign.Center) }
-        }
+        OutlinedButton(
+            onClick  = onSaveLog,
+            modifier = Modifier.weight(0.7f),
+        ) { Text("Log", fontSize = 12.sp) }
 
-        // ── Avatar Test Button ─────────────────────────────────
         OutlinedButton(
             onClick  = onTestAvatar,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Test Avatar Model")
-        }
+            modifier = Modifier.weight(0.7f),
+        ) { Text("DBG", fontSize = 12.sp) }
     }
 }
