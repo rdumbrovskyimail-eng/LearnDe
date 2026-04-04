@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.codeextractor.app.domain.model.ConversationMessage
+import com.codeextractor.app.presentation.avatar.AvatarAnimator
 import com.codeextractor.app.presentation.avatar.AvatarScene
 import com.codeextractor.app.util.resolve
 
@@ -87,6 +88,10 @@ fun VoiceScreen(
         if (state.transcript.isNotEmpty()) listState.animateScrollToItem(state.transcript.size - 1)
     }
 
+    val renderState by viewModel.avatarAnimator
+        .renderState
+        .collectAsStateWithLifecycle()
+
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier
@@ -103,7 +108,7 @@ fun VoiceScreen(
             ) {
                 AvatarScene(
                     modifier     = Modifier.fillMaxSize(),
-                    morphWeights = null, // TODO: подключить AvatarAnimator
+                    morphWeights = renderState.morphWeights,
                 )
 
                 // Status overlay on top of avatar
