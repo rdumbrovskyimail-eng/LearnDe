@@ -25,9 +25,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -36,6 +39,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +50,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,7 +61,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -155,7 +164,7 @@ private fun listAssets(context: Context) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ARKit 52 morph-target indices   (head_lod0_ORIGINAL mesh)
+//  ARKit 52 morph-target indices
 // ─────────────────────────────────────────────────────────────────────────────
 
 private object Idx {
@@ -323,49 +332,6 @@ private suspend fun playAnimation(instance: ModelInstance, maxMs: Long) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  FACE-CENTER ORIGIN COMPUTATION
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Computes the `centerOrigin` parameter for ModelNode so the avatar's
- * FACE ends up at world (0,0,0), not the geometric center of the body.
- *
- * ModelNode.centerOrigin(origin) formula: position += origin * size
- * where size = extents * scale, extents = halfExtent * 2.
- *
- * For a point at faceModelY to land at world y=0:
- *   originY = -faceModelY / (2 * halfExtentY)
- *
- * @param inst the ModelInstance whose bounding box we read
- * @return centerOrigin Position to pass to the ModelNode composable
- */
-private fun computeFaceCenterOrigin(inst: ModelInstance): Position {
-    val bbox = inst.asset.boundingBox
-    val centerY = bbox.center[1]
-    val halfExtY = bbox.halfExtent[1]
-    val extentsY = halfExtY * 2f
-
-    // Face Y in model space: ~82% from center toward the top
-    val faceModelY = centerY + halfExtY * 0.82f
-
-    val originY = if (extentsY > 0f) -faceModelY / extentsY else 0f
-
-    DiagLog.i(
-        "computeFaceCenterOrigin: center=(%.4f, %.4f, %.4f) halfExt=(%.4f, %.4f, %.4f) faceY=%.4f originY=%.4f".format(
-            bbox.center[0], centerY, bbox.center[2],
-            bbox.halfExtent[0], halfExtY, bbox.halfExtent[2],
-            faceModelY, originY
-        )
-    )
-
-    return if (originY.isFinite()) Position(0f, originY, 0f) else Position(0f, 0f, 0f)
-}
-
-// Camera constants — single source of truth for cameraNode + cameraManipulator
-private val CAM_POSITION = Float3(x = 0f, y = 0f, z = 0.25f)
-private val CAM_TARGET   = Float3(x = 0f, y = 0f, z = 0f)
-
-// ─────────────────────────────────────────────────────────────────────────────
 //  SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -382,41 +348,74 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     var statusText     by remember { mutableStateOf("Initializing…") }
     var showSaveDialog by remember { mutableStateOf(false) }
     val morphState     = remember { FloatArray(51) }
-    var camPosText     by remember { mutableStateOf("...") }
-    var camDistText    by remember { mutableStateOf("...") }
-    var frameCount     by remember { mutableIntStateOf(0) }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  EDITABLE PARAMETERS
+    // ══════════════════════════════════════════════════════════════════════
+    var camPosX   by remember { mutableFloatStateOf(0f) }
+    var camPosY   by remember { mutableFloatStateOf(0f) }
+    var camPosZ   by remember { mutableFloatStateOf(0.25f) }
+
+    var camTgtX   by remember { mutableFloatStateOf(0f) }
+    var camTgtY   by remember { mutableFloatStateOf(0f) }
+    var camTgtZ   by remember { mutableFloatStateOf(0f) }
+
+    var scaleToUnits by remember { mutableFloatStateOf(0.35f) }
+
+    var originX   by remember { mutableFloatStateOf(0f) }
+    var originY   by remember { mutableFloatStateOf(0f) }
+    var originZ   by remember { mutableFloatStateOf(0f) }
+
+    // Show debug panel toggle
+    var showDebug by remember { mutableStateOf(true) }
+
+    // Live camera readout (updated every frame)
+    var liveCamPos  by remember { mutableStateOf("...") }
+    var liveCamDist by remember { mutableStateOf("...") }
+    var liveCamFwd  by remember { mutableStateOf("...") }
+
+    // BBox info (set once when model loads)
+    var bboxInfo by remember { mutableStateOf("...") }
 
     val engine            = rememberEngine()
     val modelLoader       = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
 
     val cameraNode = rememberCameraNode(engine) {
-        position = CAM_POSITION
+        position = Float3(camPosX, camPosY, camPosZ)
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // FIX #1: rememberEnvironment(EnvironmentLoader, String) — НЕТ такой
-    // перегрузки. Допустимые сигнатуры:
-    //   fun rememberEnvironment(EnvironmentLoader, Boolean, () -> Environment)
-    //   fun rememberEnvironment(Engine, Boolean, () -> Environment)
-    //
-    // Default-окружение SceneView = neutral IBL (из assets библиотеки),
-    // поэтому rememberEnvironment(environmentLoader) загружает его.
-    // ══════════════════════════════════════════════════════════════════════
-    val environment = rememberEnvironment(environmentLoader)
-
+    val environment   = rememberEnvironment(environmentLoader)
     val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
 
-    // ══════════════════════════════════════════════════════════════════════
-    // FIX #2: Внутри Scene { }, вызов ModelNode(...) — это @Composable
-    // функция SceneScope, которая возвращает Unit. Поэтому .apply { ... }
-    // работает на Unit, и boundingBox/scale/position НЕ найдены.
-    //
-    // Решение: вычисляем centerOrigin ДО Scene-блока из сырых данных
-    // ModelInstance, и передаём готовое значение в параметр.
-    // ══════════════════════════════════════════════════════════════════════
-    val faceCenterOrigin = remember(modelInstance) {
-        modelInstance?.let { computeFaceCenterOrigin(it) }
+    // Recompute centerOrigin from editable values
+    val faceCenterOrigin = remember(originX, originY, originZ) {
+        Position(originX, originY, originZ)
+    }
+
+    // When model loads — compute default centerOrigin and set bbox info
+    LaunchedEffect(modelInstance) {
+        val inst = modelInstance ?: return@LaunchedEffect
+        val bbox = inst.asset.boundingBox
+        val centerYVal  = bbox.center[1]
+        val halfExtYVal = bbox.halfExtent[1]
+        val extentsYVal = halfExtYVal * 2f
+        val faceModelY  = centerYVal + halfExtYVal * 0.82f
+        val computedOriginY = if (extentsYVal > 0f) -faceModelY / extentsYVal else 0f
+
+        bboxInfo = "center=(%.3f, %.3f, %.3f)\nhalfExt=(%.3f, %.3f, %.3f)\nfaceY=%.3f  originY=%.3f".format(
+            bbox.center[0], bbox.center[1], bbox.center[2],
+            bbox.halfExtent[0], bbox.halfExtent[1], bbox.halfExtent[2],
+            faceModelY, computedOriginY
+        )
+
+        // Set computed originY as initial value
+        originY = computedOriginY
+    }
+
+    // Update cameraNode position when editable values change
+    LaunchedEffect(camPosX, camPosY, camPosZ) {
+        cameraNode.position = Float3(camPosX, camPosY, camPosZ)
     }
 
     LaunchedEffect(Unit) {
@@ -432,8 +431,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         while (!isFinished) { delay(1_000); elapsedSec++ }
     }
 
-    LaunchedEffect(Unit) { delay(50_000); showSaveDialog = true }
-
     LaunchedEffect(modelInstance) {
         val inst = modelInstance ?: run {
             DiagLog.d("modelInstance null — waiting for load")
@@ -448,20 +445,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             if (rm.hasComponent(e))
                 DiagLog.d("  entity[$i] morphTargets=${rm.getMorphTargetCount(rm.getInstance(e))}")
         }
-        val tm = engine.transformManager
-        val rootEntity = inst.root
-        if (tm.hasComponent(rootEntity)) {
-            val ti = tm.getInstance(rootEntity)
-            val mat = FloatArray(16)
-            tm.getTransform(ti, mat)
-            DiagLog.i("ROOT TRANSFORM: ${mat.joinToString { "%.3f".format(it) }}")
-        }
 
-        val bbox = inst.asset.boundingBox
-        DiagLog.i("BBOX center=[${bbox.center.joinToString { "%.4f".format(it) }}] " +
-            "halfExtent=[${bbox.halfExtent.joinToString { "%.4f".format(it) }}]")
-
-        statusText = "Model loaded! Starting test…"
+        statusText = "Model loaded"
         delay(600)
 
         SEQUENCE.forEachIndexed { i, step ->
@@ -474,10 +459,8 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                 try {
                     playAnimation(inst, step.durationMs)
                     statusText = "OK: anim played"
-                    DiagLog.i("  → anim OK")
                 } catch (ex: Exception) {
                     statusText = "SKIP: ${ex.message}"
-                    DiagLog.w("  → anim skip: ${ex.message}")
                     delay(step.durationMs)
                 }
             } else {
@@ -493,7 +476,6 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         DiagLog.i("═══ SEQUENCE COMPLETE ═══")
         statusText  = "All ${SEQUENCE.size} tests complete"
         isFinished  = true
-        showSaveDialog = true
     }
 
     val saveLauncher = rememberLauncherForActivityResult(
@@ -542,10 +524,15 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Avatar Morph Test", fontWeight = FontWeight.SemiBold) },
+                title = { Text("Avatar Morph Test", fontWeight = FontWeight.SemiBold, fontSize = 16.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                    }
+                },
+                actions = {
+                    TextButton(onClick = { showDebug = !showDebug }) {
+                        Text(if (showDebug) "HIDE DBG" else "SHOW DBG", fontSize = 10.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -559,47 +546,43 @@ fun AvatarTestScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
 
+            // ──── 3D SCENE ────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
             ) {
                 Scene(
-                    // FIX #3: Убран .pointerInput(Unit) { awaitPointerEventScope { ... } }
-                    // который перехватывал ВСЕ touch до SceneView → orbit/zoom мёртвы.
                     modifier          = Modifier.fillMaxSize(),
                     engine            = engine,
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
                     cameraManipulator = rememberCameraManipulator(
-                        orbitHomePosition = CAM_POSITION,
-                        targetPosition    = CAM_TARGET,
+                        orbitHomePosition = Float3(camPosX, camPosY, camPosZ),
+                        targetPosition    = Float3(camTgtX, camTgtY, camTgtZ),
                     ),
                     environment       = environment,
                     onFrame           = {
                         val p = cameraNode.worldPosition
-                        camPosText = "x=%.3f y=%.3f z=%.3f".format(p.x, p.y, p.z)
+                        liveCamPos = "x=%.3f y=%.3f z=%.3f".format(p.x, p.y, p.z)
                         val d = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
-                        camDistText = "dist=%.3f".format(d)
-                        if (frameCount < 5) {
-                            frameCount++
-                            DiagLog.i("FRAME[$frameCount] cam=$camPosText dist=$camDistText")
+                        liveCamDist = "dist=%.3f".format(d)
+                        // forward direction
+                        val fwd = cameraNode.worldQuaternion.let { q ->
+                            // forward = q * (0,0,-1)
+                            val fx = 2f * (q.x * q.z + q.w * q.y)
+                            val fy = 2f * (q.y * q.z - q.w * q.x)
+                            val fz = -(1f - 2f * (q.x * q.x + q.y * q.y))
+                            "fwd=(%.2f, %.2f, %.2f)".format(fx, fy, fz)
                         }
+                        liveCamFwd = fwd
                     },
                 ) {
-                    // ══════════════════════════════════════════════════════════
-                    // FIX #2: ModelNode внутри Scene{} — Composable из
-                    // SceneScope (возвращает Unit). Нельзя .apply{} на нём.
-                    //
-                    // centerOrigin вычислен выше через computeFaceCenterOrigin
-                    // и передан как параметр. Это смещает модель так, чтобы
-                    // ЛИЦО было в (0,0,0), а не геометрический центр тела.
-                    // ══════════════════════════════════════════════════════════
                     modelInstance?.let {
                         ModelNode(
                             modelInstance = it,
-                            scaleToUnits  = 0.35f,
-                            centerOrigin  = faceCenterOrigin ?: Position(0f, 0f, 0f),
+                            scaleToUnits  = scaleToUnits,
+                            centerOrigin  = faceCenterOrigin,
                             autoAnimate   = false,
                         )
                     }
@@ -607,79 +590,50 @@ fun AvatarTestScreen(onBack: () -> Unit) {
 
                 if (!isFinished) ScanlineOverlay()
 
+                // ──── LIVE CAMERA INFO OVERLAY ────
                 Column(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(camPosText, color = Color.Yellow, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text(camDistText, color = Color.Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Text(
-                    text = if (modelInstance != null) "✓ Model loaded" else "⏳ Loading…",
-                    color = if (modelInstance != null) Color(0xFF69F0AE) else Color(0xFFFFD740),
-                    fontSize   = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier   = Modifier
                         .align(Alignment.TopStart)
-                        .padding(8.dp)
-                        .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 3.dp),
-                )
+                        .padding(6.dp)
+                        .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (modelInstance != null) "✓ Model loaded" else "⏳ Loading…",
+                        color = if (modelInstance != null) Color(0xFF69F0AE) else Color(0xFFFFD740),
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    )
+                    Text(liveCamPos, color = Color.Yellow, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    Text(liveCamDist, color = Color.Cyan, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    Text(liveCamFwd, color = Color(0xFFFF80AB), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    Text("scale=${"%.3f".format(scaleToUnits)}", color = Color.White, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    Text("origin=(%.3f, %.3f, %.3f)".format(originX, originY, originZ),
+                        color = Color(0xFFB388FF), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                }
             }
 
+            // ──── BOTTOM PANEL ────
             Surface(
                 modifier       = Modifier.fillMaxWidth(),
                 color          = MaterialTheme.colorScheme.surface,
                 tonalElevation = 2.dp,
             ) {
                 Column(
-                    modifier            = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .let { if (showDebug) it.verticalScroll(rememberScrollState()) else it },
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
+                    // Progress
                     LinearProgressIndicator(
-                        progress      = { animProgress },
-                        modifier      = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
-                        strokeCap     = StrokeCap.Round,
-                        color         = currentStep?.category?.color ?: MaterialTheme.colorScheme.primary,
-                        trackColor    = MaterialTheme.colorScheme.surfaceVariant,
+                        progress   = { animProgress },
+                        modifier   = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                        strokeCap  = StrokeCap.Round,
+                        color      = currentStep?.category?.color ?: MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
                     )
 
-                    if (!isFinished && currentStep != null) {
-                        AnimatedContent(
-                            targetState    = stepIndex,
-                            transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
-                            label          = "step",
-                        ) { idx ->
-                            val step = SEQUENCE.getOrNull(idx) ?: return@AnimatedContent
-                            Row(
-                                verticalAlignment     = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                CategoryChip(step.category)
-                                Text(
-                                    text       = if (isResetting) "Reset…" else step.label,
-                                    style      = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            }
-                        }
-                        if (currentStep.headWeights != null && !isResetting) {
-                            ActiveWeightsRow(currentStep.headWeights)
-                        }
-                    }
-
-                    if (isFinished) {
-                        Text(
-                            "✓ All $totalSteps steps complete",
-                            fontWeight = FontWeight.Bold,
-                            color      = Color(0xFF2E7D32),
-                        )
-                    }
-
+                    // Status row
                     Row(
                         modifier              = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -687,40 +641,130 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     ) {
                         Text(
                             "Step ${(stepIndex + 1).coerceAtMost(totalSteps)} / $totalSteps",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelSmall,
                         )
                         Text(
                             text     = statusText,
-                            style    = MaterialTheme.typography.labelMedium,
+                            style    = MaterialTheme.typography.labelSmall,
                             color    = when {
                                 statusText.startsWith("OK") ||
                                 statusText.contains("loaded") ||
                                 statusText.contains("complete") -> Color(0xFF2E7D32)
-                                statusText.contains("FAIL") ||
-                                statusText.contains("error", ignoreCase = true) -> Color(0xFFD32F2F)
+                                statusText.contains("FAIL") -> Color(0xFFD32F2F)
                                 else -> MaterialTheme.colorScheme.onSurfaceVariant
                             },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
                         )
-                        Text(
-                            "${elapsedSec}s",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text("${elapsedSec}s", style = MaterialTheme.typography.labelSmall)
                     }
 
+                    if (isFinished) {
+                        Text("✓ All $totalSteps steps complete",
+                            fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32), fontSize = 13.sp)
+                    }
+
+                    // ══════════════════════════════════════════════════════════
+                    //  DEBUG PARAMETER PANEL
+                    // ══════════════════════════════════════════════════════════
+                    if (showDebug) {
+                        Text("── Camera Position ──", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = Color.Yellow, modifier = Modifier.padding(top = 4.dp))
+                        ParamRow3("camPos", camPosX, camPosY, camPosZ,
+                            onX = { camPosX = it }, onY = { camPosY = it }, onZ = { camPosZ = it })
+
+                        Text("── Camera Target ──", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = Color.Cyan)
+                        ParamRow3("camTgt", camTgtX, camTgtY, camTgtZ,
+                            onX = { camTgtX = it }, onY = { camTgtY = it }, onZ = { camTgtZ = it })
+
+                        Text("── Model ──", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = Color(0xFFB388FF))
+                        ParamRow1("scaleToUnits", scaleToUnits) { scaleToUnits = it }
+
+                        Text("── centerOrigin ──", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF80AB))
+                        ParamRow3("origin", originX, originY, originZ,
+                            onX = { originX = it }, onY = { originY = it }, onZ = { originZ = it })
+
+                        // BBox info (read-only)
+                        Text("── BBox (read-only) ──", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = Color(0xFF80CBC4))
+                        Text(bboxInfo, fontSize = 9.sp, fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    // Save button
                     TextButton(onClick = {
                         saveLauncher.launch("avatar_diag_${System.currentTimeMillis()}.txt")
-                    }) {
-                        Text("📋 Save diagnostic log", fontSize = 11.sp)
-                    }
+                    }) { Text("📋 Save diagnostic log", fontSize = 11.sp) }
                 }
             }
         }
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  EDITABLE PARAMETER ROWS
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ParamRow3(
+    label: String,
+    x: Float, y: Float, z: Float,
+    onX: (Float) -> Unit, onY: (Float) -> Unit, onZ: (Float) -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        modifier              = Modifier.fillMaxWidth(),
+    ) {
+        FloatField("x", x, onX, Modifier.weight(1f))
+        FloatField("y", y, onY, Modifier.weight(1f))
+        FloatField("z", z, onZ, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ParamRow1(
+    label: String,
+    value: Float,
+    onChange: (Float) -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        modifier              = Modifier.fillMaxWidth(),
+    ) {
+        FloatField(label, value, onChange, Modifier.width(120.dp))
+    }
+}
+
+@Composable
+private fun FloatField(
+    label: String,
+    value: Float,
+    onChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var text by remember(value) { mutableStateOf("%.3f".format(value)) }
+
+    OutlinedTextField(
+        value         = text,
+        onValueChange = { newText ->
+            text = newText
+            newText.toFloatOrNull()?.let { onChange(it) }
+        },
+        label         = { Text(label, fontSize = 9.sp) },
+        modifier      = modifier.height(52.dp),
+        textStyle     = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace),
+        singleLine    = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        colors        = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor   = Color(0xFF64FFDA),
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+        ),
+    )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -737,33 +781,6 @@ private fun CategoryChip(category: Category) {
             fontWeight = FontWeight.SemiBold,
             modifier   = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
         )
-    }
-}
-
-@Composable
-private fun ActiveWeightsRow(weights: FloatArray) {
-    val active = weights.indices
-        .filter { weights[it] > 0.001f }
-        .take(8)
-        .map { it to weights[it] }
-    if (active.isEmpty()) return
-    Row(
-        modifier              = Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        for ((idx, value) in active) {
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-            ) {
-                Text(
-                    text     = "#$idx=${"%.2f".format(value)}",
-                    fontSize = 10.sp,
-                    color    = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                )
-            }
-        }
     }
 }
 
