@@ -54,7 +54,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -322,6 +321,127 @@ private suspend fun playAnimation(instance: ModelInstance, maxMs: Long) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+//  ИСПРАВЛЕННЫЕ БАГИ (полный список):
+//
+//  ╔══════════════════════════════════════════════════════════════════════════╗
+//  ║ BUG #1 — КРИТИЧЕСКИЙ: Камера смотрит на центр ТЕЛА, а не на ЛИЦО     ║
+//  ╠══════════════════════════════════════════════════════════════════════════╣
+//  ║ Проблема: Wolf3D/RPM аватар — полноростовая модель. BoundingBox       ║
+//  ║ center ≈ (0, 0.85, 0). После center-коррекции центр тела на (0,0,0), ║
+//  ║ а лицо уходит на ~y=+0.14. Камера на z=0.55 смотрит на (0,0,0) —     ║
+//  ║ в грудную клетку. Viewport кажется "пустым" или видно тело без лица.  ║
+//  ║                                                                        ║
+//  ║ Решение: Позиционируем модель так, чтобы ЛИЦО было в (0,0,0).         ║
+//  ║ Формула: faceY ≈ center.y + halfExtent.y * 0.82 (≈90% высоты модели) ║
+//  ║ position = Float3(-cx*sx, -faceY*sy, -cz*sz)                          ║
+//  ╚══════════════════════════════════════════════════════════════════════════╝
+//
+//  ╔══════════════════════════════════════════════════════════════════════════╗
+//  ║ BUG #2 — КРИТИЧЕСКИЙ: pointerInput блокирует жесты камеры             ║
+//  ╠══════════════════════════════════════════════════════════════════════════╣
+//  ║ Проблема: .pointerInput(Unit) { awaitPointerEventScope { while(true)  ║
+//  ║   { awaitPointerEvent() } } } — перехватывает ВСЕ touch-события       ║
+//  ║ до того, как SceneView их получит. Camera manipulator (orbit/zoom)    ║
+//  ║ полностью заблокирован — пользователь не может вращать/зумить сцену.   ║
+//  ║                                                                        ║
+//  ║ Решение: Убрать pointerInput. SceneView сам обрабатывает жесты.       ║
+//  ╚══════════════════════════════════════════════════════════════════════════╝
+//
+//  ╔══════════════════════════════════════════════════════════════════════════╗
+//  ║ BUG #3 — ВАЖНЫЙ: Камера слишком далеко для face close-up              ║
+//  ╠══════════════════════════════════════════════════════════════════════════╣
+//  ║ Проблема: z=0.55 при scaleToUnits=0.35 — модель ~0.35 единиц,        ║
+//  ║ голова ≈ 0.06 единиц. С расстояния 0.55 лицо занимает ~11% экрана.   ║
+//  ║ Морфы практически не видны.                                            ║
+//  ║                                                                        ║
+//  ║ Решение: Камера на z=0.25 для портретного кадрирования лица.          ║
+//  ╚══════════════════════════════════════════════════════════════════════════╝
+//
+//  ╔══════════════════════════════════════════════════════════════════════════╗
+//  ║ BUG #4 — ВАЖНЫЙ: cameraManipulator конфликтует с cameraNode.lookAt    ║
+//  ╠══════════════════════════════════════════════════════════════════════════╣
+//  ║ Проблема: cameraNode задаёт position + lookAt в rememberCameraNode,   ║
+//  ║ а cameraManipulator перезаписывает позицию/таргет со своими defaults.  ║
+//  ║ orbitHomePosition и targetPosition должны точно совпадать с камерой.   ║
+//  ║                                                                        ║
+//  ║ Решение: Синхронизировать значения камеры и манипулятора.             ║
+//  ╚══════════════════════════════════════════════════════════════════════════╝
+//
+//  ╔══════════════════════════════════════════════════════════════════════════╗
+//  ║ BUG #5 — СРЕДНИЙ: centerOrigin=Float3(0,0,0) — это NO-OP!            ║
+//  ╠══════════════════════════════════════════════════════════════════════════╣
+//  ║ Проблема: В комментарии написано "centerOrigin КРИТИЧНО", но           ║
+//  ║ ModelNode.centerOrigin(Position(0,0,0)) делает position += (0,0,0),   ║
+//  ║ т.е. вообще ничего не двигает. Модель остаётся со смещённым центром.  ║
+//  ║ Ручная коррекция position = -center*scale — правильный подход,         ║
+//  ║ но в оригинале формула центрирует ТЕЛО, а надо ЛИЦО.                  ║
+//  ║                                                                        ║
+//  ║ Решение: Не использовать centerOrigin, вычислять позицию вручную       ║
+//  ║ с таргетом на лицо.                                                    ║
+//  ╚══════════════════════════════════════════════════════════════════════════╝
+//
+//  ╔══════════════════════════════════════════════════════════════════════════╗
+//  ║ BUG #6 — СРЕДНИЙ: Нет защиты от NaN/Infinity в scaleToUnits           ║
+//  ╠══════════════════════════════════════════════════════════════════════════╣
+//  ║ Проблема: Если boundingBox пустой (все extents = 0), scaleToUnitCube  ║
+//  ║ внутри ModelNode уже защищён (if maxExtent > 0), но при ручном         ║
+//  ║ вычислении position = -center * scale нет проверки на NaN.             ║
+//  ║                                                                        ║
+//  ║ Решение: Добавить guard перед установкой position.                     ║
+//  ╚══════════════════════════════════════════════════════════════════════════╝
+//
+//  ╔══════════════════════════════════════════════════════════════════════════╗
+//  ║ BUG #7 — КОСМЕТИЧЕСКИЙ: lookAt после присвоения position в init       ║
+//  ╠══════════════════════════════════════════════════════════════════════════╣
+//  ║ Проблема: rememberCameraNode { position = ...; lookAt(...) } —         ║
+//  ║ lookAt вычисляет ротацию из текущей позиции к таргету. Если потом      ║
+//  ║ cameraManipulator перезапишет позицию, lookAt-ротация теряется.        ║
+//  ║                                                                        ║
+//  ║ Решение: Полагаться только на cameraManipulator для управления         ║
+//  ║ камерой. lookAt в init убрать — манипулятор сам ориентирует камеру.    ║
+//  ╚══════════════════════════════════════════════════════════════════════════╝
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Константы камеры: единый источник правды для cameraNode и cameraManipulator
+private val CAM_POSITION = Float3(x = 0f, y = 0f, z = 0.25f)   // FIX #3: ближе к лицу
+private val CAM_TARGET   = Float3(x = 0f, y = 0f, z = 0f)       // FIX #1: лицо в (0,0,0)
+
+/**
+ * Вычисляет позицию модели так, чтобы лицо оказалось в начале координат (0,0,0).
+ *
+ * Для Wolf3D/ReadyPlayerMe full-body аватара:
+ * - Ноги на y=0, макушка на y≈1.7 в model space
+ * - boundingBox.center.y ≈ 0.85
+ * - Лицо (середина между подбородком и макушкой) ≈ center.y + halfExtent.y * 0.82
+ *
+ * @param center    boundingBox.center модели (в model space)
+ * @param halfExt   boundingBox.halfExtent модели (в model space)
+ * @param scale     текущий масштаб после scaleToUnitCube
+ * @return позиция модели, при которой лицо в (0,0,0)
+ */
+private fun computeFaceCenteredPosition(
+    center: Float3,
+    halfExt: Float3,
+    scale: Float3
+): Float3 {
+    // faceY — приблизительная Y-координата лица в model space.
+    // 0.82 * halfExtent.y от центра ≈ 91% от высоты снизу.
+    // Для полуростовых моделей (только бюст) halfExtent.y мала,
+    // и формула корректно смещает к верхней части.
+    val faceY = center.y + halfExt.y * 0.82f
+    val pos = Float3(
+        x = -center.x * scale.x,
+        y = -faceY * scale.y,
+        z = -center.z * scale.z
+    )
+    // FIX #6: Защита от NaN/Infinity
+    return if (pos.x.isFinite() && pos.y.isFinite() && pos.z.isFinite()) pos
+    else Float3(0f, 0f, 0f)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
@@ -351,14 +471,15 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val modelLoader       = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
 
+    // FIX #4 + #7: Не задаём lookAt в init — cameraManipulator управляет
+    // ориентацией камеры. position здесь — только fallback до инициализации
+    // манипулятора.
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(x = 0f, y = 0f, z = 0.55f)
-        lookAt(Float3(0f, 0f, 0f))
+        position = CAM_POSITION
     }
 
     val environment = rememberEnvironment(environmentLoader, "environments/neutral_ibl.ktx")
 
-    // Модель — null пока грузится, non-null когда готова
     val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
 
     // ── One-shot diagnostics ──────────────────────────────────────────────
@@ -511,32 +632,18 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                // ═══════════════════════════════════════════════════════════
-                //  SceneView (НЕ ARSceneView) — без ARCore camera passthrough
-                //
-                //  centerOrigin = Float3(0f,0f,0f) — КРИТИЧНО:
-                //     bbox модели Z=1.37..1.76, без centerOrigin голова
-                //     висит в 1.5м от камеры-цели → пустой viewport
-                //
-                //  ARCore meta-data = "optional" в manifest →
-                //     arsceneview не инициализирует AR-сессию
-                // ═══════════════════════════════════════════════════════════
                 Scene(
-                    modifier          = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    awaitPointerEvent()
-                                }
-                            }
-                        },
+                    // FIX #2: Убран .pointerInput(Unit) { ... } который перехватывал
+                    // все touch-события и блокировал orbit/zoom камеры.
+                    // SceneView сам обрабатывает жесты через cameraManipulator.
+                    modifier          = Modifier.fillMaxSize(),
                     engine            = engine,
                     modelLoader       = modelLoader,
                     cameraNode        = cameraNode,
+                    // FIX #4: Значения манипулятора синхронизированы с CAM_POSITION/CAM_TARGET
                     cameraManipulator = rememberCameraManipulator(
-                        orbitHomePosition = Float3(0f, 0f, 0.55f),
-                        targetPosition    = Float3(0f, 0f, 0f),
+                        orbitHomePosition = CAM_POSITION,   // FIX #3: z=0.25 вместо 0.55
+                        targetPosition    = CAM_TARGET,     // FIX #1: (0,0,0) = лицо
                     ),
                     environment       = environment,
                     onFrame           = {
@@ -555,11 +662,20 @@ fun AvatarTestScreen(onBack: () -> Unit) {
                             modelInstance = inst,
                             scaleToUnits  = 0.35f,
                             autoAnimate   = false,
+                            // FIX #5: НЕ используем centerOrigin — он с (0,0,0) делает NO-OP.
+                            // Вместо этого вычисляем позицию вручную ниже.
                         ).apply {
-                            val c = boundingBox.center
+                            // FIX #1: Центрируем ЛИЦО в (0,0,0), а не геометрический
+                            // центр всего тела.
+                            val c = boundingBox.center.let { v -> Float3(v[0], v[1], v[2]) }
+                            val he = boundingBox.halfExtent.let { v -> Float3(v[0], v[1], v[2]) }
                             val s = scale
-                            position = Float3(-c.x * s.x, -c.y * s.y, -c.z * s.z)
-                            DiagLog.d("ModelNode FIX: center=$c scale=$s position=$position")
+
+                            position = computeFaceCenteredPosition(c, he, s)
+
+                            DiagLog.i("ModelNode FIXED: center=$c halfExtent=$he " +
+                                "scale=$s position=$position " +
+                                "faceY=${c.y + he.y * 0.82f}")
                         }
                     }
                 }
