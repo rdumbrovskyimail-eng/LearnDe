@@ -4,6 +4,7 @@ import com.codeextractor.app.domain.avatar.*
 import com.codeextractor.app.domain.avatar.audio.AudioDSPAnalyzer
 import com.codeextractor.app.domain.avatar.audio.ProsodyTracker
 import com.codeextractor.app.domain.avatar.physics.FacePhysicsEngine
+import com.codeextractor.app.domain.avatar.physics.HeadMotionEngine
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +20,9 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
     private val dsp = AudioDSPAnalyzer()
     private val prosodyTracker = ProsodyTracker()
     private val visemeMapper = VisemeMapper()
+    private val coArticulator = CoArticulator()          // ← NEW
     private val physics = FacePhysicsEngine()
+    private val headMotion = HeadMotionEngine()           // ← NEW
     private val idle = IdleAnimator()
 
     // Thread-safe audio queue (lock-free)
@@ -42,7 +45,6 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun feedAudio(pcmData: ByteArray) {
-        // Non-blocking, lock-free enqueue. Drop if queue too large.
         if (audioQueue.size < 32) {
             audioQueue.add(pcmData)
         }
@@ -52,7 +54,6 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
         this.speaking = speaking
         if (!speaking) {
             audioQueue.clear()
-            // Let physics decay naturally (no snap)
         }
     }
 
@@ -60,6 +61,8 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
         if (running) return
         running = true
         physics.reset()
+        headMotion.reset()
+        coArticulator.reset()
 
         animJob = scope.launch {
             var lastTime = System.currentTimeMillis()
@@ -69,29 +72,30 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
                 val dtMs = (now - lastTime).coerceIn(1, 32)
                 lastTime = now
 
-                // 1. Process latest audio chunk (drain queue, use last)
+                // 1. Drain audio queue (use latest chunk)
                 var chunk: ByteArray? = null
                 while (audioQueue.isNotEmpty()) {
                     chunk = audioQueue.poll()
                 }
 
                 if (chunk != null) {
-                    // 2. DSP: extract spectral features
+                    // 2. DSP
                     dsp.analyze(chunk, features)
 
-                    // 3. Prosody: extract emotion from pitch/energy dynamics
+                    // 3. Prosody
                     prosodyTracker.update(features, prosody, dtMs)
 
-                    // 4. Viseme mapping: features + emotion → target morph weights
-                    val visemeTargets = visemeMapper.map(features, prosody)
+                    // 4. Viseme mapping → co-articulation
+                    val rawVisemes = visemeMapper.map(features, prosody)
+                    val smoothVisemes = coArticulator.process(rawVisemes)  // ← NEW
 
-                    // 5. Merge with idle animation (max blend)
+                    // 5. Merge with idle (max blend)
                     val idleWeights = idle.update(dtMs, speaking)
                     for (i in 0 until ARKit.COUNT) {
-                        physics.setTarget(i, maxOf(visemeTargets[i], idleWeights[i]))
+                        physics.setTarget(i, maxOf(smoothVisemes[i], idleWeights[i]))
                     }
                 } else {
-                    // No audio — idle only
+                    // No audio — idle + silent visemes
                     if (!speaking) {
                         features.hasVoice = false
                         features.rms = 0f
@@ -99,27 +103,37 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
                     }
                     val idleWeights = idle.update(dtMs, speaking)
                     val silentVisemes = visemeMapper.map(features, prosody)
+                    val smoothSilent = coArticulator.process(silentVisemes)  // ← NEW
                     for (i in 0 until ARKit.COUNT) {
-                        physics.setTarget(i, maxOf(silentVisemes[i], idleWeights[i]))
+                        physics.setTarget(i, maxOf(smoothSilent[i], idleWeights[i]))
                     }
                 }
 
-                // 6. Physics step: spring-mass-damper produces smooth output
+                // 6. Face physics
                 val resolved = physics.update(dtMs)
 
-                // 7. Emit render state
-                val state = AvatarRenderState(
-                    morphWeights = resolved.copyOf()
+                // 7. Head motion                                          ← NEW
+                headMotion.update(
+                    dtMs = dtMs,
+                    rms = features.rms,
+                    arousal = prosody.arousal,
+                    isSpeaking = speaking
                 )
-                _renderState.value = state
+
+                // 8. Emit render state (with head rotation)
+                _renderState.value = AvatarRenderState(
+                    morphWeights = resolved.copyOf(),
+                    headPitch = headMotion.pitch,                           // ← NEW
+                    headYaw = headMotion.yaw,                               // ← NEW
+                    headRoll = headMotion.roll                              // ← NEW
+                )
                 _emotion.value = EmotionalProsody().also {
                     it.valence = prosody.valence
                     it.arousal = prosody.arousal
                     it.thoughtfulness = prosody.thoughtfulness
                 }
 
-                // Target ~60fps render loop
-                delay(16)
+                delay(16) // ~60fps
             }
         }
     }
@@ -129,5 +143,7 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
         animJob?.cancel()
         audioQueue.clear()
         physics.reset()
+        headMotion.reset()
+        coArticulator.reset()
     }
 }
