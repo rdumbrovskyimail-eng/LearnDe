@@ -352,9 +352,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     // ══════════════════════════════════════════════════════════════════════
     //  EDITABLE PARAMETERS
     // ══════════════════════════════════════════════════════════════════════
-    var camPosX   by remember { mutableFloatStateOf(0f) }
-    var camPosY   by remember { mutableFloatStateOf(0f) }
-    var camPosZ   by remember { mutableFloatStateOf(0.25f) }
+    var camPosX   by remember { mutableFloatStateOf(-0.018f) }
+    var camPosY   by remember { mutableFloatStateOf(1.442f) }
+    var camPosZ   by remember { mutableFloatStateOf(0.508f) }
 
     var camTgtX   by remember { mutableFloatStateOf(0f) }
     var camTgtY   by remember { mutableFloatStateOf(0f) }
@@ -363,7 +363,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     var scaleToUnits by remember { mutableFloatStateOf(0.35f) }
 
     var originX   by remember { mutableFloatStateOf(0f) }
-    var originY   by remember { mutableFloatStateOf(0f) }
+    var originY   by remember { mutableFloatStateOf(-3.956f) }
     var originZ   by remember { mutableFloatStateOf(0f) }
 
     // Show debug panel toggle
@@ -382,7 +382,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val environmentLoader = rememberEnvironmentLoader(engine)
 
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(camPosX, camPosY, camPosZ)
+        position = Float3(-0.018f, 1.442f, 0.508f)
     }
 
     val environment   = rememberEnvironment(environmentLoader)
@@ -403,14 +403,11 @@ fun AvatarTestScreen(onBack: () -> Unit) {
         val faceModelY  = centerYVal + halfExtYVal * 0.82f
         val computedOriginY = if (extentsYVal > 0f) -faceModelY / extentsYVal else 0f
 
-        bboxInfo = "center=(%.3f, %.3f, %.3f)\nhalfExt=(%.3f, %.3f, %.3f)\nfaceY=%.3f  originY=%.3f".format(
+        bboxInfo = "center=(%.3f, %.3f, %.3f)\nhalfExt=(%.3f, %.3f, %.3f)\nfaceY=%.3f  computed=%.3f".format(
             bbox.center[0], bbox.center[1], bbox.center[2],
             bbox.halfExtent[0], bbox.halfExtent[1], bbox.halfExtent[2],
             faceModelY, computedOriginY
         )
-
-        // Set computed originY as initial value
-        originY = computedOriginY
     }
 
     // Update cameraNode position when editable values change
