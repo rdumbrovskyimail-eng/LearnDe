@@ -33,7 +33,8 @@ class VoiceViewModel @Inject constructor(
     private val audioEngine: AudioEngine,
     private val conversationStore: InMemoryConversationStore,
     private val logger: AppLogger,
-    private val settingsStore: DataStore<AppSettings>
+    private val settingsStore: DataStore<AppSettings>,
+    val avatarAnimator: AvatarAnimator
 ) : ViewModel() {
 
     companion object {
@@ -58,6 +59,7 @@ class VoiceViewModel @Inject constructor(
         observeSettings()
         observeGeminiEvents()
         initAudioPlayback()
+        avatarAnimator.start()
     }
 
     // ════════════════════════════════════════════════════════════
@@ -250,13 +252,17 @@ class VoiceViewModel @Inject constructor(
                     is GeminiEvent.AudioChunk -> {
                         _state.update { it.copy(isAiSpeaking = true) }
                         audioEngine.enqueuePlayback(event.pcmData)
+                        avatarAnimator.feedAudio(event.pcmData)
+                        avatarAnimator.setSpeaking(true)
                     }
                     is GeminiEvent.Interrupted -> {
                         audioEngine.flushPlayback()
+                        avatarAnimator.setSpeaking(false)
                         _state.update { it.copy(isAiSpeaking = false) }
                     }
                     is GeminiEvent.TurnComplete -> {
                         audioEngine.onTurnComplete()
+                        avatarAnimator.setSpeaking(false)
                         _state.update { it.copy(isAiSpeaking = false) }
                     }
                     is GeminiEvent.GenerationComplete -> {
@@ -358,6 +364,7 @@ class VoiceViewModel @Inject constructor(
         super.onCleared()
         reconnectJob?.cancel()
         micJob?.cancel()
+        avatarAnimator.stop()
         viewModelScope.launch {
             audioEngine.releaseAll()
             liveClient.disconnect()
