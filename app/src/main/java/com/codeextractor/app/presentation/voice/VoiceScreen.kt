@@ -60,7 +60,6 @@ import com.codeextractor.app.util.resolve
 @Composable
 fun VoiceScreen(
     viewModel: VoiceViewModel = hiltViewModel(),
-    onNavigateToAvatarTest: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -157,7 +156,6 @@ fun VoiceScreen(
                     onToggleMic  = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
                     onStop       = { viewModel.onIntent(VoiceIntent.ToggleMic) },
                     onSaveLog    = { viewModel.onIntent(VoiceIntent.SaveLog) },
-                    onTestAvatar = onNavigateToAvatarTest,
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -278,7 +276,6 @@ private fun ControlButtons(
     onToggleMic  : () -> Unit,
     onStop       : () -> Unit,
     onSaveLog    : () -> Unit,
-    onTestAvatar : () -> Unit,
 ) {
     val isReady     = state.connectionStatus == ConnectionStatus.Ready
     val isRecording = state.connectionStatus == ConnectionStatus.Recording
@@ -305,10 +302,5 @@ private fun ControlButtons(
             onClick  = onSaveLog,
             modifier = Modifier.weight(0.7f),
         ) { Text("Log", fontSize = 12.sp) }
-
-        OutlinedButton(
-            onClick  = onTestAvatar,
-            modifier = Modifier.weight(0.7f),
-        ) { Text("DBG", fontSize = 12.sp) }
     }
 }
