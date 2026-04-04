@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import dev.romainguy.kotlin.math.Float3
@@ -47,6 +49,11 @@ fun AvatarScene(
     val environment       = rememberEnvironment(environmentLoader)
     val modelInstance     = rememberModelInstance(modelLoader, MODEL_PATH)
 
+    val currentMorphWeights by rememberUpdatedState(morphWeights)
+    val currentPitch by rememberUpdatedState(headPitch)
+    val currentYaw by rememberUpdatedState(headYaw)
+    val currentRoll by rememberUpdatedState(headRoll)
+
     val cameraNode = rememberCameraNode(engine) {
         position = CAM_POS
     }
@@ -67,12 +74,12 @@ fun AvatarScene(
             onFrame     = {
                 val mi = modelInstance
                 if (mi != null) {
-                    // Apply morph weights
-                    if (morphWeights != null) {
-                        applyMorphsInternal(engine, mi, morphWeights)
+                    val w = currentMorphWeights
+                    if (w != null) {
+                        applyMorphsInternal(engine, mi, w)
                     }
                     // Apply head rotation via Filament transform
-                    applyHeadRotation(engine, mi, headPitch, headYaw, headRoll)
+                    applyHeadRotation(engine, mi, currentPitch, currentYaw, currentRoll)
                 }
             },
         ) {
