@@ -142,7 +142,7 @@ private fun applyHeadRotation(
     ) return
 
     val tm = engine.transformManager
-    val rootEntity = instance.root.entity
+    val rootEntity = instance.root
 
     if (!tm.hasComponent(rootEntity)) return
     val ti = tm.getInstance(rootEntity)
