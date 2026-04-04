@@ -352,9 +352,9 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     // ══════════════════════════════════════════════════════════════════════
     //  EDITABLE PARAMETERS
     // ══════════════════════════════════════════════════════════════════════
-    var camPosX   by remember { mutableFloatStateOf(-0.018f) }
-    var camPosY   by remember { mutableFloatStateOf(1.442f) }
-    var camPosZ   by remember { mutableFloatStateOf(0.508f) }
+    var camPosX   by remember { mutableFloatStateOf(0f) }
+    var camPosY   by remember { mutableFloatStateOf(0f) }
+    var camPosZ   by remember { mutableFloatStateOf(0.5f) }
 
     var camTgtX   by remember { mutableFloatStateOf(0f) }
     var camTgtY   by remember { mutableFloatStateOf(0f) }
@@ -382,7 +382,7 @@ fun AvatarTestScreen(onBack: () -> Unit) {
     val environmentLoader = rememberEnvironmentLoader(engine)
 
     val cameraNode = rememberCameraNode(engine) {
-        position = Float3(-0.018f, 1.442f, 0.508f)
+        position = Float3(0f, 0f, 0.5f)
     }
 
     val environment   = rememberEnvironment(environmentLoader)
