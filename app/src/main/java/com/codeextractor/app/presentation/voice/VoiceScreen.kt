@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -47,8 +48,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -60,6 +61,7 @@ import com.codeextractor.app.util.resolve
 @Composable
 fun VoiceScreen(
     viewModel: VoiceViewModel = hiltViewModel(),
+    onOpenEditor: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -113,13 +115,27 @@ fun VoiceScreen(
                     headRoll     = renderState.headRoll,
                 )
 
-                // Status overlay on top of avatar
+                // Status overlay
                 StatusBadge(
                     state    = state,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(8.dp),
                 )
+
+                // ── Кнопка редактора модели ──
+                OutlinedButton(
+                    onClick  = onOpenEditor,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.White,
+                        containerColor = Color.Black.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Text("Edit", fontSize = 11.sp)
+                }
             }
 
             // ══════════════════════════════════════════════════════
@@ -139,7 +155,6 @@ fun VoiceScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                 }
 
-                // Chat messages
                 LazyColumn(
                     state    = listState,
                     modifier = Modifier
@@ -157,7 +172,6 @@ fun VoiceScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Control buttons
                 ControlButtons(
                     state        = state,
                     onToggleMic  = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
@@ -172,7 +186,7 @@ fun VoiceScreen(
 }
 
 // ════════════════════════════════════════════════════════════════
-//  COMPONENTS
+//  COMPONENTS (без изменений)
 // ════════════════════════════════════════════════════════════════
 
 @Composable
