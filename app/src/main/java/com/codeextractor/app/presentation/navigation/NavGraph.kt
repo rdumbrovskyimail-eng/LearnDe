@@ -8,10 +8,12 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.codeextractor.app.presentation.editor.ModelEditorScreen
 import com.codeextractor.app.presentation.voice.VoiceScreen
 
 object Routes {
-    const val VOICE = "voice"
+    const val VOICE  = "voice"
+    const val EDITOR = "editor"
 }
 
 @Composable
@@ -27,7 +29,19 @@ fun AppNavGraph(
             enterTransition  = { fadeIn(tween(300)) },
             exitTransition   = { fadeOut(tween(300)) },
         ) {
-            VoiceScreen()
+            VoiceScreen(
+                onOpenEditor = { navController.navigate(Routes.EDITOR) }
+            )
+        }
+
+        composable(
+            route            = Routes.EDITOR,
+            enterTransition  = { fadeIn(tween(300)) },
+            exitTransition   = { fadeOut(tween(300)) },
+        ) {
+            ModelEditorScreen(
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }
