@@ -123,18 +123,17 @@ fun VoiceScreen(
                         .padding(8.dp),
                 )
 
-                // ── Кнопка редактора модели ──
+                // ── Кнопка редактора ──
                 OutlinedButton(
                     onClick  = onOpenEditor,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.White,
                         containerColor = Color.Black.copy(alpha = 0.5f)
                     )
                 ) {
-                    Text("Edit", fontSize = 11.sp)
+                    Text("Edit", color = Color.White, fontSize = 11.sp)
                 }
             }
 
