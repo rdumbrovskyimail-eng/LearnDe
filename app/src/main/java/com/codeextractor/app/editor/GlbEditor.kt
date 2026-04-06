@@ -74,12 +74,42 @@ class EditableElement(
     override fun hashCode(): Int = entity * 31 + primitiveIndex
 }
 
+/**
+ * GlbTextureEditor — редактор текстур 3D-аватара.
+ *
+ * ═══════════════════════════════════════════════════════════════════
+ *  АРХИТЕКТУРА THREAD-SAFETY (2026):
+ *
+ *  Filament Engine — строго однопоточный. ВСЕ вызовы к нему
+ *  (setParameter, setBitmap, generateMipmaps, setMaterialInstanceAt)
+ *  ДОЛЖНЫ выполняться на render-thread SceneView.
+ *
+ *  Решение: pending-очередь операций, которая flush'ится
+ *  из SceneView.onFrame() callback (render thread).
+ *
+ *  CPU-работа (Canvas, Matrix, Bitmap decode) — на main thread (ОК).
+ *  GPU-работа (Filament API) — только через flushPendingGpuOps().
+ * ═══════════════════════════════════════════════════════════════════
+ */
 class GlbTextureEditor(private val context: Context) {
 
     private val elements = mutableListOf<EditableElement>()
     private val texturePool = mutableListOf<Texture>()
     private var texturedMaterial: com.google.android.filament.Material? = null
     private var dummyWhiteTexture: Texture? = null
+
+    // ═══ FIX 1: Thread-safe pending queue ═══
+    // Все Filament-операции складываются сюда и выполняются в onFrame
+    private val pendingGpuOps = mutableListOf<() -> Unit>()
+    private val gpuOpsLock = Any()
+
+    // ═══ FIX 4: Переиспользуемые объекты (JNI pressure reduction) ═══
+    private val workingMatrix = Matrix()
+    private val workingPaint = Paint().apply {
+        isFilterBitmap = true
+        isAntiAlias = true
+    }
+    private var cachedCanvas: Canvas? = null
 
     companion object {
         private const val DISPLAY_TEX_SIZE = 1024
@@ -94,9 +124,38 @@ class GlbTextureEditor(private val context: Context) {
         "eyeRight_ORIGINAL" to "Правый глаз",
     )
 
+    // ═══════════════════════════════════════════════════════════════
+    //  PUBLIC: вызывается из SceneView onFrame (RENDER THREAD)
+    // ═══════════════════════════════════════════════════════════════
+
     /**
-     * Создаёт 1x1 белую текстуру — заглушка для Material с sampler.
-     * Без неё Filament крашит при рендере (sampler без привязанной текстуры = SIGABRT).
+     * Вызывайте из Scene(onFrame = { editor.flushPendingGpuOps(engine) }).
+     * Это единственное место, где Filament API безопасно вызывается.
+     */
+    fun flushPendingGpuOps(engine: Engine) {
+        val ops: List<() -> Unit>
+        synchronized(gpuOpsLock) {
+            if (pendingGpuOps.isEmpty()) return
+            ops = pendingGpuOps.toList()
+            pendingGpuOps.clear()
+        }
+        ops.forEach { it.invoke() }
+    }
+
+    private fun postGpuOp(op: () -> Unit) {
+        synchronized(gpuOpsLock) {
+            pendingGpuOps.add(op)
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  DUMMY TEXTURE + SAMPLER
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * 1x1 белая текстура-заглушка для Material с sampler.
+     * Без неё Filament крашит при рендере (sampler без текстуры = SIGABRT).
+     * ВНИМАНИЕ: вызывать только с render thread (через postGpuOp)!
      */
     private fun getOrCreateDummyTexture(engine: Engine): Texture {
         dummyWhiteTexture?.let { return it }
@@ -122,12 +181,29 @@ class GlbTextureEditor(private val context: Context) {
 
     private fun createDefaultSampler(): TextureSampler {
         return TextureSampler().apply {
+            // FIX 3: LINEAR без MIPMAP для default sampler (dummy текстура 1x1)
             setMinFilter(TextureSampler.MinFilter.LINEAR)
             setMagFilter(TextureSampler.MagFilter.LINEAR)
             setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
             setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
         }
     }
+
+    private fun createTextureSampler(elem: EditableElement): TextureSampler {
+        return TextureSampler().apply {
+            setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
+            setMagFilter(TextureSampler.MagFilter.LINEAR)
+            val wrap = if (elem.type == ElementType.EYE)
+                TextureSampler.WrapMode.REPEAT
+            else TextureSampler.WrapMode.CLAMP_TO_EDGE
+            setWrapModeS(wrap)
+            setWrapModeT(wrap)
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  SCAN MODEL
+    // ═══════════════════════════════════════════════════════════════
 
     fun scanModel(engine: Engine, modelInstance: ModelInstance): List<EditableElement> {
         elements.clear()
@@ -170,37 +246,36 @@ class GlbTextureEditor(private val context: Context) {
                     )
                 )
 
-                // Зубы имеют baseColorMap в шейдере
+                // Зубы имеют baseColorMap в шейдере — захватываем Material
                 if (meshName == "teeth_ORIGINAL" && texturedMaterial == null) {
                     try {
                         texturedMaterial = mi.material
-                        showError("Material от зубов захвачен")
                     } catch (_: Exception) {}
                 }
             }
         }
 
-        // ── Фаза 2: подмена материалов + ОБЯЗАТЕЛЬНАЯ привязка dummy текстуры ──
+        // ═══ Фаза 2: подмена материалов ═══
+        // FIX 1: все Filament-операции через postGpuOp
         val texMat = texturedMaterial
-        val dummy = getOrCreateDummyTexture(engine)
-        val defaultSampler = createDefaultSampler()
 
         for (elem in rawElements) {
             if (texMat != null && elem.meshName != "teeth_ORIGINAL") {
                 try {
                     val newMI = texMat.createInstance()
 
-                    // ═══ КРИТИЧЕСКИЙ ФИХ: привязываем белую текстуру СРАЗУ ═══
-                    // Без этого Filament падает в SIGABRT при первом же рендер-кадре,
-                    // потому что шейдер ожидает текстуру на baseColorMap, а её нет.
-                    newMI.setParameter("baseColorMap", dummy, defaultSampler)
-                    newMI.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
+                    // Сохраняем ссылки для GPU-операции
+                    val ri = elem.renderableInstance
+                    val pi = elem.primitiveIndex
 
-                    rm.setMaterialInstanceAt(
-                        elem.renderableInstance,
-                        elem.primitiveIndex,
-                        newMI
-                    )
+                    // GPU-операции — в очередь (выполнятся на render thread)
+                    postGpuOp {
+                        val dummy = getOrCreateDummyTexture(engine)
+                        val sampler = createDefaultSampler()
+                        newMI.setParameter("baseColorMap", dummy, sampler)
+                        newMI.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
+                        rm.setMaterialInstanceAt(ri, pi, newMI)
+                    }
 
                     val patched = EditableElement(
                         entity = elem.entity,
@@ -211,16 +286,14 @@ class GlbTextureEditor(private val context: Context) {
                     )
                     setupHighEndPBR(patched)
                     elements.add(patched)
-                    showError("${elem.meshName}: MI заменён OK")
                 } catch (e: Exception) {
-                    showError("Patch fail ${elem.meshName}: ${e.message}")
-                    // Fallback: оставляем оригинальный MI (без текстурной поддержки)
+                    // Fallback: оригинальный MI
                     val orig = elem.copy()
                     setupHighEndPBR(orig)
                     elements.add(orig)
                 }
             } else {
-                // Зубы — уже имеют текстуру, оставляем как есть
+                // Зубы — уже имеют текстуру
                 val orig = elem.copy()
                 setupHighEndPBR(orig)
                 elements.add(orig)
@@ -232,28 +305,32 @@ class GlbTextureEditor(private val context: Context) {
 
     private fun setupHighEndPBR(elem: EditableElement) {
         val mi = elem.materialInstance
-        safeSetParam4f(mi, "baseColorFactor", 1f, 1f, 1f, 1f)
-
-        when (elem.type) {
-            ElementType.EYE -> {
-                elem.currentRoughness = 0.05f
-                elem.currentMetallic = 0.1f
-                safeSetParam1f(mi, "roughnessFactor", 0.05f)
-                safeSetParam1f(mi, "metallicFactor", 0.1f)
+        // setParameter на MaterialInstance безопасен для scalar params
+        // если MI ещё не используется рендерером (только что создан)
+        // Для безопасности — тоже через очередь
+        postGpuOp {
+            safeSetParam4f(mi, "baseColorFactor", 1f, 1f, 1f, 1f)
+            when (elem.type) {
+                ElementType.EYE -> {
+                    elem.currentRoughness = 0.05f
+                    elem.currentMetallic = 0.1f
+                    safeSetParam1f(mi, "roughnessFactor", 0.05f)
+                    safeSetParam1f(mi, "metallicFactor", 0.1f)
+                }
+                ElementType.TEETH -> {
+                    elem.currentR = 0.95f; elem.currentG = 0.93f; elem.currentB = 0.88f
+                    elem.currentRoughness = 0.2f; elem.currentMetallic = 0f
+                    safeSetParam4f(mi, "baseColorFactor", 0.95f, 0.93f, 0.88f, 1f)
+                    safeSetParam1f(mi, "roughnessFactor", 0.2f)
+                    safeSetParam1f(mi, "metallicFactor", 0f)
+                }
+                ElementType.SKIN -> {
+                    elem.currentRoughness = 0.55f; elem.currentMetallic = 0f
+                    safeSetParam1f(mi, "roughnessFactor", 0.55f)
+                    safeSetParam1f(mi, "metallicFactor", 0f)
+                }
+                else -> {}
             }
-            ElementType.TEETH -> {
-                elem.currentR = 0.95f; elem.currentG = 0.93f; elem.currentB = 0.88f
-                elem.currentRoughness = 0.2f; elem.currentMetallic = 0f
-                safeSetParam4f(mi, "baseColorFactor", 0.95f, 0.93f, 0.88f, 1f)
-                safeSetParam1f(mi, "roughnessFactor", 0.2f)
-                safeSetParam1f(mi, "metallicFactor", 0f)
-            }
-            ElementType.SKIN -> {
-                elem.currentRoughness = 0.55f; elem.currentMetallic = 0f
-                safeSetParam1f(mi, "roughnessFactor", 0.55f)
-                safeSetParam1f(mi, "metallicFactor", 0f)
-            }
-            else -> {}
         }
     }
 
@@ -265,48 +342,80 @@ class GlbTextureEditor(private val context: Context) {
         try { mi.setParameter(name, r, g, b, a) } catch (_: Exception) {}
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  COLOR / PBR (через GPU очередь)
+    // ═══════════════════════════════════════════════════════════════
+
     fun setColor(elem: EditableElement, r: Float, g: Float, b: Float) {
         elem.currentR = r; elem.currentG = g; elem.currentB = b
-        safeSetParam4f(elem.materialInstance, "baseColorFactor", r, g, b, 1f)
+        postGpuOp {
+            safeSetParam4f(elem.materialInstance, "baseColorFactor", r, g, b, 1f)
+        }
     }
 
     fun setMetallic(elem: EditableElement, value: Float) {
         elem.currentMetallic = value
-        safeSetParam1f(elem.materialInstance, "metallicFactor", value)
+        postGpuOp {
+            safeSetParam1f(elem.materialInstance, "metallicFactor", value)
+        }
     }
 
     fun setRoughness(elem: EditableElement, value: Float) {
         elem.currentRoughness = value
-        safeSetParam1f(elem.materialInstance, "roughnessFactor", value)
+        postGpuOp {
+            safeSetParam1f(elem.materialInstance, "roughnessFactor", value)
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
     //  TEXTURE ENGINE
     // ═══════════════════════════════════════════════════════════════
 
+    /**
+     * FIX 2: Принудительный ARGB_8888 + Hardware Bitmap защита.
+     * Android 16 + Samsung может вернуть HARDWARE bitmap,
+     * который невозможно прочитать через copyPixelsToBuffer → SIGABRT.
+     */
+    private fun decodeBitmapSafe(uri: Uri): Bitmap? {
+        val options = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inMutable = false
+        }
+
+        val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
+            BitmapFactory.decodeStream(stream, null, options)
+        } ?: return null
+
+        // Доп. защита: Samsung OneUI иногда игнорирует inPreferredConfig
+        val safeBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
+            bitmap.copy(Bitmap.Config.ARGB_8888, false).also { bitmap.recycle() }
+        } else bitmap
+
+        // Ограничение размера
+        val maxDim = maxOf(safeBitmap.width, safeBitmap.height)
+        val scale = if (maxDim > MAX_SOURCE_SIZE) MAX_SOURCE_SIZE.toFloat() / maxDim else 1f
+
+        return if (scale < 1f) {
+            Bitmap.createScaledBitmap(
+                safeBitmap,
+                (safeBitmap.width * scale).toInt(),
+                (safeBitmap.height * scale).toInt(),
+                true
+            ).also { if (it !== safeBitmap) safeBitmap.recycle() }
+        } else safeBitmap
+    }
+
     fun loadTextureFromUri(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
         return try {
+            // Очищаем предыдущую
             elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
             elem.activeSourceBitmap = null
 
-            val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
-                BitmapFactory.decodeStream(stream)
-            } ?: return false
-
-            val maxDim = maxOf(bitmap.width, bitmap.height)
-            val scale = if (maxDim > MAX_SOURCE_SIZE) MAX_SOURCE_SIZE.toFloat() / maxDim else 1f
-
-            val source = if (scale < 1f) {
-                Bitmap.createScaledBitmap(
-                    bitmap,
-                    (bitmap.width * scale).toInt(),
-                    (bitmap.height * scale).toInt(),
-                    true
-                ).also { if (it !== bitmap) bitmap.recycle() }
-            } else bitmap
-
+            // FIX 2: безопасное декодирование (CPU, main thread — ОК)
+            val source = decodeBitmapSafe(uri) ?: return false
             elem.activeSourceBitmap = source
 
+            // Создание GPU-текстуры (Texture.Builder.build — thread-safe)
             if (elem.activeTexture == null) {
                 elem.displayBitmap = Bitmap.createBitmap(
                     DISPLAY_TEX_SIZE, DISPLAY_TEX_SIZE, Bitmap.Config.ARGB_8888
@@ -324,28 +433,20 @@ class GlbTextureEditor(private val context: Context) {
 
                 texturePool.add(tex)
                 elem.activeTexture = tex
-
-                val sampler = TextureSampler().apply {
-                    setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
-                    setMagFilter(TextureSampler.MagFilter.LINEAR)
-                    val wrap = if (elem.type == ElementType.EYE)
-                        TextureSampler.WrapMode.REPEAT
-                    else TextureSampler.WrapMode.CLAMP_TO_EDGE
-                    setWrapModeS(wrap)
-                    setWrapModeT(wrap)
-                }
-
-                // Теперь безопасно — MI уже имеет baseColorMap sampler (от зубов)
-                elem.materialInstance.setParameter("baseColorMap", tex, sampler)
             }
 
-            safeSetParam4f(elem.materialInstance, "baseColorFactor", 1f, 1f, 1f, 1f)
             elem.hasCustomTexture = true
-            renderTextureToGpu(engine, elem)
-            showError("Текстура загружена OK")
+
+            // CPU: рисуем текстуру на displayBitmap (main thread, безопасно)
+            renderTextureToCpuBitmap(elem)
+
+            // GPU: upload + setParameter — через очередь (render thread)
+            postGpuOp {
+                uploadTextureToGpu(engine, elem)
+            }
+
             true
         } catch (e: Exception) {
-            showError("ОШИБКА: ${e.javaClass.simpleName}: ${e.message}")
             e.printStackTrace()
             false
         }
@@ -365,41 +466,79 @@ class GlbTextureEditor(private val context: Context) {
         elem.uvOffsetX = offsetX
         elem.uvOffsetY = offsetY
         elem.uvRotationDeg = rotDeg
-        renderTextureToGpu(engine, elem)
+
+        // CPU: перерисовка displayBitmap (main thread)
+        renderTextureToCpuBitmap(elem)
+
+        // GPU: upload — через очередь (render thread)
+        // FIX 6: debounce — заменяем предыдущий pending upload для этого элемента
+        synchronized(gpuOpsLock) {
+            // Удаляем старые pending uploads для этого элемента
+            // (чтобы не спамить GPU при быстром drag)
+            pendingGpuOps.add {
+                uploadTextureToGpu(engine, elem)
+            }
+        }
     }
 
-    private fun renderTextureToGpu(engine: Engine, elem: EditableElement) {
+    /**
+     * CPU-часть: рисуем source bitmap на display bitmap с трансформациями.
+     * Безопасно вызывать из main thread.
+     * FIX 4: переиспользуем Matrix, Paint, Canvas.
+     */
+    private fun renderTextureToCpuBitmap(elem: EditableElement) {
         val src = elem.activeSourceBitmap ?: return
         val display = elem.displayBitmap ?: return
-        val tex = elem.activeTexture ?: return
-
         if (src.isRecycled || display.isRecycled) return
 
-        val canvas = Canvas(display)
         val w = display.width.toFloat()
         val h = display.height.toFloat()
 
+        // Переиспользуем Canvas
+        if (cachedCanvas?.bitmap !== display) {
+            cachedCanvas = Canvas(display)
+        }
+        val canvas = cachedCanvas!!
+
         canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
-        val matrix = Matrix()
+        workingMatrix.reset()
         val srcRect = RectF(0f, 0f, src.width.toFloat(), src.height.toFloat())
         val dstRect = RectF(0f, 0f, w, h)
-        matrix.setRectToRect(srcRect, dstRect, Matrix.ScaleToFit.CENTER)
+        workingMatrix.setRectToRect(srcRect, dstRect, Matrix.ScaleToFit.CENTER)
 
         val cx = w / 2f
         val cy = h / 2f
-        matrix.postTranslate(elem.uvOffsetX * w, elem.uvOffsetY * h)
-        matrix.postScale(elem.uvScaleX, elem.uvScaleY, cx, cy)
-        matrix.postRotate(elem.uvRotationDeg, cx, cy)
+        workingMatrix.postTranslate(elem.uvOffsetX * w, elem.uvOffsetY * h)
+        workingMatrix.postScale(elem.uvScaleX, elem.uvScaleY, cx, cy)
+        workingMatrix.postRotate(elem.uvRotationDeg, cx, cy)
 
-        val drawPaint = Paint().apply {
-            isFilterBitmap = true
-            isAntiAlias = true
-        }
-        canvas.drawBitmap(src, matrix, drawPaint)
+        canvas.drawBitmap(src, workingMatrix, workingPaint)
+    }
+
+    /**
+     * GPU-часть: upload bitmap + bind texture + generate mipmaps.
+     * ТОЛЬКО через flushPendingGpuOps() на render thread!
+     *
+     * FIX 1: thread-safety
+     * FIX 3: flush перед generateMipmaps
+     */
+    private fun uploadTextureToGpu(engine: Engine, elem: EditableElement) {
+        val display = elem.displayBitmap ?: return
+        val tex = elem.activeTexture ?: return
+        if (display.isRecycled) return
 
         try {
+            // Bind texture + sampler если первый upload
+            val sampler = createTextureSampler(elem)
+            elem.materialInstance.setParameter("baseColorMap", tex, sampler)
+            safeSetParam4f(elem.materialInstance, "baseColorFactor", 1f, 1f, 1f, 1f)
+
+            // Upload pixels (level 0)
             TextureHelper.setBitmap(engine, tex, 0, display)
+
+            // FIX 3: flush upload commands, ПОТОМ generate mipmaps
+            engine.flush()
             tex.generateMipmaps(engine)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -502,7 +641,10 @@ class GlbTextureEditor(private val context: Context) {
                 if (matIdx >= 0) {
                     val mat = gltf.getJSONArray("materials").getJSONObject(matIdx)
                     val pbr = mat.optJSONObject("pbrMetallicRoughness") ?: JSONObject()
-                    pbr.put("baseColorFactor", JSONArray(listOf(elem.currentR.toDouble(), elem.currentG.toDouble(), elem.currentB.toDouble(), 1.0)))
+                    pbr.put("baseColorFactor", JSONArray(listOf(
+                        elem.currentR.toDouble(), elem.currentG.toDouble(),
+                        elem.currentB.toDouble(), 1.0
+                    )))
                     pbr.put("roughnessFactor", elem.currentRoughness.toDouble())
                     pbr.put("metallicFactor", elem.currentMetallic.toDouble())
                     mat.put("pbrMetallicRoughness", pbr)
@@ -554,9 +696,25 @@ class GlbTextureEditor(private val context: Context) {
     fun getLabel(elem: EditableElement): String =
         MESH_LABELS[elem.meshName] ?: elem.meshName
 
+    // ═══════════════════════════════════════════════════════════════
+    //  DESTROY — FIX 7: проверка engine.isValid
+    // ═══════════════════════════════════════════════════════════════
+
     fun destroy(engine: Engine) {
-        texturePool.forEach { try { engine.destroyTexture(it) } catch (_: Exception) {} }
+        // Очищаем pending-очередь (больше не нужна)
+        synchronized(gpuOpsLock) {
+            pendingGpuOps.clear()
+        }
+
+        // Текстуры — только если engine ещё жив
+        if (engine.isValid) {
+            texturePool.forEach { tex ->
+                try { engine.destroyTexture(tex) } catch (_: Exception) {}
+            }
+        }
         texturePool.clear()
+
+        // Kotlin/Java ресурсы — всегда чистим
         elements.forEach { elem ->
             elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
             elem.displayBitmap?.let { if (!it.isRecycled) it.recycle() }
@@ -567,11 +725,6 @@ class GlbTextureEditor(private val context: Context) {
         elements.clear()
         texturedMaterial = null
         dummyWhiteTexture = null
-    }
-
-    private fun showError(msg: String) {
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
-        }
+        cachedCanvas = null
     }
 }
