@@ -7,7 +7,6 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.net.Uri
 import com.google.android.filament.Engine
@@ -80,6 +79,7 @@ class GlbTextureEditor(private val context: Context) {
     private val elements = mutableListOf<EditableElement>()
     private val texturePool = mutableListOf<Texture>()
     private var texturedMaterial: com.google.android.filament.Material? = null
+    private var dummyWhiteTexture: Texture? = null
 
     companion object {
         private const val DISPLAY_TEX_SIZE = 1024
@@ -93,6 +93,41 @@ class GlbTextureEditor(private val context: Context) {
         "eyeLeft_ORIGINAL" to "Левый глаз",
         "eyeRight_ORIGINAL" to "Правый глаз",
     )
+
+    /**
+     * Создаёт 1x1 белую текстуру — заглушка для Material с sampler.
+     * Без неё Filament крашит при рендере (sampler без привязанной текстуры = SIGABRT).
+     */
+    private fun getOrCreateDummyTexture(engine: Engine): Texture {
+        dummyWhiteTexture?.let { return it }
+
+        val bmp = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        bmp.setPixel(0, 0, android.graphics.Color.WHITE)
+
+        val tex = Texture.Builder()
+            .width(1)
+            .height(1)
+            .levels(1)
+            .sampler(Texture.Sampler.SAMPLER_2D)
+            .format(Texture.InternalFormat.SRGB8_A8)
+            .build(engine)
+
+        TextureHelper.setBitmap(engine, tex, 0, bmp)
+        bmp.recycle()
+
+        texturePool.add(tex)
+        dummyWhiteTexture = tex
+        return tex
+    }
+
+    private fun createDefaultSampler(): TextureSampler {
+        return TextureSampler().apply {
+            setMinFilter(TextureSampler.MinFilter.LINEAR)
+            setMagFilter(TextureSampler.MagFilter.LINEAR)
+            setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+            setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+        }
+    }
 
     fun scanModel(engine: Engine, modelInstance: ModelInstance): List<EditableElement> {
         elements.clear()
@@ -135,25 +170,38 @@ class GlbTextureEditor(private val context: Context) {
                     )
                 )
 
+                // Зубы имеют baseColorMap в шейдере
                 if (meshName == "teeth_ORIGINAL" && texturedMaterial == null) {
                     try {
                         texturedMaterial = mi.material
-                        showError("Textured Material найден (зубы)")
+                        showError("Material от зубов захвачен")
                     } catch (_: Exception) {}
                 }
             }
         }
 
+        // ── Фаза 2: подмена материалов + ОБЯЗАТЕЛЬНАЯ привязка dummy текстуры ──
         val texMat = texturedMaterial
+        val dummy = getOrCreateDummyTexture(engine)
+        val defaultSampler = createDefaultSampler()
+
         for (elem in rawElements) {
             if (texMat != null && elem.meshName != "teeth_ORIGINAL") {
                 try {
                     val newMI = texMat.createInstance()
+
+                    // ═══ КРИТИЧЕСКИЙ ФИХ: привязываем белую текстуру СРАЗУ ═══
+                    // Без этого Filament падает в SIGABRT при первом же рендер-кадре,
+                    // потому что шейдер ожидает текстуру на baseColorMap, а её нет.
+                    newMI.setParameter("baseColorMap", dummy, defaultSampler)
+                    newMI.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
+
                     rm.setMaterialInstanceAt(
                         elem.renderableInstance,
                         elem.primitiveIndex,
                         newMI
                     )
+
                     val patched = EditableElement(
                         entity = elem.entity,
                         renderableInstance = elem.renderableInstance,
@@ -163,13 +211,16 @@ class GlbTextureEditor(private val context: Context) {
                     )
                     setupHighEndPBR(patched)
                     elements.add(patched)
+                    showError("${elem.meshName}: MI заменён OK")
                 } catch (e: Exception) {
-                    showError("Patch MI fail: ${e.message}")
+                    showError("Patch fail ${elem.meshName}: ${e.message}")
+                    // Fallback: оставляем оригинальный MI (без текстурной поддержки)
                     val orig = elem.copy()
                     setupHighEndPBR(orig)
                     elements.add(orig)
                 }
             } else {
+                // Зубы — уже имеют текстуру, оставляем как есть
                 val orig = elem.copy()
                 setupHighEndPBR(orig)
                 elements.add(orig)
@@ -229,6 +280,10 @@ class GlbTextureEditor(private val context: Context) {
         safeSetParam1f(elem.materialInstance, "roughnessFactor", value)
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  TEXTURE ENGINE
+    // ═══════════════════════════════════════════════════════════════
+
     fun loadTextureFromUri(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
         return try {
             elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
@@ -280,8 +335,8 @@ class GlbTextureEditor(private val context: Context) {
                     setWrapModeT(wrap)
                 }
 
+                // Теперь безопасно — MI уже имеет baseColorMap sampler (от зубов)
                 elem.materialInstance.setParameter("baseColorMap", tex, sampler)
-                showError("baseColorMap привязан OK")
             }
 
             safeSetParam4f(elem.materialInstance, "baseColorFactor", 1f, 1f, 1f, 1f)
@@ -290,7 +345,7 @@ class GlbTextureEditor(private val context: Context) {
             showError("Текстура загружена OK")
             true
         } catch (e: Exception) {
-            showError("ОШИБКА: ${e.message}")
+            showError("ОШИБКА: ${e.javaClass.simpleName}: ${e.message}")
             e.printStackTrace()
             false
         }
@@ -351,6 +406,10 @@ class GlbTextureEditor(private val context: Context) {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  EXPORT
+    // ═══════════════════════════════════════════════════════════════
+
     fun saveToStream(sourceGlbPath: String, outputStream: OutputStream): Boolean {
         return try {
             val glbBytes = buildGlbBytes(sourceGlbPath) ?: return false
@@ -380,15 +439,12 @@ class GlbTextureEditor(private val context: Context) {
             val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
 
             buf.position(12)
-            val jsonLen = buf.int
-            buf.int
-            val jsonBytes = ByteArray(jsonLen)
-            buf.get(jsonBytes)
+            val jsonLen = buf.int; buf.int
+            val jsonBytes = ByteArray(jsonLen); buf.get(jsonBytes)
             val gltf = JSONObject(String(jsonBytes))
 
             val binChunk = if (buf.remaining() >= 8) {
-                val binLen = buf.int
-                buf.int
+                val binLen = buf.int; buf.int
                 ByteArray(binLen).also { buf.get(it) }
             } else ByteArray(0)
 
@@ -398,12 +454,9 @@ class GlbTextureEditor(private val context: Context) {
 
                 val baos = ByteArrayOutputStream()
                 bitmapToExport.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, baos)
-                val b64 = android.util.Base64.encodeToString(
-                    baos.toByteArray(), android.util.Base64.NO_WRAP
-                )
+                val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
 
-                val images = gltf.optJSONArray("images")
-                    ?: JSONArray().also { gltf.put("images", it) }
+                val images = gltf.optJSONArray("images") ?: JSONArray().also { gltf.put("images", it) }
                 val imgIdx = images.length()
                 images.put(JSONObject().apply {
                     put("name", "baked_${elem.meshName}")
@@ -411,23 +464,18 @@ class GlbTextureEditor(private val context: Context) {
                     put("uri", "data:image/jpeg;base64,$b64")
                 })
 
-                val samplers = gltf.optJSONArray("samplers")
-                    ?: JSONArray().also { gltf.put("samplers", it) }
+                val samplers = gltf.optJSONArray("samplers") ?: JSONArray().also { gltf.put("samplers", it) }
                 val wrapType = if (elem.type == ElementType.EYE) 10497 else 33071
-                val samplerIndex = samplers.length()
+                val samplerIdx = samplers.length()
                 samplers.put(JSONObject().apply {
-                    put("magFilter", 9729)
-                    put("minFilter", 9987)
-                    put("wrapS", wrapType)
-                    put("wrapT", wrapType)
+                    put("magFilter", 9729); put("minFilter", 9987)
+                    put("wrapS", wrapType); put("wrapT", wrapType)
                 })
 
-                val textures = gltf.optJSONArray("textures")
-                    ?: JSONArray().also { gltf.put("textures", it) }
+                val textures = gltf.optJSONArray("textures") ?: JSONArray().also { gltf.put("textures", it) }
                 val texIdx = textures.length()
                 textures.put(JSONObject().apply {
-                    put("source", imgIdx)
-                    put("sampler", samplerIndex)
+                    put("source", imgIdx); put("sampler", samplerIdx)
                 })
 
                 val matIdx = findMaterialIndex(gltf, elem.meshName)
@@ -435,23 +483,13 @@ class GlbTextureEditor(private val context: Context) {
                     val mat = gltf.getJSONArray("materials").getJSONObject(matIdx)
                     val pbr = mat.optJSONObject("pbrMetallicRoughness") ?: JSONObject()
                     pbr.put("baseColorTexture", JSONObject().apply {
-                        put("index", texIdx)
-                        put("texCoord", 0)
+                        put("index", texIdx); put("texCoord", 0)
                     })
                     pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
                     when (elem.type) {
-                        ElementType.EYE -> {
-                            pbr.put("roughnessFactor", 0.05)
-                            pbr.put("metallicFactor", 0.1)
-                        }
-                        ElementType.SKIN -> {
-                            pbr.put("roughnessFactor", elem.currentRoughness.toDouble())
-                            pbr.put("metallicFactor", 0.0)
-                        }
-                        ElementType.TEETH -> {
-                            pbr.put("roughnessFactor", 0.2)
-                            pbr.put("metallicFactor", 0.0)
-                        }
+                        ElementType.EYE -> { pbr.put("roughnessFactor", 0.05); pbr.put("metallicFactor", 0.1) }
+                        ElementType.SKIN -> { pbr.put("roughnessFactor", elem.currentRoughness.toDouble()); pbr.put("metallicFactor", 0.0) }
+                        ElementType.TEETH -> { pbr.put("roughnessFactor", 0.2); pbr.put("metallicFactor", 0.0) }
                         else -> {}
                     }
                     mat.put("pbrMetallicRoughness", pbr)
@@ -464,12 +502,7 @@ class GlbTextureEditor(private val context: Context) {
                 if (matIdx >= 0) {
                     val mat = gltf.getJSONArray("materials").getJSONObject(matIdx)
                     val pbr = mat.optJSONObject("pbrMetallicRoughness") ?: JSONObject()
-                    pbr.put("baseColorFactor", JSONArray(listOf(
-                        elem.currentR.toDouble(),
-                        elem.currentG.toDouble(),
-                        elem.currentB.toDouble(),
-                        1.0
-                    )))
+                    pbr.put("baseColorFactor", JSONArray(listOf(elem.currentR.toDouble(), elem.currentG.toDouble(), elem.currentB.toDouble(), 1.0)))
                     pbr.put("roughnessFactor", elem.currentRoughness.toDouble())
                     pbr.put("metallicFactor", elem.currentMetallic.toDouble())
                     mat.put("pbrMetallicRoughness", pbr)
@@ -487,7 +520,6 @@ class GlbTextureEditor(private val context: Context) {
             out.putInt(0x46546C67); out.putInt(2); out.putInt(total)
             out.putInt(jb.size); out.putInt(0x4E4F534A); out.put(jb)
             out.putInt(bp.size); out.putInt(0x004E4942); out.put(bp)
-
             out.array()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -501,9 +533,7 @@ class GlbTextureEditor(private val context: Context) {
             val m = meshes.getJSONObject(i)
             if (m.optString("name") == meshName) {
                 val prims = m.optJSONArray("primitives") ?: continue
-                if (prims.length() > 0) {
-                    return prims.getJSONObject(0).optInt("material", -1)
-                }
+                if (prims.length() > 0) return prims.getJSONObject(0).optInt("material", -1)
             }
         }
         return -1
@@ -525,9 +555,7 @@ class GlbTextureEditor(private val context: Context) {
         MESH_LABELS[elem.meshName] ?: elem.meshName
 
     fun destroy(engine: Engine) {
-        texturePool.forEach { tex ->
-            try { engine.destroyTexture(tex) } catch (_: Exception) {}
-        }
+        texturePool.forEach { try { engine.destroyTexture(it) } catch (_: Exception) {} }
         texturePool.clear()
         elements.forEach { elem ->
             elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
@@ -538,6 +566,7 @@ class GlbTextureEditor(private val context: Context) {
         }
         elements.clear()
         texturedMaterial = null
+        dummyWhiteTexture = null
     }
 
     private fun showError(msg: String) {
