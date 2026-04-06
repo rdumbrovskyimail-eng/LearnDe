@@ -39,18 +39,20 @@ import com.codeextractor.app.editor.GlbTextureEditor
 import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.Scene
 import io.github.sceneview.math.Position
+import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberEnvironment
 import io.github.sceneview.rememberEnvironmentLoader
-import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.nio.ByteBuffer
 
-private const val MODEL_PATH = "models/source_named.glb"
+private const val MODEL_ASSET_PATH = "models/source_named.glb"
 private val CAM_POS = Float3(0f, 1.35f, 0.7f)
 private val CAM_TGT = Float3(0f, 1.35f, 0f)
 private const val SCALE = 0.35f
@@ -93,8 +95,24 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     val modelLoader = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
     val environment = rememberEnvironment(environmentLoader)
-    val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
     val cameraNode = rememberCameraNode(engine) { position = CAM_POS }
+
+    // ═══ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: загружаем ПРОПАТЧЕННУЮ модель из файла ═══
+    // preparePatchedModel добавляет dummy-текстуры ко всем материалам,
+    // чтобы Filament скомпилировал шейдеры с baseColorMap для каждого меша
+    // со своим корректным morph target count (51/5/4).
+    var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
+
+    LaunchedEffect(modelLoader) {
+        withContext(Dispatchers.IO) {
+            val patchedPath = editor.preparePatchedModel(MODEL_ASSET_PATH)
+            val fileBytes = File(patchedPath).readBytes()
+            val buffer = ByteBuffer.wrap(fileBytes)
+            withContext(Dispatchers.Main) {
+                modelInstance = modelLoader.createModelInstance(buffer)
+            }
+        }
+    }
 
     var elements by remember { mutableStateOf<List<EditableElement>>(emptyList()) }
     var selectedIdx by remember { mutableIntStateOf(0) }
@@ -111,14 +129,12 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     var uiMetallic by remember(selectedIdx) { mutableFloatStateOf(activeElem?.currentMetallic ?: 0f) }
     var uiRoughness by remember(selectedIdx) { mutableFloatStateOf(activeElem?.currentRoughness ?: 0.5f) }
 
-    // ═══ FIX 6: Debounce для трансформаций текстуры ═══
-    // Вместо вызова applyTransform на каждый пиксель драга,
-    // собираем изменения и применяем с задержкой 80ms
+    // Debounce для трансформаций
     var pendingTransformApply by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiScaleX, uiScaleY, uiOffsetX, uiOffsetY, uiRot) {
         if (!pendingTransformApply) return@LaunchedEffect
-        kotlinx.coroutines.delay(80) // Debounce: ждём конца спама жестов
+        kotlinx.coroutines.delay(80)
         activeElem?.let { elem ->
             if (elem.hasCustomTexture) {
                 editor.applyTransform(
@@ -163,7 +179,7 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         isSaving = true
         scope.launch(Dispatchers.IO) {
             try {
-                val sourceFile = editor.ensureSourceInCache(MODEL_PATH)
+                val sourceFile = editor.ensureSourceInCache(MODEL_ASSET_PATH)
                 val ok = ctx.contentResolver.openOutputStream(uri)?.use { stream ->
                     editor.saveToStream(sourceFile.absolutePath, stream)
                 } ?: false
@@ -239,7 +255,7 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     cameraNode = cameraNode,
                     cameraManipulator = camManipulator,
                     environment = environment,
-                    // ═══ FIX 1: КРИТИЧЕСКИЙ — flush GPU-очереди на render thread ═══
+                    // Flush GPU-очереди на render thread
                     onFrame = { _ ->
                         editor.flushPendingGpuOps(engine)
                     },
@@ -260,17 +276,17 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                             .fillMaxSize()
                             .background(Color(0x226C63FF))
                             .pointerInput(selectedIdx) {
-                                    detectDragGestures { change, dragAmount ->
-                                        change.consume()
-                                        uiOffsetX += dragAmount.x / 900f
-                                        uiOffsetY += dragAmount.y / 900f
-                                        pendingTransformApply = true
-                                    }
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    uiOffsetX += dragAmount.x / 900f
+                                    uiOffsetY += dragAmount.y / 900f
+                                    pendingTransformApply = true
+                                }
                             }
                     )
                 }
 
-                if (!scanned) {
+                if (modelInstance == null) {
                     CircularProgressIndicator(
                         Modifier.align(Alignment.Center),
                         color = Color.White
