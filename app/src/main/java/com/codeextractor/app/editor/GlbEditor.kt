@@ -410,18 +410,18 @@ class GlbTextureEditor(private val context: Context) {
                     put("uri", "data:image/jpeg;base64,$b64")
                 })
 
-                // Sampler
+                // Sampler — создаём отдельный для каждого типа элемента
                 val samplers = gltf.optJSONArray("samplers")
                     ?: JSONArray().also { gltf.put("samplers", it) }
-                if (samplers.length() == 0) {
-                    samplers.put(JSONObject().apply {
-                        put("magFilter", 9729)  // LINEAR
-                        put("minFilter", 9987)  // LINEAR_MIPMAP_LINEAR
-                        val wt = if (elem.type == ElementType.EYE) 10497 else 33071
-                        put("wrapS", wt)
-                        put("wrapT", wt)
-                    })
-                }
+                val wrapType = if (elem.type == ElementType.EYE) 10497 else 33071
+                // Добавляем новый sampler для этого элемента
+                val samplerIndex = samplers.length()
+                samplers.put(JSONObject().apply {
+                    put("magFilter", 9729)  // LINEAR
+                    put("minFilter", 9987)  // LINEAR_MIPMAP_LINEAR
+                    put("wrapS", wrapType)
+                    put("wrapT", wrapType)
+                })
 
                 // Texture reference
                 val textures = gltf.optJSONArray("textures")
@@ -429,7 +429,7 @@ class GlbTextureEditor(private val context: Context) {
                 val texIdx = textures.length()
                 textures.put(JSONObject().apply {
                     put("source", imgIdx)
-                    put("sampler", 0)
+                    put("sampler", samplerIndex)
                 })
 
                 // Material PBR update
