@@ -32,7 +32,7 @@ enum class ElementType { EYE, SKIN, TEETH, UNKNOWN }
 // ═══════════════════════════════════════════════════════════════
 //  Редактируемый элемент — хранит всё состояние трансформации
 // ═══════════════════════════════════════════════════════════════
-data class EditableElement(
+class EditableElement(
     val entity: Int,
     val renderableInstance: Int,
     val primitiveIndex: Int,
@@ -66,6 +66,14 @@ data class EditableElement(
             meshName.contains("head") -> ElementType.SKIN
             else -> ElementType.UNKNOWN
         }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is EditableElement) return false
+        return entity == other.entity && primitiveIndex == other.primitiveIndex
+    }
+
+    override fun hashCode(): Int = entity * 31 + primitiveIndex
 }
 
 // ═══════════════════════════════════════════════════════════════
