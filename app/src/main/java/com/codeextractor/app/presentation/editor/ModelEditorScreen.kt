@@ -4,6 +4,8 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import java.io.File
+import java.nio.ByteBuffer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -100,7 +102,21 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     val modelLoader = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
     val environment = rememberEnvironment(environmentLoader)
-    val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
+
+    val patchedModelPath = remember {
+        editor.patchGlbForTextureSupport(MODEL_PATH)
+    }
+
+    val modelInstance = remember(patchedModelPath) {
+        val buffer = File(patchedModelPath).let { file ->
+            if (file.exists()) {
+                ByteBuffer.wrap(file.readBytes())
+            } else {
+                ctx.assets.open(MODEL_PATH).use { ByteBuffer.wrap(it.readBytes()) }
+            }
+        }
+        modelLoader.createModelInstance(buffer)
+    }
     val cameraNode = rememberCameraNode(engine) { position = CAM_POS }
 
     // Editor state
