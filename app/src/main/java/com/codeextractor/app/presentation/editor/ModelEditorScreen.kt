@@ -103,19 +103,35 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     val environmentLoader = rememberEnvironmentLoader(engine)
     val environment = rememberEnvironment(environmentLoader)
 
-    val patchedModelPath = remember {
-        editor.patchGlbForTextureSupport(MODEL_PATH)
-    }
+    var modelInstance by remember { mutableStateOf<io.github.sceneview.model.ModelInstance?>(null) }
 
-    val modelInstance = remember(patchedModelPath) {
-        val buffer = File(patchedModelPath).let { file ->
-            if (file.exists()) {
-                ByteBuffer.wrap(file.readBytes())
-            } else {
-                ctx.assets.open(MODEL_PATH).use { ByteBuffer.wrap(it.readBytes()) }
+    LaunchedEffect(Unit) {
+        try {
+            // Удаляем старый кэш
+            File(ctx.cacheDir, "patched_source.glb").delete()
+
+            // Патчим GLB
+            val patchedPath = editor.patchGlbForTextureSupport(MODEL_PATH)
+            val bytes = File(patchedPath).readBytes()
+            val buffer = ByteBuffer.allocateDirect(bytes.size)
+            buffer.put(bytes)
+            buffer.flip()
+
+            // Пробуем загрузить
+            modelInstance = modelLoader.createModelInstance(buffer)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback: грузим оригинал из assets
+            try {
+                val assetBytes = ctx.assets.open(MODEL_PATH).use { it.readBytes() }
+                val buf = ByteBuffer.allocateDirect(assetBytes.size)
+                buf.put(assetBytes)
+                buf.flip()
+                modelInstance = modelLoader.createModelInstance(buf)
+            } catch (e2: Exception) {
+                e2.printStackTrace()
             }
         }
-        modelLoader.createModelInstance(buffer)
     }
     val cameraNode = rememberCameraNode(engine) { position = CAM_POS }
 
