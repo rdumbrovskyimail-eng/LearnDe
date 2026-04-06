@@ -110,6 +110,7 @@ class GlbTextureEditor(private val context: Context) {
         isAntiAlias = true
     }
     private var cachedCanvas: Canvas? = null
+    private var cachedCanvasBitmap: Bitmap? = null
 
     companion object {
         private const val DISPLAY_TEX_SIZE = 1024
@@ -495,8 +496,9 @@ class GlbTextureEditor(private val context: Context) {
         val h = display.height.toFloat()
 
         // Переиспользуем Canvas
-        if (cachedCanvas?.bitmap !== display) {
+        if (cachedCanvasBitmap !== display) {
             cachedCanvas = Canvas(display)
+            cachedCanvasBitmap = display
         }
         val canvas = cachedCanvas!!
 
@@ -536,9 +538,7 @@ class GlbTextureEditor(private val context: Context) {
 
             // Upload pixels (level 0)
             TextureHelper.setBitmap(engine, tex, 0, display)
-
-            // FIX 3: flush upload commands, ПОТОМ generate mipmaps
-            engine.flush()
+            // generateMipmaps safe here — we're on render thread via onFrame
             tex.generateMipmaps(engine)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -697,7 +697,7 @@ class GlbTextureEditor(private val context: Context) {
         MESH_LABELS[elem.meshName] ?: elem.meshName
 
     // ═══════════════════════════════════════════════════════════════
-    //  DESTROY — FIX 7: проверка engine.isValid
+    //  DESTROY — safe cleanup
     // ═══════════════════════════════════════════════════════════════
 
     fun destroy(engine: Engine) {
@@ -706,11 +706,9 @@ class GlbTextureEditor(private val context: Context) {
             pendingGpuOps.clear()
         }
 
-        // Текстуры — только если engine ещё жив
-        if (engine.isValid) {
-            texturePool.forEach { tex ->
-                try { engine.destroyTexture(tex) } catch (_: Exception) {}
-            }
+        // Текстуры — оборачиваем в try-catch (engine может быть уже уничтожен SceneView)
+        texturePool.forEach { tex ->
+            try { engine.destroyTexture(tex) } catch (_: Exception) {}
         }
         texturePool.clear()
 
@@ -726,5 +724,6 @@ class GlbTextureEditor(private val context: Context) {
         texturedMaterial = null
         dummyWhiteTexture = null
         cachedCanvas = null
+        cachedCanvasBitmap = null
     }
 }
