@@ -4,8 +4,6 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import java.io.File
-import java.nio.ByteBuffer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -26,9 +24,6 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -51,15 +46,15 @@ import io.github.sceneview.rememberEnvironment
 import io.github.sceneview.rememberEnvironmentLoader
 import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val MODEL_PATH = "models/source_named.glb"
 private val CAM_POS = Float3(0f, 1.35f, 0.7f)
 private val CAM_TGT = Float3(0f, 1.35f, 0f)
 private const val SCALE = 0.35f
 
-// ═══════════════════════════════════════════════
-//  Цветовые пресеты
-// ═══════════════════════════════════════════════
 private data class ColorPreset(
     val label: String,
     val ui: Color,
@@ -88,58 +83,25 @@ private val TEETH_COLORS = listOf(
     ColorPreset("Жёлтые", Color(0xFFD6C8A0), 0.84f, 0.78f, 0.63f),
 )
 
-// ═══════════════════════════════════════════════
-//  ГЛАВНЫЙ ЭКРАН РЕДАКТОРА
-// ═══════════════════════════════════════════════
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelEditorScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
     val editor = remember { GlbTextureEditor(ctx) }
 
-    // SceneView
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
     val environmentLoader = rememberEnvironmentLoader(engine)
     val environment = rememberEnvironment(environmentLoader)
-
-    var modelInstance by remember { mutableStateOf<io.github.sceneview.model.ModelInstance?>(null) }
-
-    LaunchedEffect(Unit) {
-        File(ctx.cacheDir, "patched_source.glb").delete()
-        val patchedPath = editor.patchGlbForTextureSupport(MODEL_PATH)
-        val patchedFile = File(patchedPath)
-
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            Toast.makeText(ctx, "Patch: ${patchedFile.exists()}, ${patchedFile.length()} bytes", Toast.LENGTH_LONG).show()
-        }
-
-        try {
-            val bytes = patchedFile.readBytes()
-            val buffer = ByteBuffer.allocateDirect(bytes.size)
-            buffer.put(bytes)
-            buffer.flip()
-            modelInstance = modelLoader.createModelInstance(buffer)
-
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                Toast.makeText(ctx, "Model OK: ${modelInstance != null}", Toast.LENGTH_LONG).show()
-            }
-        } catch (e: Exception) {
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                Toast.makeText(ctx, "FAIL: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
+    val modelInstance = rememberModelInstance(modelLoader, MODEL_PATH)
     val cameraNode = rememberCameraNode(engine) { position = CAM_POS }
 
-    // Editor state
     var elements by remember { mutableStateOf<List<EditableElement>>(emptyList()) }
     var selectedIdx by remember { mutableIntStateOf(0) }
     var scanned by remember { mutableStateOf(false) }
     var isDirectTouchMode by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
 
-    // ── HOISTED UV Transform State (общий для 3D Touch и нижней панели) ──
     val activeElem = elements.getOrNull(selectedIdx)
     var uiScaleX by remember(selectedIdx) { mutableFloatStateOf(activeElem?.uvScaleX ?: 1f) }
     var uiScaleY by remember(selectedIdx) { mutableFloatStateOf(activeElem?.uvScaleY ?: 1f) }
@@ -149,7 +111,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     var uiMetallic by remember(selectedIdx) { mutableFloatStateOf(activeElem?.currentMetallic ?: 0f) }
     var uiRoughness by remember(selectedIdx) { mutableFloatStateOf(activeElem?.currentRoughness ?: 0.5f) }
 
-    // ── Сканируем модель при загрузке ──
     LaunchedEffect(modelInstance) {
         val mi = modelInstance ?: return@LaunchedEffect
         if (!scanned) {
@@ -158,7 +119,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         }
     }
 
-    // ── Image picker ──
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -173,7 +133,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         ).show()
     }
 
-    // ── SAF: выбор места сохранения ──
     val scope = rememberCoroutineScope()
 
     val saveLauncher = rememberLauncherForActivityResult(
@@ -204,7 +163,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         }
     }
 
-    // ── Cleanup ──
     DisposableEffect(Unit) {
         onDispose { editor.destroy(engine) }
     }
@@ -242,9 +200,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(pad)
         ) {
-            // ═══════════════════════════════════════
-            //  3D VIEWPORT
-            // ═══════════════════════════════════════
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -274,7 +229,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     }
                 }
 
-                // ── 3D Touch Overlay ──
                 if (isDirectTouchMode && activeElem != null) {
                     Box(
                         modifier = Modifier
@@ -296,7 +250,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     )
                 }
 
-                // Loading
                 if (!scanned) {
                     CircularProgressIndicator(
                         Modifier.align(Alignment.Center),
@@ -304,7 +257,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     )
                 }
 
-                // Toggle button
                 SmallFloatingActionButton(
                     onClick = { isDirectTouchMode = !isDirectTouchMode },
                     modifier = Modifier
@@ -335,9 +287,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                 }
             }
 
-            // ═══════════════════════════════════════
-            //  CONTROL PANEL
-            // ═══════════════════════════════════════
             if (elements.isEmpty()) return@Column
 
             Column(
@@ -352,7 +301,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
-                // ── Выбор элемента ──
                 Text(
                     "СЛОЙ (Mesh)",
                     color = Color(0xFF8888AA),
@@ -385,7 +333,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                 val sel = activeElem ?: return@Column
                 Spacer(Modifier.height(12.dp))
 
-                // ── Текстура ──
                 Button(
                     onClick = { imagePicker.launch("image/*") },
                     modifier = Modifier
@@ -405,7 +352,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
 
                 Spacer(Modifier.height(14.dp))
 
-                // ── Цветовые пресеты ──
                 val presets = when (sel.type) {
                     ElementType.EYE -> EYE_COLORS
                     ElementType.TEETH -> TEETH_COLORS
@@ -439,7 +385,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
 
                 Spacer(Modifier.height(14.dp))
 
-                // ── Вкладки трансформации ──
                 var editTab by remember { mutableIntStateOf(0) }
                 Text(
                     "ТРАНСФОРМАЦИЯ ТЕКСТУРЫ",
@@ -474,7 +419,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
 
                 Spacer(Modifier.height(12.dp))
 
-                // ── TAB 0: Позиция (2D Trackpad) ──
                 AnimatedVisibility(visible = editTab == 0, enter = fadeIn(), exit = fadeOut()) {
                     Column(
                         Modifier.fillMaxWidth(),
@@ -512,7 +456,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                                     }
                                 }
                         ) {
-                            // Визуальный курсор
                             Box(
                                 Modifier
                                     .align(Alignment.Center)
@@ -534,7 +477,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     }
                 }
 
-                // ── TAB 1: Масштаб ──
                 AnimatedVisibility(visible = editTab == 1, enter = fadeIn(), exit = fadeOut()) {
                     Column {
                         ProSlider(
@@ -578,7 +520,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     }
                 }
 
-                // ── TAB 2: Поворот ──
                 AnimatedVisibility(visible = editTab == 2, enter = fadeIn(), exit = fadeOut()) {
                     ProSlider(
                         label = "Угол: ${uiRot.toInt()}°",
@@ -598,7 +539,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     }
                 }
 
-                // ── TAB 3: PBR ──
                 AnimatedVisibility(visible = editTab == 3, enter = fadeIn(), exit = fadeOut()) {
                     Column {
                         ProSlider(
@@ -628,9 +568,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     }
 }
 
-// ═══════════════════════════════════════════════
-//  Переиспользуемый Pro-Slider
-// ═══════════════════════════════════════════════
 @Composable
 private fun ProSlider(
     label: String,
