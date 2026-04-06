@@ -206,10 +206,8 @@ class GlbTextureEditor(private val context: Context) {
 
     fun loadTextureFromUri(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
         return try {
-            // ── FIX: ресайклим предыдущий source bitmap ──
-            elem.activeSourceBitmap?.let { old ->
-                if (!old.isRecycled) old.recycle()
-            }
+            // Ресайклим предыдущий
+            elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
             elem.activeSourceBitmap = null
 
             val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
@@ -230,16 +228,18 @@ class GlbTextureEditor(private val context: Context) {
 
             elem.activeSourceBitmap = source
 
-            // Создаём display buffer и GPU текстуру (один раз на элемент)
             if (elem.activeTexture == null) {
                 elem.displayBitmap = Bitmap.createBitmap(
                     DISPLAY_TEX_SIZE, DISPLAY_TEX_SIZE, Bitmap.Config.ARGB_8888
                 )
 
+                // ── FIX: правильное количество mip levels ──
+                val mipLevels = (kotlin.math.log2(DISPLAY_TEX_SIZE.toFloat())).toInt() + 1
+
                 val tex = Texture.Builder()
                     .width(DISPLAY_TEX_SIZE)
                     .height(DISPLAY_TEX_SIZE)
-                    .levels(0xff)
+                    .levels(mipLevels) // 11 для 1024, НЕ 0xff!
                     .sampler(Texture.Sampler.SAMPLER_2D)
                     .format(Texture.InternalFormat.SRGB8_A8)
                     .build(engine)
@@ -247,7 +247,6 @@ class GlbTextureEditor(private val context: Context) {
                 texturePool.add(tex)
                 elem.activeTexture = tex
 
-                // Привязываем к материалу
                 val sampler = TextureSampler().apply {
                     setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
                     setMagFilter(TextureSampler.MagFilter.LINEAR)
@@ -258,16 +257,29 @@ class GlbTextureEditor(private val context: Context) {
                     setWrapModeT(wrap)
                 }
 
-                try {
+                // ── FIX: перехватываем native crash от setParameter ──
+                val bound = try {
                     elem.materialInstance.setParameter("baseColorMap", tex, sampler)
-                } catch (_: Exception) {}
+                    true
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    false
+                }
+
+                if (!bound) {
+                    // Fallback: пробуем альтернативные имена параметра
+                    val altNames = listOf("baseColor", "albedoMap", "diffuseMap", "base_color_texture")
+                    for (name in altNames) {
+                        try {
+                            elem.materialInstance.setParameter(name, tex, sampler)
+                            break
+                        } catch (_: Exception) {}
+                    }
+                }
             }
 
-            // Сбрасываем baseColorFactor на белый чтобы текстура не тонировалась
             safeSetParam4f(elem.materialInstance, "baseColorFactor", 1f, 1f, 1f, 1f)
             elem.hasCustomTexture = true
-
-            // Рендерим текстуру с текущими трансформациями
             renderTextureToGpu(engine, elem)
             true
         } catch (e: Exception) {
@@ -305,15 +317,15 @@ class GlbTextureEditor(private val context: Context) {
         val display = elem.displayBitmap ?: return
         val tex = elem.activeTexture ?: return
 
+        // Проверка что bitmap жив
+        if (src.isRecycled || display.isRecycled) return
+
         val canvas = Canvas(display)
         val w = display.width.toFloat()
         val h = display.height.toFloat()
 
         // Очистка
-        val clearPaint = Paint().apply {
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-        }
-        canvas.drawPaint(clearPaint)
+        canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
         // Матрица трансформации
         val matrix = Matrix()
@@ -330,11 +342,10 @@ class GlbTextureEditor(private val context: Context) {
         val drawPaint = Paint().apply {
             isFilterBitmap = true
             isAntiAlias = true
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_OVER)
         }
         canvas.drawBitmap(src, matrix, drawPaint)
 
-        // GPU upload
+        // GPU upload с защитой
         try {
             TextureHelper.setBitmap(engine, tex, 0, display)
             tex.generateMipmaps(engine)
