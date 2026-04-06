@@ -57,14 +57,6 @@ class EditableElement(
             else -> ElementType.UNKNOWN
         }
 
-    fun copy(): EditableElement = EditableElement(
-        entity = entity,
-        renderableInstance = renderableInstance,
-        primitiveIndex = primitiveIndex,
-        meshName = meshName,
-        materialInstance = materialInstance,
-    )
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is EditableElement) return false
@@ -77,33 +69,29 @@ class EditableElement(
 /**
  * GlbTextureEditor — редактор текстур 3D-аватара.
  *
- * ═══════════════════════════════════════════════════════════════════
- *  АРХИТЕКТУРА THREAD-SAFETY (2026):
+ * АРХИТЕКТУРА:
+ * 1. preparePatchedModel() — патчит GLB JSON: добавляет 1x1 белую
+ *    PNG как baseColorTexture ко ВСЕМ материалам. Filament/gltfio
+ *    компилирует шейдеры с baseColorMap для каждого меша со своим
+ *    vertex buffer layout (51/5/4 morph targets). Никакой "кражи
+ *    материалов" между мешами.
  *
- *  Filament Engine — строго однопоточный. ВСЕ вызовы к нему
- *  (setParameter, setBitmap, generateMipmaps, setMaterialInstanceAt)
- *  ДОЛЖНЫ выполняться на render-thread SceneView.
+ * 2. scanModel() — читает существующие MaterialInstance,
+ *    они УЖЕ имеют baseColorMap.
  *
- *  Решение: pending-очередь операций, которая flush'ится
- *  из SceneView.onFrame() callback (render thread).
+ * 3. Thread-safety: Filament-вызовы через pending-очередь,
+ *    flush из SceneView onFrame.
  *
- *  CPU-работа (Canvas, Matrix, Bitmap decode) — на main thread (ОК).
- *  GPU-работа (Filament API) — только через flushPendingGpuOps().
- * ═══════════════════════════════════════════════════════════════════
+ * 4. Hardware Bitmap защита для Android 16 Samsung.
  */
 class GlbTextureEditor(private val context: Context) {
 
     private val elements = mutableListOf<EditableElement>()
     private val texturePool = mutableListOf<Texture>()
-    private var texturedMaterial: com.google.android.filament.Material? = null
-    private var dummyWhiteTexture: Texture? = null
 
-    // ═══ FIX 1: Thread-safe pending queue ═══
-    // Все Filament-операции складываются сюда и выполняются в onFrame
     private val pendingGpuOps = mutableListOf<() -> Unit>()
     private val gpuOpsLock = Any()
 
-    // ═══ FIX 4: Переиспользуемые объекты (JNI pressure reduction) ═══
     private val workingMatrix = Matrix()
     private val workingPaint = Paint().apply {
         isFilterBitmap = true
@@ -126,13 +114,123 @@ class GlbTextureEditor(private val context: Context) {
     )
 
     // ═══════════════════════════════════════════════════════════════
-    //  PUBLIC: вызывается из SceneView onFrame (RENDER THREAD)
+    //  ПАТЧ GLB — добавляем dummy-текстуры ДО загрузки в SceneView
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Вызывайте из Scene(onFrame = { editor.flushPendingGpuOps(engine) }).
-     * Это единственное место, где Filament API безопасно вызывается.
+     * Патчит GLB: добавляет 1x1 белую PNG как baseColorTexture
+     * ко всем материалам без текстуры. Возвращает путь к файлу в кеше.
+     *
+     * Вызывать ПЕРЕД загрузкой модели в SceneView!
      */
+    fun preparePatchedModel(assetPath: String): String {
+        val patchedFile = File(context.cacheDir, "patched_model.glb")
+        if (patchedFile.exists()) return patchedFile.absolutePath
+
+        try {
+            val data = context.assets.open(assetPath).use { it.readBytes() }
+            val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+
+            buf.int // magic
+            buf.int // version
+            buf.int // total length
+
+            val jsonLen = buf.int
+            buf.int // chunk type JSON
+            val jsonBytes = ByteArray(jsonLen)
+            buf.get(jsonBytes)
+            val gltf = JSONObject(String(jsonBytes))
+
+            val binChunk = if (buf.remaining() >= 8) {
+                val binLen = buf.int
+                buf.int // chunk type BIN
+                ByteArray(binLen).also { buf.get(it) }
+            } else ByteArray(0)
+
+            // 1x1 белый PNG как data URI
+            // Генерируем программно чтобы не зависеть от hardcoded bytes
+            val whiteBmp = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            whiteBmp.setPixel(0, 0, android.graphics.Color.WHITE)
+            val pngBaos = ByteArrayOutputStream()
+            whiteBmp.compress(Bitmap.CompressFormat.PNG, 100, pngBaos)
+            whiteBmp.recycle()
+            val b64 = android.util.Base64.encodeToString(pngBaos.toByteArray(), android.util.Base64.NO_WRAP)
+            val dummyUri = "data:image/png;base64,$b64"
+
+            // Добавляем image → sampler → texture
+            val images = gltf.optJSONArray("images") ?: JSONArray().also { gltf.put("images", it) }
+            val dummyImageIdx = images.length()
+            images.put(JSONObject().apply {
+                put("name", "dummy_white_1x1")
+                put("mimeType", "image/png")
+                put("uri", dummyUri)
+            })
+
+            val samplers = gltf.optJSONArray("samplers") ?: JSONArray().also { gltf.put("samplers", it) }
+            val dummySamplerIdx = samplers.length()
+            samplers.put(JSONObject().apply {
+                put("magFilter", 9729)  // LINEAR
+                put("minFilter", 9729)  // LINEAR
+                put("wrapS", 33071)     // CLAMP_TO_EDGE
+                put("wrapT", 33071)
+            })
+
+            val textures = gltf.optJSONArray("textures") ?: JSONArray().also { gltf.put("textures", it) }
+            val dummyTexIdx = textures.length()
+            textures.put(JSONObject().apply {
+                put("source", dummyImageIdx)
+                put("sampler", dummySamplerIdx)
+            })
+
+            // Патчим ВСЕ материалы без baseColorTexture
+            val materials = gltf.optJSONArray("materials")
+            if (materials != null) {
+                for (i in 0 until materials.length()) {
+                    val mat = materials.getJSONObject(i)
+                    val pbr = mat.optJSONObject("pbrMetallicRoughness")
+                        ?: JSONObject().also { mat.put("pbrMetallicRoughness", it) }
+
+                    if (!pbr.has("baseColorTexture")) {
+                        pbr.put("baseColorTexture", JSONObject().apply {
+                            put("index", dummyTexIdx)
+                            put("texCoord", 0)
+                        })
+                        if (!pbr.has("baseColorFactor")) {
+                            pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
+                        }
+                    }
+                }
+            }
+
+            // Собираем GLB
+            val newJson = gltf.toString()
+            val jsonPad = (4 - newJson.length % 4) % 4
+            val jb = (newJson + " ".repeat(jsonPad)).toByteArray(Charsets.UTF_8)
+            val binPad = (4 - binChunk.size % 4) % 4
+            val bp = if (binPad > 0) binChunk + ByteArray(binPad) else binChunk
+
+            val total = 12 + 8 + jb.size + 8 + bp.size
+            val out = ByteBuffer.allocate(total).order(ByteOrder.LITTLE_ENDIAN)
+            out.putInt(0x46546C67); out.putInt(2); out.putInt(total)
+            out.putInt(jb.size); out.putInt(0x4E4F534A); out.put(jb)
+            out.putInt(bp.size); out.putInt(0x004E4942); out.put(bp)
+
+            patchedFile.writeBytes(out.array())
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback: копируем оригинал
+            context.assets.open(assetPath).use { inp ->
+                patchedFile.outputStream().use { out -> inp.copyTo(out) }
+            }
+        }
+
+        return patchedFile.absolutePath
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  GPU QUEUE
+    // ═══════════════════════════════════════════════════════════════
+
     fun flushPendingGpuOps(engine: Engine) {
         val ops: List<() -> Unit>
         synchronized(gpuOpsLock) {
@@ -150,68 +248,13 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  DUMMY TEXTURE + SAMPLER
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * 1x1 белая текстура-заглушка для Material с sampler.
-     * Без неё Filament крашит при рендере (sampler без текстуры = SIGABRT).
-     * ВНИМАНИЕ: вызывать только с render thread (через postGpuOp)!
-     */
-    private fun getOrCreateDummyTexture(engine: Engine): Texture {
-        dummyWhiteTexture?.let { return it }
-
-        val bmp = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-        bmp.setPixel(0, 0, android.graphics.Color.WHITE)
-
-        val tex = Texture.Builder()
-            .width(1)
-            .height(1)
-            .levels(1)
-            .sampler(Texture.Sampler.SAMPLER_2D)
-            .format(Texture.InternalFormat.SRGB8_A8)
-            .build(engine)
-
-        TextureHelper.setBitmap(engine, tex, 0, bmp)
-        bmp.recycle()
-
-        texturePool.add(tex)
-        dummyWhiteTexture = tex
-        return tex
-    }
-
-    private fun createDefaultSampler(): TextureSampler {
-        return TextureSampler().apply {
-            // FIX 3: LINEAR без MIPMAP для default sampler (dummy текстура 1x1)
-            setMinFilter(TextureSampler.MinFilter.LINEAR)
-            setMagFilter(TextureSampler.MagFilter.LINEAR)
-            setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
-            setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
-        }
-    }
-
-    private fun createTextureSampler(elem: EditableElement): TextureSampler {
-        return TextureSampler().apply {
-            setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
-            setMagFilter(TextureSampler.MagFilter.LINEAR)
-            val wrap = if (elem.type == ElementType.EYE)
-                TextureSampler.WrapMode.REPEAT
-            else TextureSampler.WrapMode.CLAMP_TO_EDGE
-            setWrapModeS(wrap)
-            setWrapModeT(wrap)
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  SCAN MODEL
+    //  SCAN — БЕЗ подмены материалов
     // ═══════════════════════════════════════════════════════════════
 
     fun scanModel(engine: Engine, modelInstance: ModelInstance): List<EditableElement> {
         elements.clear()
         val rm = engine.renderableManager
         var eyeCounter = 0
-
-        val rawElements = mutableListOf<EditableElement>()
 
         for (entity in modelInstance.entities) {
             if (!rm.hasComponent(entity)) continue
@@ -237,67 +280,15 @@ class GlbTextureEditor(private val context: Context) {
                     else -> "unknown_$entity"
                 }
 
-                rawElements.add(
-                    EditableElement(
-                        entity = entity,
-                        renderableInstance = ri,
-                        primitiveIndex = prim,
-                        meshName = meshName,
-                        materialInstance = mi,
-                    )
+                val elem = EditableElement(
+                    entity = entity,
+                    renderableInstance = ri,
+                    primitiveIndex = prim,
+                    meshName = meshName,
+                    materialInstance = mi,
                 )
-
-                // Зубы имеют baseColorMap в шейдере — захватываем Material
-                if (meshName == "teeth_ORIGINAL" && texturedMaterial == null) {
-                    try {
-                        texturedMaterial = mi.material
-                    } catch (_: Exception) {}
-                }
-            }
-        }
-
-        // ═══ Фаза 2: подмена материалов ═══
-        // FIX 1: все Filament-операции через postGpuOp
-        val texMat = texturedMaterial
-
-        for (elem in rawElements) {
-            if (texMat != null && elem.meshName != "teeth_ORIGINAL") {
-                try {
-                    val newMI = texMat.createInstance()
-
-                    // Сохраняем ссылки для GPU-операции
-                    val ri = elem.renderableInstance
-                    val pi = elem.primitiveIndex
-
-                    // GPU-операции — в очередь (выполнятся на render thread)
-                    postGpuOp {
-                        val dummy = getOrCreateDummyTexture(engine)
-                        val sampler = createDefaultSampler()
-                        newMI.setParameter("baseColorMap", dummy, sampler)
-                        newMI.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
-                        rm.setMaterialInstanceAt(ri, pi, newMI)
-                    }
-
-                    val patched = EditableElement(
-                        entity = elem.entity,
-                        renderableInstance = elem.renderableInstance,
-                        primitiveIndex = elem.primitiveIndex,
-                        meshName = elem.meshName,
-                        materialInstance = newMI,
-                    )
-                    setupHighEndPBR(patched)
-                    elements.add(patched)
-                } catch (e: Exception) {
-                    // Fallback: оригинальный MI
-                    val orig = elem.copy()
-                    setupHighEndPBR(orig)
-                    elements.add(orig)
-                }
-            } else {
-                // Зубы — уже имеют текстуру
-                val orig = elem.copy()
-                setupHighEndPBR(orig)
-                elements.add(orig)
+                setupHighEndPBR(elem)
+                elements.add(elem)
             }
         }
 
@@ -306,11 +297,7 @@ class GlbTextureEditor(private val context: Context) {
 
     private fun setupHighEndPBR(elem: EditableElement) {
         val mi = elem.materialInstance
-        // setParameter на MaterialInstance безопасен для scalar params
-        // если MI ещё не используется рендерером (только что создан)
-        // Для безопасности — тоже через очередь
         postGpuOp {
-            safeSetParam4f(mi, "baseColorFactor", 1f, 1f, 1f, 1f)
             when (elem.type) {
                 ElementType.EYE -> {
                     elem.currentRoughness = 0.05f
@@ -344,7 +331,7 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  COLOR / PBR (через GPU очередь)
+    //  COLOR / PBR
     // ═══════════════════════════════════════════════════════════════
 
     fun setColor(elem: EditableElement, r: Float, g: Float, b: Float) {
@@ -369,30 +356,22 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  TEXTURE ENGINE
+    //  TEXTURE
     // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * FIX 2: Принудительный ARGB_8888 + Hardware Bitmap защита.
-     * Android 16 + Samsung может вернуть HARDWARE bitmap,
-     * который невозможно прочитать через copyPixelsToBuffer → SIGABRT.
-     */
     private fun decodeBitmapSafe(uri: Uri): Bitmap? {
         val options = BitmapFactory.Options().apply {
             inPreferredConfig = Bitmap.Config.ARGB_8888
             inMutable = false
         }
-
         val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
             BitmapFactory.decodeStream(stream, null, options)
         } ?: return null
 
-        // Доп. защита: Samsung OneUI иногда игнорирует inPreferredConfig
         val safeBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
             bitmap.copy(Bitmap.Config.ARGB_8888, false).also { bitmap.recycle() }
         } else bitmap
 
-        // Ограничение размера
         val maxDim = maxOf(safeBitmap.width, safeBitmap.height)
         val scale = if (maxDim > MAX_SOURCE_SIZE) MAX_SOURCE_SIZE.toFloat() / maxDim else 1f
 
@@ -408,22 +387,17 @@ class GlbTextureEditor(private val context: Context) {
 
     fun loadTextureFromUri(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
         return try {
-            // Очищаем предыдущую
             elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
             elem.activeSourceBitmap = null
 
-            // FIX 2: безопасное декодирование (CPU, main thread — ОК)
             val source = decodeBitmapSafe(uri) ?: return false
             elem.activeSourceBitmap = source
 
-            // Создание GPU-текстуры (Texture.Builder.build — thread-safe)
             if (elem.activeTexture == null) {
                 elem.displayBitmap = Bitmap.createBitmap(
                     DISPLAY_TEX_SIZE, DISPLAY_TEX_SIZE, Bitmap.Config.ARGB_8888
                 )
-
                 val mipLevels = (kotlin.math.log2(DISPLAY_TEX_SIZE.toFloat())).toInt() + 1
-
                 val tex = Texture.Builder()
                     .width(DISPLAY_TEX_SIZE)
                     .height(DISPLAY_TEX_SIZE)
@@ -431,21 +405,13 @@ class GlbTextureEditor(private val context: Context) {
                     .sampler(Texture.Sampler.SAMPLER_2D)
                     .format(Texture.InternalFormat.SRGB8_A8)
                     .build(engine)
-
                 texturePool.add(tex)
                 elem.activeTexture = tex
             }
 
             elem.hasCustomTexture = true
-
-            // CPU: рисуем текстуру на displayBitmap (main thread, безопасно)
             renderTextureToCpuBitmap(elem)
-
-            // GPU: upload + setParameter — через очередь (render thread)
-            postGpuOp {
-                uploadTextureToGpu(engine, elem)
-            }
-
+            postGpuOp { uploadTextureToGpu(engine, elem) }
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -467,26 +433,10 @@ class GlbTextureEditor(private val context: Context) {
         elem.uvOffsetX = offsetX
         elem.uvOffsetY = offsetY
         elem.uvRotationDeg = rotDeg
-
-        // CPU: перерисовка displayBitmap (main thread)
         renderTextureToCpuBitmap(elem)
-
-        // GPU: upload — через очередь (render thread)
-        // FIX 6: debounce — заменяем предыдущий pending upload для этого элемента
-        synchronized(gpuOpsLock) {
-            // Удаляем старые pending uploads для этого элемента
-            // (чтобы не спамить GPU при быстром drag)
-            pendingGpuOps.add {
-                uploadTextureToGpu(engine, elem)
-            }
-        }
+        postGpuOp { uploadTextureToGpu(engine, elem) }
     }
 
-    /**
-     * CPU-часть: рисуем source bitmap на display bitmap с трансформациями.
-     * Безопасно вызывать из main thread.
-     * FIX 4: переиспользуем Matrix, Paint, Canvas.
-     */
     private fun renderTextureToCpuBitmap(elem: EditableElement) {
         val src = elem.activeSourceBitmap ?: return
         val display = elem.displayBitmap ?: return
@@ -495,7 +445,6 @@ class GlbTextureEditor(private val context: Context) {
         val w = display.width.toFloat()
         val h = display.height.toFloat()
 
-        // Переиспользуем Canvas
         if (cachedCanvasBitmap !== display) {
             cachedCanvas = Canvas(display)
             cachedCanvasBitmap = display
@@ -518,27 +467,24 @@ class GlbTextureEditor(private val context: Context) {
         canvas.drawBitmap(src, workingMatrix, workingPaint)
     }
 
-    /**
-     * GPU-часть: upload bitmap + bind texture + generate mipmaps.
-     * ТОЛЬКО через flushPendingGpuOps() на render thread!
-     *
-     * FIX 1: thread-safety
-     * FIX 3: flush перед generateMipmaps
-     */
     private fun uploadTextureToGpu(engine: Engine, elem: EditableElement) {
         val display = elem.displayBitmap ?: return
         val tex = elem.activeTexture ?: return
         if (display.isRecycled) return
 
         try {
-            // Bind texture + sampler если первый upload
-            val sampler = createTextureSampler(elem)
+            val sampler = TextureSampler().apply {
+                setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
+                setMagFilter(TextureSampler.MagFilter.LINEAR)
+                val wrap = if (elem.type == ElementType.EYE)
+                    TextureSampler.WrapMode.REPEAT
+                else TextureSampler.WrapMode.CLAMP_TO_EDGE
+                setWrapModeS(wrap)
+                setWrapModeT(wrap)
+            }
             elem.materialInstance.setParameter("baseColorMap", tex, sampler)
             safeSetParam4f(elem.materialInstance, "baseColorFactor", 1f, 1f, 1f, 1f)
-
-            // Upload pixels (level 0)
             TextureHelper.setBitmap(engine, tex, 0, display)
-            // generateMipmaps safe here — we're on render thread via onFrame
             tex.generateMipmaps(engine)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -595,26 +541,26 @@ class GlbTextureEditor(private val context: Context) {
                 bitmapToExport.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, baos)
                 val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
 
-                val images = gltf.optJSONArray("images") ?: JSONArray().also { gltf.put("images", it) }
-                val imgIdx = images.length()
-                images.put(JSONObject().apply {
+                val imgArr = gltf.optJSONArray("images") ?: JSONArray().also { gltf.put("images", it) }
+                val imgIdx = imgArr.length()
+                imgArr.put(JSONObject().apply {
                     put("name", "baked_${elem.meshName}")
                     put("mimeType", "image/jpeg")
                     put("uri", "data:image/jpeg;base64,$b64")
                 })
 
-                val samplers = gltf.optJSONArray("samplers") ?: JSONArray().also { gltf.put("samplers", it) }
+                val sampArr = gltf.optJSONArray("samplers") ?: JSONArray().also { gltf.put("samplers", it) }
                 val wrapType = if (elem.type == ElementType.EYE) 10497 else 33071
-                val samplerIdx = samplers.length()
-                samplers.put(JSONObject().apply {
+                val sampIdx = sampArr.length()
+                sampArr.put(JSONObject().apply {
                     put("magFilter", 9729); put("minFilter", 9987)
                     put("wrapS", wrapType); put("wrapT", wrapType)
                 })
 
-                val textures = gltf.optJSONArray("textures") ?: JSONArray().also { gltf.put("textures", it) }
-                val texIdx = textures.length()
-                textures.put(JSONObject().apply {
-                    put("source", imgIdx); put("sampler", samplerIdx)
+                val texArr = gltf.optJSONArray("textures") ?: JSONArray().also { gltf.put("textures", it) }
+                val texIdx = texArr.length()
+                texArr.put(JSONObject().apply {
+                    put("source", imgIdx); put("sampler", sampIdx)
                 })
 
                 val matIdx = findMaterialIndex(gltf, elem.meshName)
@@ -696,23 +642,12 @@ class GlbTextureEditor(private val context: Context) {
     fun getLabel(elem: EditableElement): String =
         MESH_LABELS[elem.meshName] ?: elem.meshName
 
-    // ═══════════════════════════════════════════════════════════════
-    //  DESTROY — safe cleanup
-    // ═══════════════════════════════════════════════════════════════
-
     fun destroy(engine: Engine) {
-        // Очищаем pending-очередь (больше не нужна)
-        synchronized(gpuOpsLock) {
-            pendingGpuOps.clear()
-        }
-
-        // Текстуры — оборачиваем в try-catch (engine может быть уже уничтожен SceneView)
+        synchronized(gpuOpsLock) { pendingGpuOps.clear() }
         texturePool.forEach { tex ->
             try { engine.destroyTexture(tex) } catch (_: Exception) {}
         }
         texturePool.clear()
-
-        // Kotlin/Java ресурсы — всегда чистим
         elements.forEach { elem ->
             elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
             elem.displayBitmap?.let { if (!it.isRecycled) it.recycle() }
@@ -721,8 +656,6 @@ class GlbTextureEditor(private val context: Context) {
             elem.activeTexture = null
         }
         elements.clear()
-        texturedMaterial = null
-        dummyWhiteTexture = null
         cachedCanvas = null
         cachedCanvasBitmap = null
     }
