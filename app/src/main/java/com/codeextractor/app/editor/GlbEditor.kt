@@ -561,6 +561,102 @@ class GlbTextureEditor(private val context: Context) {
         return cacheFile
     }
 
+    /**
+     * Патчит GLB: добавляет 1x1 белую текстуру ко всем материалам без baseColorTexture.
+     * Без этого Filament компилирует шейдер без sampler и setParameter("baseColorMap") крашит native.
+     */
+    fun patchGlbForTextureSupport(assetPath: String): String {
+        val cacheFile = File(context.cacheDir, "patched_source.glb")
+        if (cacheFile.exists()) return cacheFile.absolutePath
+
+        try {
+            val data = context.assets.open(assetPath).use { it.readBytes() }
+            val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+
+            // Parse GLB header
+            buf.position(12)
+            val jsonLen = buf.int
+            buf.int // chunk type
+            val jsonBytes = ByteArray(jsonLen)
+            buf.get(jsonBytes)
+            val gltf = JSONObject(String(jsonBytes))
+
+            // Binary chunk
+            val binChunk = if (buf.remaining() >= 8) {
+                val binLen = buf.int
+                buf.int
+                ByteArray(binLen).also { buf.get(it) }
+            } else ByteArray(0)
+
+            // 1x1 белый пиксель PNG (base64)
+            val whitePng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+
+            // Ensure arrays exist
+            val images = gltf.optJSONArray("images") ?: JSONArray().also { gltf.put("images", it) }
+            val samplers = gltf.optJSONArray("samplers") ?: JSONArray().also { gltf.put("samplers", it) }
+            val textures = gltf.optJSONArray("textures") ?: JSONArray().also { gltf.put("textures", it) }
+            val materials = gltf.optJSONArray("materials") ?: return assetPath
+
+            // Add white pixel image
+            val whiteImgIdx = images.length()
+            images.put(JSONObject().apply {
+                put("name", "white_1x1_patch")
+                put("mimeType", "image/png")
+                put("uri", whitePng)
+            })
+
+            // Add sampler if needed
+            if (samplers.length() == 0) {
+                samplers.put(JSONObject().apply {
+                    put("magFilter", 9729)
+                    put("minFilter", 9987)
+                    put("wrapS", 33071)
+                    put("wrapT", 33071)
+                })
+            }
+
+            // Add texture reference
+            val whiteTexIdx = textures.length()
+            textures.put(JSONObject().apply {
+                put("source", whiteImgIdx)
+                put("sampler", 0)
+            })
+
+            // Patch all materials that lack baseColorTexture
+            for (i in 0 until materials.length()) {
+                val mat = materials.getJSONObject(i)
+                val pbr = mat.optJSONObject("pbrMetallicRoughness") ?: JSONObject().also {
+                    mat.put("pbrMetallicRoughness", it)
+                }
+                if (!pbr.has("baseColorTexture")) {
+                    pbr.put("baseColorTexture", JSONObject().apply {
+                        put("index", whiteTexIdx)
+                        put("texCoord", 0)
+                    })
+                }
+            }
+
+            // Write patched GLB
+            val newJson = gltf.toString()
+            val pad = (4 - newJson.length % 4) % 4
+            val jb = (newJson + " ".repeat(pad)).toByteArray(Charsets.UTF_8)
+            val binPad = (4 - binChunk.size % 4) % 4
+            val bp = if (binPad > 0) binChunk + ByteArray(binPad) else binChunk
+
+            val total = 12 + 8 + jb.size + 8 + bp.size
+            val out = ByteBuffer.allocate(total).order(ByteOrder.LITTLE_ENDIAN)
+            out.putInt(0x46546C67); out.putInt(2); out.putInt(total)
+            out.putInt(jb.size); out.putInt(0x4E4F534A); out.put(jb)
+            out.putInt(bp.size); out.putInt(0x004E4942); out.put(bp)
+
+            cacheFile.writeBytes(out.array())
+            return cacheFile.absolutePath
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return assetPath
+        }
+    }
+
     fun destroy(engine: Engine) {
         texturePool.forEach { tex ->
             try { engine.destroyTexture(tex) } catch (_: Exception) {}
