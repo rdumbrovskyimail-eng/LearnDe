@@ -570,10 +570,18 @@ class GlbTextureEditor(private val context: Context) {
         if (cacheFile.exists()) return cacheFile.absolutePath
 
         try {
+            // Генерируем 1x1 белый PNG
+            val whiteBmp = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            whiteBmp.setPixel(0, 0, android.graphics.Color.WHITE)
+            val pngBaos = ByteArrayOutputStream()
+            whiteBmp.compress(Bitmap.CompressFormat.PNG, 100, pngBaos)
+            whiteBmp.recycle()
+            val pngBytes = pngBaos.toByteArray()
+
+            // Читаем оригинальный GLB
             val data = context.assets.open(assetPath).use { it.readBytes() }
             val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
 
-            // Parse GLB header
             buf.position(12)
             val jsonLen = buf.int
             buf.int // chunk type
@@ -581,31 +589,43 @@ class GlbTextureEditor(private val context: Context) {
             buf.get(jsonBytes)
             val gltf = JSONObject(String(jsonBytes))
 
-            // Binary chunk
             val binChunk = if (buf.remaining() >= 8) {
                 val binLen = buf.int
                 buf.int
                 ByteArray(binLen).also { buf.get(it) }
             } else ByteArray(0)
 
-            // 1x1 белый пиксель PNG (base64)
-            val whitePng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+            // Встраиваем PNG в конец binary chunk (НЕ data URI!)
+            val pngOffset = binChunk.size
+            val pngPadding = (4 - pngBytes.size % 4) % 4
+            val newBinChunk = binChunk + pngBytes + ByteArray(pngPadding)
 
-            // Ensure arrays exist
-            val images = gltf.optJSONArray("images") ?: JSONArray().also { gltf.put("images", it) }
-            val samplers = gltf.optJSONArray("samplers") ?: JSONArray().also { gltf.put("samplers", it) }
-            val textures = gltf.optJSONArray("textures") ?: JSONArray().also { gltf.put("textures", it) }
-            val materials = gltf.optJSONArray("materials") ?: return assetPath
+            // Обновляем buffer length
+            val buffers = gltf.getJSONArray("buffers")
+            buffers.getJSONObject(0).put("byteLength", newBinChunk.size)
 
-            // Add white pixel image
-            val whiteImgIdx = images.length()
-            images.put(JSONObject().apply {
-                put("name", "white_1x1_patch")
-                put("mimeType", "image/png")
-                put("uri", whitePng)
+            // Добавляем bufferView для PNG
+            val bufferViews = gltf.getJSONArray("bufferViews")
+            val bvIndex = bufferViews.length()
+            bufferViews.put(JSONObject().apply {
+                put("buffer", 0)
+                put("byteOffset", pngOffset)
+                put("byteLength", pngBytes.size)
             })
 
-            // Add sampler if needed
+            // Image
+            val images = gltf.optJSONArray("images")
+                ?: JSONArray().also { gltf.put("images", it) }
+            val imgIndex = images.length()
+            images.put(JSONObject().apply {
+                put("name", "white_patch")
+                put("mimeType", "image/png")
+                put("bufferView", bvIndex)
+            })
+
+            // Sampler
+            val samplers = gltf.optJSONArray("samplers")
+                ?: JSONArray().also { gltf.put("samplers", it) }
             if (samplers.length() == 0) {
                 samplers.put(JSONObject().apply {
                     put("magFilter", 9729)
@@ -615,39 +635,39 @@ class GlbTextureEditor(private val context: Context) {
                 })
             }
 
-            // Add texture reference
-            val whiteTexIdx = textures.length()
+            // Texture
+            val textures = gltf.optJSONArray("textures")
+                ?: JSONArray().also { gltf.put("textures", it) }
+            val texIndex = textures.length()
             textures.put(JSONObject().apply {
-                put("source", whiteImgIdx)
+                put("source", imgIndex)
                 put("sampler", 0)
             })
 
-            // Patch all materials that lack baseColorTexture
+            // Патчим ВСЕ материалы без baseColorTexture
+            val materials = gltf.optJSONArray("materials") ?: return assetPath
             for (i in 0 until materials.length()) {
                 val mat = materials.getJSONObject(i)
-                val pbr = mat.optJSONObject("pbrMetallicRoughness") ?: JSONObject().also {
-                    mat.put("pbrMetallicRoughness", it)
-                }
+                val pbr = mat.optJSONObject("pbrMetallicRoughness")
+                    ?: JSONObject().also { mat.put("pbrMetallicRoughness", it) }
                 if (!pbr.has("baseColorTexture")) {
                     pbr.put("baseColorTexture", JSONObject().apply {
-                        put("index", whiteTexIdx)
+                        put("index", texIndex)
                         put("texCoord", 0)
                     })
                 }
             }
 
-            // Write patched GLB
+            // Собираем GLB
             val newJson = gltf.toString()
-            val pad = (4 - newJson.length % 4) % 4
-            val jb = (newJson + " ".repeat(pad)).toByteArray(Charsets.UTF_8)
-            val binPad = (4 - binChunk.size % 4) % 4
-            val bp = if (binPad > 0) binChunk + ByteArray(binPad) else binChunk
+            val jsonPad = (4 - newJson.length % 4) % 4
+            val jb = (newJson + " ".repeat(jsonPad)).toByteArray(Charsets.UTF_8)
 
-            val total = 12 + 8 + jb.size + 8 + bp.size
+            val total = 12 + 8 + jb.size + 8 + newBinChunk.size
             val out = ByteBuffer.allocate(total).order(ByteOrder.LITTLE_ENDIAN)
             out.putInt(0x46546C67); out.putInt(2); out.putInt(total)
             out.putInt(jb.size); out.putInt(0x4E4F534A); out.put(jb)
-            out.putInt(bp.size); out.putInt(0x004E4942); out.put(bp)
+            out.putInt(newBinChunk.size); out.putInt(0x004E4942); out.put(newBinChunk)
 
             cacheFile.writeBytes(out.array())
             return cacheFile.absolutePath
