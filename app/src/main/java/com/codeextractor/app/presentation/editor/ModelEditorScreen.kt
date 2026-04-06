@@ -111,6 +111,27 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     var uiMetallic by remember(selectedIdx) { mutableFloatStateOf(activeElem?.currentMetallic ?: 0f) }
     var uiRoughness by remember(selectedIdx) { mutableFloatStateOf(activeElem?.currentRoughness ?: 0.5f) }
 
+    // ═══ FIX 6: Debounce для трансформаций текстуры ═══
+    // Вместо вызова applyTransform на каждый пиксель драга,
+    // собираем изменения и применяем с задержкой 80ms
+    var pendingTransformApply by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiScaleX, uiScaleY, uiOffsetX, uiOffsetY, uiRot) {
+        if (!pendingTransformApply) return@LaunchedEffect
+        kotlinx.coroutines.delay(80) // Debounce: ждём конца спама жестов
+        activeElem?.let { elem ->
+            if (elem.hasCustomTexture) {
+                editor.applyTransform(
+                    engine, elem,
+                    scaleX = uiScaleX, scaleY = uiScaleY,
+                    offsetX = uiOffsetX, offsetY = uiOffsetY,
+                    rotDeg = uiRot
+                )
+            }
+        }
+        pendingTransformApply = false
+    }
+
     LaunchedEffect(modelInstance) {
         val mi = modelInstance ?: return@LaunchedEffect
         if (!scanned) {
@@ -218,6 +239,10 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     cameraNode = cameraNode,
                     cameraManipulator = camManipulator,
                     environment = environment,
+                    // ═══ FIX 1: КРИТИЧЕСКИЙ — flush GPU-очереди на render thread ═══
+                    onFrame = { _ ->
+                        editor.flushPendingGpuOps(engine)
+                    },
                 ) {
                     modelInstance?.let {
                         ModelNode(
@@ -237,14 +262,10 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                             .pointerInput(selectedIdx) {
                                 detectDragGestures { change, dragAmount ->
                                     change.consume()
+                                    // FIX 6: только обновляем state, НЕ вызываем editor напрямую
                                     uiOffsetX += dragAmount.x / 900f
                                     uiOffsetY += dragAmount.y / 900f
-                                    editor.applyTransform(
-                                        engine, activeElem,
-                                        scaleX = uiScaleX, scaleY = uiScaleY,
-                                        offsetX = uiOffsetX, offsetY = uiOffsetY,
-                                        rotDeg = uiRot
-                                    )
+                                    pendingTransformApply = true
                                 }
                             }
                     )
@@ -443,16 +464,10 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                                 .pointerInput(selectedIdx) {
                                     detectDragGestures { change, dragAmount ->
                                         change.consume()
+                                        // FIX 6: только state, debounce через LaunchedEffect
                                         uiOffsetX += dragAmount.x / 1200f
                                         uiOffsetY += dragAmount.y / 1200f
-                                        if (sel.hasCustomTexture) {
-                                            editor.applyTransform(
-                                                engine, sel,
-                                                scaleX = uiScaleX, scaleY = uiScaleY,
-                                                offsetX = uiOffsetX, offsetY = uiOffsetY,
-                                                rotDeg = uiRot
-                                            )
-                                        }
+                                        pendingTransformApply = true
                                     }
                                 }
                         ) {
@@ -486,36 +501,15 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                             accent = Color(0xFF6C63FF)
                         ) { v ->
                             uiScaleX = v; uiScaleY = v
-                            if (sel.hasCustomTexture) {
-                                editor.applyTransform(
-                                    engine, sel,
-                                    scaleX = v, scaleY = v,
-                                    offsetX = uiOffsetX, offsetY = uiOffsetY,
-                                    rotDeg = uiRot
-                                )
-                            }
+                            pendingTransformApply = true
                         }
                         ProSlider("Ширина (X)", uiScaleX, 0.05f..4f) { v ->
                             uiScaleX = v
-                            if (sel.hasCustomTexture) {
-                                editor.applyTransform(
-                                    engine, sel,
-                                    scaleX = v, scaleY = uiScaleY,
-                                    offsetX = uiOffsetX, offsetY = uiOffsetY,
-                                    rotDeg = uiRot
-                                )
-                            }
+                            pendingTransformApply = true
                         }
                         ProSlider("Высота (Y)", uiScaleY, 0.05f..4f) { v ->
                             uiScaleY = v
-                            if (sel.hasCustomTexture) {
-                                editor.applyTransform(
-                                    engine, sel,
-                                    scaleX = uiScaleX, scaleY = v,
-                                    offsetX = uiOffsetX, offsetY = uiOffsetY,
-                                    rotDeg = uiRot
-                                )
-                            }
+                            pendingTransformApply = true
                         }
                     }
                 }
@@ -528,14 +522,7 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                         accent = Color(0xFFE94560)
                     ) { v ->
                         uiRot = v
-                        if (sel.hasCustomTexture) {
-                            editor.applyTransform(
-                                engine, sel,
-                                scaleX = uiScaleX, scaleY = uiScaleY,
-                                offsetX = uiOffsetX, offsetY = uiOffsetY,
-                                rotDeg = v
-                            )
-                        }
+                        pendingTransformApply = true
                     }
                 }
 
