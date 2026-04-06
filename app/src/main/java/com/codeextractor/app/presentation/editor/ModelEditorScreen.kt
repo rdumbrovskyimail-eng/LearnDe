@@ -50,8 +50,6 @@ import io.github.sceneview.rememberModelLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.nio.ByteBuffer
 
 private const val MODEL_ASSET_PATH = "models/source_named.glb"
 private val CAM_POS = Float3(0f, 1.35f, 0.7f)
@@ -100,25 +98,27 @@ fun ModelEditorScreen(onBack: () -> Unit) {
 
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
 
+    // ← FIX: Чтение файла на IO, создание модели на Main (без вложенного withContext)
+    // Logcat показал "Engine destroyed" ДО "Model loaded" — race condition
     LaunchedEffect(modelLoader) {
         Log.d("GLB_EDITOR", "=== Loading model ===")
         try {
-            withContext(Dispatchers.IO) {
+            val buffer = withContext(Dispatchers.IO) {
                 val patchedPath = editor.preparePatchedModel(MODEL_ASSET_PATH)
                 Log.d("GLB_EDITOR", "Patched path: $patchedPath")
                 val fileBytes = java.io.File(patchedPath).readBytes()
                 Log.d("GLB_EDITOR", "File bytes: ${fileBytes.size}")
-                val buffer = java.nio.ByteBuffer.allocateDirect(fileBytes.size)
-                buffer.put(fileBytes)
-                buffer.rewind()
-                Log.d("GLB_EDITOR", "ByteBuffer: direct=${buffer.isDirect}, capacity=${buffer.capacity()}")
-                withContext(Dispatchers.Main) {
-                    modelInstance = modelLoader.createModelInstance(buffer)
-                    Log.d("GLB_EDITOR", "Model loaded: ${modelInstance != null}")
-                    if (modelInstance != null) {
-                        Log.d("GLB_EDITOR", "Entities: ${modelInstance!!.entities.size}")
-                    }
-                }
+                val buf = java.nio.ByteBuffer.allocateDirect(fileBytes.size)
+                buf.put(fileBytes)
+                buf.rewind()
+                Log.d("GLB_EDITOR", "ByteBuffer: direct=${buf.isDirect}, capacity=${buf.capacity()}")
+                buf
+            }
+            // Создание модели — Main поток (Engine создан на Main)
+            modelInstance = modelLoader.createModelInstance(buffer)
+            Log.d("GLB_EDITOR", "Model loaded: ${modelInstance != null}")
+            if (modelInstance != null) {
+                Log.d("GLB_EDITOR", "Entities: ${modelInstance!!.entities.size}")
             }
         } catch (e: Exception) {
             Log.e("GLB_EDITOR", "MODEL LOAD FAILED", e)
@@ -167,6 +167,9 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                 elements = editor.scanModel(engine, mi)
                 scanned = true
                 Log.d("GLB_EDITOR", "scanModel completed: ${elements.size} elements")
+                elements.forEach { elem ->
+                    Log.d("GLB_EDITOR", "  ${elem.meshName}: hasCustomTexture=${elem.hasCustomTexture}")
+                }
             } catch (e: Exception) {
                 Log.e("GLB_EDITOR", "scanModel FAILED", e)
             }
@@ -224,6 +227,7 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         }
     }
 
+    // GPU ops flush loop
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(16)
