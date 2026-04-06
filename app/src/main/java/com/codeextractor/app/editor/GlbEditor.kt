@@ -9,6 +9,7 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.RectF
 import android.net.Uri
+import android.util.Log
 import com.google.android.filament.Engine
 import com.google.android.filament.MaterialInstance
 import com.google.android.filament.Texture
@@ -70,19 +71,19 @@ class EditableElement(
  * GlbTextureEditor — редактор текстур 3D-аватара.
  *
  * АРХИТЕКТУРА:
- * 1. preparePatchedModel() — патчит GLB JSON: добавляет 1x1 белую
- *    PNG как baseColorTexture ко ВСЕМ материалам. Filament/gltfio
- *    компилирует шейдеры с baseColorMap для каждого меша со своим
- *    vertex buffer layout (51/5/4 morph targets). Никакой "кражи
- *    материалов" между мешами.
+ * 1. preparePatchedModel() — патчит GLB: добавляет 4x4 белую PNG
+ *    как baseColorTexture через bufferView (НЕ data URI!) ко ВСЕМ
+ *    материалам без текстуры. gltfio загружает их нативно.
  *
  * 2. scanModel() — читает существующие MaterialInstance,
  *    они УЖЕ имеют baseColorMap.
  *
  * 3. Thread-safety: Filament-вызовы через pending-очередь,
- *    flush из SceneView onFrame.
+ *    flush из LaunchedEffect каждые 16мс.
  *
  * 4. Hardware Bitmap защита для Android 16 Samsung.
+ *
+ * 5. Texture.Builder с GEN_MIPMAPPABLE usage flag.
  */
 class GlbTextureEditor(private val context: Context) {
 
@@ -92,6 +93,7 @@ class GlbTextureEditor(private val context: Context) {
     private val pendingGpuOps = mutableListOf<() -> Unit>()
     private val gpuOpsLock = Any()
 
+    // ← FIX #4: переиспользуемые объекты (JNI pressure)
     private val workingMatrix = Matrix()
     private val workingPaint = Paint().apply {
         isFilterBitmap = true
@@ -101,6 +103,7 @@ class GlbTextureEditor(private val context: Context) {
     private var cachedCanvasBitmap: Bitmap? = null
 
     companion object {
+        private const val TAG = "GLB_EDITOR"
         private const val DISPLAY_TEX_SIZE = 1024
         private const val MAX_SOURCE_SIZE = 2048
         private const val JPEG_QUALITY = 92
@@ -115,20 +118,49 @@ class GlbTextureEditor(private val context: Context) {
 
     // ═══════════════════════════════════════════════════════════════
     //  ПАТЧ GLB — добавляем dummy-текстуры ДО загрузки в SceneView
+    //
+    //  ← FIX #2: используем bufferView вместо data URI.
+    //  Logcat показал:
+    //    E Filament: Missing texture provider for image/
+    //    E Filament: Missing texture provider for image\/png
+    //  gltfio не поддерживает data URI — нужен bufferView в BIN chunk.
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Патчит GLB: добавляет 1x1 белую PNG как baseColorTexture
-     * ко всем материалам без текстуры. Возвращает путь к файлу в кеше.
+     * Создаёт минимальный белый PNG (4x4 пикселя) в байтах.
+     */
+    private fun createWhitePngBytes(): ByteArray {
+        val bmp = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.drawColor(android.graphics.Color.WHITE)
+        val baos = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.PNG, 100, baos)
+        bmp.recycle()
+        return baos.toByteArray()
+    }
+
+    /**
+     * Патчит GLB: добавляет 4x4 белую PNG как baseColorTexture
+     * ко всем материалам без текстуры. Текстура записывается в BIN chunk
+     * как bufferView (стандартный glTF embedded формат).
      *
      * Вызывать ПЕРЕД загрузкой модели в SceneView!
      */
     fun preparePatchedModel(assetPath: String): String {
         val patchedFile = File(context.cacheDir, "patched_model.glb")
-        if (patchedFile.exists()) return patchedFile.absolutePath
+
+        // ← ВРЕМЕННО: форсируем перегенерацию для отладки
+        if (patchedFile.exists()) {
+            patchedFile.delete()
+            Log.d(TAG, "Cache cleared, regenerating patched model")
+        }
+
+        Log.d(TAG, "=== START preparePatchedModel ===")
 
         try {
             val data = context.assets.open(assetPath).use { it.readBytes() }
+            Log.d(TAG, "Original GLB: ${data.size} bytes")
+
             val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
 
             buf.int // magic
@@ -141,32 +173,64 @@ class GlbTextureEditor(private val context: Context) {
             buf.get(jsonBytes)
             val gltf = JSONObject(String(jsonBytes))
 
+            Log.d(TAG, "JSON chunk: $jsonLen bytes")
+
             val binChunk = if (buf.remaining() >= 8) {
                 val binLen = buf.int
                 buf.int // chunk type BIN
                 ByteArray(binLen).also { buf.get(it) }
             } else ByteArray(0)
 
-            // 1x1 белый PNG как data URI
-            // Генерируем программно чтобы не зависеть от hardcoded bytes
-            val whiteBmp = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-            whiteBmp.setPixel(0, 0, android.graphics.Color.WHITE)
-            val pngBaos = ByteArrayOutputStream()
-            whiteBmp.compress(Bitmap.CompressFormat.PNG, 100, pngBaos)
-            whiteBmp.recycle()
-            val b64 = android.util.Base64.encodeToString(pngBaos.toByteArray(), android.util.Base64.NO_WRAP)
-            val dummyUri = "data:image/png;base64,$b64"
+            Log.d(TAG, "BIN chunk: ${binChunk.size} bytes")
 
-            // Добавляем image → sampler → texture
-            val images = gltf.optJSONArray("images") ?: JSONArray().also { gltf.put("images", it) }
+            // ── FIX #2: Создаём PNG и записываем в BIN chunk как bufferView ──
+            val whitePng = createWhitePngBytes()
+            Log.d(TAG, "White PNG size: ${whitePng.size} bytes")
+
+            // Выравниваем смещение до 4 байт
+            val pngOffset = binChunk.size
+            val pngPadding = (4 - whitePng.size % 4) % 4
+            val paddedPng = whitePng + ByteArray(pngPadding)
+
+            // Новый BIN = старый BIN + PNG (с паддингом)
+            val newBinChunk = binChunk + paddedPng
+
+            // Добавляем bufferView для PNG
+            val bufferViews = gltf.optJSONArray("bufferViews")
+                ?: JSONArray().also { gltf.put("bufferViews", it) }
+            val bvIdx = bufferViews.length()
+            bufferViews.put(JSONObject().apply {
+                put("buffer", 0)
+                put("byteOffset", pngOffset)
+                put("byteLength", whitePng.size)
+            })
+            Log.d(TAG, "Added bufferView[$bvIdx] at offset $pngOffset, size=${whitePng.size}")
+
+            // Обновляем длину buffer[0]
+            val buffers = gltf.optJSONArray("buffers")
+                ?: JSONArray().also { gltf.put("buffers", it) }
+            if (buffers.length() > 0) {
+                buffers.getJSONObject(0).put("byteLength", newBinChunk.size)
+            } else {
+                buffers.put(JSONObject().apply {
+                    put("byteLength", newBinChunk.size)
+                })
+            }
+
+            // Image ссылается на bufferView (НЕ data URI!)
+            val images = gltf.optJSONArray("images")
+                ?: JSONArray().also { gltf.put("images", it) }
             val dummyImageIdx = images.length()
             images.put(JSONObject().apply {
-                put("name", "dummy_white_1x1")
+                put("name", "dummy_white_4x4")
                 put("mimeType", "image/png")
-                put("uri", dummyUri)
+                put("bufferView", bvIdx) // ← КЛЮЧЕВОЕ: bufferView, а не uri
             })
+            Log.d(TAG, "Added image[$dummyImageIdx] with bufferView=$bvIdx")
 
-            val samplers = gltf.optJSONArray("samplers") ?: JSONArray().also { gltf.put("samplers", it) }
+            // Sampler
+            val samplers = gltf.optJSONArray("samplers")
+                ?: JSONArray().also { gltf.put("samplers", it) }
             val dummySamplerIdx = samplers.length()
             samplers.put(JSONObject().apply {
                 put("magFilter", 9729)  // LINEAR
@@ -175,7 +239,9 @@ class GlbTextureEditor(private val context: Context) {
                 put("wrapT", 33071)
             })
 
-            val textures = gltf.optJSONArray("textures") ?: JSONArray().also { gltf.put("textures", it) }
+            // Texture
+            val textures = gltf.optJSONArray("textures")
+                ?: JSONArray().also { gltf.put("textures", it) }
             val dummyTexIdx = textures.length()
             textures.put(JSONObject().apply {
                 put("source", dummyImageIdx)
@@ -184,6 +250,9 @@ class GlbTextureEditor(private val context: Context) {
 
             // Патчим ВСЕ материалы без baseColorTexture
             val materials = gltf.optJSONArray("materials")
+            val matCount = materials?.length() ?: 0
+            Log.d(TAG, "Materials count: $matCount")
+
             if (materials != null) {
                 for (i in 0 until materials.length()) {
                     val mat = materials.getJSONObject(i)
@@ -198,16 +267,19 @@ class GlbTextureEditor(private val context: Context) {
                         if (!pbr.has("baseColorFactor")) {
                             pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
                         }
+                        Log.d(TAG, "Patching material[$i]: adding baseColorTexture")
+                    } else {
+                        Log.d(TAG, "Material[$i]: already has baseColorTexture, skip")
                     }
                 }
             }
 
-            // Собираем GLB
+            // Собираем GLB с НОВЫМ BIN chunk
             val newJson = gltf.toString()
             val jsonPad = (4 - newJson.length % 4) % 4
             val jb = (newJson + " ".repeat(jsonPad)).toByteArray(Charsets.UTF_8)
-            val binPad = (4 - binChunk.size % 4) % 4
-            val bp = if (binPad > 0) binChunk + ByteArray(binPad) else binChunk
+            val binPad2 = (4 - newBinChunk.size % 4) % 4
+            val bp = if (binPad2 > 0) newBinChunk + ByteArray(binPad2) else newBinChunk
 
             val total = 12 + 8 + jb.size + 8 + bp.size
             val out = ByteBuffer.allocate(total).order(ByteOrder.LITTLE_ENDIAN)
@@ -216,8 +288,11 @@ class GlbTextureEditor(private val context: Context) {
             out.putInt(bp.size); out.putInt(0x004E4942); out.put(bp)
 
             patchedFile.writeBytes(out.array())
+            Log.d(TAG, "Patched GLB written: ${patchedFile.length()} bytes")
+            Log.d(TAG, "=== END preparePatchedModel OK ===")
+
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "preparePatchedModel FAILED", e)
             // Fallback: копируем оригинал
             context.assets.open(assetPath).use { inp ->
                 patchedFile.outputStream().use { out -> inp.copyTo(out) }
@@ -238,7 +313,14 @@ class GlbTextureEditor(private val context: Context) {
             ops = pendingGpuOps.toList()
             pendingGpuOps.clear()
         }
-        ops.forEach { it.invoke() }
+        Log.d(TAG, "flushGpuOps: executing ${ops.size} ops")
+        ops.forEachIndexed { idx, op ->
+            try {
+                op.invoke()
+            } catch (e: Exception) {
+                Log.e(TAG, "GPU op[$idx] FAILED", e)
+            }
+        }
     }
 
     private fun postGpuOp(op: () -> Unit) {
@@ -252,6 +334,8 @@ class GlbTextureEditor(private val context: Context) {
     // ═══════════════════════════════════════════════════════════════
 
     fun scanModel(engine: Engine, modelInstance: ModelInstance): List<EditableElement> {
+        Log.d(TAG, "=== START scanModel ===")
+        Log.d(TAG, "Entity count: ${modelInstance.entities.size}")
         elements.clear()
         val rm = engine.renderableManager
         var eyeCounter = 0
@@ -280,6 +364,16 @@ class GlbTextureEditor(private val context: Context) {
                     else -> "unknown_$entity"
                 }
 
+                Log.d(TAG, "Entity $entity: primCount=$primCount, morphCount=$morphCount -> $meshName")
+
+                val hasBaseColorMap = try {
+                    mi.material.hasParameter("baseColorMap")
+                } catch (e: Exception) {
+                    Log.w(TAG, "  Cannot check baseColorMap: ${e.message}")
+                    false
+                }
+                Log.d(TAG, "  MI hashCode=${mi.hashCode()}, hasBaseColorMap=$hasBaseColorMap")
+
                 val elem = EditableElement(
                     entity = entity,
                     renderableInstance = ri,
@@ -292,12 +386,14 @@ class GlbTextureEditor(private val context: Context) {
             }
         }
 
+        Log.d(TAG, "=== END scanModel: ${elements.size} elements ===")
         return elements.toList()
     }
 
     private fun setupHighEndPBR(elem: EditableElement) {
         val mi = elem.materialInstance
         postGpuOp {
+            Log.d(TAG, "setupHighEndPBR: ${elem.meshName} type=${elem.type}")
             when (elem.type) {
                 ElementType.EYE -> {
                     elem.currentRoughness = 0.05f
@@ -323,11 +419,15 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     private fun safeSetParam1f(mi: MaterialInstance, name: String, v: Float) {
-        try { mi.setParameter(name, v) } catch (_: Exception) {}
+        try { mi.setParameter(name, v) } catch (e: Exception) {
+            Log.w(TAG, "setParam1f($name) failed: ${e.message}")
+        }
     }
 
     private fun safeSetParam4f(mi: MaterialInstance, name: String, r: Float, g: Float, b: Float, a: Float) {
-        try { mi.setParameter(name, r, g, b, a) } catch (_: Exception) {}
+        try { mi.setParameter(name, r, g, b, a) } catch (e: Exception) {
+            Log.w(TAG, "setParam4f($name) failed: ${e.message}")
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -359,6 +459,7 @@ class GlbTextureEditor(private val context: Context) {
     //  TEXTURE
     // ═══════════════════════════════════════════════════════════════
 
+    // ← FIX #3: Hardware Bitmap защита для Android 16 Samsung
     private fun decodeBitmapSafe(uri: Uri): Bitmap? {
         val options = BitmapFactory.Options().apply {
             inPreferredConfig = Bitmap.Config.ARGB_8888
@@ -368,7 +469,11 @@ class GlbTextureEditor(private val context: Context) {
             BitmapFactory.decodeStream(stream, null, options)
         } ?: return null
 
+        Log.d(TAG, "Bitmap decoded: ${bitmap.width}x${bitmap.height} config=${bitmap.config}")
+
+        // Fallback если Samsung всё равно вернул HARDWARE
         val safeBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
+            Log.w(TAG, "Got HARDWARE bitmap, converting to ARGB_8888")
             bitmap.copy(Bitmap.Config.ARGB_8888, false).also { bitmap.recycle() }
         } else bitmap
 
@@ -386,34 +491,47 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     fun loadTextureFromUri(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
+        Log.d(TAG, "loadTextureFromUri: ${elem.meshName}, uri=$uri")
         return try {
             elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
             elem.activeSourceBitmap = null
 
             val source = decodeBitmapSafe(uri) ?: return false
             elem.activeSourceBitmap = source
+            Log.d(TAG, "Source bitmap: ${source.width}x${source.height} config=${source.config}")
 
             if (elem.activeTexture == null) {
                 elem.displayBitmap = Bitmap.createBitmap(
                     DISPLAY_TEX_SIZE, DISPLAY_TEX_SIZE, Bitmap.Config.ARGB_8888
                 )
                 val mipLevels = (kotlin.math.log2(DISPLAY_TEX_SIZE.toFloat())).toInt() + 1
+
+                // ← FIX #1: ГЛАВНЫЙ КРАШ — добавляем usage с GEN_MIPMAPPABLE
+                // Logcat показал:
+                //   E Filament: Precondition
+                //   E Filament: in generateMipmaps:767
+                //   E Filament: reason: Texture usage does not have GEN_MIPMAPPABLE set
                 val tex = Texture.Builder()
                     .width(DISPLAY_TEX_SIZE)
                     .height(DISPLAY_TEX_SIZE)
                     .levels(mipLevels)
                     .sampler(Texture.Sampler.SAMPLER_2D)
                     .format(Texture.InternalFormat.SRGB8_A8)
+                    .usage(Texture.Usage.COLOR_ATTACHMENT or Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE) // ← FIX
                     .build(engine)
+
                 texturePool.add(tex)
                 elem.activeTexture = tex
+                Log.d(TAG, "Filament Texture created: ${DISPLAY_TEX_SIZE}x${DISPLAY_TEX_SIZE} with GEN_MIPMAPPABLE")
             }
 
             elem.hasCustomTexture = true
             renderTextureToCpuBitmap(elem)
             postGpuOp { uploadTextureToGpu(engine, elem) }
+            Log.d(TAG, "Texture queued for upload OK")
             true
         } catch (e: Exception) {
+            Log.e(TAG, "loadTextureFromUri FAILED", e)
             e.printStackTrace()
             false
         }
@@ -437,6 +555,7 @@ class GlbTextureEditor(private val context: Context) {
         postGpuOp { uploadTextureToGpu(engine, elem) }
     }
 
+    // ← FIX #4: переиспользуемые Matrix/Paint/Canvas
     private fun renderTextureToCpuBitmap(elem: EditableElement) {
         val src = elem.activeSourceBitmap ?: return
         val display = elem.displayBitmap ?: return
@@ -472,6 +591,8 @@ class GlbTextureEditor(private val context: Context) {
         val tex = elem.activeTexture ?: return
         if (display.isRecycled) return
 
+        Log.d(TAG, "uploadTextureToGpu: ${elem.meshName}")
+
         try {
             val sampler = TextureSampler().apply {
                 setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
@@ -485,9 +606,10 @@ class GlbTextureEditor(private val context: Context) {
             elem.materialInstance.setParameter("baseColorMap", tex, sampler)
             safeSetParam4f(elem.materialInstance, "baseColorFactor", 1f, 1f, 1f, 1f)
             TextureHelper.setBitmap(engine, tex, 0, display)
-            tex.generateMipmaps(engine)
+            tex.generateMipmaps(engine) // Теперь безопасно — текстура имеет GEN_MIPMAPPABLE
+            Log.d(TAG, "uploadTextureToGpu OK: ${elem.meshName}")
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "uploadTextureToGpu FAILED for ${elem.meshName}", e)
         }
     }
 
@@ -643,6 +765,7 @@ class GlbTextureEditor(private val context: Context) {
         MESH_LABELS[elem.meshName] ?: elem.meshName
 
     fun destroy(engine: Engine) {
+        Log.d(TAG, "destroy: ${texturePool.size} textures, ${elements.size} elements")
         synchronized(gpuOpsLock) { pendingGpuOps.clear() }
         texturePool.forEach { tex ->
             try { engine.destroyTexture(tex) } catch (_: Exception) {}
