@@ -24,6 +24,9 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -142,26 +145,34 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     }
 
     // ── SAF: выбор места сохранения ──
+    val scope = rememberCoroutineScope()
+
     val saveLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
         isSaving = true
-        try {
-            val sourceFile = editor.ensureSourceInCache(MODEL_PATH)
-            val ok = ctx.contentResolver.openOutputStream(uri)?.use { stream ->
-                editor.saveToStream(sourceFile.absolutePath, stream)
-            } ?: false
-            Toast.makeText(
-                ctx,
-                if (ok) "Модель сохранена!" else "Ошибка сохранения",
-                Toast.LENGTH_LONG
-            ).show()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(ctx, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+        scope.launch(Dispatchers.IO) {
+            try {
+                val sourceFile = editor.ensureSourceInCache(MODEL_PATH)
+                val ok = ctx.contentResolver.openOutputStream(uri)?.use { stream ->
+                    editor.saveToStream(sourceFile.absolutePath, stream)
+                } ?: false
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        ctx,
+                        if (ok) "Модель сохранена!" else "Ошибка сохранения",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(ctx, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+            isSaving = false
         }
-        isSaving = false
     }
 
     // ── Cleanup ──
