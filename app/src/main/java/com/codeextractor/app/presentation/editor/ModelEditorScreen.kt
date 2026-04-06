@@ -260,13 +260,12 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                             .fillMaxSize()
                             .background(Color(0x226C63FF))
                             .pointerInput(selectedIdx) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    // FIX 6: только обновляем state, НЕ вызываем editor напрямую
-                                    uiOffsetX += dragAmount.x / 900f
-                                    uiOffsetY += dragAmount.y / 900f
-                                    pendingTransformApply = true
-                                }
+                                    detectDragGestures { change, dragAmount ->
+                                        change.consume()
+                                        uiOffsetX += dragAmount.x / 900f
+                                        uiOffsetY += dragAmount.y / 900f
+                                        pendingTransformApply = true
+                                    }
                             }
                     )
                 }
@@ -464,7 +463,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                                 .pointerInput(selectedIdx) {
                                     detectDragGestures { change, dragAmount ->
                                         change.consume()
-                                        // FIX 6: только state, debounce через LaunchedEffect
                                         uiOffsetX += dragAmount.x / 1200f
                                         uiOffsetY += dragAmount.y / 1200f
                                         pendingTransformApply = true
