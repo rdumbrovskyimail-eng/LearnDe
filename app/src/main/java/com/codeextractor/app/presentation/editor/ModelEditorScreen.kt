@@ -1,6 +1,7 @@
 package com.codeextractor.app.presentation.editor
 
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -100,12 +101,28 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
 
     LaunchedEffect(modelLoader) {
-        val patchedPath = editor.preparePatchedModel(MODEL_ASSET_PATH)
-        val fileBytes = java.io.File(patchedPath).readBytes()
-        val buffer = java.nio.ByteBuffer.allocateDirect(fileBytes.size)
-        buffer.put(fileBytes)
-        buffer.rewind()
-        modelInstance = modelLoader.createModelInstance(buffer)
+        Log.d("GLB_EDITOR", "=== Loading model ===")
+        try {
+            withContext(Dispatchers.IO) {
+                val patchedPath = editor.preparePatchedModel(MODEL_ASSET_PATH)
+                Log.d("GLB_EDITOR", "Patched path: $patchedPath")
+                val fileBytes = java.io.File(patchedPath).readBytes()
+                Log.d("GLB_EDITOR", "File bytes: ${fileBytes.size}")
+                val buffer = java.nio.ByteBuffer.allocateDirect(fileBytes.size)
+                buffer.put(fileBytes)
+                buffer.rewind()
+                Log.d("GLB_EDITOR", "ByteBuffer: direct=${buffer.isDirect}, capacity=${buffer.capacity()}")
+                withContext(Dispatchers.Main) {
+                    modelInstance = modelLoader.createModelInstance(buffer)
+                    Log.d("GLB_EDITOR", "Model loaded: ${modelInstance != null}")
+                    if (modelInstance != null) {
+                        Log.d("GLB_EDITOR", "Entities: ${modelInstance!!.entities.size}")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("GLB_EDITOR", "MODEL LOAD FAILED", e)
+        }
     }
 
     var elements by remember { mutableStateOf<List<EditableElement>>(emptyList()) }
@@ -144,9 +161,15 @@ fun ModelEditorScreen(onBack: () -> Unit) {
 
     LaunchedEffect(modelInstance) {
         val mi = modelInstance ?: return@LaunchedEffect
+        Log.d("GLB_EDITOR", "=== About to scanModel ===")
         if (!scanned) {
-            elements = editor.scanModel(engine, mi)
-            scanned = true
+            try {
+                elements = editor.scanModel(engine, mi)
+                scanned = true
+                Log.d("GLB_EDITOR", "scanModel completed: ${elements.size} elements")
+            } catch (e: Exception) {
+                Log.e("GLB_EDITOR", "scanModel FAILED", e)
+            }
         }
     }
 
@@ -195,7 +218,10 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     }
 
     DisposableEffect(Unit) {
-        onDispose { editor.destroy(engine) }
+        onDispose {
+            Log.d("GLB_EDITOR", "=== onDispose: destroying editor ===")
+            editor.destroy(engine)
+        }
     }
 
     LaunchedEffect(Unit) {
