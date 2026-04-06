@@ -97,21 +97,15 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     val environment = rememberEnvironment(environmentLoader)
     val cameraNode = rememberCameraNode(engine) { position = CAM_POS }
 
-    // ═══ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: загружаем ПРОПАТЧЕННУЮ модель из файла ═══
-    // preparePatchedModel добавляет dummy-текстуры ко всем материалам,
-    // чтобы Filament скомпилировал шейдеры с baseColorMap для каждого меша
-    // со своим корректным morph target count (51/5/4).
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
 
     LaunchedEffect(modelLoader) {
-        withContext(Dispatchers.IO) {
-            val patchedPath = editor.preparePatchedModel(MODEL_ASSET_PATH)
-            val fileBytes = File(patchedPath).readBytes()
-            val buffer = ByteBuffer.wrap(fileBytes)
-            withContext(Dispatchers.Main) {
-                modelInstance = modelLoader.createModelInstance(buffer)
-            }
-        }
+        val patchedPath = editor.preparePatchedModel(MODEL_ASSET_PATH)
+        val fileBytes = java.io.File(patchedPath).readBytes()
+        val buffer = java.nio.ByteBuffer.allocateDirect(fileBytes.size)
+        buffer.put(fileBytes)
+        buffer.rewind()
+        modelInstance = modelLoader.createModelInstance(buffer)
     }
 
     var elements by remember { mutableStateOf<List<EditableElement>>(emptyList()) }
@@ -204,6 +198,13 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         onDispose { editor.destroy(engine) }
     }
 
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(16)
+            editor.flushPendingGpuOps(engine)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -255,10 +256,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     cameraNode = cameraNode,
                     cameraManipulator = camManipulator,
                     environment = environment,
-                    // Flush GPU-очереди на render thread
-                    onFrame = { _ ->
-                        editor.flushPendingGpuOps(engine)
-                    },
                 ) {
                     modelInstance?.let {
                         ModelNode(
