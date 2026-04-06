@@ -198,6 +198,12 @@ class GlbTextureEditor(private val context: Context) {
 
     fun loadTextureFromUri(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
         return try {
+            // ── FIX: ресайклим предыдущий source bitmap ──
+            elem.activeSourceBitmap?.let { old ->
+                if (!old.isRecycled) old.recycle()
+            }
+            elem.activeSourceBitmap = null
+
             val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
                 BitmapFactory.decodeStream(stream)
             } ?: return false
