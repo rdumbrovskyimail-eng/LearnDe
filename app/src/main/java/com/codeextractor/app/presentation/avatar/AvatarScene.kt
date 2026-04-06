@@ -40,7 +40,6 @@ fun AvatarScene(
     val environment       = rememberEnvironment(environmentLoader)
     val modelInstance     = rememberModelInstance(modelLoader, MODEL_PATH)
 
-    // ── FIX #1: rememberUpdatedState для ВСЕХ мутабельных значений ──
     val currentModelInstance by rememberUpdatedState(modelInstance)
     val currentMorphWeights  by rememberUpdatedState(morphWeights)
     val currentPitch         by rememberUpdatedState(headPitch)
@@ -65,7 +64,6 @@ fun AvatarScene(
             ),
             environment = environment,
             onFrame     = {
-                // ── FIX: используем currentModelInstance (всегда актуальный) ──
                 val mi = currentModelInstance
                 if (mi != null) {
                     val w = currentMorphWeights
@@ -88,9 +86,6 @@ fun AvatarScene(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────
-//  Morph application
-// ─────────────────────────────────────────────────────────────────
 private fun applyMorphsInternal(
     engine: com.google.android.filament.Engine,
     instance: io.github.sceneview.model.ModelInstance,
@@ -98,18 +93,15 @@ private fun applyMorphsInternal(
 ) {
     val rm = engine.renderableManager
 
-    // Teeth: jawForward(14), jawLeft(15), jawRight(16), jawOpen(17), mouthClose(18)
     val teethW = floatArrayOf(
         headW[14], headW[15], headW[16],
         headW[17], headW[18]
     )
 
-    // EyeLeft: eyeLookDownLeft(1), eyeLookInLeft(2), eyeLookOutLeft(3), eyeLookUpLeft(4)
     val eyeLW = floatArrayOf(
         headW[1], headW[2], headW[3], headW[4]
     )
 
-    // EyeRight: eyeLookDownRight(8), eyeLookInRight(9), eyeLookOutRight(10), eyeLookUpRight(11)
     val eyeRW = floatArrayOf(
         headW[8], headW[9], headW[10], headW[11]
     )
@@ -132,10 +124,6 @@ private fun applyMorphsInternal(
         }
 }
 
-// ─────────────────────────────────────────────────────────────────
-//  Head rotation via Filament TransformManager
-//  FIX #3: Правильный column-major порядок матрицы
-// ─────────────────────────────────────────────────────────────────
 private fun applyHeadRotation(
     engine: com.google.android.filament.Engine,
     instance: io.github.sceneview.model.ModelInstance,
@@ -157,13 +145,11 @@ private fun applyHeadRotation(
     val mat = FloatArray(16)
     tm.getTransform(ti, mat)
 
-    // Извлечь translation и scale из текущей матрицы
     val tx = mat[12]; val ty = mat[13]; val tz = mat[14]
     val sx = kotlin.math.sqrt(mat[0]*mat[0] + mat[1]*mat[1] + mat[2]*mat[2])
     val sy = kotlin.math.sqrt(mat[4]*mat[4] + mat[5]*mat[5] + mat[6]*mat[6])
     val sz = kotlin.math.sqrt(mat[8]*mat[8] + mat[9]*mat[9] + mat[10]*mat[10])
 
-    // Euler → rotation matrix (YXZ: yaw → pitch → roll)
     val p = Math.toRadians(pitchDeg.toDouble()).toFloat()
     val y = Math.toRadians(yawDeg.toDouble()).toFloat()
     val r = Math.toRadians(rollDeg.toDouble()).toFloat()
@@ -172,7 +158,6 @@ private fun applyHeadRotation(
     val cy = kotlin.math.cos(y); val sy2 = kotlin.math.sin(y)
     val cr = kotlin.math.cos(r); val sr = kotlin.math.sin(r)
 
-    // R = Ry * Rx * Rz  (row-major notation)
     val r00 = cy * cr + sy2 * sp * sr
     val r01 = cp * sr
     val r02 = -sy2 * cr + cy * sp * sr
@@ -185,14 +170,9 @@ private fun applyHeadRotation(
     val r21 = -sp
     val r22 = cy * cp
 
-    // ── FIX: Column-major для Filament ──
-    // Столбец 0 (X-axis)
     mat[0]  = r00 * sx;  mat[1]  = r10 * sx;  mat[2]  = r20 * sx;  mat[3]  = 0f
-    // Столбец 1 (Y-axis)
     mat[4]  = r01 * sy;  mat[5]  = r11 * sy;  mat[6]  = r21 * sy;  mat[7]  = 0f
-    // Столбец 2 (Z-axis)
     mat[8]  = r02 * sz;  mat[9]  = r12 * sz;  mat[10] = r22 * sz;  mat[11] = 0f
-    // Столбец 3 (Translation)
     mat[12] = tx;        mat[13] = ty;         mat[14] = tz;        mat[15] = 1f
 
     tm.setTransform(ti, mat)
