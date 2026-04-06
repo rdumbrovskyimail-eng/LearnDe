@@ -106,30 +106,27 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     var modelInstance by remember { mutableStateOf<io.github.sceneview.model.ModelInstance?>(null) }
 
     LaunchedEffect(Unit) {
-        try {
-            // Удаляем старый кэш
-            File(ctx.cacheDir, "patched_source.glb").delete()
+        File(ctx.cacheDir, "patched_source.glb").delete()
+        val patchedPath = editor.patchGlbForTextureSupport(MODEL_PATH)
+        val patchedFile = File(patchedPath)
 
-            // Патчим GLB
-            val patchedPath = editor.patchGlbForTextureSupport(MODEL_PATH)
-            val bytes = File(patchedPath).readBytes()
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            Toast.makeText(ctx, "Patch: ${patchedFile.exists()}, ${patchedFile.length()} bytes", Toast.LENGTH_LONG).show()
+        }
+
+        try {
+            val bytes = patchedFile.readBytes()
             val buffer = ByteBuffer.allocateDirect(bytes.size)
             buffer.put(bytes)
             buffer.flip()
-
-            // Пробуем загрузить
             modelInstance = modelLoader.createModelInstance(buffer)
+
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                Toast.makeText(ctx, "Model OK: ${modelInstance != null}", Toast.LENGTH_LONG).show()
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
-            // Fallback: грузим оригинал из assets
-            try {
-                val assetBytes = ctx.assets.open(MODEL_PATH).use { it.readBytes() }
-                val buf = ByteBuffer.allocateDirect(assetBytes.size)
-                buf.put(assetBytes)
-                buf.flip()
-                modelInstance = modelLoader.createModelInstance(buf)
-            } catch (e2: Exception) {
-                e2.printStackTrace()
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                Toast.makeText(ctx, "FAIL: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
     }
