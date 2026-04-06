@@ -517,7 +517,7 @@ class GlbTextureEditor(private val context: Context) {
                     .levels(mipLevels)
                     .sampler(Texture.Sampler.SAMPLER_2D)
                     .format(Texture.InternalFormat.SRGB8_A8)
-                    .usage(Texture.Usage.COLOR_ATTACHMENT or Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE) // ← FIX
+                    .usage(0x1 or Texture.Usage.COLOR_ATTACHMENT or Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE) // ← FIX
                     .build(engine)
 
                 texturePool.add(tex)
