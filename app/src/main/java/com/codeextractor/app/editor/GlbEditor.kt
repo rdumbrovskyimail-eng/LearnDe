@@ -507,17 +507,18 @@ class GlbTextureEditor(private val context: Context) {
                 val mipLevels = (kotlin.math.log2(DISPLAY_TEX_SIZE.toFloat())).toInt() + 1
 
                 // ← FIX #1: ГЛАВНЫЙ КРАШ — добавляем usage с GEN_MIPMAPPABLE
-                // Logcat показал:
-                //   E Filament: Precondition
-                //   E Filament: in generateMipmaps:767
-                //   E Filament: reason: Texture usage does not have GEN_MIPMAPPABLE set
+                val usage = Texture.Usage.SAMPLEABLE or
+                        Texture.Usage.COLOR_ATTACHMENT or
+                        Texture.Usage.UPLOADABLE or
+                        Texture.Usage.GEN_MIPMAPPABLE
+
                 val tex = Texture.Builder()
                     .width(DISPLAY_TEX_SIZE)
                     .height(DISPLAY_TEX_SIZE)
                     .levels(mipLevels)
                     .sampler(Texture.Sampler.SAMPLER_2D)
                     .format(Texture.InternalFormat.SRGB8_A8)
-                    .usage(0x161) // SAMPLEABLE | COLOR_ATTACHMENT | UPLOADABLE | GEN_MIPMAPPABLE
+                    .usage(usage) // Используем безопасную маску
                     .build(engine)
 
                 texturePool.add(tex)
