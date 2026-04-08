@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.net.Uri
 import android.util.Log
@@ -24,14 +25,59 @@ import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-enum class ElementType { EYE, SKIN, TEETH, UNKNOWN }
+// ═══════════════════════════════════════════════════════════════════
+//  ЗОНЫ UV-КАРТЫ для head_lod0_ORIGINAL
+// ═══════════════════════════════════════════════════════════════════
 
+enum class HeadZone(val label: String, val maskAsset: String) {
+    FACE_FRONT("Лицо (перед)", "masks/face_front.png"),
+    SIDE_LEFT("Бок левый", "masks/side_left.png"),
+    SIDE_RIGHT("Бок правый", "masks/side_right.png"),
+    HAIR_TOP("Волосы (верх)", "masks/hair_top.png"),
+    HAIR_BACK("Волосы (зад)", "masks/hair_back.png"),
+    NECK_FRONT("Шея (перед)", "masks/neck_front.png"),
+    NECK_BACK("Шея (зад)", "masks/neck_back.png"),
+    MOUTH_INNER("Рот (внутри)", "masks/mouth_inner.png"),
+}
+
+enum class ElementType { EYE_LEFT, EYE_RIGHT, TEETH, HEAD_ZONE, UNKNOWN }
+
+/**
+ * Данные одной зоны головы. Зона имеет маску в UV-пространстве,
+ * свою текстуру, и свои параметры трансформации.
+ */
+class ZoneData(
+    val zone: HeadZone,
+    val maskBitmap: Bitmap, // 1024x1024, grayscale = маска зоны
+) {
+    var sourceBitmap: Bitmap? = null
+    var uvScaleX: Float = 1f
+    var uvScaleY: Float = 1f
+    var uvOffsetX: Float = 0f
+    var uvOffsetY: Float = 0f
+    var uvRotationDeg: Float = 0f
+    var hasTexture: Boolean = false
+
+    fun recycle() {
+        sourceBitmap?.let { if (!it.isRecycled) it.recycle() }
+        sourceBitmap = null
+    }
+}
+
+/**
+ * Элемент для редактирования. Может быть:
+ * - HEAD_ZONE: одна из 8 зон головы (все используют один MaterialInstance)
+ * - EYE_LEFT / EYE_RIGHT: отдельные mesh'и глаз
+ * - TEETH: mesh зубов
+ */
 class EditableElement(
     val entity: Int,
     val renderableInstance: Int,
     val primitiveIndex: Int,
     val meshName: String,
     var materialInstance: MaterialInstance,
+    val type: ElementType,
+    val headZone: HeadZone? = null,
 
     var uvScaleX: Float = 1f,
     var uvScaleY: Float = 1f,
@@ -50,255 +96,194 @@ class EditableElement(
     var activeTexture: Texture? = null,
     var hasCustomTexture: Boolean = false,
 ) {
-    val type: ElementType
-        get() = when {
-            meshName.contains("eye") -> ElementType.EYE
-            meshName.contains("teeth") -> ElementType.TEETH
-            meshName.contains("head") -> ElementType.SKIN
-            else -> ElementType.UNKNOWN
-        }
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is EditableElement) return false
+        if (type == ElementType.HEAD_ZONE && other.type == ElementType.HEAD_ZONE)
+            return headZone == other.headZone
         return entity == other.entity && primitiveIndex == other.primitiveIndex
     }
 
-    override fun hashCode(): Int = entity * 31 + primitiveIndex
+    override fun hashCode(): Int {
+        if (type == ElementType.HEAD_ZONE) return headZone.hashCode()
+        return entity * 31 + primitiveIndex
+    }
 }
 
 /**
- * GlbTextureEditor — редактор текстур 3D-аватара.
+ * GlbTextureEditor — редактор текстур 3D-аватара с зональной системой.
  *
- * АРХИТЕКТУРА:
- * 1. preparePatchedModel() — патчит GLB: добавляет 4x4 белую PNG
- *    как baseColorTexture через bufferView (НЕ data URI!) ко ВСЕМ
- *    материалам без текстуры. gltfio загружает их нативно.
+ * АРХИТЕКТУРА ЗОНАЛЬНОЙ СИСТЕМЫ:
+ * 1. Голова (head_lod0_ORIGINAL) разбита на 8 UV-зон через маски.
+ *    Каждая зона — отдельный EditableElement в UI.
+ *    Все зоны используют ОДИН Filament MaterialInstance и одну GPU-текстуру.
  *
- * 2. scanModel() — читает существующие MaterialInstance,
- *    они УЖЕ имеют baseColorMap.
+ * 2. При загрузке текстуры на зону, compositeHeadTexture() собирает
+ *    финальную 1024×1024 bitmap из всех зон через маски и заливает в GPU.
  *
- * 3. Thread-safety: Filament-вызовы через pending-очередь,
- *    flush из LaunchedEffect каждые 16мс.
+ * 3. Глаза (eyeLeft, eyeRight) и зубы (teeth) — отдельные mesh'и,
+ *    текстурируются напрямую без масок.
  *
- * 4. Hardware Bitmap защита для Android 16 Samsung.
- *
- * 5. Texture.Builder с GEN_MIPMAPPABLE usage flag.
+ * 4. Thread-safety: GPU-вызовы через pending-очередь, flush из UI.
  */
 class GlbTextureEditor(private val context: Context) {
 
     private val elements = mutableListOf<EditableElement>()
     private val texturePool = mutableListOf<Texture>()
-
     private val pendingGpuOps = mutableListOf<() -> Unit>()
     private val gpuOpsLock = Any()
 
-    // ← FIX #4: переиспользуемые объекты (JNI pressure)
-    private val workingMatrix = Matrix()
-    private val workingPaint = Paint().apply {
+    // ── Зональная система головы ──
+    private val zoneDataMap = mutableMapOf<HeadZone, ZoneData>()
+    private var headCompositeBitmap: Bitmap? = null
+    private var headCompositeTexture: Texture? = null
+    private var headMaterialInstance: MaterialInstance? = null
+
+    // ── Переиспользуемые объекты ──
+    private val workMatrix = Matrix()
+    private val workPaint = Paint().apply { isFilterBitmap = true; isAntiAlias = true }
+    private val maskPaint = Paint().apply {
         isFilterBitmap = true
-        isAntiAlias = true
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
     }
-    private var cachedCanvas: Canvas? = null
-    private var cachedCanvasBitmap: Bitmap? = null
 
     companion object {
         private const val TAG = "GLB_EDITOR"
-        private const val DISPLAY_TEX_SIZE = 1024
-        private const val MAX_SOURCE_SIZE = 2048
-        private const val JPEG_QUALITY = 92
+        private const val TEX_SIZE = 1024
+        private const val MAX_SOURCE = 2048
+        private const val JPEG_Q = 92
     }
 
-    private val MESH_LABELS = mapOf(
-        "teeth_ORIGINAL" to "Челюсть / Зубы",
-        "head_lod0_ORIGINAL" to "Лицевая кожа",
-        "eyeLeft_ORIGINAL" to "Левый глаз",
-        "eyeRight_ORIGINAL" to "Правый глаз",
-    )
-
     // ═══════════════════════════════════════════════════════════════
-    //  ПАТЧ GLB — добавляем dummy-текстуры ДО загрузки в SceneView
-    //
-    //  ← FIX #2: используем bufferView вместо data URI.
-    //  Logcat показал:
-    //    E Filament: Missing texture provider for image/
-    //    E Filament: Missing texture provider for image\/png
-    //  gltfio не поддерживает data URI — нужен bufferView в BIN chunk.
+    //  ИНИЦИАЛИЗАЦИЯ МАСОК
     // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * Создаёт минимальный белый PNG (4x4 пикселя) в байтах.
-     */
+    private fun loadZoneMasks() {
+        Log.d(TAG, "Loading zone masks...")
+        for (zone in HeadZone.entries) {
+            try {
+                val bmp = context.assets.open(zone.maskAsset).use { stream ->
+                    BitmapFactory.decodeStream(stream)
+                } ?: continue
+
+                // Масштабируем к TEX_SIZE если нужно
+                val scaled = if (bmp.width != TEX_SIZE || bmp.height != TEX_SIZE) {
+                    Bitmap.createScaledBitmap(bmp, TEX_SIZE, TEX_SIZE, true)
+                        .also { if (it !== bmp) bmp.recycle() }
+                } else bmp
+
+                zoneDataMap[zone] = ZoneData(zone, scaled)
+                Log.d(TAG, "  Mask loaded: ${zone.name} (${scaled.width}x${scaled.height})")
+            } catch (e: Exception) {
+                Log.e(TAG, "  Failed to load mask: ${zone.maskAsset}", e)
+            }
+        }
+        Log.d(TAG, "Zone masks loaded: ${zoneDataMap.size}/${HeadZone.entries.size}")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  ПАТЧ GLB — dummy-текстуры для всех материалов
+    // ═══════════════════════════════════════════════════════════════
+
     private fun createWhitePngBytes(): ByteArray {
         val bmp = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        canvas.drawColor(android.graphics.Color.WHITE)
+        Canvas(bmp).drawColor(android.graphics.Color.WHITE)
         val baos = ByteArrayOutputStream()
         bmp.compress(Bitmap.CompressFormat.PNG, 100, baos)
         bmp.recycle()
         return baos.toByteArray()
     }
 
-    /**
-     * Патчит GLB: добавляет 4x4 белую PNG как baseColorTexture
-     * ко всем материалам без текстуры. Текстура записывается в BIN chunk
-     * как bufferView (стандартный glTF embedded формат).
-     *
-     * Вызывать ПЕРЕД загрузкой модели в SceneView!
-     */
     fun preparePatchedModel(assetPath: String): String {
         val patchedFile = File(context.cacheDir, "patched_model.glb")
-
-        // ← ВРЕМЕННО: форсируем перегенерацию для отладки
-        if (patchedFile.exists()) {
-            patchedFile.delete()
-            Log.d(TAG, "Cache cleared, regenerating patched model")
-        }
-
-        Log.d(TAG, "=== START preparePatchedModel ===")
+        if (patchedFile.exists()) patchedFile.delete()
+        Log.d(TAG, "=== preparePatchedModel ===")
 
         try {
             val data = context.assets.open(assetPath).use { it.readBytes() }
-            Log.d(TAG, "Original GLB: ${data.size} bytes")
-
             val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+            buf.int; buf.int; buf.int
 
-            buf.int // magic
-            buf.int // version
-            buf.int // total length
-
-            val jsonLen = buf.int
-            buf.int // chunk type JSON
-            val jsonBytes = ByteArray(jsonLen)
-            buf.get(jsonBytes)
+            val jsonLen = buf.int; buf.int
+            val jsonBytes = ByteArray(jsonLen); buf.get(jsonBytes)
             val gltf = JSONObject(String(jsonBytes))
 
-            Log.d(TAG, "JSON chunk: $jsonLen bytes")
-
             val binChunk = if (buf.remaining() >= 8) {
-                val binLen = buf.int
-                buf.int // chunk type BIN
-                ByteArray(binLen).also { buf.get(it) }
+                val bl = buf.int; buf.int; ByteArray(bl).also { buf.get(it) }
             } else ByteArray(0)
 
-            Log.d(TAG, "BIN chunk: ${binChunk.size} bytes")
-
-            // ── FIX #2: Создаём PNG и записываем в BIN chunk как bufferView ──
             val whitePng = createWhitePngBytes()
-            Log.d(TAG, "White PNG size: ${whitePng.size} bytes")
-
-            // Выравниваем смещение до 4 байт
             val pngOffset = binChunk.size
             val pngPadding = (4 - whitePng.size % 4) % 4
-            val paddedPng = whitePng + ByteArray(pngPadding)
+            val newBinChunk = binChunk + whitePng + ByteArray(pngPadding)
 
-            // Новый BIN = старый BIN + PNG (с паддингом)
-            val newBinChunk = binChunk + paddedPng
-
-            // Добавляем bufferView для PNG
             val bufferViews = gltf.optJSONArray("bufferViews")
                 ?: JSONArray().also { gltf.put("bufferViews", it) }
             val bvIdx = bufferViews.length()
             bufferViews.put(JSONObject().apply {
-                put("buffer", 0)
-                put("byteOffset", pngOffset)
-                put("byteLength", whitePng.size)
+                put("buffer", 0); put("byteOffset", pngOffset); put("byteLength", whitePng.size)
             })
-            Log.d(TAG, "Added bufferView[$bvIdx] at offset $pngOffset, size=${whitePng.size}")
 
-            // Обновляем длину buffer[0]
             val buffers = gltf.optJSONArray("buffers")
                 ?: JSONArray().also { gltf.put("buffers", it) }
-            if (buffers.length() > 0) {
-                buffers.getJSONObject(0).put("byteLength", newBinChunk.size)
-            } else {
-                buffers.put(JSONObject().apply {
-                    put("byteLength", newBinChunk.size)
-                })
-            }
+            if (buffers.length() > 0) buffers.getJSONObject(0).put("byteLength", newBinChunk.size)
+            else buffers.put(JSONObject().apply { put("byteLength", newBinChunk.size) })
 
-            // Image ссылается на bufferView (НЕ data URI!)
             val images = gltf.optJSONArray("images")
                 ?: JSONArray().also { gltf.put("images", it) }
-            val dummyImageIdx = images.length()
+            val imgIdx = images.length()
             images.put(JSONObject().apply {
-                put("name", "dummy_white_4x4")
-                put("mimeType", "image/png")
-                put("bufferView", bvIdx) // ← КЛЮЧЕВОЕ: bufferView, а не uri
+                put("name", "dummy_white"); put("mimeType", "image/png"); put("bufferView", bvIdx)
             })
-            Log.d(TAG, "Added image[$dummyImageIdx] with bufferView=$bvIdx")
 
-            // Sampler
             val samplers = gltf.optJSONArray("samplers")
                 ?: JSONArray().also { gltf.put("samplers", it) }
-            val dummySamplerIdx = samplers.length()
+            val sampIdx = samplers.length()
             samplers.put(JSONObject().apply {
-                put("magFilter", 9729)  // LINEAR
-                put("minFilter", 9729)  // LINEAR
-                put("wrapS", 33071)     // CLAMP_TO_EDGE
-                put("wrapT", 33071)
+                put("magFilter", 9729); put("minFilter", 9729)
+                put("wrapS", 33071); put("wrapT", 33071)
             })
 
-            // Texture
             val textures = gltf.optJSONArray("textures")
                 ?: JSONArray().also { gltf.put("textures", it) }
-            val dummyTexIdx = textures.length()
-            textures.put(JSONObject().apply {
-                put("source", dummyImageIdx)
-                put("sampler", dummySamplerIdx)
-            })
+            val texIdx = textures.length()
+            textures.put(JSONObject().apply { put("source", imgIdx); put("sampler", sampIdx) })
 
-            // Патчим ВСЕ материалы без baseColorTexture
             val materials = gltf.optJSONArray("materials")
-            val matCount = materials?.length() ?: 0
-            Log.d(TAG, "Materials count: $matCount")
-
             if (materials != null) {
                 for (i in 0 until materials.length()) {
                     val mat = materials.getJSONObject(i)
                     val pbr = mat.optJSONObject("pbrMetallicRoughness")
                         ?: JSONObject().also { mat.put("pbrMetallicRoughness", it) }
-
                     if (!pbr.has("baseColorTexture")) {
                         pbr.put("baseColorTexture", JSONObject().apply {
-                            put("index", dummyTexIdx)
-                            put("texCoord", 0)
+                            put("index", texIdx); put("texCoord", 0)
                         })
-                        if (!pbr.has("baseColorFactor")) {
+                        if (!pbr.has("baseColorFactor"))
                             pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
-                        }
-                        Log.d(TAG, "Patching material[$i]: adding baseColorTexture")
-                    } else {
-                        Log.d(TAG, "Material[$i]: already has baseColorTexture, skip")
                     }
                 }
             }
 
-            // Собираем GLB с НОВЫМ BIN chunk
             val newJson = gltf.toString()
             val jsonPad = (4 - newJson.length % 4) % 4
             val jb = (newJson + " ".repeat(jsonPad)).toByteArray(Charsets.UTF_8)
-            val binPad2 = (4 - newBinChunk.size % 4) % 4
-            val bp = if (binPad2 > 0) newBinChunk + ByteArray(binPad2) else newBinChunk
+            val binPad = (4 - newBinChunk.size % 4) % 4
+            val bp = if (binPad > 0) newBinChunk + ByteArray(binPad) else newBinChunk
 
             val total = 12 + 8 + jb.size + 8 + bp.size
             val out = ByteBuffer.allocate(total).order(ByteOrder.LITTLE_ENDIAN)
             out.putInt(0x46546C67); out.putInt(2); out.putInt(total)
             out.putInt(jb.size); out.putInt(0x4E4F534A); out.put(jb)
             out.putInt(bp.size); out.putInt(0x004E4942); out.put(bp)
-
             patchedFile.writeBytes(out.array())
-            Log.d(TAG, "Patched GLB written: ${patchedFile.length()} bytes")
-            Log.d(TAG, "=== END preparePatchedModel OK ===")
-
+            Log.d(TAG, "Patched GLB: ${patchedFile.length()} bytes")
         } catch (e: Exception) {
-            Log.e(TAG, "preparePatchedModel FAILED", e)
-            // Fallback: копируем оригинал
+            Log.e(TAG, "Patch failed", e)
             context.assets.open(assetPath).use { inp ->
                 patchedFile.outputStream().use { out -> inp.copyTo(out) }
             }
         }
-
         return patchedFile.absolutePath
     }
 
@@ -313,32 +298,31 @@ class GlbTextureEditor(private val context: Context) {
             ops = pendingGpuOps.toList()
             pendingGpuOps.clear()
         }
-        Log.d(TAG, "flushGpuOps: executing ${ops.size} ops")
-        ops.forEachIndexed { idx, op ->
-            try {
-                op.invoke()
-            } catch (e: Exception) {
-                Log.e(TAG, "GPU op[$idx] FAILED", e)
-            }
+        ops.forEach { op ->
+            try { op.invoke() } catch (e: Exception) { Log.e(TAG, "GPU op failed", e) }
         }
     }
 
     private fun postGpuOp(op: () -> Unit) {
-        synchronized(gpuOpsLock) {
-            pendingGpuOps.add(op)
-        }
+        synchronized(gpuOpsLock) { pendingGpuOps.add(op) }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  SCAN — БЕЗ подмены материалов
+    //  SCAN MODEL → 11 элементов (8 зон головы + 2 глаза + зубы)
     // ═══════════════════════════════════════════════════════════════
 
     fun scanModel(engine: Engine, modelInstance: ModelInstance): List<EditableElement> {
-        Log.d(TAG, "=== START scanModel ===")
-        Log.d(TAG, "Entity count: ${modelInstance.entities.size}")
+        Log.d(TAG, "=== scanModel ===")
         elements.clear()
+
+        // Загружаем маски зон
+        if (zoneDataMap.isEmpty()) loadZoneMasks()
+
         val rm = engine.renderableManager
         var eyeCounter = 0
+        var headEntity = -1
+        var headRI = -1
+        var headMI: MaterialInstance? = null
 
         for (entity in modelInstance.entities) {
             if (!rm.hasComponent(entity)) continue
@@ -346,87 +330,370 @@ class GlbTextureEditor(private val context: Context) {
             val primCount = rm.getPrimitiveCount(ri)
 
             for (prim in 0 until primCount) {
-                val mi = try {
-                    rm.getMaterialInstanceAt(ri, prim)
-                } catch (_: Exception) { continue }
+                val mi = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
+                val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
 
-                val morphCount = try {
-                    rm.getMorphTargetCount(ri)
-                } catch (_: Exception) { 0 }
-
-                val meshName = when (morphCount) {
-                    51 -> "head_lod0_ORIGINAL"
-                    5 -> "teeth_ORIGINAL"
+                when (morphCount) {
+                    51 -> {
+                        // head_lod0_ORIGINAL — сохраняем MI, создаём 8 зон
+                        headEntity = entity
+                        headRI = ri
+                        headMI = mi
+                        headMaterialInstance = mi
+                        Log.d(TAG, "Head mesh: entity=$entity, morphCount=$morphCount")
+                    }
+                    5 -> {
+                        // teeth
+                        elements.add(EditableElement(
+                            entity = entity, renderableInstance = ri,
+                            primitiveIndex = prim, meshName = "teeth_ORIGINAL",
+                            materialInstance = mi, type = ElementType.TEETH,
+                        ))
+                        Log.d(TAG, "Teeth: entity=$entity")
+                    }
                     4 -> {
                         eyeCounter++
-                        if (eyeCounter == 1) "eyeLeft_ORIGINAL" else "eyeRight_ORIGINAL"
+                        val isLeft = eyeCounter == 1
+                        elements.add(EditableElement(
+                            entity = entity, renderableInstance = ri,
+                            primitiveIndex = prim,
+                            meshName = if (isLeft) "eyeLeft_ORIGINAL" else "eyeRight_ORIGINAL",
+                            materialInstance = mi,
+                            type = if (isLeft) ElementType.EYE_LEFT else ElementType.EYE_RIGHT,
+                        ))
+                        Log.d(TAG, "Eye ${if (isLeft) "L" else "R"}: entity=$entity")
                     }
-                    else -> "unknown_$entity"
                 }
-
-                Log.d(TAG, "Entity $entity: primCount=$primCount, morphCount=$morphCount -> $meshName")
-
-                val hasBaseColorMap = try {
-                    mi.material.hasParameter("baseColorMap")
-                } catch (e: Exception) {
-                    Log.w(TAG, "  Cannot check baseColorMap: ${e.message}")
-                    false
-                }
-                Log.d(TAG, "  MI hashCode=${mi.hashCode()}, hasBaseColorMap=$hasBaseColorMap")
-
-                val elem = EditableElement(
-                    entity = entity,
-                    renderableInstance = ri,
-                    primitiveIndex = prim,
-                    meshName = meshName,
-                    materialInstance = mi,
-                )
-                setupHighEndPBR(elem)
-                elements.add(elem)
             }
         }
 
-        Log.d(TAG, "=== END scanModel: ${elements.size} elements ===")
+        // Создаём элементы для 8 зон головы
+        if (headMI != null) {
+            for (zone in HeadZone.entries) {
+                if (zoneDataMap.containsKey(zone)) {
+                    elements.add(EditableElement(
+                        entity = headEntity,
+                        renderableInstance = headRI,
+                        primitiveIndex = 0,
+                        meshName = "head_zone_${zone.name}",
+                        materialInstance = headMI,
+                        type = ElementType.HEAD_ZONE,
+                        headZone = zone,
+                    ))
+                }
+            }
+        }
+
+        // Настройка PBR
+        elements.forEach { elem -> setupPBR(elem) }
+
+        Log.d(TAG, "Total elements: ${elements.size}")
         return elements.toList()
     }
 
-    private fun setupHighEndPBR(elem: EditableElement) {
+    private fun setupPBR(elem: EditableElement) {
         val mi = elem.materialInstance
         postGpuOp {
-            Log.d(TAG, "setupHighEndPBR: ${elem.meshName} type=${elem.type}")
             when (elem.type) {
-                ElementType.EYE -> {
-                    elem.currentRoughness = 0.05f
-                    elem.currentMetallic = 0.1f
-                    safeSetParam1f(mi, "roughnessFactor", 0.05f)
-                    safeSetParam1f(mi, "metallicFactor", 0.1f)
+                ElementType.EYE_LEFT, ElementType.EYE_RIGHT -> {
+                    elem.currentRoughness = 0.05f; elem.currentMetallic = 0.1f
+                    safeSet1f(mi, "roughnessFactor", 0.05f)
+                    safeSet1f(mi, "metallicFactor", 0.1f)
                 }
                 ElementType.TEETH -> {
                     elem.currentR = 0.95f; elem.currentG = 0.93f; elem.currentB = 0.88f
                     elem.currentRoughness = 0.2f; elem.currentMetallic = 0f
-                    safeSetParam4f(mi, "baseColorFactor", 0.95f, 0.93f, 0.88f, 1f)
-                    safeSetParam1f(mi, "roughnessFactor", 0.2f)
-                    safeSetParam1f(mi, "metallicFactor", 0f)
+                    safeSet4f(mi, "baseColorFactor", 0.95f, 0.93f, 0.88f, 1f)
+                    safeSet1f(mi, "roughnessFactor", 0.2f)
+                    safeSet1f(mi, "metallicFactor", 0f)
                 }
-                ElementType.SKIN -> {
-                    elem.currentRoughness = 0.55f; elem.currentMetallic = 0f
-                    safeSetParam1f(mi, "roughnessFactor", 0.55f)
-                    safeSetParam1f(mi, "metallicFactor", 0f)
+                ElementType.HEAD_ZONE -> {
+                    // Все зоны головы используют один MI — настраиваем один раз
+                    if (elem.headZone == HeadZone.FACE_FRONT) {
+                        elem.currentRoughness = 0.55f; elem.currentMetallic = 0f
+                        safeSet1f(mi, "roughnessFactor", 0.55f)
+                        safeSet1f(mi, "metallicFactor", 0f)
+                    }
                 }
                 else -> {}
             }
         }
     }
 
-    private fun safeSetParam1f(mi: MaterialInstance, name: String, v: Float) {
+    private fun safeSet1f(mi: MaterialInstance, name: String, v: Float) {
         try { mi.setParameter(name, v) } catch (e: Exception) {
-            Log.w(TAG, "setParam1f($name) failed: ${e.message}")
+            Log.w(TAG, "set1f($name) fail: ${e.message}")
         }
     }
 
-    private fun safeSetParam4f(mi: MaterialInstance, name: String, r: Float, g: Float, b: Float, a: Float) {
+    private fun safeSet4f(mi: MaterialInstance, name: String, r: Float, g: Float, b: Float, a: Float) {
         try { mi.setParameter(name, r, g, b, a) } catch (e: Exception) {
-            Log.w(TAG, "setParam4f($name) failed: ${e.message}")
+            Log.w(TAG, "set4f($name) fail: ${e.message}")
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TEXTURE LOADING
+    // ═══════════════════════════════════════════════════════════════
+
+    private fun decodeBitmapSafe(uri: Uri): Bitmap? {
+        val opts = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888; inMutable = false
+        }
+        val bmp = context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, opts)
+        } ?: return null
+
+        val safe = if (bmp.config == Bitmap.Config.HARDWARE) {
+            bmp.copy(Bitmap.Config.ARGB_8888, false).also { bmp.recycle() }
+        } else bmp
+
+        val maxDim = maxOf(safe.width, safe.height)
+        val scale = if (maxDim > MAX_SOURCE) MAX_SOURCE.toFloat() / maxDim else 1f
+        return if (scale < 1f) {
+            Bitmap.createScaledBitmap(safe, (safe.width * scale).toInt(), (safe.height * scale).toInt(), true)
+                .also { if (it !== safe) safe.recycle() }
+        } else safe
+    }
+
+    /**
+     * Загружает текстуру для ЗОНЫ ГОЛОВЫ.
+     * Текстура рисуется ТОЛЬКО внутри маски этой зоны.
+     */
+    fun loadTextureForZone(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
+        if (elem.type != ElementType.HEAD_ZONE || elem.headZone == null) {
+            return loadTextureForSeparateMesh(engine, elem, uri)
+        }
+
+        val zone = elem.headZone
+        val zd = zoneDataMap[zone] ?: return false
+
+        Log.d(TAG, "loadTextureForZone: ${zone.name}")
+        return try {
+            zd.recycle()
+            val source = decodeBitmapSafe(uri) ?: return false
+            zd.sourceBitmap = source
+            zd.hasTexture = true
+
+            // Синхронизируем параметры трансформации
+            zd.uvScaleX = elem.uvScaleX
+            zd.uvScaleY = elem.uvScaleY
+            zd.uvOffsetX = elem.uvOffsetX
+            zd.uvOffsetY = elem.uvOffsetY
+            zd.uvRotationDeg = elem.uvRotationDeg
+
+            elem.hasCustomTexture = true
+
+            ensureHeadCompositeTexture(engine)
+            compositeAndUploadHead(engine)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "loadTextureForZone FAILED", e)
+            false
+        }
+    }
+
+    /**
+     * Загружает текстуру для отдельного mesh'а (глаза, зубы).
+     */
+    private fun loadTextureForSeparateMesh(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
+        Log.d(TAG, "loadTexture: ${elem.meshName}")
+        return try {
+            elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
+            val source = decodeBitmapSafe(uri) ?: return false
+            elem.activeSourceBitmap = source
+
+            if (elem.activeTexture == null) {
+                elem.displayBitmap = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
+                val mipLevels = (kotlin.math.log2(TEX_SIZE.toFloat())).toInt() + 1
+                val usage = Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
+                        Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
+                val tex = Texture.Builder()
+                    .width(TEX_SIZE).height(TEX_SIZE).levels(mipLevels)
+                    .sampler(Texture.Sampler.SAMPLER_2D)
+                    .format(Texture.InternalFormat.SRGB8_A8)
+                    .usage(usage).build(engine)
+                texturePool.add(tex)
+                elem.activeTexture = tex
+            }
+
+            elem.hasCustomTexture = true
+            renderSeparateMeshBitmap(elem)
+            postGpuOp { uploadSeparateMeshTexture(engine, elem) }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "loadTexture FAILED", e)
+            false
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TRANSFORM
+    // ═══════════════════════════════════════════════════════════════
+
+    fun applyTransform(
+        engine: Engine, elem: EditableElement,
+        scaleX: Float = elem.uvScaleX, scaleY: Float = elem.uvScaleY,
+        offsetX: Float = elem.uvOffsetX, offsetY: Float = elem.uvOffsetY,
+        rotDeg: Float = elem.uvRotationDeg,
+    ) {
+        elem.uvScaleX = scaleX; elem.uvScaleY = scaleY
+        elem.uvOffsetX = offsetX; elem.uvOffsetY = offsetY
+        elem.uvRotationDeg = rotDeg
+
+        if (elem.type == ElementType.HEAD_ZONE && elem.headZone != null) {
+            val zd = zoneDataMap[elem.headZone] ?: return
+            zd.uvScaleX = scaleX; zd.uvScaleY = scaleY
+            zd.uvOffsetX = offsetX; zd.uvOffsetY = offsetY
+            zd.uvRotationDeg = rotDeg
+            if (zd.hasTexture) compositeAndUploadHead(engine)
+        } else if (elem.hasCustomTexture) {
+            renderSeparateMeshBitmap(elem)
+            postGpuOp { uploadSeparateMeshTexture(engine, elem) }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  HEAD COMPOSITE: Собираем 8 зон в одну текстуру
+    // ═══════════════════════════════════════════════════════════════
+
+    private fun ensureHeadCompositeTexture(engine: Engine) {
+        if (headCompositeTexture != null) return
+        headCompositeBitmap = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
+        val mipLevels = (kotlin.math.log2(TEX_SIZE.toFloat())).toInt() + 1
+        val usage = Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
+                Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
+        headCompositeTexture = Texture.Builder()
+            .width(TEX_SIZE).height(TEX_SIZE).levels(mipLevels)
+            .sampler(Texture.Sampler.SAMPLER_2D)
+            .format(Texture.InternalFormat.SRGB8_A8)
+            .usage(usage).build(engine)
+        texturePool.add(headCompositeTexture!!)
+        Log.d(TAG, "Head composite texture created")
+    }
+
+    /**
+     * КЛЮЧЕВОЙ МЕТОД: собирает все зоны в одну текстуру.
+     *
+     * Для каждой зоны с текстурой:
+     * 1. Трансформируем source bitmap → заполняем весь TEX_SIZE×TEX_SIZE
+     * 2. Применяем маску зоны (PorterDuff DST_IN) → текстура обрезается по зоне
+     * 3. Рисуем результат на финальный composite (SRC_OVER)
+     */
+    private fun compositeAndUploadHead(engine: Engine) {
+        val composite = headCompositeBitmap ?: return
+        if (composite.isRecycled) return
+
+        val compositeCanvas = Canvas(composite)
+        compositeCanvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+
+        // Временный буфер для каждой зоны
+        val zoneBuf = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
+        val zoneCanvas = Canvas(zoneBuf)
+
+        val srcPaint = Paint().apply { isFilterBitmap = true; isAntiAlias = true }
+        val maskApply = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) }
+
+        for (zone in HeadZone.entries) {
+            val zd = zoneDataMap[zone] ?: continue
+            val src = zd.sourceBitmap ?: continue
+            if (!zd.hasTexture || src.isRecycled) continue
+
+            // Очищаем буфер зоны
+            zoneCanvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+
+            // 1. Рисуем трансформированную текстуру на весь буфер
+            val matrix = Matrix()
+            val srcRect = RectF(0f, 0f, src.width.toFloat(), src.height.toFloat())
+            val dstRect = RectF(0f, 0f, TEX_SIZE.toFloat(), TEX_SIZE.toFloat())
+            matrix.setRectToRect(srcRect, dstRect, Matrix.ScaleToFit.CENTER)
+
+            val cx = TEX_SIZE / 2f
+            val cy = TEX_SIZE / 2f
+            matrix.postTranslate(zd.uvOffsetX * TEX_SIZE, zd.uvOffsetY * TEX_SIZE)
+            matrix.postScale(zd.uvScaleX, zd.uvScaleY, cx, cy)
+            matrix.postRotate(zd.uvRotationDeg, cx, cy)
+
+            zoneCanvas.drawBitmap(src, matrix, srcPaint)
+
+            // 2. Применяем маску (DST_IN: оставляем только пиксели где маска белая)
+            zoneCanvas.drawBitmap(zd.maskBitmap, 0f, 0f, maskApply)
+
+            // 3. Рисуем замаскированную зону на композит
+            compositeCanvas.drawBitmap(zoneBuf, 0f, 0f, srcPaint)
+        }
+
+        zoneBuf.recycle()
+
+        // Заливаем на GPU
+        postGpuOp {
+            val tex = headCompositeTexture ?: return@postGpuOp
+            val mi = headMaterialInstance ?: return@postGpuOp
+            if (composite.isRecycled) return@postGpuOp
+
+            try {
+                val sampler = TextureSampler().apply {
+                    setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
+                    setMagFilter(TextureSampler.MagFilter.LINEAR)
+                    setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+                    setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+                }
+                TextureHelper.setBitmap(engine, tex, 0, composite)
+                tex.generateMipmaps(engine)
+                mi.setParameter("baseColorMap", tex, sampler)
+                safeSet4f(mi, "baseColorFactor", 1f, 1f, 1f, 1f)
+                Log.d(TAG, "Head composite uploaded to GPU")
+            } catch (e: Exception) {
+                Log.e(TAG, "Head composite upload FAILED", e)
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  SEPARATE MESH TEXTURE (глаза, зубы)
+    // ═══════════════════════════════════════════════════════════════
+
+    private fun renderSeparateMeshBitmap(elem: EditableElement) {
+        val src = elem.activeSourceBitmap ?: return
+        val display = elem.displayBitmap ?: return
+        if (src.isRecycled || display.isRecycled) return
+
+        val canvas = Canvas(display)
+        canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+
+        workMatrix.reset()
+        val srcR = RectF(0f, 0f, src.width.toFloat(), src.height.toFloat())
+        val dstR = RectF(0f, 0f, display.width.toFloat(), display.height.toFloat())
+        workMatrix.setRectToRect(srcR, dstR, Matrix.ScaleToFit.CENTER)
+
+        val cx = display.width / 2f; val cy = display.height / 2f
+        workMatrix.postTranslate(elem.uvOffsetX * display.width, elem.uvOffsetY * display.height)
+        workMatrix.postScale(elem.uvScaleX, elem.uvScaleY, cx, cy)
+        workMatrix.postRotate(elem.uvRotationDeg, cx, cy)
+
+        canvas.drawBitmap(src, workMatrix, workPaint)
+    }
+
+    private fun uploadSeparateMeshTexture(engine: Engine, elem: EditableElement) {
+        val display = elem.displayBitmap ?: return
+        val tex = elem.activeTexture ?: return
+        if (display.isRecycled) return
+
+        try {
+            val isEye = elem.type == ElementType.EYE_LEFT || elem.type == ElementType.EYE_RIGHT
+            val sampler = TextureSampler().apply {
+                setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
+                setMagFilter(TextureSampler.MagFilter.LINEAR)
+                val wrap = if (isEye) TextureSampler.WrapMode.REPEAT
+                else TextureSampler.WrapMode.CLAMP_TO_EDGE
+                setWrapModeS(wrap); setWrapModeT(wrap)
+            }
+            TextureHelper.setBitmap(engine, tex, 0, display)
+            tex.generateMipmaps(engine)
+            elem.materialInstance.setParameter("baseColorMap", tex, sampler)
+            safeSet4f(elem.materialInstance, "baseColorFactor", 1f, 1f, 1f, 1f)
+        } catch (e: Exception) {
+            Log.e(TAG, "uploadTexture FAILED: ${elem.meshName}", e)
         }
     }
 
@@ -436,184 +703,32 @@ class GlbTextureEditor(private val context: Context) {
 
     fun setColor(elem: EditableElement, r: Float, g: Float, b: Float) {
         elem.currentR = r; elem.currentG = g; elem.currentB = b
-        postGpuOp {
-            safeSetParam4f(elem.materialInstance, "baseColorFactor", r, g, b, 1f)
-        }
+        postGpuOp { safeSet4f(elem.materialInstance, "baseColorFactor", r, g, b, 1f) }
     }
 
     fun setMetallic(elem: EditableElement, value: Float) {
         elem.currentMetallic = value
-        postGpuOp {
-            safeSetParam1f(elem.materialInstance, "metallicFactor", value)
-        }
+        postGpuOp { safeSet1f(elem.materialInstance, "metallicFactor", value) }
     }
 
     fun setRoughness(elem: EditableElement, value: Float) {
         elem.currentRoughness = value
-        postGpuOp {
-            safeSetParam1f(elem.materialInstance, "roughnessFactor", value)
-        }
+        postGpuOp { safeSet1f(elem.materialInstance, "roughnessFactor", value) }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  TEXTURE
+    //  LABELS
     // ═══════════════════════════════════════════════════════════════
 
-    // ← FIX #3: Hardware Bitmap защита для Android 16 Samsung
-    private fun decodeBitmapSafe(uri: Uri): Bitmap? {
-        val options = BitmapFactory.Options().apply {
-            inPreferredConfig = Bitmap.Config.ARGB_8888
-            inMutable = false
-        }
-        val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(stream, null, options)
-        } ?: return null
-
-        Log.d(TAG, "Bitmap decoded: ${bitmap.width}x${bitmap.height} config=${bitmap.config}")
-
-        // Fallback если Samsung всё равно вернул HARDWARE
-        val safeBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
-            Log.w(TAG, "Got HARDWARE bitmap, converting to ARGB_8888")
-            bitmap.copy(Bitmap.Config.ARGB_8888, false).also { bitmap.recycle() }
-        } else bitmap
-
-        val maxDim = maxOf(safeBitmap.width, safeBitmap.height)
-        val scale = if (maxDim > MAX_SOURCE_SIZE) MAX_SOURCE_SIZE.toFloat() / maxDim else 1f
-
-        return if (scale < 1f) {
-            Bitmap.createScaledBitmap(
-                safeBitmap,
-                (safeBitmap.width * scale).toInt(),
-                (safeBitmap.height * scale).toInt(),
-                true
-            ).also { if (it !== safeBitmap) safeBitmap.recycle() }
-        } else safeBitmap
+    fun getLabel(elem: EditableElement): String = when (elem.type) {
+        ElementType.HEAD_ZONE -> elem.headZone?.label ?: elem.meshName
+        ElementType.EYE_LEFT -> "Глаз левый"
+        ElementType.EYE_RIGHT -> "Глаз правый"
+        ElementType.TEETH -> "Зубы"
+        else -> elem.meshName
     }
 
-    fun loadTextureFromUri(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
-        Log.d(TAG, "loadTextureFromUri: ${elem.meshName}, uri=$uri")
-        return try {
-            elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
-            elem.activeSourceBitmap = null
-
-            val source = decodeBitmapSafe(uri) ?: return false
-            elem.activeSourceBitmap = source
-            Log.d(TAG, "Source bitmap: ${source.width}x${source.height} config=${source.config}")
-
-            if (elem.activeTexture == null) {
-                elem.displayBitmap = Bitmap.createBitmap(
-                    DISPLAY_TEX_SIZE, DISPLAY_TEX_SIZE, Bitmap.Config.ARGB_8888
-                )
-                val mipLevels = (kotlin.math.log2(DISPLAY_TEX_SIZE.toFloat())).toInt() + 1
-
-                // ← FIX #1: ГЛАВНЫЙ КРАШ — добавляем usage с GEN_MIPMAPPABLE
-                val usage = Texture.Usage.SAMPLEABLE or
-                        Texture.Usage.COLOR_ATTACHMENT or
-                        Texture.Usage.UPLOADABLE or
-                        Texture.Usage.GEN_MIPMAPPABLE
-
-                val tex = Texture.Builder()
-                    .width(DISPLAY_TEX_SIZE)
-                    .height(DISPLAY_TEX_SIZE)
-                    .levels(mipLevels)
-                    .sampler(Texture.Sampler.SAMPLER_2D)
-                    .format(Texture.InternalFormat.SRGB8_A8)
-                    .usage(usage) // Используем безопасную маску
-                    .build(engine)
-
-                texturePool.add(tex)
-                elem.activeTexture = tex
-                Log.d(TAG, "Filament Texture created: ${DISPLAY_TEX_SIZE}x${DISPLAY_TEX_SIZE} with GEN_MIPMAPPABLE")
-            }
-
-            elem.hasCustomTexture = true
-            renderTextureToCpuBitmap(elem)
-            postGpuOp { uploadTextureToGpu(engine, elem) }
-            Log.d(TAG, "Texture queued for upload OK")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "loadTextureFromUri FAILED", e)
-            e.printStackTrace()
-            false
-        }
-    }
-
-    fun applyTransform(
-        engine: Engine,
-        elem: EditableElement,
-        scaleX: Float = elem.uvScaleX,
-        scaleY: Float = elem.uvScaleY,
-        offsetX: Float = elem.uvOffsetX,
-        offsetY: Float = elem.uvOffsetY,
-        rotDeg: Float = elem.uvRotationDeg,
-    ) {
-        elem.uvScaleX = scaleX
-        elem.uvScaleY = scaleY
-        elem.uvOffsetX = offsetX
-        elem.uvOffsetY = offsetY
-        elem.uvRotationDeg = rotDeg
-        renderTextureToCpuBitmap(elem)
-        postGpuOp { uploadTextureToGpu(engine, elem) }
-    }
-
-    // ← FIX #4: переиспользуемые Matrix/Paint/Canvas
-    private fun renderTextureToCpuBitmap(elem: EditableElement) {
-        val src = elem.activeSourceBitmap ?: return
-        val display = elem.displayBitmap ?: return
-        if (src.isRecycled || display.isRecycled) return
-
-        val w = display.width.toFloat()
-        val h = display.height.toFloat()
-
-        if (cachedCanvasBitmap !== display) {
-            cachedCanvas = Canvas(display)
-            cachedCanvasBitmap = display
-        }
-        val canvas = cachedCanvas!!
-
-        canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-
-        workingMatrix.reset()
-        val srcRect = RectF(0f, 0f, src.width.toFloat(), src.height.toFloat())
-        val dstRect = RectF(0f, 0f, w, h)
-        workingMatrix.setRectToRect(srcRect, dstRect, Matrix.ScaleToFit.CENTER)
-
-        val cx = w / 2f
-        val cy = h / 2f
-        workingMatrix.postTranslate(elem.uvOffsetX * w, elem.uvOffsetY * h)
-        workingMatrix.postScale(elem.uvScaleX, elem.uvScaleY, cx, cy)
-        workingMatrix.postRotate(elem.uvRotationDeg, cx, cy)
-
-        canvas.drawBitmap(src, workingMatrix, workingPaint)
-    }
-
-    private fun uploadTextureToGpu(engine: Engine, elem: EditableElement) {
-        val display = elem.displayBitmap ?: return
-        val tex = elem.activeTexture ?: return
-        if (display.isRecycled) return
-
-        Log.d(TAG, "uploadTextureToGpu: ${elem.meshName}")
-
-        try {
-            val sampler = TextureSampler().apply {
-                setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
-                setMagFilter(TextureSampler.MagFilter.LINEAR)
-                val wrap = if (elem.type == ElementType.EYE)
-                    TextureSampler.WrapMode.REPEAT
-                else TextureSampler.WrapMode.CLAMP_TO_EDGE
-                setWrapModeS(wrap)
-                setWrapModeT(wrap)
-            }
-            // FIX: сначала данные, потом bind
-            TextureHelper.setBitmap(engine, tex, 0, display)
-            tex.generateMipmaps(engine)
-            elem.materialInstance.setParameter("baseColorMap", tex, sampler)
-            safeSetParam4f(elem.materialInstance, "baseColorFactor", 1f, 1f, 1f, 1f)
-            Log.d(TAG, "uploadTextureToGpu OK: ${elem.meshName}")
-        } catch (e: Exception) {
-            Log.e(TAG, "uploadTextureToGpu FAILED for ${elem.meshName}", e)
-        }
-    }
+    fun getElements() = elements.toList()
 
     // ═══════════════════════════════════════════════════════════════
     //  EXPORT
@@ -621,91 +736,58 @@ class GlbTextureEditor(private val context: Context) {
 
     fun saveToStream(sourceGlbPath: String, outputStream: OutputStream): Boolean {
         return try {
-            val glbBytes = buildGlbBytes(sourceGlbPath) ?: return false
-            outputStream.write(glbBytes)
-            outputStream.flush()
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
+            val bytes = buildGlbBytes(sourceGlbPath) ?: return false
+            outputStream.write(bytes); outputStream.flush(); true
+        } catch (e: Exception) { e.printStackTrace(); false }
     }
 
     fun saveToFile(sourceGlbPath: String, outputFile: File): Boolean {
         return try {
-            val glbBytes = buildGlbBytes(sourceGlbPath) ?: return false
-            outputFile.writeBytes(glbBytes)
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
+            val bytes = buildGlbBytes(sourceGlbPath) ?: return false
+            outputFile.writeBytes(bytes); true
+        } catch (e: Exception) { e.printStackTrace(); false }
     }
 
     private fun buildGlbBytes(sourceGlbPath: String): ByteArray? {
         return try {
             val data = File(sourceGlbPath).readBytes()
             val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
-
             buf.position(12)
             val jsonLen = buf.int; buf.int
             val jsonBytes = ByteArray(jsonLen); buf.get(jsonBytes)
             val gltf = JSONObject(String(jsonBytes))
-
             val binChunk = if (buf.remaining() >= 8) {
-                val binLen = buf.int; buf.int
-                ByteArray(binLen).also { buf.get(it) }
+                val bl = buf.int; buf.int; ByteArray(bl).also { buf.get(it) }
             } else ByteArray(0)
 
-            for (elem in elements) {
-                val bitmapToExport = elem.displayBitmap ?: continue
-                if (!elem.hasCustomTexture) continue
+            // Экспорт композитной текстуры головы
+            val headBmp = headCompositeBitmap
+            val hasHeadTexture = headBmp != null && !headBmp.isRecycled &&
+                    zoneDataMap.values.any { it.hasTexture }
 
+            if (hasHeadTexture) {
                 val baos = ByteArrayOutputStream()
-                bitmapToExport.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, baos)
+                headBmp!!.compress(Bitmap.CompressFormat.JPEG, JPEG_Q, baos)
                 val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
-
-                val imgArr = gltf.optJSONArray("images") ?: JSONArray().also { gltf.put("images", it) }
-                val imgIdx = imgArr.length()
-                imgArr.put(JSONObject().apply {
-                    put("name", "baked_${elem.meshName}")
-                    put("mimeType", "image/jpeg")
-                    put("uri", "data:image/jpeg;base64,$b64")
-                })
-
-                val sampArr = gltf.optJSONArray("samplers") ?: JSONArray().also { gltf.put("samplers", it) }
-                val wrapType = if (elem.type == ElementType.EYE) 10497 else 33071
-                val sampIdx = sampArr.length()
-                sampArr.put(JSONObject().apply {
-                    put("magFilter", 9729); put("minFilter", 9987)
-                    put("wrapS", wrapType); put("wrapT", wrapType)
-                })
-
-                val texArr = gltf.optJSONArray("textures") ?: JSONArray().also { gltf.put("textures", it) }
-                val texIdx = texArr.length()
-                texArr.put(JSONObject().apply {
-                    put("source", imgIdx); put("sampler", sampIdx)
-                })
-
-                val matIdx = findMaterialIndex(gltf, elem.meshName)
-                if (matIdx >= 0) {
-                    val mat = gltf.getJSONArray("materials").getJSONObject(matIdx)
-                    val pbr = mat.optJSONObject("pbrMetallicRoughness") ?: JSONObject()
-                    pbr.put("baseColorTexture", JSONObject().apply {
-                        put("index", texIdx); put("texCoord", 0)
-                    })
-                    pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
-                    when (elem.type) {
-                        ElementType.EYE -> { pbr.put("roughnessFactor", 0.05); pbr.put("metallicFactor", 0.1) }
-                        ElementType.SKIN -> { pbr.put("roughnessFactor", elem.currentRoughness.toDouble()); pbr.put("metallicFactor", 0.0) }
-                        ElementType.TEETH -> { pbr.put("roughnessFactor", 0.2); pbr.put("metallicFactor", 0.0) }
-                        else -> {}
-                    }
-                    mat.put("pbrMetallicRoughness", pbr)
-                }
+                addTextureToGltf(gltf, "baked_head_composite", b64, "head_lod0_ORIGINAL", false)
             }
 
+            // Экспорт текстур отдельных mesh'ей
             for (elem in elements) {
+                if (elem.type == ElementType.HEAD_ZONE) continue
+                val bmp = elem.displayBitmap ?: continue
+                if (!elem.hasCustomTexture || bmp.isRecycled) continue
+
+                val baos = ByteArrayOutputStream()
+                bmp.compress(Bitmap.CompressFormat.JPEG, JPEG_Q, baos)
+                val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
+                val isEye = elem.type == ElementType.EYE_LEFT || elem.type == ElementType.EYE_RIGHT
+                addTextureToGltf(gltf, "baked_${elem.meshName}", b64, elem.meshName, isEye)
+            }
+
+            // Экспорт PBR для элементов без текстур
+            for (elem in elements) {
+                if (elem.type == ElementType.HEAD_ZONE) continue
                 if (elem.hasCustomTexture) continue
                 val matIdx = findMaterialIndex(gltf, elem.meshName)
                 if (matIdx >= 0) {
@@ -721,29 +803,63 @@ class GlbTextureEditor(private val context: Context) {
                 }
             }
 
-            val newJson = gltf.toString()
-            val pad = (4 - newJson.length % 4) % 4
-            val jb = (newJson + " ".repeat(pad)).toByteArray(Charsets.UTF_8)
-            val binPad = (4 - binChunk.size % 4) % 4
-            val bp = if (binPad > 0) binChunk + ByteArray(binPad) else binChunk
+            assembleGlb(gltf, binChunk)
+        } catch (e: Exception) { e.printStackTrace(); null }
+    }
 
-            val total = 12 + 8 + jb.size + 8 + bp.size
-            val out = ByteBuffer.allocate(total).order(ByteOrder.LITTLE_ENDIAN)
-            out.putInt(0x46546C67); out.putInt(2); out.putInt(total)
-            out.putInt(jb.size); out.putInt(0x4E4F534A); out.put(jb)
-            out.putInt(bp.size); out.putInt(0x004E4942); out.put(bp)
-            out.array()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
+    private fun addTextureToGltf(
+        gltf: JSONObject, name: String, b64: String, meshName: String, isEye: Boolean,
+    ) {
+        val imgArr = gltf.optJSONArray("images") ?: JSONArray().also { gltf.put("images", it) }
+        val imgIdx = imgArr.length()
+        imgArr.put(JSONObject().apply {
+            put("name", name); put("mimeType", "image/jpeg")
+            put("uri", "data:image/jpeg;base64,$b64")
+        })
+
+        val sampArr = gltf.optJSONArray("samplers") ?: JSONArray().also { gltf.put("samplers", it) }
+        val sampIdx = sampArr.length()
+        val wrapType = if (isEye) 10497 else 33071
+        sampArr.put(JSONObject().apply {
+            put("magFilter", 9729); put("minFilter", 9987)
+            put("wrapS", wrapType); put("wrapT", wrapType)
+        })
+
+        val texArr = gltf.optJSONArray("textures") ?: JSONArray().also { gltf.put("textures", it) }
+        val texIdx = texArr.length()
+        texArr.put(JSONObject().apply { put("source", imgIdx); put("sampler", sampIdx) })
+
+        val matIdx = findMaterialIndex(gltf, meshName)
+        if (matIdx >= 0) {
+            val mat = gltf.getJSONArray("materials").getJSONObject(matIdx)
+            val pbr = mat.optJSONObject("pbrMetallicRoughness") ?: JSONObject()
+            pbr.put("baseColorTexture", JSONObject().apply { put("index", texIdx); put("texCoord", 0) })
+            pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
+            mat.put("pbrMetallicRoughness", pbr)
         }
+    }
+
+    private fun assembleGlb(gltf: JSONObject, binChunk: ByteArray): ByteArray {
+        val newJson = gltf.toString()
+        val jsonPad = (4 - newJson.length % 4) % 4
+        val jb = (newJson + " ".repeat(jsonPad)).toByteArray(Charsets.UTF_8)
+        val binPad = (4 - binChunk.size % 4) % 4
+        val bp = if (binPad > 0) binChunk + ByteArray(binPad) else binChunk
+        val total = 12 + 8 + jb.size + 8 + bp.size
+        val out = ByteBuffer.allocate(total).order(ByteOrder.LITTLE_ENDIAN)
+        out.putInt(0x46546C67); out.putInt(2); out.putInt(total)
+        out.putInt(jb.size); out.putInt(0x4E4F534A); out.put(jb)
+        out.putInt(bp.size); out.putInt(0x004E4942); out.put(bp)
+        return out.array()
     }
 
     private fun findMaterialIndex(gltf: JSONObject, meshName: String): Int {
         val meshes = gltf.optJSONArray("meshes") ?: return -1
+        // Для зон головы ищем head_lod0_ORIGINAL
+        val searchName = if (meshName.startsWith("head_zone_")) "head_lod0_ORIGINAL" else meshName
         for (i in 0 until meshes.length()) {
             val m = meshes.getJSONObject(i)
-            if (m.optString("name") == meshName) {
+            if (m.optString("name") == searchName) {
                 val prims = m.optJSONArray("primitives") ?: continue
                 if (prims.length() > 0) return prims.getJSONObject(0).optInt("material", -1)
             }
@@ -752,36 +868,36 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     fun ensureSourceInCache(assetPath: String): File {
-        val cacheFile = File(context.cacheDir, "source_for_edit.glb")
-        if (!cacheFile.exists()) {
-            context.assets.open(assetPath).use { inp ->
-                cacheFile.outputStream().use { out -> inp.copyTo(out) }
-            }
+        val f = File(context.cacheDir, "source_for_edit.glb")
+        if (!f.exists()) {
+            context.assets.open(assetPath).use { inp -> f.outputStream().use { out -> inp.copyTo(out) } }
         }
-        return cacheFile
+        return f
     }
 
-    fun getElements() = elements.toList()
-
-    fun getLabel(elem: EditableElement): String =
-        MESH_LABELS[elem.meshName] ?: elem.meshName
+    // ═══════════════════════════════════════════════════════════════
+    //  DESTROY
+    // ═══════════════════════════════════════════════════════════════
 
     fun destroy(engine: Engine) {
-        Log.d(TAG, "destroy: ${texturePool.size} textures, ${elements.size} elements")
+        Log.d(TAG, "destroy")
         synchronized(gpuOpsLock) { pendingGpuOps.clear() }
-        texturePool.forEach { tex ->
-            try { engine.destroyTexture(tex) } catch (_: Exception) {}
-        }
+        texturePool.forEach { try { engine.destroyTexture(it) } catch (_: Exception) {} }
         texturePool.clear()
         elements.forEach { elem ->
             elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
             elem.displayBitmap?.let { if (!it.isRecycled) it.recycle() }
-            elem.activeSourceBitmap = null
-            elem.displayBitmap = null
-            elem.activeTexture = null
+            elem.activeSourceBitmap = null; elem.displayBitmap = null; elem.activeTexture = null
         }
         elements.clear()
-        cachedCanvas = null
-        cachedCanvasBitmap = null
+        zoneDataMap.values.forEach { zd ->
+            zd.recycle()
+            if (!zd.maskBitmap.isRecycled) zd.maskBitmap.recycle()
+        }
+        zoneDataMap.clear()
+        headCompositeBitmap?.let { if (!it.isRecycled) it.recycle() }
+        headCompositeBitmap = null
+        headCompositeTexture = null
+        headMaterialInstance = null
     }
 }
