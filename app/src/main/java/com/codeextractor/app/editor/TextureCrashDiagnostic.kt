@@ -63,7 +63,7 @@ object TextureCrashDiagnostic {
 
         test0_InspectUsageFlags()
         test1_DefaultUsage(engine, mi)
-        test2_SampleableOnly(engine, mi)
+        // test2_SampleableOnly(engine, mi)  // BUG: net UPLOADABLE
         test3_SampleableUploadable(engine, mi)
         // test4_CurrentCode(engine, mi)  // RASKOMMENTIRUJ OTDELNO
         test5_Rgba8Format(engine, mi)
