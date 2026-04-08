@@ -604,10 +604,11 @@ class GlbTextureEditor(private val context: Context) {
                 setWrapModeS(wrap)
                 setWrapModeT(wrap)
             }
+            // FIX: сначала данные, потом bind
+            TextureHelper.setBitmap(engine, tex, 0, display)
+            tex.generateMipmaps(engine)
             elem.materialInstance.setParameter("baseColorMap", tex, sampler)
             safeSetParam4f(elem.materialInstance, "baseColorFactor", 1f, 1f, 1f, 1f)
-            TextureHelper.setBitmap(engine, tex, 0, display)
-            tex.generateMipmaps(engine) // Теперь безопасно — текстура имеет GEN_MIPMAPPABLE
             Log.d(TAG, "uploadTextureToGpu OK: ${elem.meshName}")
         } catch (e: Exception) {
             Log.e(TAG, "uploadTextureToGpu FAILED for ${elem.meshName}", e)
