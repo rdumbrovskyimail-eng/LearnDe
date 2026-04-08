@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.sp
 import com.codeextractor.app.editor.EditableElement
 import com.codeextractor.app.editor.ElementType
 import com.codeextractor.app.editor.GlbTextureEditor
-import com.codeextractor.app.editor.TextureCrashDiagnostic
 import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.Scene
 import io.github.sceneview.math.Position
@@ -84,6 +83,25 @@ private val TEETH_COLORS = listOf(
     ColorPreset("Слоновая к.", Color(0xFFE0D8C8), 0.88f, 0.85f, 0.78f),
     ColorPreset("Жёлтые", Color(0xFFD6C8A0), 0.84f, 0.78f, 0.63f),
 )
+private val HAIR_COLORS = listOf(
+    ColorPreset("Чёрный", Color(0xFF1A1A1A), 0.10f, 0.10f, 0.10f),
+    ColorPreset("Каштан", Color(0xFF5C3317), 0.36f, 0.20f, 0.09f),
+    ColorPreset("Русый", Color(0xFF8B7355), 0.55f, 0.45f, 0.33f),
+    ColorPreset("Блонд", Color(0xFFD4B896), 0.83f, 0.72f, 0.59f),
+    ColorPreset("Рыжий", Color(0xFFA0522D), 0.63f, 0.32f, 0.18f),
+    ColorPreset("Платина", Color(0xFFE8E0D0), 0.91f, 0.88f, 0.82f),
+)
+
+// Группы зон для чипов
+private enum class ZoneGroup(val label: String, val icon: String) {
+    FACE("Лицо", "👤"),
+    SIDES("Бока", "👂"),
+    HAIR("Волосы", "💇"),
+    NECK("Шея", "🔽"),
+    MOUTH("Рот", "👄"),
+    EYES("Глаза", "👁"),
+    TEETH("Зубы", "🦷"),
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,30 +117,19 @@ fun ModelEditorScreen(onBack: () -> Unit) {
 
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
 
-    // ← FIX: Чтение файла на IO, создание модели на Main (без вложенного withContext)
-    // Logcat показал "Engine destroyed" ДО "Model loaded" — race condition
     LaunchedEffect(modelLoader) {
-        Log.d("GLB_EDITOR", "=== Loading model ===")
         try {
             val buffer = withContext(Dispatchers.IO) {
-                val patchedPath = editor.preparePatchedModel(MODEL_ASSET_PATH)
-                Log.d("GLB_EDITOR", "Patched path: $patchedPath")
-                val fileBytes = java.io.File(patchedPath).readBytes()
-                Log.d("GLB_EDITOR", "File bytes: ${fileBytes.size}")
-                val buf = java.nio.ByteBuffer.allocateDirect(fileBytes.size)
-                buf.put(fileBytes)
-                buf.rewind()
-                Log.d("GLB_EDITOR", "ByteBuffer: direct=${buf.isDirect}, capacity=${buf.capacity()}")
-                buf
+                val path = editor.preparePatchedModel(MODEL_ASSET_PATH)
+                val bytes = java.io.File(path).readBytes()
+                java.nio.ByteBuffer.allocateDirect(bytes.size).also {
+                    it.put(bytes); it.rewind()
+                }
             }
-            // Создание модели — Main поток (Engine создан на Main)
             modelInstance = modelLoader.createModelInstance(buffer)
             Log.d("GLB_EDITOR", "Model loaded: ${modelInstance != null}")
-            if (modelInstance != null) {
-                Log.d("GLB_EDITOR", "Entities: ${modelInstance!!.entities.size}")
-            }
         } catch (e: Exception) {
-            Log.e("GLB_EDITOR", "MODEL LOAD FAILED", e)
+            Log.e("GLB_EDITOR", "Model load failed", e)
         }
     }
 
@@ -141,7 +148,6 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     var uiMetallic by remember(selectedIdx) { mutableFloatStateOf(activeElem?.currentMetallic ?: 0f) }
     var uiRoughness by remember(selectedIdx) { mutableFloatStateOf(activeElem?.currentRoughness ?: 0.5f) }
 
-    // Debounce для трансформаций
     var pendingTransformApply by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiScaleX, uiScaleY, uiOffsetX, uiOffsetY, uiRot) {
@@ -149,12 +155,9 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         kotlinx.coroutines.delay(80)
         activeElem?.let { elem ->
             if (elem.hasCustomTexture) {
-                editor.applyTransform(
-                    engine, elem,
+                editor.applyTransform(engine, elem,
                     scaleX = uiScaleX, scaleY = uiScaleY,
-                    offsetX = uiOffsetX, offsetY = uiOffsetY,
-                    rotDeg = uiRot
-                )
+                    offsetX = uiOffsetX, offsetY = uiOffsetY, rotDeg = uiRot)
             }
         }
         pendingTransformApply = false
@@ -162,17 +165,13 @@ fun ModelEditorScreen(onBack: () -> Unit) {
 
     LaunchedEffect(modelInstance) {
         val mi = modelInstance ?: return@LaunchedEffect
-        Log.d("GLB_EDITOR", "=== About to scanModel ===")
         if (!scanned) {
             try {
                 elements = editor.scanModel(engine, mi)
                 scanned = true
-                Log.d("GLB_EDITOR", "scanModel completed: ${elements.size} elements")
-                elements.forEach { elem ->
-                    Log.d("GLB_EDITOR", "  ${elem.meshName}: hasCustomTexture=${elem.hasCustomTexture}")
-                }
+                Log.d("GLB_EDITOR", "Scan: ${elements.size} elements")
             } catch (e: Exception) {
-                Log.e("GLB_EDITOR", "scanModel FAILED", e)
+                Log.e("GLB_EDITOR", "Scan failed", e)
             }
         }
     }
@@ -182,13 +181,9 @@ fun ModelEditorScreen(onBack: () -> Unit) {
     ) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
         val elem = elements.getOrNull(selectedIdx) ?: return@rememberLauncherForActivityResult
-        val ok = editor.loadTextureFromUri(engine, elem, uri)
+        val ok = editor.loadTextureForZone(engine, elem, uri)
         val label = editor.getLabel(elem)
-        Toast.makeText(
-            ctx,
-            if (ok) "Текстура → $label" else "Ошибка загрузки",
-            Toast.LENGTH_SHORT
-        ).show()
+        Toast.makeText(ctx, if (ok) "✓ $label" else "Ошибка загрузки", Toast.LENGTH_SHORT).show()
     }
 
     val scope = rememberCoroutineScope()
@@ -200,19 +195,12 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         isSaving = true
         scope.launch(Dispatchers.IO) {
             try {
-                val sourceFile = editor.ensureSourceInCache(MODEL_ASSET_PATH)
-                val ok = ctx.contentResolver.openOutputStream(uri)?.use { stream ->
-                    editor.saveToStream(sourceFile.absolutePath, stream)
-                } ?: false
+                val srcFile = editor.ensureSourceInCache(MODEL_ASSET_PATH)
+                val ok = ctx.contentResolver.openOutputStream(uri)?.use { editor.saveToStream(srcFile.absolutePath, it) } ?: false
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        ctx,
-                        if (ok) "Модель сохранена!" else "Ошибка сохранения",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(ctx, if (ok) "Сохранено!" else "Ошибка", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
                 withContext(Dispatchers.Main) {
                     Toast.makeText(ctx, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
                 }
@@ -221,19 +209,10 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            Log.d("GLB_EDITOR", "=== onDispose: destroying editor ===")
-            editor.destroy(engine)
-        }
-    }
+    DisposableEffect(Unit) { onDispose { editor.destroy(engine) } }
 
-    // GPU ops flush loop
     LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(16)
-            editor.flushPendingGpuOps(engine)
-        }
+        while (true) { kotlinx.coroutines.delay(16); editor.flushPendingGpuOps(engine) }
     }
 
     Scaffold(
@@ -251,343 +230,254 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                         enabled = !isSaving
                     ) {
                         Text(
-                            if (isSaving) "Сохраняю..." else "Сохранить",
+                            if (isSaving) "..." else "Сохранить",
                             color = if (isSaving) Color.Gray else Color(0xFF4CAF50),
                             fontWeight = FontWeight.Bold
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF12121A)
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF12121A))
             )
         },
         containerColor = Color(0xFF12121A)
     ) { pad ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(pad)
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .background(Color(0xFF0F0F15))
-            ) {
+        Column(Modifier.fillMaxSize().padding(pad)) {
+            // ── 3D Viewport ──
+            Box(Modifier.fillMaxWidth().weight(1f).background(Color(0xFF0F0F15))) {
                 val camManipulator = rememberCameraManipulator(
-                    orbitHomePosition = CAM_POS,
-                    targetPosition = CAM_TGT,
-                )
-
+                    orbitHomePosition = CAM_POS, targetPosition = CAM_TGT)
                 Scene(
                     modifier = Modifier.fillMaxSize(),
-                    engine = engine,
-                    modelLoader = modelLoader,
-                    cameraNode = cameraNode,
-                    cameraManipulator = camManipulator,
+                    engine = engine, modelLoader = modelLoader,
+                    cameraNode = cameraNode, cameraManipulator = camManipulator,
                     environment = environment,
                 ) {
                     modelInstance?.let {
-                        ModelNode(
-                            modelInstance = it,
-                            scaleToUnits = SCALE,
-                            centerOrigin = Position(0f, 0f, 0f),
-                            autoAnimate = false,
-                        )
+                        ModelNode(modelInstance = it, scaleToUnits = SCALE,
+                            centerOrigin = Position(0f, 0f, 0f), autoAnimate = false)
                     }
                 }
 
                 if (isDirectTouchMode && activeElem != null) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0x226C63FF))
-                            .pointerInput(selectedIdx) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    uiOffsetX += dragAmount.x / 900f
-                                    uiOffsetY += dragAmount.y / 900f
-                                    pendingTransformApply = true
-                                }
+                    Box(Modifier.fillMaxSize()
+                        .background(Color(0x226C63FF))
+                        .pointerInput(selectedIdx) {
+                            detectDragGestures { change, drag ->
+                                change.consume()
+                                uiOffsetX += drag.x / 900f
+                                uiOffsetY += drag.y / 900f
+                                pendingTransformApply = true
                             }
-                    )
+                        })
                 }
 
                 if (modelInstance == null) {
-                    CircularProgressIndicator(
-                        Modifier.align(Alignment.Center),
-                        color = Color.White
-                    )
+                    CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
                 }
 
                 SmallFloatingActionButton(
                     onClick = { isDirectTouchMode = !isDirectTouchMode },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(12.dp),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
                     containerColor = if (isDirectTouchMode) Color(0xFFE94560) else Color(0xFF2A2A3D),
                     contentColor = Color.White,
                 ) {
-                    Icon(
-                        imageVector = if (isDirectTouchMode) Icons.Filled.Edit
-                        else Icons.Filled.Visibility,
-                        contentDescription = "Toggle mode"
-                    )
+                    Icon(if (isDirectTouchMode) Icons.Filled.Edit else Icons.Filled.Visibility, "mode")
                 }
 
                 if (isDirectTouchMode) {
-                    Text(
-                        "РЕЖИМ ТЕКСТУРЫ: скользите пальцем",
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 8.dp)
+                    Text("ТЕКСТУРА: скользите пальцем",
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
                             .background(Color(0xAA000000), RoundedCornerShape(8.dp))
                             .padding(horizontal = 12.dp, vertical = 4.dp),
-                        color = Color.White,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                        color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
             if (elements.isEmpty()) return@Column
 
+            // ── Control Panel ──
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1.15f)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xFF1E1E2E), Color(0xFF12121A))
-                        )
-                    )
+                Modifier.fillMaxWidth().weight(1.15f)
+                    .background(Brush.verticalGradient(listOf(Color(0xFF1E1E2E), Color(0xFF12121A))))
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
-                Text(
-                    "СЛОЙ (Mesh)",
-                    color = Color(0xFF8888AA),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                // ── Zone Selector ──
+                Text("ЗОНА", color = Color(0xFF8888AA), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
+
+                // Группируем элементы
+                val grouped = remember(elements) { groupElements(elements) }
+                var expandedGroup by remember { mutableStateOf<ZoneGroup?>(ZoneGroup.FACE) }
+
+                // Группы зон
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    elements.forEachIndexed { i, elem ->
+                    grouped.keys.forEach { group ->
+                        val isExpanded = expandedGroup == group
+                        val hasSelection = grouped[group]?.any { elements.indexOf(it) == selectedIdx } == true
                         FilterChip(
-                            selected = selectedIdx == i,
-                            onClick = { selectedIdx = i },
+                            selected = isExpanded || hasSelection,
+                            onClick = { expandedGroup = if (isExpanded) null else group },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF6C63FF),
+                                selectedContainerColor = if (hasSelection) Color(0xFF6C63FF) else Color(0xFF3A3A5D),
                                 selectedLabelColor = Color.White,
                                 containerColor = Color(0xFF2A2A3D),
                                 labelColor = Color(0xFFCCCCCC),
                             ),
-                            label = {
-                                Text(editor.getLabel(elem), fontSize = 11.sp)
-                            },
+                            label = { Text("${group.icon} ${group.label}", fontSize = 11.sp) },
                             shape = RoundedCornerShape(10.dp),
                         )
+                    }
+                }
+
+                // Элементы выбранной группы
+                AnimatedVisibility(visible = expandedGroup != null) {
+                    val groupElems = grouped[expandedGroup] ?: emptyList()
+                    if (groupElems.isNotEmpty()) {
+                        Row(
+                            Modifier.padding(top = 6.dp).horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            groupElems.forEach { elem ->
+                                val idx = elements.indexOf(elem)
+                                val hasTexture = elem.hasCustomTexture
+                                FilterChip(
+                                    selected = selectedIdx == idx,
+                                    onClick = { selectedIdx = idx },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFF6C63FF),
+                                        selectedLabelColor = Color.White,
+                                        containerColor = if (hasTexture) Color(0xFF2D4A3D) else Color(0xFF2A2A3D),
+                                        labelColor = if (hasTexture) Color(0xFF80E0A0) else Color(0xFFCCCCCC),
+                                    ),
+                                    label = {
+                                        Text(
+                                            "${if (hasTexture) "✓ " else ""}${editor.getLabel(elem)}",
+                                            fontSize = 10.sp
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                )
+                            }
+                        }
                     }
                 }
 
                 val sel = activeElem ?: return@Column
                 Spacer(Modifier.height(12.dp))
 
+                // ── Load Texture Button ──
                 Button(
                     onClick = { imagePicker.launch("image/*") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00C896)
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C896))
                 ) {
-                    Text(
-                        "Загрузить текстуру",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Загрузить текстуру → ${editor.getLabel(sel)}",
+                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                if (sel.hasCustomTexture) {
+                    Text("✓ Текстура загружена", color = Color(0xFF80E0A0),
+                        fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
                 }
 
                 Spacer(Modifier.height(14.dp))
 
-                val presets = when (sel.type) {
-                    ElementType.EYE -> EYE_COLORS
-                    ElementType.TEETH -> TEETH_COLORS
-                    ElementType.SKIN -> SKIN_COLORS
-                    else -> SKIN_COLORS
-                }
-                Text("ЦВЕТ", color = Color(0xFF8888AA), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    presets.forEach { p ->
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.clickable {
-                                editor.setColor(sel, p.r, p.g, p.b)
+                // ── Color Presets ──
+                val presets = getColorPresets(sel)
+                if (presets.isNotEmpty()) {
+                    Text("ЦВЕТ", color = Color(0xFF8888AA), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        presets.forEach { p ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { editor.setColor(sel, p.r, p.g, p.b) }
+                            ) {
+                                Box(Modifier.size(32.dp).clip(CircleShape).background(p.ui)
+                                    .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape))
+                                Text(p.label, fontSize = 8.sp, color = Color.Gray)
                             }
-                        ) {
-                            Box(
-                                Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(p.ui)
-                                    .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape)
-                            )
-                            Text(p.label, fontSize = 8.sp, color = Color.Gray)
                         }
                     }
+                    Spacer(Modifier.height(14.dp))
                 }
 
-                Spacer(Modifier.height(14.dp))
-
-                var editTab by remember { mutableIntStateOf(0) }
-                Text(
-                    "ТРАНСФОРМАЦИЯ ТЕКСТУРЫ",
-                    color = Color(0xFF8888AA),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                // ── Transform Tabs ──
+                var editTab by remember { mutableIntStateOf(1) } // Default: Scale
+                Text("ТРАНСФОРМАЦИЯ", color = Color(0xFF8888AA), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
-
                 TabRow(
                     selectedTabIndex = editTab,
-                    containerColor = Color.Transparent,
-                    contentColor = Color.White,
-                    divider = {},
-                    indicator = {},
+                    containerColor = Color.Transparent, contentColor = Color.White,
+                    divider = {}, indicator = {},
                 ) {
                     listOf("Позиция", "Масштаб", "Поворот", "PBR").forEachIndexed { i, title ->
-                        Tab(
-                            selected = editTab == i,
-                            onClick = { editTab = i },
+                        Tab(selected = editTab == i, onClick = { editTab = i },
                             text = {
-                                Text(
-                                    title,
-                                    fontSize = 11.sp,
+                                Text(title, fontSize = 11.sp,
                                     fontWeight = if (editTab == i) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (editTab == i) Color(0xFF6C63FF) else Color.Gray
-                                )
-                            }
-                        )
+                                    color = if (editTab == i) Color(0xFF6C63FF) else Color.Gray)
+                            })
                     }
                 }
-
                 Spacer(Modifier.height(12.dp))
 
                 AnimatedVisibility(visible = editTab == 0, enter = fadeIn(), exit = fadeOut()) {
-                    Column(
-                        Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            "Тяните пальцем для сдвига текстуры",
-                            color = Color.Gray,
-                            fontSize = 11.sp
-                        )
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Тяните пальцем для сдвига", color = Color.Gray, fontSize = 11.sp)
                         Spacer(Modifier.height(10.dp))
                         Box(
-                            Modifier
-                                .size(200.dp)
-                                .clip(RoundedCornerShape(14.dp))
+                            Modifier.size(200.dp).clip(RoundedCornerShape(14.dp))
                                 .background(Color(0xFF2A2A3D))
-                                .border(
-                                    1.5.dp,
-                                    Color(0xFF6C63FF).copy(alpha = 0.4f),
-                                    RoundedCornerShape(14.dp)
-                                )
+                                .border(1.5.dp, Color(0xFF6C63FF).copy(alpha = 0.4f), RoundedCornerShape(14.dp))
                                 .pointerInput(selectedIdx) {
-                                    detectDragGestures { change, dragAmount ->
+                                    detectDragGestures { change, drag ->
                                         change.consume()
-                                        uiOffsetX += dragAmount.x / 1200f
-                                        uiOffsetY += dragAmount.y / 1200f
+                                        uiOffsetX += drag.x / 1200f
+                                        uiOffsetY += drag.y / 1200f
                                         pendingTransformApply = true
                                     }
                                 }
                         ) {
-                            Box(
-                                Modifier
-                                    .align(Alignment.Center)
-                                    .offset(
-                                        x = (uiOffsetX * 500f).dp.coerceIn((-90).dp, 90.dp),
-                                        y = (uiOffsetY * 500f).dp.coerceIn((-90).dp, 90.dp)
-                                    )
-                                    .size(16.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF00C896))
-                            )
+                            Box(Modifier.align(Alignment.Center)
+                                .offset(
+                                    x = (uiOffsetX * 500f).dp.coerceIn((-90).dp, 90.dp),
+                                    y = (uiOffsetY * 500f).dp.coerceIn((-90).dp, 90.dp))
+                                .size(16.dp).clip(CircleShape).background(Color(0xFF00C896)))
                         }
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "X: ${"%.3f".format(uiOffsetX)}  Y: ${"%.3f".format(uiOffsetY)}",
-                            color = Color(0xFF666688),
-                            fontSize = 10.sp
-                        )
+                        Text("X: ${"%.3f".format(uiOffsetX)}  Y: ${"%.3f".format(uiOffsetY)}",
+                            color = Color(0xFF666688), fontSize = 10.sp)
                     }
                 }
 
                 AnimatedVisibility(visible = editTab == 1, enter = fadeIn(), exit = fadeOut()) {
                     Column {
-                        ProSlider(
-                            label = "Универсальный зум",
-                            value = (uiScaleX + uiScaleY) / 2f,
-                            range = 0.1f..5f,
-                            accent = Color(0xFF6C63FF)
-                        ) { v ->
-                            uiScaleX = v; uiScaleY = v
-                            pendingTransformApply = true
-                        }
-                        ProSlider("Ширина (X)", uiScaleX, 0.05f..4f) { v ->
-                            uiScaleX = v
-                            pendingTransformApply = true
-                        }
-                        ProSlider("Высота (Y)", uiScaleY, 0.05f..4f) { v ->
-                            uiScaleY = v
-                            pendingTransformApply = true
-                        }
+                        ProSlider("Универсальный зум", (uiScaleX + uiScaleY) / 2f, 0.1f..5f,
+                            accent = Color(0xFF6C63FF)) { v -> uiScaleX = v; uiScaleY = v; pendingTransformApply = true }
+                        ProSlider("Ширина (X)", uiScaleX, 0.05f..4f) { v -> uiScaleX = v; pendingTransformApply = true }
+                        ProSlider("Высота (Y)", uiScaleY, 0.05f..4f) { v -> uiScaleY = v; pendingTransformApply = true }
                     }
                 }
 
                 AnimatedVisibility(visible = editTab == 2, enter = fadeIn(), exit = fadeOut()) {
-                    ProSlider(
-                        label = "Угол: ${uiRot.toInt()}°",
-                        value = uiRot,
-                        range = -180f..180f,
-                        accent = Color(0xFFE94560)
-                    ) { v ->
-                        uiRot = v
-                        pendingTransformApply = true
-                    }
+                    ProSlider("Угол: ${uiRot.toInt()}°", uiRot, -180f..180f,
+                        accent = Color(0xFFE94560)) { v -> uiRot = v; pendingTransformApply = true }
                 }
 
                 AnimatedVisibility(visible = editTab == 3, enter = fadeIn(), exit = fadeOut()) {
                     Column {
-                        ProSlider(
-                            label = "Metallic: ${"%.2f".format(uiMetallic)}",
-                            value = uiMetallic,
-                            range = 0f..1f,
-                            accent = Color(0xFFBBBBDD)
-                        ) { v ->
-                            uiMetallic = v
-                            editor.setMetallic(sel, v)
-                        }
-                        ProSlider(
-                            label = "Roughness: ${"%.2f".format(uiRoughness)}",
-                            value = uiRoughness,
-                            range = 0f..1f,
-                            accent = Color(0xFF88AA88)
-                        ) { v ->
-                            uiRoughness = v
-                            editor.setRoughness(sel, v)
-                        }
+                        ProSlider("Metallic: ${"%.2f".format(uiMetallic)}", uiMetallic, 0f..1f,
+                            accent = Color(0xFFBBBBDD)) { v -> uiMetallic = v; editor.setMetallic(sel, v) }
+                        ProSlider("Roughness: ${"%.2f".format(uiRoughness)}", uiRoughness, 0f..1f,
+                            accent = Color(0xFF88AA88)) { v -> uiRoughness = v; editor.setRoughness(sel, v) }
                     }
                 }
 
@@ -595,6 +485,47 @@ fun ModelEditorScreen(onBack: () -> Unit) {
             }
         }
     }
+}
+
+private fun groupElements(elements: List<EditableElement>): Map<ZoneGroup, List<EditableElement>> {
+    val map = linkedMapOf<ZoneGroup, MutableList<EditableElement>>()
+    for (elem in elements) {
+        val group = when (elem.type) {
+            ElementType.HEAD_ZONE -> when (elem.headZone) {
+                com.codeextractor.app.editor.HeadZone.FACE_FRONT -> ZoneGroup.FACE
+                com.codeextractor.app.editor.HeadZone.SIDE_LEFT,
+                com.codeextractor.app.editor.HeadZone.SIDE_RIGHT -> ZoneGroup.SIDES
+                com.codeextractor.app.editor.HeadZone.HAIR_TOP,
+                com.codeextractor.app.editor.HeadZone.HAIR_BACK -> ZoneGroup.HAIR
+                com.codeextractor.app.editor.HeadZone.NECK_FRONT,
+                com.codeextractor.app.editor.HeadZone.NECK_BACK -> ZoneGroup.NECK
+                com.codeextractor.app.editor.HeadZone.MOUTH_INNER -> ZoneGroup.MOUTH
+                null -> ZoneGroup.FACE
+            }
+            ElementType.EYE_LEFT, ElementType.EYE_RIGHT -> ZoneGroup.EYES
+            ElementType.TEETH -> ZoneGroup.TEETH
+            else -> ZoneGroup.FACE
+        }
+        map.getOrPut(group) { mutableListOf() }.add(elem)
+    }
+    return map
+}
+
+private fun getColorPresets(elem: EditableElement): List<ColorPreset> = when (elem.type) {
+    ElementType.EYE_LEFT, ElementType.EYE_RIGHT -> EYE_COLORS
+    ElementType.TEETH -> TEETH_COLORS
+    ElementType.HEAD_ZONE -> when (elem.headZone) {
+        com.codeextractor.app.editor.HeadZone.HAIR_TOP,
+        com.codeextractor.app.editor.HeadZone.HAIR_BACK -> HAIR_COLORS
+        com.codeextractor.app.editor.HeadZone.FACE_FRONT,
+        com.codeextractor.app.editor.HeadZone.SIDE_LEFT,
+        com.codeextractor.app.editor.HeadZone.SIDE_RIGHT,
+        com.codeextractor.app.editor.HeadZone.NECK_FRONT,
+        com.codeextractor.app.editor.HeadZone.NECK_BACK -> SKIN_COLORS
+        com.codeextractor.app.editor.HeadZone.MOUTH_INNER -> SKIN_COLORS
+        null -> SKIN_COLORS
+    }
+    else -> SKIN_COLORS
 }
 
 @Composable
@@ -608,14 +539,10 @@ private fun ProSlider(
     Spacer(Modifier.height(8.dp))
     Text(label, fontSize = 11.sp, color = Color.LightGray, fontWeight = FontWeight.Medium)
     Slider(
-        value = value,
-        onValueChange = onChange,
-        valueRange = range,
+        value = value, onValueChange = onChange, valueRange = range,
         modifier = Modifier.fillMaxWidth(),
         colors = SliderDefaults.colors(
-            thumbColor = accent,
-            activeTrackColor = accent,
-            inactiveTrackColor = Color(0xFF333344)
-        )
+            thumbColor = accent, activeTrackColor = accent,
+            inactiveTrackColor = Color(0xFF333344))
     )
 }
