@@ -101,12 +101,12 @@ object TextureCrashDiagnostic {
                 "COLOR_ATTACHMENT" to Texture.Usage.COLOR_ATTACHMENT,
             )
             vals.forEach { (name, v) ->
-                Log.w(TAG, "  $name = $v (ordinal=${v.ordinal}, class=${v::class.java.simpleName})")
+                Log.w(TAG, "  $name = $v")
             }
 
             try {
                 val gm = Texture.Usage.GEN_MIPMAPPABLE
-                Log.w(TAG, "  GEN_MIPMAPPABLE = $gm (ordinal=${gm.ordinal})")
+                Log.w(TAG, "  GEN_MIPMAPPABLE = $gm")
             } catch (e: Throwable) {
                 Log.e(TAG, "  !!! GEN_MIPMAPPABLE NE SUSCHESTVUET: ${e::class.simpleName}")
             }
