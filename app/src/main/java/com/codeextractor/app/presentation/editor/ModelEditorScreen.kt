@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.codeextractor.app.editor.EditableElement
 import com.codeextractor.app.editor.ElementType
 import com.codeextractor.app.editor.GlbTextureEditor
+import com.codeextractor.app.editor.TextureCrashDiagnostic
 import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.Scene
 import io.github.sceneview.math.Position
