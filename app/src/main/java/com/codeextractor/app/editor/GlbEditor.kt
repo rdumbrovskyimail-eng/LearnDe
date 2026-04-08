@@ -138,6 +138,7 @@ class GlbTextureEditor(private val context: Context) {
     private var headCompositeBitmap: Bitmap? = null
     private var headCompositeTexture: Texture? = null
     private var headMaterialInstance: MaterialInstance? = null
+    private var headBgColor: Int = android.graphics.Color.TRANSPARENT
 
     // ── Переиспользуемые объекты ──
     private val workMatrix = Matrix()
@@ -586,6 +587,9 @@ class GlbTextureEditor(private val context: Context) {
 
         val compositeCanvas = Canvas(composite)
         compositeCanvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+        if (headBgColor != android.graphics.Color.TRANSPARENT) {
+            compositeCanvas.drawColor(headBgColor)
+        }
 
         // Временный буфер для каждой зоны
         val zoneBuf = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
