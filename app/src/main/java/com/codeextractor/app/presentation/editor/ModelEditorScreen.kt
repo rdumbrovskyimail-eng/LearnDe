@@ -166,6 +166,10 @@ fun ModelEditorScreen(onBack: () -> Unit) {
             try {
                 elements = editor.scanModel(engine, mi)
                 scanned = true
+                val headMI = elements
+                    .firstOrNull { it.meshName == "head_lod0_ORIGINAL" }
+                    ?.materialInstance
+                TextureCrashDiagnostic.runAll(engine, headMI)
                 Log.d("GLB_EDITOR", "scanModel completed: ${elements.size} elements")
                 elements.forEach { elem ->
                     Log.d("GLB_EDITOR", "  ${elem.meshName}: hasCustomTexture=${elem.hasCustomTexture}")
