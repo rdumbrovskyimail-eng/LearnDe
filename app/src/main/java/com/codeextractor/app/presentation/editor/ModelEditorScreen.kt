@@ -72,6 +72,18 @@ private val SKIN_COLORS = listOf(
     ColorPreset("Тёмная", Color(0xFF8D6E4C), 0.55f, 0.43f, 0.30f),
     ColorPreset("Эбеновая", Color(0xFF2A1B0E), 0.16f, 0.11f, 0.05f),
 )
+private val BG_FILL_COLORS = listOf(
+    ColorPreset("Прозрачный", Color(0xFF222222), 0f, 0f, 0f),
+    ColorPreset("Фарфор", Color(0xFFFAE7D8), 0.98f, 0.91f, 0.85f),
+    ColorPreset("Светлая", Color(0xFFF5D6C3), 0.96f, 0.84f, 0.76f),
+    ColorPreset("Средняя", Color(0xFFDAB99A), 0.85f, 0.73f, 0.60f),
+    ColorPreset("Загар", Color(0xFFC49E7A), 0.77f, 0.62f, 0.48f),
+    ColorPreset("Тёмная", Color(0xFF8D6E4C), 0.55f, 0.43f, 0.30f),
+    ColorPreset("Эбеновая", Color(0xFF2A1B0E), 0.16f, 0.11f, 0.05f),
+    ColorPreset("Красный", Color(0xFFC04040), 0.75f, 0.25f, 0.25f),
+    ColorPreset("Серый", Color(0xFF888888), 0.53f, 0.53f, 0.53f),
+    ColorPreset("Белый", Color(0xFFF0F0F0), 0.94f, 0.94f, 0.94f),
+)
 private val EYE_COLORS = listOf(
     ColorPreset("Белые", Color(0xFFF2F2F2), 0.95f, 0.95f, 0.95f),
     ColorPreset("Кремовые", Color(0xFFF5F0E8), 0.96f, 0.94f, 0.91f),
@@ -368,6 +380,48 @@ fun ModelEditorScreen(onBack: () -> Unit) {
 
                 val sel = activeElem ?: return@Column
                 Spacer(Modifier.height(12.dp))
+
+                // ── Background Fill (для головы) ──
+                if (sel.type == ElementType.HEAD_ZONE) {
+                    Text("ЗАЛИВКА ФОНА", color = Color(0xFF8888AA), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        BG_FILL_COLORS.forEach { p ->
+                            val isTransparent = p.r == 0f && p.g == 0f && p.b == 0f
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable {
+                                    val color = if (isTransparent) {
+                                        android.graphics.Color.TRANSPARENT
+                                    } else {
+                                        android.graphics.Color.rgb(
+                                            (p.r * 255).toInt(),
+                                            (p.g * 255).toInt(),
+                                            (p.b * 255).toInt()
+                                        )
+                                    }
+                                    editor.setHeadBackgroundColor(engine, color)
+                                }
+                            ) {
+                                Box(
+                                    Modifier.size(32.dp).clip(CircleShape)
+                                        .background(if (isTransparent) Color(0xFF222222) else p.ui)
+                                        .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape)
+                                ) {
+                                    if (isTransparent) {
+                                        Text("✕", color = Color.Red, fontSize = 14.sp,
+                                            modifier = Modifier.align(Alignment.Center))
+                                    }
+                                }
+                                Text(p.label, fontSize = 8.sp, color = Color.Gray)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
 
                 // ── Load Texture Button ──
                 Button(
