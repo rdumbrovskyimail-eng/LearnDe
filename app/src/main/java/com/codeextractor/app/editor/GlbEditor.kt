@@ -720,6 +720,14 @@ class GlbTextureEditor(private val context: Context) {
         postGpuOp { safeSet1f(elem.materialInstance, "roughnessFactor", value) }
     }
 
+    fun setHeadBackgroundColor(engine: Engine, color: Int) {
+        headBgColor = color
+        ensureHeadCompositeTexture(engine)
+        compositeAndUploadHead(engine)
+    }
+
+    fun getHeadBgColor(): Int = headBgColor
+
     // ═══════════════════════════════════════════════════════════════
     //  LABELS
     // ═══════════════════════════════════════════════════════════════
