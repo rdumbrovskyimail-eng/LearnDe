@@ -890,6 +890,8 @@ class GlbTextureEditor(private val context: Context) {
             val pbr = mat.optJSONObject("pbrMetallicRoughness") ?: JSONObject()
             pbr.put("baseColorTexture", JSONObject().apply { put("index", texIdx); put("texCoord", 0) })
             pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
+            pbr.put("metallicFactor", 0.0)
+            pbr.put("roughnessFactor", 0.6)
             mat.put("pbrMetallicRoughness", pbr)
         }
     }
