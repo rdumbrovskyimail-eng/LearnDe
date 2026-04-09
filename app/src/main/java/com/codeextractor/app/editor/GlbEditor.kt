@@ -138,8 +138,7 @@ class GlbTextureEditor(private val context: Context) {
     private var headCompositeBitmap: Bitmap? = null
     private var headCompositeTexture: Texture? = null
     private var headMaterialInstance: MaterialInstance? = null
-    private val bodyMaterialInstances = mutableListOf<MaterialInstance>()
-    private var headBgColor: Int = android.graphics.Color.TRANSPARENT
+    private var headBgColor: Int = android.graphics.Color.rgb(232, 210, 185)
 
     // ── Переиспользуемые объекты ──
     private val workMatrix = Matrix()
@@ -335,18 +334,7 @@ class GlbTextureEditor(private val context: Context) {
                 val mi = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
                 val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
 
-                // Body mesh'и (0 morph targets) — создаём отдельный MI
-                if (morphCount == 0) {
-                    try {
-                        val bodyMi = mi.material.createInstance()
-                        rm.setMaterialInstanceAt(ri, prim, bodyMi)
-                        bodyMaterialInstances.add(bodyMi)
-                        Log.d(TAG, "Body: entity=$entity, new MI created")
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Body MI create failed", e)
-                    }
-                    continue // не добавляем в elements
-                }
+
 
                 when (morphCount) {
                     51 -> {
@@ -402,8 +390,13 @@ class GlbTextureEditor(private val context: Context) {
         // Настройка PBR
         elements.forEach { elem -> setupPBR(elem) }
 
+        // Сразу ставим цвет кожи на модель
+        if (headMaterialInstance != null) {
+            ensureHeadCompositeTexture(engine)
+            compositeAndUploadHead(engine)
+        }
+
         Log.d(TAG, "=== SCAN RESULT ===")
-        Log.d(TAG, "  bodyMIs: ${bodyMaterialInstances.size}")
         Log.d(TAG, "  headMI: ${headMaterialInstance != null}")
         Log.d(TAG, "  elements: ${elements.size}")
 
@@ -506,8 +499,6 @@ class GlbTextureEditor(private val context: Context) {
 
             ensureHeadCompositeTexture(engine)
             compositeAndUploadHead(engine)
-            // Перекрашиваем тело если есть bgColor
-            repaintBodyMeshes()
             true
         } catch (e: Exception) {
             Log.e(TAG, "loadTextureForZone FAILED", e)
@@ -747,21 +738,6 @@ class GlbTextureEditor(private val context: Context) {
 
         ensureHeadCompositeTexture(engine)
         compositeAndUploadHead(engine)
-        repaintBodyMeshes()
-    }
-
-    private fun repaintBodyMeshes() {
-        val color = if (headBgColor != android.graphics.Color.TRANSPARENT) headBgColor
-                    else android.graphics.Color.WHITE
-        val r = android.graphics.Color.red(color) / 255f
-        val g = android.graphics.Color.green(color) / 255f
-        val b = android.graphics.Color.blue(color) / 255f
-        postGpuOp {
-            for (mi in bodyMaterialInstances) {
-                safeSet4f(mi, "baseColorFactor", r, g, b, 1f)
-            }
-            Log.d(TAG, "repaintBody: ${bodyMaterialInstances.size} body MIs, color=#${Integer.toHexString(color)}")
-        }
     }
 
     fun getHeadBgColor(): Int = headBgColor
@@ -956,7 +932,6 @@ class GlbTextureEditor(private val context: Context) {
             if (!zd.maskBitmap.isRecycled) zd.maskBitmap.recycle()
         }
         zoneDataMap.clear()
-        bodyMaterialInstances.clear()
         headCompositeBitmap?.let { if (!it.isRecycled) it.recycle() }
         headCompositeBitmap = null
         headCompositeTexture = null
