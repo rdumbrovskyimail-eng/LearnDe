@@ -621,10 +621,13 @@ class GlbTextureEditor(private val context: Context) {
             }
 
             val mipLevels = (kotlin.math.log2(TEX_SIZE.toFloat())).toInt() + 1
+            val usage = Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
+                    Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
             val tex = Texture.Builder()
                 .width(TEX_SIZE).height(TEX_SIZE).levels(mipLevels)
                 .sampler(Texture.Sampler.SAMPLER_2D)
                 .format(Texture.InternalFormat.SRGB8_A8)
+                .usage(usage)
                 .build(engine)
             headCompositeTexture = tex
             texturePool.add(tex)
