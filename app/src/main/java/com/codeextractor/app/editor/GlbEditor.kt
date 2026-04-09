@@ -127,7 +127,6 @@ class GlbTextureEditor(private val context: Context) {
         private const val TAG = "GLB_EDITOR"
         private const val TEX_SIZE = 1024
         private const val MAX_SOURCE = 2048
-        private const val JPEG_Q = 92
 
         // Целевой цвет кожи (sRGB) для bitmap-композитора
         val SKIN_COLOR_SRGB = android.graphics.Color.rgb(185, 142, 96)
@@ -783,7 +782,7 @@ class GlbTextureEditor(private val context: Context) {
 
             if (hasHeadTexture) {
                 val baos = ByteArrayOutputStream()
-                headBmp!!.compress(Bitmap.CompressFormat.JPEG, JPEG_Q, baos)
+                headBmp!!.compress(Bitmap.CompressFormat.PNG, 100, baos)
                 addTextureToGltf(gltf, "baked_head_composite", baos.toByteArray(),
                     "head_lod0_ORIGINAL", false, binParts)
             }
@@ -792,7 +791,7 @@ class GlbTextureEditor(private val context: Context) {
                 val exportBmp = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
                 Canvas(exportBmp).drawColor(headBgColor)
                 val baos = ByteArrayOutputStream()
-                exportBmp.compress(Bitmap.CompressFormat.JPEG, JPEG_Q, baos)
+                exportBmp.compress(Bitmap.CompressFormat.PNG, 100, baos)
                 exportBmp.recycle()
                 addTextureToGltf(gltf, "baked_head_bg", baos.toByteArray(),
                     "head_lod0_ORIGINAL", false, binParts)
@@ -803,7 +802,7 @@ class GlbTextureEditor(private val context: Context) {
                 val bmp = elem.displayBitmap ?: continue
                 if (!elem.hasCustomTexture || bmp.isRecycled) continue
                 val baos = ByteArrayOutputStream()
-                bmp.compress(Bitmap.CompressFormat.JPEG, JPEG_Q, baos)
+                bmp.compress(Bitmap.CompressFormat.PNG, 100, baos)
                 addTextureToGltf(gltf, "baked_${elem.meshName}", baos.toByteArray(),
                     elem.meshName, elem.type == ElementType.EYE_LEFT || elem.type == ElementType.EYE_RIGHT,
                     binParts)
@@ -868,7 +867,7 @@ class GlbTextureEditor(private val context: Context) {
         val imgIdx = imgArr.length()
         imgArr.put(JSONObject().apply {
             put("name", name)
-            put("mimeType", "image/jpeg")
+            put("mimeType", "image/png")
             put("bufferView", bvIdx)
         })
 
