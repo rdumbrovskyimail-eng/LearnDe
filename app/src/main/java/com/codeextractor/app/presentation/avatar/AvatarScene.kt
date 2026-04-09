@@ -73,17 +73,8 @@ fun AvatarScene(
 
     LaunchedEffect(modelLoader) {
         val buffer = withContext(Dispatchers.IO) {
-            // Патченный файл создаётся при первом запуске редактора.
-            // Если его ещё нет (пользователь открыл AvatarScene первым) — патчим сами.
-            val patchedFile = File(ctx.cacheDir, "patched_model.glb")
-            // Принудительно удаляем старый кэш при загрузке
-            if (patchedFile.exists()) {
-                patchedFile.delete()
-            }
-            if (!patchedFile.exists() || patchedFile.length() == 0L) {
-                GlbTextureEditor(ctx).preparePatchedModel(MODEL_PATH)
-            }
-            val bytes = patchedFile.readBytes()
+            // Загружаем напрямую из assets БЕЗ патчинга
+            val bytes = ctx.assets.open(MODEL_PATH).use { it.readBytes() }
             ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
         }
         modelInstance = modelLoader.createModelInstance(buffer)
