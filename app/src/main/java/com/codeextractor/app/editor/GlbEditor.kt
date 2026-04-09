@@ -563,7 +563,6 @@ class GlbTextureEditor(private val context: Context) {
             zd.uvRotationDeg = rotDeg
             if (zd.hasTexture) {
                 compositeAndUploadHead(engine)
-                repaintBodyMeshes()
             }
         } else if (elem.hasCustomTexture) {
             renderSeparateMeshBitmap(elem)
