@@ -181,6 +181,11 @@ fun ModelEditorScreen(onBack: () -> Unit) {
             try {
                 elements = editor.scanModel(engine, mi)
                 scanned = true
+                // Явно применить цвет кожи как фон головы (на случай гонки GPU-очереди)
+                editor.setHeadBackgroundColor(
+                    engine,
+                    android.graphics.Color.rgb(220, 187, 155)
+                )
                 Log.d("GLB_EDITOR", "Scan: ${elements.size} elements")
             } catch (e: Exception) {
                 Log.e("GLB_EDITOR", "Scan failed", e)
