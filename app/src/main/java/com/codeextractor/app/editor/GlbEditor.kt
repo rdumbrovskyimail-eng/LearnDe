@@ -771,9 +771,11 @@ class GlbTextureEditor(private val context: Context) {
             val jsonLen = buf.int; buf.int
             val jsonBytes = ByteArray(jsonLen); buf.get(jsonBytes)
             val gltf = JSONObject(String(jsonBytes))
-            val binChunk = if (buf.remaining() >= 8) {
+            val origBin = if (buf.remaining() >= 8) {
                 val bl = buf.int; buf.int; ByteArray(bl).also { buf.get(it) }
             } else ByteArray(0)
+
+            val binParts = mutableListOf(origBin)
 
             val headBmp = headCompositeBitmap
             val hasHeadTexture = headBmp != null && !headBmp.isRecycled &&
@@ -782,8 +784,8 @@ class GlbTextureEditor(private val context: Context) {
             if (hasHeadTexture) {
                 val baos = ByteArrayOutputStream()
                 headBmp!!.compress(Bitmap.CompressFormat.JPEG, JPEG_Q, baos)
-                val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
-                addTextureToGltf(gltf, "baked_head_composite", b64, "head_lod0_ORIGINAL", false)
+                addTextureToGltf(gltf, "baked_head_composite", baos.toByteArray(),
+                    "head_lod0_ORIGINAL", false, binParts)
             }
 
             if (!hasHeadTexture && headBgColor != android.graphics.Color.TRANSPARENT) {
@@ -792,20 +794,19 @@ class GlbTextureEditor(private val context: Context) {
                 val baos = ByteArrayOutputStream()
                 exportBmp.compress(Bitmap.CompressFormat.JPEG, JPEG_Q, baos)
                 exportBmp.recycle()
-                val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
-                addTextureToGltf(gltf, "baked_head_bg", b64, "head_lod0_ORIGINAL", false)
+                addTextureToGltf(gltf, "baked_head_bg", baos.toByteArray(),
+                    "head_lod0_ORIGINAL", false, binParts)
             }
 
             for (elem in elements) {
                 if (elem.type == ElementType.HEAD_ZONE) continue
                 val bmp = elem.displayBitmap ?: continue
                 if (!elem.hasCustomTexture || bmp.isRecycled) continue
-
                 val baos = ByteArrayOutputStream()
                 bmp.compress(Bitmap.CompressFormat.JPEG, JPEG_Q, baos)
-                val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
-                val isEye = elem.type == ElementType.EYE_LEFT || elem.type == ElementType.EYE_RIGHT
-                addTextureToGltf(gltf, "baked_${elem.meshName}", b64, elem.meshName, isEye)
+                addTextureToGltf(gltf, "baked_${elem.meshName}", baos.toByteArray(),
+                    elem.meshName, elem.type == ElementType.EYE_LEFT || elem.type == ElementType.EYE_RIGHT,
+                    binParts)
             }
 
             for (elem in elements) {
@@ -817,26 +818,58 @@ class GlbTextureEditor(private val context: Context) {
                     val pbr = mat.optJSONObject("pbrMetallicRoughness") ?: JSONObject()
                     pbr.put("baseColorFactor", JSONArray(listOf(
                         elem.currentR.toDouble(), elem.currentG.toDouble(),
-                        elem.currentB.toDouble(), 1.0
-                    )))
+                        elem.currentB.toDouble(), 1.0)))
                     pbr.put("roughnessFactor", elem.currentRoughness.toDouble())
                     pbr.put("metallicFactor", elem.currentMetallic.toDouble())
                     mat.put("pbrMetallicRoughness", pbr)
                 }
             }
 
-            assembleGlb(gltf, binChunk)
+            val totalBinSize = binParts.sumOf { it.size }
+            val buffersArr = gltf.optJSONArray("buffers")
+                ?: JSONArray().also { gltf.put("buffers", it) }
+            if (buffersArr.length() > 0) buffersArr.getJSONObject(0).put("byteLength", totalBinSize)
+            else buffersArr.put(JSONObject().apply { put("byteLength", totalBinSize) })
+
+            val finalBin = ByteArray(totalBinSize)
+            var offset = 0
+            for (part in binParts) {
+                System.arraycopy(part, 0, finalBin, offset, part.size)
+                offset += part.size
+            }
+
+            assembleGlb(gltf, finalBin)
         } catch (e: Exception) { e.printStackTrace(); null }
     }
 
     private fun addTextureToGltf(
-        gltf: JSONObject, name: String, b64: String, meshName: String, isEye: Boolean,
+        gltf: JSONObject, name: String, jpegBytes: ByteArray,
+        meshName: String, isEye: Boolean,
+        binChunkRef: MutableList<ByteArray>,
     ) {
-        val imgArr = gltf.optJSONArray("images") ?: JSONArray().also { gltf.put("images", it) }
+        val bufferViews = gltf.optJSONArray("bufferViews")
+            ?: JSONArray().also { gltf.put("bufferViews", it) }
+
+        val currentOffset = binChunkRef.sumOf { it.size }
+
+        val padding = (4 - jpegBytes.size % 4) % 4
+        val paddedBytes = jpegBytes + ByteArray(padding)
+        binChunkRef.add(paddedBytes)
+
+        val bvIdx = bufferViews.length()
+        bufferViews.put(JSONObject().apply {
+            put("buffer", 0)
+            put("byteOffset", currentOffset)
+            put("byteLength", jpegBytes.size)
+        })
+
+        val imgArr = gltf.optJSONArray("images")
+            ?: JSONArray().also { gltf.put("images", it) }
         val imgIdx = imgArr.length()
         imgArr.put(JSONObject().apply {
-            put("name", name); put("mimeType", "image/jpeg")
-            put("uri", "data:image/jpeg;base64,$b64")
+            put("name", name)
+            put("mimeType", "image/jpeg")
+            put("bufferView", bvIdx)
         })
 
         val sampArr = gltf.optJSONArray("samplers") ?: JSONArray().also { gltf.put("samplers", it) }
