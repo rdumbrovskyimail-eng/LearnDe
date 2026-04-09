@@ -491,6 +491,8 @@ class GlbTextureEditor(private val context: Context) {
 
             ensureHeadCompositeTexture(engine)
             compositeAndUploadHead(engine)
+            // Перекрашиваем тело если есть bgColor
+            repaintBodyMeshes()
             true
         } catch (e: Exception) {
             Log.e(TAG, "loadTextureForZone FAILED", e)
@@ -551,7 +553,10 @@ class GlbTextureEditor(private val context: Context) {
             zd.uvScaleX = scaleX; zd.uvScaleY = scaleY
             zd.uvOffsetX = offsetX; zd.uvOffsetY = offsetY
             zd.uvRotationDeg = rotDeg
-            if (zd.hasTexture) compositeAndUploadHead(engine)
+            if (zd.hasTexture) {
+                compositeAndUploadHead(engine)
+                repaintBodyMeshes()
+            }
         } else if (elem.hasCustomTexture) {
             renderSeparateMeshBitmap(elem)
             postGpuOp { uploadSeparateMeshTexture(engine, elem) }
@@ -725,11 +730,15 @@ class GlbTextureEditor(private val context: Context) {
         headBgColor = color
         if (headMaterialInstance == null) return
 
-        // 1. Composite для головы (внутри postGpuOp ставит baseColorFactor=1,1,1,1 на headMI)
         ensureHeadCompositeTexture(engine)
         compositeAndUploadHead(engine)
+        repaintBodyMeshes()
+    }
 
-        // 2. ПОСЛЕ composite — красим все остальные MI (тело, плечи и т.д.)
+    private fun repaintBodyMeshes() {
+        if (headBgColor == android.graphics.Color.TRANSPARENT && headBgColor != android.graphics.Color.WHITE) return
+        val color = if (headBgColor != android.graphics.Color.TRANSPARENT) headBgColor
+                    else android.graphics.Color.WHITE
         val r = android.graphics.Color.red(color) / 255f
         val g = android.graphics.Color.green(color) / 255f
         val b = android.graphics.Color.blue(color) / 255f
