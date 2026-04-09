@@ -138,6 +138,7 @@ class GlbTextureEditor(private val context: Context) {
     private var headCompositeBitmap: Bitmap? = null
     private var headCompositeTexture: Texture? = null
     private var headMaterialInstance: MaterialInstance? = null
+    private val allMaterialInstances = mutableListOf<MaterialInstance>()
     private var headBgColor: Int = android.graphics.Color.TRANSPARENT
 
     // ── Переиспользуемые объекты ──
@@ -332,6 +333,9 @@ class GlbTextureEditor(private val context: Context) {
 
             for (prim in 0 until primCount) {
                 val mi = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
+                if (!allMaterialInstances.contains(mi)) {
+                    allMaterialInstances.add(mi)
+                }
                 val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
 
                 when (morphCount) {
@@ -721,7 +725,18 @@ class GlbTextureEditor(private val context: Context) {
         headBgColor = color
         if (headMaterialInstance == null) return
 
-        // ВСЕГДА через composite — и для baseColor, и для текстур
+        val r = android.graphics.Color.red(color) / 255f
+        val g = android.graphics.Color.green(color) / 255f
+        val b = android.graphics.Color.blue(color) / 255f
+
+        // Красим ВСЕ material instances модели (тело, шея, и т.д.)
+        postGpuOp {
+            for (mi in allMaterialInstances) {
+                safeSet4f(mi, "baseColorFactor", r, g, b, 1f)
+            }
+        }
+
+        // Перерисовываем composite головы с фоном
         ensureHeadCompositeTexture(engine)
         compositeAndUploadHead(engine)
     }
@@ -918,6 +933,7 @@ class GlbTextureEditor(private val context: Context) {
             if (!zd.maskBitmap.isRecycled) zd.maskBitmap.recycle()
         }
         zoneDataMap.clear()
+        allMaterialInstances.clear()
         headCompositeBitmap?.let { if (!it.isRecycled) it.recycle() }
         headCompositeBitmap = null
         headCompositeTexture = null
