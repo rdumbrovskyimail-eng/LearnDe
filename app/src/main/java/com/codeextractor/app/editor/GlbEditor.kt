@@ -722,6 +722,21 @@ class GlbTextureEditor(private val context: Context) {
 
     fun setHeadBackgroundColor(engine: Engine, color: Int) {
         headBgColor = color
+        if (headMaterialInstance == null) return
+
+        // Если нет ни одной текстуры — просто ставим baseColorFactor
+        val hasAnyTexture = zoneDataMap.values.any { it.hasTexture }
+        if (!hasAnyTexture) {
+            val r = android.graphics.Color.red(color) / 255f
+            val g = android.graphics.Color.green(color) / 255f
+            val b = android.graphics.Color.blue(color) / 255f
+            postGpuOp {
+                safeSet4f(headMaterialInstance!!, "baseColorFactor", r, g, b, 1f)
+            }
+            return
+        }
+
+        // Есть текстуры → перерисовываем композит с фоном
         ensureHeadCompositeTexture(engine)
         compositeAndUploadHead(engine)
     }
