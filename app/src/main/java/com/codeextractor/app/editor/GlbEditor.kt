@@ -559,18 +559,9 @@ class GlbTextureEditor(private val context: Context) {
     // ═══════════════════════════════════════════════════════════════
 
     private fun ensureHeadCompositeTexture(engine: Engine) {
-        if (headCompositeTexture != null) return
+        if (headCompositeBitmap != null) return
         headCompositeBitmap = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
-        val mipLevels = (kotlin.math.log2(TEX_SIZE.toFloat())).toInt() + 1
-        val usage = Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
-                Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
-        headCompositeTexture = Texture.Builder()
-            .width(TEX_SIZE).height(TEX_SIZE).levels(mipLevels)
-            .sampler(Texture.Sampler.SAMPLER_2D)
-            .format(Texture.InternalFormat.SRGB8_A8)
-            .usage(usage).build(engine)
-        texturePool.add(headCompositeTexture!!)
-        Log.d(TAG, "Head composite texture created")
+        Log.d(TAG, "Head composite bitmap created")
     }
 
     /**
@@ -587,14 +578,13 @@ class GlbTextureEditor(private val context: Context) {
 
         val compositeCanvas = Canvas(composite)
         compositeCanvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-        if (headBgColor != android.graphics.Color.TRANSPARENT) {
-            compositeCanvas.drawColor(headBgColor)
-        }
 
-        // Временный буфер для каждой зоны
+        val bgColor = if (headBgColor != android.graphics.Color.TRANSPARENT) headBgColor
+                      else android.graphics.Color.WHITE
+        compositeCanvas.drawColor(bgColor)
+
         val zoneBuf = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
         val zoneCanvas = Canvas(zoneBuf)
-
         val srcPaint = Paint().apply { isFilterBitmap = true; isAntiAlias = true }
         val maskApply = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) }
 
@@ -603,37 +593,41 @@ class GlbTextureEditor(private val context: Context) {
             val src = zd.sourceBitmap ?: continue
             if (!zd.hasTexture || src.isRecycled) continue
 
-            // Очищаем буфер зоны
             zoneCanvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
-            // 1. Рисуем трансформированную текстуру на весь буфер
             val matrix = Matrix()
             val srcRect = RectF(0f, 0f, src.width.toFloat(), src.height.toFloat())
             val dstRect = RectF(0f, 0f, TEX_SIZE.toFloat(), TEX_SIZE.toFloat())
             matrix.setRectToRect(srcRect, dstRect, Matrix.ScaleToFit.CENTER)
 
-            val cx = TEX_SIZE / 2f
-            val cy = TEX_SIZE / 2f
+            val cx = TEX_SIZE / 2f; val cy = TEX_SIZE / 2f
             matrix.postTranslate(zd.uvOffsetX * TEX_SIZE, zd.uvOffsetY * TEX_SIZE)
             matrix.postScale(zd.uvScaleX, zd.uvScaleY, cx, cy)
             matrix.postRotate(zd.uvRotationDeg, cx, cy)
 
             zoneCanvas.drawBitmap(src, matrix, srcPaint)
-
-            // 2. Применяем маску (DST_IN: оставляем только пиксели где маска белая)
             zoneCanvas.drawBitmap(zd.maskBitmap, 0f, 0f, maskApply)
-
-            // 3. Рисуем замаскированную зону на композит
             compositeCanvas.drawBitmap(zoneBuf, 0f, 0f, srcPaint)
         }
-
         zoneBuf.recycle()
 
-        // Заливаем на GPU
         postGpuOp {
-            val tex = headCompositeTexture ?: return@postGpuOp
             val mi = headMaterialInstance ?: return@postGpuOp
             if (composite.isRecycled) return@postGpuOp
+
+            headCompositeTexture?.let { old ->
+                texturePool.remove(old)
+                try { engine.destroyTexture(old) } catch (_: Exception) {}
+            }
+
+            val mipLevels = (kotlin.math.log2(TEX_SIZE.toFloat())).toInt() + 1
+            val tex = Texture.Builder()
+                .width(TEX_SIZE).height(TEX_SIZE).levels(mipLevels)
+                .sampler(Texture.Sampler.SAMPLER_2D)
+                .format(Texture.InternalFormat.SRGB8_A8)
+                .build(engine)
+            headCompositeTexture = tex
+            texturePool.add(tex)
 
             try {
                 val sampler = TextureSampler().apply {
@@ -646,7 +640,7 @@ class GlbTextureEditor(private val context: Context) {
                 tex.generateMipmaps(engine)
                 mi.setParameter("baseColorMap", tex, sampler)
                 safeSet4f(mi, "baseColorFactor", 1f, 1f, 1f, 1f)
-                Log.d(TAG, "Head composite uploaded to GPU")
+                Log.d(TAG, "Head composite RECREATED (bg=${Integer.toHexString(bgColor)})")
             } catch (e: Exception) {
                 Log.e(TAG, "Head composite upload FAILED", e)
             }
@@ -724,19 +718,7 @@ class GlbTextureEditor(private val context: Context) {
         headBgColor = color
         if (headMaterialInstance == null) return
 
-        // Если нет ни одной текстуры — просто ставим baseColorFactor
-        val hasAnyTexture = zoneDataMap.values.any { it.hasTexture }
-        if (!hasAnyTexture) {
-            val r = android.graphics.Color.red(color) / 255f
-            val g = android.graphics.Color.green(color) / 255f
-            val b = android.graphics.Color.blue(color) / 255f
-            postGpuOp {
-                safeSet4f(headMaterialInstance!!, "baseColorFactor", r, g, b, 1f)
-            }
-            return
-        }
-
-        // Есть текстуры → перерисовываем композит с фоном
+        // ВСЕГДА через composite — и для baseColor, и для текстур
         ensureHeadCompositeTexture(engine)
         compositeAndUploadHead(engine)
     }
@@ -790,13 +772,24 @@ class GlbTextureEditor(private val context: Context) {
             // Экспорт композитной текстуры головы
             val headBmp = headCompositeBitmap
             val hasHeadTexture = headBmp != null && !headBmp.isRecycled &&
-                    zoneDataMap.values.any { it.hasTexture }
+                    (zoneDataMap.values.any { it.hasTexture } || headBgColor != android.graphics.Color.TRANSPARENT)
 
             if (hasHeadTexture) {
                 val baos = ByteArrayOutputStream()
                 headBmp!!.compress(Bitmap.CompressFormat.JPEG, JPEG_Q, baos)
                 val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
                 addTextureToGltf(gltf, "baked_head_composite", b64, "head_lod0_ORIGINAL", false)
+            }
+
+            // Если composite bitmap не существует но есть bgColor — создаём для экспорта
+            if (!hasHeadTexture && headBgColor != android.graphics.Color.TRANSPARENT) {
+                val exportBmp = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
+                Canvas(exportBmp).drawColor(headBgColor)
+                val baos = ByteArrayOutputStream()
+                exportBmp.compress(Bitmap.CompressFormat.JPEG, JPEG_Q, baos)
+                exportBmp.recycle()
+                val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
+                addTextureToGltf(gltf, "baked_head_bg", b64, "head_lod0_ORIGINAL", false)
             }
 
             // Экспорт текстур отдельных mesh'ей
