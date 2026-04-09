@@ -371,6 +371,20 @@ class GlbTextureEditor(private val context: Context) {
                         ))
                         Log.d(TAG, "Eye ${if (isLeft) "L" else "R"}: entity=$entity")
                     }
+                    0 -> {
+                        // body/shoulders — создаём отдельный MI чтобы красить независимо
+                        try {
+                            val mat = mi.material
+                            val bodyMi = mat.createInstance()
+                            rm.setMaterialInstanceAt(ri, prim, bodyMi)
+                            if (!allMaterialInstances.contains(bodyMi)) {
+                                allMaterialInstances.add(bodyMi)
+                            }
+                            Log.d(TAG, "Body mesh: entity=$entity, assigned new MI")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Body MI clone failed: ${e.message}")
+                        }
+                    }
                 }
             }
         }
