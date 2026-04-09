@@ -42,13 +42,9 @@ enum class HeadZone(val label: String, val maskAsset: String) {
 
 enum class ElementType { EYE_LEFT, EYE_RIGHT, TEETH, HEAD_ZONE, UNKNOWN }
 
-/**
- * Данные одной зоны головы. Зона имеет маску в UV-пространстве,
- * свою текстуру, и свои параметры трансформации.
- */
 class ZoneData(
     val zone: HeadZone,
-    val maskBitmap: Bitmap, // 1024x1024, grayscale = маска зоны
+    val maskBitmap: Bitmap,
 ) {
     var sourceBitmap: Bitmap? = null
     var uvScaleX: Float = 1f
@@ -64,12 +60,6 @@ class ZoneData(
     }
 }
 
-/**
- * Элемент для редактирования. Может быть:
- * - HEAD_ZONE: одна из 8 зон головы (все используют один MaterialInstance)
- * - EYE_LEFT / EYE_RIGHT: отдельные mesh'и глаз
- * - TEETH: mesh зубов
- */
 class EditableElement(
     val entity: Int,
     val renderableInstance: Int,
@@ -110,22 +100,6 @@ class EditableElement(
     }
 }
 
-/**
- * GlbTextureEditor — редактор текстур 3D-аватара с зональной системой.
- *
- * АРХИТЕКТУРА ЗОНАЛЬНОЙ СИСТЕМЫ:
- * 1. Голова (head_lod0_ORIGINAL) разбита на 8 UV-зон через маски.
- *    Каждая зона — отдельный EditableElement в UI.
- *    Все зоны используют ОДИН Filament MaterialInstance и одну GPU-текстуру.
- *
- * 2. При загрузке текстуры на зону, compositeHeadTexture() собирает
- *    финальную 1024×1024 bitmap из всех зон через маски и заливает в GPU.
- *
- * 3. Глаза (eyeLeft, eyeRight) и зубы (teeth) — отдельные mesh'и,
- *    текстурируются напрямую без масок.
- *
- * 4. Thread-safety: GPU-вызовы через pending-очередь, flush из UI.
- */
 class GlbTextureEditor(private val context: Context) {
 
     private val elements = mutableListOf<EditableElement>()
@@ -133,26 +107,30 @@ class GlbTextureEditor(private val context: Context) {
     private val pendingGpuOps = mutableListOf<() -> Unit>()
     private val gpuOpsLock = Any()
 
+    // Отложенное уничтожение текстур: пара (texture, flushCount когда можно уничтожить)
+    private val texturesToDestroy = ArrayDeque<Pair<Texture, Int>>()
+    private var flushCount = 0
+
     // ── Зональная система головы ──
     private val zoneDataMap = mutableMapOf<HeadZone, ZoneData>()
     private var headCompositeBitmap: Bitmap? = null
     private var headCompositeTexture: Texture? = null
     private var headMaterialInstance: MaterialInstance? = null
-    private var headBgColor: Int = android.graphics.Color.rgb(220, 187, 155)
 
-    // ── Переиспользуемые объекты ──
+    // ИСПРАВЛЕНО: правильный тёплый цвет кожи (был 220,187,155 = слишком светлый/кремовый)
+    private var headBgColor: Int = android.graphics.Color.rgb(185, 142, 96)
+
     private val workMatrix = Matrix()
     private val workPaint = Paint().apply { isFilterBitmap = true; isAntiAlias = true }
-    private val maskPaint = Paint().apply {
-        isFilterBitmap = true
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-    }
 
     companion object {
         private const val TAG = "GLB_EDITOR"
         private const val TEX_SIZE = 1024
         private const val MAX_SOURCE = 2048
         private const val JPEG_Q = 92
+
+        // Целевой цвет кожи (sRGB) для bitmap-композитора
+        val SKIN_COLOR_SRGB = android.graphics.Color.rgb(185, 142, 96)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -167,7 +145,6 @@ class GlbTextureEditor(private val context: Context) {
                     BitmapFactory.decodeStream(stream)
                 } ?: continue
 
-                // Масштабируем к TEX_SIZE если нужно
                 val scaled = if (bmp.width != TEX_SIZE || bmp.height != TEX_SIZE) {
                     Bitmap.createScaledBitmap(bmp, TEX_SIZE, TEX_SIZE, true)
                         .also { if (it !== bmp) bmp.recycle() }
@@ -183,7 +160,9 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  ПАТЧ GLB — dummy-текстуры для всех материалов
+    //  ПАТЧ GLB
+    //  ИСПРАВЛЕНО: сбрасываем metallicFactor=0 и baseColorFactor=white
+    //  в GLB JSON, чтобы модель не выглядела чёрной до применения setParameter
     // ═══════════════════════════════════════════════════════════════
 
     private fun createWhitePngBytes(): ByteArray {
@@ -256,13 +235,19 @@ class GlbTextureEditor(private val context: Context) {
                     val mat = materials.getJSONObject(i)
                     val pbr = mat.optJSONObject("pbrMetallicRoughness")
                         ?: JSONObject().also { mat.put("pbrMetallicRoughness", it) }
+
                     if (!pbr.has("baseColorTexture")) {
                         pbr.put("baseColorTexture", JSONObject().apply {
                             put("index", texIdx); put("texCoord", 0)
                         })
-                        if (!pbr.has("baseColorFactor"))
-                            pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
                     }
+                    // ИСПРАВЛЕНО: ВСЕГДА перезаписываем эти значения.
+                    // Оригинальный GLB имеет bcf=[0.503,0.503,0.503] и metallic=0.4
+                    // что делает модель тёмно-серой/чёрной без текстуры.
+                    // Сбрасываем в нейтральные значения — runtime setParameter перекроет их.
+                    pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
+                    pbr.put("metallicFactor", 0.0)
+                    pbr.put("roughnessFactor", 0.6)
                 }
             }
 
@@ -290,9 +275,23 @@ class GlbTextureEditor(private val context: Context) {
 
     // ═══════════════════════════════════════════════════════════════
     //  GPU QUEUE
+    //  ИСПРАВЛЕНО: отложенное уничтожение текстур через 2 flush-цикла (~32ms)
+    //  чтобы GPU успел закончить чтение старой текстуры
     // ═══════════════════════════════════════════════════════════════
 
     fun flushPendingGpuOps(engine: Engine) {
+        flushCount++
+
+        // Уничтожаем текстуры, которые ждали 2+ flush-цикла (GPU точно закончил их читать)
+        val toDestroyNow = texturesToDestroy.filter { it.second <= flushCount }
+        if (toDestroyNow.isNotEmpty()) {
+            texturesToDestroy.removeAll { it.second <= flushCount }
+            toDestroyNow.forEach { (tex, _) ->
+                try { engine.destroyTexture(tex) } catch (_: Exception) {}
+                texturePool.remove(tex)
+            }
+        }
+
         val ops: List<() -> Unit>
         synchronized(gpuOpsLock) {
             if (pendingGpuOps.isEmpty()) return
@@ -309,14 +308,13 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  SCAN MODEL → 11 элементов (8 зон головы + 2 глаза + зубы)
+    //  SCAN MODEL
     // ═══════════════════════════════════════════════════════════════
 
     fun scanModel(engine: Engine, modelInstance: ModelInstance): List<EditableElement> {
         Log.d(TAG, "=== scanModel ===")
         elements.clear()
 
-        // Загружаем маски зон
         if (zoneDataMap.isEmpty()) loadZoneMasks()
 
         val rm = engine.renderableManager
@@ -334,25 +332,20 @@ class GlbTextureEditor(private val context: Context) {
                 val mi = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
                 val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
 
-
-
                 when (morphCount) {
                     51 -> {
-                        // head_lod0_ORIGINAL — сохраняем MI, создаём 8 зон
                         headEntity = entity
                         headRI = ri
                         headMI = mi
                         headMaterialInstance = mi
-                        Log.d(TAG, "Head mesh: entity=$entity, morphCount=$morphCount")
+                        Log.d(TAG, "Head mesh: entity=$entity")
                     }
                     5 -> {
-                        // teeth
                         elements.add(EditableElement(
                             entity = entity, renderableInstance = ri,
                             primitiveIndex = prim, meshName = "teeth_ORIGINAL",
                             materialInstance = mi, type = ElementType.TEETH,
                         ))
-                        Log.d(TAG, "Teeth: entity=$entity")
                     }
                     4 -> {
                         eyeCounter++
@@ -364,13 +357,11 @@ class GlbTextureEditor(private val context: Context) {
                             materialInstance = mi,
                             type = if (isLeft) ElementType.EYE_LEFT else ElementType.EYE_RIGHT,
                         ))
-                        Log.d(TAG, "Eye ${if (isLeft) "L" else "R"}: entity=$entity")
                     }
                 }
             }
         }
 
-        // Создаём элементы для 8 зон головы
         if (headMI != null) {
             for (zone in HeadZone.entries) {
                 if (zoneDataMap.containsKey(zone)) {
@@ -387,18 +378,12 @@ class GlbTextureEditor(private val context: Context) {
             }
         }
 
-        // Настройка PBR
         elements.forEach { elem -> setupPBR(elem) }
 
-        // Сразу ставим цвет кожи на модель
         if (headMaterialInstance != null) {
             ensureHeadCompositeTexture(engine)
             compositeAndUploadHead(engine)
         }
-
-        Log.d(TAG, "=== SCAN RESULT ===")
-        Log.d(TAG, "  headMI: ${headMaterialInstance != null}")
-        Log.d(TAG, "  elements: ${elements.size}")
 
         Log.d(TAG, "Total elements: ${elements.size}")
         return elements.toList()
@@ -409,9 +394,11 @@ class GlbTextureEditor(private val context: Context) {
         postGpuOp {
             when (elem.type) {
                 ElementType.EYE_LEFT, ElementType.EYE_RIGHT -> {
-                    elem.currentRoughness = 0.05f; elem.currentMetallic = 0.1f
+                    elem.currentRoughness = 0.05f; elem.currentMetallic = 0f
                     safeSet1f(mi, "roughnessFactor", 0.05f)
-                    safeSet1f(mi, "metallicFactor", 0.1f)
+                    safeSet1f(mi, "metallicFactor", 0f)
+                    // Белки глаз — белый цвет
+                    safeSet4f(mi, "baseColorFactor", 0.95f, 0.95f, 0.95f, 1f)
                 }
                 ElementType.TEETH -> {
                     elem.currentR = 0.95f; elem.currentG = 0.93f; elem.currentB = 0.88f
@@ -421,12 +408,12 @@ class GlbTextureEditor(private val context: Context) {
                     safeSet1f(mi, "metallicFactor", 0f)
                 }
                 ElementType.HEAD_ZONE -> {
-                    // Все зоны головы используют один MI — настраиваем один раз
+                    // Применяем только для FACE_FRONT (один MI для всей головы)
+                    // НО compositeAndUploadHead перекроет эти значения текстурой
                     if (elem.headZone == HeadZone.FACE_FRONT) {
-                        elem.currentR = 0.86f; elem.currentG = 0.73f; elem.currentB = 0.61f
-                        elem.currentRoughness = 0.55f; elem.currentMetallic = 0f
-                        safeSet4f(mi, "baseColorFactor", 0.86f, 0.73f, 0.61f, 1f)
-                        safeSet1f(mi, "roughnessFactor", 0.55f)
+                        elem.currentMetallic = 0f
+                        elem.currentRoughness = 0.6f
+                        safeSet1f(mi, "roughnessFactor", 0.6f)
                         safeSet1f(mi, "metallicFactor", 0f)
                     }
                 }
@@ -471,10 +458,6 @@ class GlbTextureEditor(private val context: Context) {
         } else safe
     }
 
-    /**
-     * Загружает текстуру для ЗОНЫ ГОЛОВЫ.
-     * Текстура рисуется ТОЛЬКО внутри маски этой зоны.
-     */
     fun loadTextureForZone(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
         if (elem.type != ElementType.HEAD_ZONE || elem.headZone == null) {
             return loadTextureForSeparateMesh(engine, elem, uri)
@@ -490,7 +473,6 @@ class GlbTextureEditor(private val context: Context) {
             zd.sourceBitmap = source
             zd.hasTexture = true
 
-            // Синхронизируем параметры трансформации
             zd.uvScaleX = elem.uvScaleX
             zd.uvScaleY = elem.uvScaleY
             zd.uvOffsetX = elem.uvOffsetX
@@ -508,9 +490,6 @@ class GlbTextureEditor(private val context: Context) {
         }
     }
 
-    /**
-     * Загружает текстуру для отдельного mesh'а (глаза, зубы).
-     */
     private fun loadTextureForSeparateMesh(engine: Engine, elem: EditableElement, uri: Uri): Boolean {
         Log.d(TAG, "loadTexture: ${elem.meshName}")
         return try {
@@ -571,7 +550,10 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  HEAD COMPOSITE: Собираем 8 зон в одну текстуру
+    //  HEAD COMPOSITE
+    //  ИСПРАВЛЕНО: каждый раз создаём НОВУЮ текстуру.
+    //  Старую текстуру откладываем на уничтожение через 2 flush-цикла (~32ms),
+    //  чтобы GPU гарантированно закончил из неё читать.
     // ═══════════════════════════════════════════════════════════════
 
     private fun ensureHeadCompositeTexture(engine: Engine) {
@@ -580,14 +562,6 @@ class GlbTextureEditor(private val context: Context) {
         Log.d(TAG, "Head composite bitmap created")
     }
 
-    /**
-     * КЛЮЧЕВОЙ МЕТОД: собирает все зоны в одну текстуру.
-     *
-     * Для каждой зоны с текстурой:
-     * 1. Трансформируем source bitmap → заполняем весь TEX_SIZE×TEX_SIZE
-     * 2. Применяем маску зоны (PorterDuff DST_IN) → текстура обрезается по зоне
-     * 3. Рисуем результат на финальный composite (SRC_OVER)
-     */
     private fun compositeAndUploadHead(engine: Engine) {
         val composite = headCompositeBitmap ?: return
         if (composite.isRecycled) return
@@ -595,10 +569,9 @@ class GlbTextureEditor(private val context: Context) {
         val compositeCanvas = Canvas(composite)
         compositeCanvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
-        val skinDefault = android.graphics.Color.rgb(220, 187, 155)
+        // Фон: тёплый цвет кожи (правильный — не кремовый)
         val bgColor = if (headBgColor != android.graphics.Color.TRANSPARENT) headBgColor
-                      else skinDefault
-
+                      else SKIN_COLOR_SRGB
         compositeCanvas.drawColor(bgColor)
 
         val zoneBuf = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
@@ -629,31 +602,36 @@ class GlbTextureEditor(private val context: Context) {
         }
         zoneBuf.recycle()
 
+        // Захватываем текущий flushCount для замыкания
+        val capturedFlushCount = flushCount
+
         postGpuOp {
             val mi = headMaterialInstance ?: return@postGpuOp
             if (composite.isRecycled) return@postGpuOp
 
-            // Снимок битмапа — чтобы следующий вызов compositeAndUploadHead
-            // не испортил данные до того как GL-тред прочитает их
+            // Снимок битмапа ДО создания новой текстуры
             val uploadBmp = composite.copy(Bitmap.Config.ARGB_8888, false)
 
-            // ВАЖНО: НЕ уничтожаем старую текстуру — Filament рендер ещё держит на неё ссылку.
-            // Создаём один раз, потом только обновляем содержимое.
-            val tex = headCompositeTexture ?: run {
-                val mipLevels = (kotlin.math.log2(TEX_SIZE.toFloat())).toInt() + 1
-                val usage = Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
-                        Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
-                Texture.Builder()
-                    .width(TEX_SIZE).height(TEX_SIZE).levels(mipLevels)
-                    .sampler(Texture.Sampler.SAMPLER_2D)
-                    .format(Texture.InternalFormat.SRGB8_A8)
-                    .usage(usage)
-                    .build(engine)
-                    .also {
-                        headCompositeTexture = it
-                        texturePool.add(it)
-                    }
+            // Откладываем уничтожение СТАРОЙ текстуры на 2 flush-цикла
+            // (GPU гарантированно завершит чтение за ~32ms при 60fps)
+            headCompositeTexture?.let { old ->
+                texturePool.remove(old)
+                texturesToDestroy.add(Pair(old, capturedFlushCount + 2))
+                Log.d(TAG, "Old head texture queued for deferred destroy at flush ${capturedFlushCount + 2}")
             }
+
+            // ВСЕГДА создаём новую текстуру — никакого reuse
+            val mipLevels = (kotlin.math.log2(TEX_SIZE.toFloat())).toInt() + 1
+            val usage = Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
+                    Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
+            val newTex = Texture.Builder()
+                .width(TEX_SIZE).height(TEX_SIZE).levels(mipLevels)
+                .sampler(Texture.Sampler.SAMPLER_2D)
+                .format(Texture.InternalFormat.SRGB8_A8)
+                .usage(usage)
+                .build(engine)
+            headCompositeTexture = newTex
+            texturePool.add(newTex)
 
             try {
                 val sampler = TextureSampler().apply {
@@ -662,11 +640,13 @@ class GlbTextureEditor(private val context: Context) {
                     setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
                     setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
                 }
-                TextureHelper.setBitmap(engine, tex, 0, uploadBmp)
-                tex.generateMipmaps(engine)
-                mi.setParameter("baseColorMap", tex, sampler)
+                TextureHelper.setBitmap(engine, newTex, 0, uploadBmp)
+                newTex.generateMipmaps(engine)
+                mi.setParameter("baseColorMap", newTex, sampler)
                 safeSet4f(mi, "baseColorFactor", 1f, 1f, 1f, 1f)
-                Log.d(TAG, "Head composite UPLOADED OK")
+                safeSet1f(mi, "metallicFactor", 0f)
+                safeSet1f(mi, "roughnessFactor", 0.6f)
+                Log.d(TAG, "Head composite UPLOADED OK (fresh texture)")
             } catch (e: Exception) {
                 Log.e(TAG, "Head composite upload FAILED", e)
             } finally {
@@ -676,7 +656,7 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  SEPARATE MESH TEXTURE (глаза, зубы)
+    //  SEPARATE MESH TEXTURE
     // ═══════════════════════════════════════════════════════════════
 
     private fun renderSeparateMeshBitmap(elem: EditableElement) {
@@ -745,7 +725,6 @@ class GlbTextureEditor(private val context: Context) {
     fun setHeadBackgroundColor(engine: Engine, color: Int) {
         headBgColor = color
         if (headMaterialInstance == null) return
-
         ensureHeadCompositeTexture(engine)
         compositeAndUploadHead(engine)
     }
@@ -796,7 +775,6 @@ class GlbTextureEditor(private val context: Context) {
                 val bl = buf.int; buf.int; ByteArray(bl).also { buf.get(it) }
             } else ByteArray(0)
 
-            // Экспорт композитной текстуры головы
             val headBmp = headCompositeBitmap
             val hasHeadTexture = headBmp != null && !headBmp.isRecycled &&
                     (zoneDataMap.values.any { it.hasTexture } || headBgColor != android.graphics.Color.TRANSPARENT)
@@ -808,7 +786,6 @@ class GlbTextureEditor(private val context: Context) {
                 addTextureToGltf(gltf, "baked_head_composite", b64, "head_lod0_ORIGINAL", false)
             }
 
-            // Если composite bitmap не существует но есть bgColor — создаём для экспорта
             if (!hasHeadTexture && headBgColor != android.graphics.Color.TRANSPARENT) {
                 val exportBmp = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
                 Canvas(exportBmp).drawColor(headBgColor)
@@ -819,7 +796,6 @@ class GlbTextureEditor(private val context: Context) {
                 addTextureToGltf(gltf, "baked_head_bg", b64, "head_lod0_ORIGINAL", false)
             }
 
-            // Экспорт текстур отдельных mesh'ей
             for (elem in elements) {
                 if (elem.type == ElementType.HEAD_ZONE) continue
                 val bmp = elem.displayBitmap ?: continue
@@ -832,7 +808,6 @@ class GlbTextureEditor(private val context: Context) {
                 addTextureToGltf(gltf, "baked_${elem.meshName}", b64, elem.meshName, isEye)
             }
 
-            // Экспорт PBR для элементов без текстур
             for (elem in elements) {
                 if (elem.type == ElementType.HEAD_ZONE) continue
                 if (elem.hasCustomTexture) continue
@@ -902,7 +877,6 @@ class GlbTextureEditor(private val context: Context) {
 
     private fun findMaterialIndex(gltf: JSONObject, meshName: String): Int {
         val meshes = gltf.optJSONArray("meshes") ?: return -1
-        // Для зон головы ищем head_lod0_ORIGINAL
         val searchName = if (meshName.startsWith("head_zone_")) "head_lod0_ORIGINAL" else meshName
         for (i in 0 until meshes.length()) {
             val m = meshes.getJSONObject(i)
@@ -929,8 +903,16 @@ class GlbTextureEditor(private val context: Context) {
     fun destroy(engine: Engine) {
         Log.d(TAG, "destroy")
         synchronized(gpuOpsLock) { pendingGpuOps.clear() }
+
+        // Уничтожаем всё из очереди отложенного удаления
+        texturesToDestroy.forEach { (tex, _) ->
+            try { engine.destroyTexture(tex) } catch (_: Exception) {}
+        }
+        texturesToDestroy.clear()
+
         texturePool.forEach { try { engine.destroyTexture(it) } catch (_: Exception) {} }
         texturePool.clear()
+
         elements.forEach { elem ->
             elem.activeSourceBitmap?.let { if (!it.isRecycled) it.recycle() }
             elem.displayBitmap?.let { if (!it.isRecycled) it.recycle() }
