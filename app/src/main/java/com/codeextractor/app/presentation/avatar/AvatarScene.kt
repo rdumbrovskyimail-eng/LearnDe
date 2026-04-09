@@ -72,12 +72,14 @@ fun AvatarScene(
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
 
     LaunchedEffect(modelLoader) {
-        val buffer = withContext(Dispatchers.IO) {
-            // Загружаем напрямую из assets БЕЗ патчинга
-            val bytes = ctx.assets.open(MODEL_PATH).use { it.readBytes() }
-            ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
+        val file = withContext(Dispatchers.IO) {
+            val f = java.io.File(ctx.cacheDir, "test_model.glb")
+            ctx.assets.open(MODEL_PATH).use { inp ->
+                f.outputStream().use { out -> inp.copyTo(out) }
+            }
+            f
         }
-        modelInstance = modelLoader.createModelInstance(buffer)
+        modelInstance = modelLoader.loadModelInstance(file.path)
     }
 
     // Применяем цвет кожи после загрузки модели
