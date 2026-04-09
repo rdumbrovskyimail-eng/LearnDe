@@ -41,6 +41,34 @@ fun AvatarScene(
     val modelInstance     = rememberModelInstance(modelLoader, MODEL_PATH)
 
     val currentModelInstance by rememberUpdatedState(modelInstance)
+    androidx.compose.runtime.LaunchedEffect(modelInstance) {
+        val mi = modelInstance ?: return@LaunchedEffect
+        val rm = engine.renderableManager
+        for (entity in mi.entities) {
+            if (!rm.hasComponent(entity)) continue
+            val ri = rm.getInstance(entity)
+            val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
+            val primCount = rm.getPrimitiveCount(ri)
+            for (prim in 0 until primCount) {
+                val mat = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
+                when (morphCount) {
+                    51 -> { // голова
+                        try { mat.setParameter("baseColorFactor", 0.86f, 0.73f, 0.61f, 1f) } catch (_: Exception) {}
+                        try { mat.setParameter("roughnessFactor", 0.55f) } catch (_: Exception) {}
+                        try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
+                    }
+                    5 -> { // зубы
+                        try { mat.setParameter("baseColorFactor", 0.95f, 0.93f, 0.88f, 1f) } catch (_: Exception) {}
+                        try { mat.setParameter("roughnessFactor", 0.2f) } catch (_: Exception) {}
+                    }
+                    4 -> { // глаза — белки
+                        try { mat.setParameter("baseColorFactor", 0.95f, 0.95f, 0.95f, 1f) } catch (_: Exception) {}
+                        try { mat.setParameter("roughnessFactor", 0.05f) } catch (_: Exception) {}
+                    }
+                }
+            }
+        }
+    }
     val currentMorphWeights  by rememberUpdatedState(morphWeights)
     val currentPitch         by rememberUpdatedState(headPitch)
     val currentYaw           by rememberUpdatedState(headYaw)
