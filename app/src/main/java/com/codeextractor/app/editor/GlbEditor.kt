@@ -925,6 +925,9 @@ class GlbTextureEditor(private val context: Context) {
 
     fun ensureSourceInCache(assetPath: String): File {
         val f = File(context.cacheDir, "source_for_edit.glb")
+        if (f.exists()) {
+            f.delete()
+        }
         if (!f.exists()) {
             context.assets.open(assetPath).use { inp -> f.outputStream().use { out -> inp.copyTo(out) } }
         }
