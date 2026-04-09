@@ -49,10 +49,6 @@ private const val SCALE = 0.35f
 // preparePatchedModel() сбрасывает их в нейтральные значения в JSON,
 // а здесь мы выставляем правильный цвет через setParameter.
 // ─────────────────────────────────────────────────────────────────
-private const val SKIN_R_LINEAR = 0.491f
-private const val SKIN_G_LINEAR = 0.270f
-private const val SKIN_B_LINEAR = 0.118f
-
 @Composable
 fun AvatarScene(
     modifier: Modifier = Modifier,
@@ -103,9 +99,7 @@ fun AvatarScene(
             for (prim in 0 until primCount) {
                 val mat = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
                 when (morphCount) {
-                    51 -> { // голова — тёплый цвет кожи в линейном пространстве
-                        try { mat.setParameter("baseColorFactor",
-                            SKIN_R_LINEAR, SKIN_G_LINEAR, SKIN_B_LINEAR, 1f) } catch (_: Exception) {}
+                    51 -> { // голова
                         try { mat.setParameter("roughnessFactor", 0.6f) } catch (_: Exception) {}
                         try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
                     }
