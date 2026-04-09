@@ -633,22 +633,27 @@ class GlbTextureEditor(private val context: Context) {
             val mi = headMaterialInstance ?: return@postGpuOp
             if (composite.isRecycled) return@postGpuOp
 
-            headCompositeTexture?.let { old ->
-                texturePool.remove(old)
-                try { engine.destroyTexture(old) } catch (_: Exception) {}
-            }
+            // Снимок битмапа — чтобы следующий вызов compositeAndUploadHead
+            // не испортил данные до того как GL-тред прочитает их
+            val uploadBmp = composite.copy(Bitmap.Config.ARGB_8888, false)
 
-            val mipLevels = (kotlin.math.log2(TEX_SIZE.toFloat())).toInt() + 1
-            val usage = Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
-                    Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
-            val tex = Texture.Builder()
-                .width(TEX_SIZE).height(TEX_SIZE).levels(mipLevels)
-                .sampler(Texture.Sampler.SAMPLER_2D)
-                .format(Texture.InternalFormat.SRGB8_A8)
-                .usage(usage)
-                .build(engine)
-            headCompositeTexture = tex
-            texturePool.add(tex)
+            // ВАЖНО: НЕ уничтожаем старую текстуру — Filament рендер ещё держит на неё ссылку.
+            // Создаём один раз, потом только обновляем содержимое.
+            val tex = headCompositeTexture ?: run {
+                val mipLevels = (kotlin.math.log2(TEX_SIZE.toFloat())).toInt() + 1
+                val usage = Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
+                        Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
+                Texture.Builder()
+                    .width(TEX_SIZE).height(TEX_SIZE).levels(mipLevels)
+                    .sampler(Texture.Sampler.SAMPLER_2D)
+                    .format(Texture.InternalFormat.SRGB8_A8)
+                    .usage(usage)
+                    .build(engine)
+                    .also {
+                        headCompositeTexture = it
+                        texturePool.add(it)
+                    }
+            }
 
             try {
                 val sampler = TextureSampler().apply {
@@ -657,13 +662,15 @@ class GlbTextureEditor(private val context: Context) {
                     setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
                     setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
                 }
-                TextureHelper.setBitmap(engine, tex, 0, composite)
+                TextureHelper.setBitmap(engine, tex, 0, uploadBmp)
                 tex.generateMipmaps(engine)
                 mi.setParameter("baseColorMap", tex, sampler)
                 safeSet4f(mi, "baseColorFactor", 1f, 1f, 1f, 1f)
-                Log.d(TAG, "Head composite RECREATED (bg=${Integer.toHexString(bgColor)})")
+                Log.d(TAG, "Head composite UPLOADED OK")
             } catch (e: Exception) {
                 Log.e(TAG, "Head composite upload FAILED", e)
+            } finally {
+                uploadBmp.recycle()
             }
         }
     }
