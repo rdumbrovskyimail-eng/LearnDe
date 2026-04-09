@@ -138,7 +138,7 @@ class GlbTextureEditor(private val context: Context) {
     private var headCompositeBitmap: Bitmap? = null
     private var headCompositeTexture: Texture? = null
     private var headMaterialInstance: MaterialInstance? = null
-    private var headBgColor: Int = android.graphics.Color.rgb(232, 210, 185)
+    private var headBgColor: Int = android.graphics.Color.rgb(220, 187, 155)
 
     // ── Переиспользуемые объекты ──
     private val workMatrix = Matrix()
@@ -423,7 +423,9 @@ class GlbTextureEditor(private val context: Context) {
                 ElementType.HEAD_ZONE -> {
                     // Все зоны головы используют один MI — настраиваем один раз
                     if (elem.headZone == HeadZone.FACE_FRONT) {
+                        elem.currentR = 0.86f; elem.currentG = 0.73f; elem.currentB = 0.61f
                         elem.currentRoughness = 0.55f; elem.currentMetallic = 0f
+                        safeSet4f(mi, "baseColorFactor", 0.86f, 0.73f, 0.61f, 1f)
                         safeSet1f(mi, "roughnessFactor", 0.55f)
                         safeSet1f(mi, "metallicFactor", 0f)
                     }
@@ -594,8 +596,10 @@ class GlbTextureEditor(private val context: Context) {
         val compositeCanvas = Canvas(composite)
         compositeCanvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
+        val skinDefault = android.graphics.Color.rgb(220, 187, 155)
         val bgColor = if (headBgColor != android.graphics.Color.TRANSPARENT) headBgColor
-                      else android.graphics.Color.WHITE
+                      else skinDefault
+
         compositeCanvas.drawColor(bgColor)
 
         val zoneBuf = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
