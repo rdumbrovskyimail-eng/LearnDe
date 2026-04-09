@@ -725,20 +725,21 @@ class GlbTextureEditor(private val context: Context) {
         headBgColor = color
         if (headMaterialInstance == null) return
 
+        // 1. Composite для головы (внутри postGpuOp ставит baseColorFactor=1,1,1,1 на headMI)
+        ensureHeadCompositeTexture(engine)
+        compositeAndUploadHead(engine)
+
+        // 2. ПОСЛЕ composite — красим все остальные MI (тело, плечи и т.д.)
         val r = android.graphics.Color.red(color) / 255f
         val g = android.graphics.Color.green(color) / 255f
         val b = android.graphics.Color.blue(color) / 255f
-
-        // Красим ВСЕ material instances модели (тело, шея, и т.д.)
         postGpuOp {
             for (mi in allMaterialInstances) {
-                safeSet4f(mi, "baseColorFactor", r, g, b, 1f)
+                if (mi !== headMaterialInstance) {
+                    safeSet4f(mi, "baseColorFactor", r, g, b, 1f)
+                }
             }
         }
-
-        // Перерисовываем composite головы с фоном
-        ensureHeadCompositeTexture(engine)
-        compositeAndUploadHead(engine)
     }
 
     fun getHeadBgColor(): Int = headBgColor
