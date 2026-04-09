@@ -402,6 +402,11 @@ class GlbTextureEditor(private val context: Context) {
         // Настройка PBR
         elements.forEach { elem -> setupPBR(elem) }
 
+        Log.d(TAG, "=== SCAN RESULT ===")
+        Log.d(TAG, "  bodyMIs: ${bodyMaterialInstances.size}")
+        Log.d(TAG, "  headMI: ${headMaterialInstance != null}")
+        Log.d(TAG, "  elements: ${elements.size}")
+
         Log.d(TAG, "Total elements: ${elements.size}")
         return elements.toList()
     }
