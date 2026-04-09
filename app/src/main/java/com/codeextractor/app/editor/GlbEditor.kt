@@ -333,10 +333,13 @@ class GlbTextureEditor(private val context: Context) {
 
             for (prim in 0 until primCount) {
                 val mi = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
+                val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
+
+                // Собираем ВСЕ MI модели для заливки фона
                 if (!allMaterialInstances.contains(mi)) {
                     allMaterialInstances.add(mi)
+                    Log.d(TAG, "Collected MI: entity=$entity, morph=$morphCount")
                 }
-                val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
 
                 when (morphCount) {
                     51 -> {
@@ -736,7 +739,6 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     private fun repaintBodyMeshes() {
-        if (headBgColor == android.graphics.Color.TRANSPARENT && headBgColor != android.graphics.Color.WHITE) return
         val color = if (headBgColor != android.graphics.Color.TRANSPARENT) headBgColor
                     else android.graphics.Color.WHITE
         val r = android.graphics.Color.red(color) / 255f
@@ -748,6 +750,7 @@ class GlbTextureEditor(private val context: Context) {
                     safeSet4f(mi, "baseColorFactor", r, g, b, 1f)
                 }
             }
+            Log.d(TAG, "repaintBody: ${allMaterialInstances.size} total MI, color=#${Integer.toHexString(color)}")
         }
     }
 
