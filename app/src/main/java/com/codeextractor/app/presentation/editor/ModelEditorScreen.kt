@@ -184,7 +184,7 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                 // Явно применить цвет кожи как фон головы (на случай гонки GPU-очереди)
                 editor.setHeadBackgroundColor(
                     engine,
-                    android.graphics.Color.rgb(220, 187, 155)
+                    GlbTextureEditor.SKIN_COLOR_SRGB
                 )
                 Log.d("GLB_EDITOR", "Scan: ${elements.size} elements")
             } catch (e: Exception) {
