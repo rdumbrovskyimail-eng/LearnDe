@@ -76,6 +76,10 @@ fun AvatarScene(
             // Патченный файл создаётся при первом запуске редактора.
             // Если его ещё нет (пользователь открыл AvatarScene первым) — патчим сами.
             val patchedFile = File(ctx.cacheDir, "patched_model.glb")
+            // Принудительно удаляем старый кэш при загрузке
+            if (patchedFile.exists()) {
+                patchedFile.delete()
+            }
             if (!patchedFile.exists() || patchedFile.length() == 0L) {
                 GlbTextureEditor(ctx).preparePatchedModel(MODEL_PATH)
             }
