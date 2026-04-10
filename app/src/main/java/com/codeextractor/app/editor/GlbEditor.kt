@@ -746,6 +746,8 @@ class GlbTextureEditor(private val context: Context) {
 
     fun getHeadBgColor(): Int = headBgColor
 
+    fun getHeadCompositeBitmap(): android.graphics.Bitmap? = headCompositeBitmap
+
     private fun saveRuntimeBitmap(bitmap: Bitmap?, fileName: String) {
         if (bitmap == null || bitmap.isRecycled) return
         try {
