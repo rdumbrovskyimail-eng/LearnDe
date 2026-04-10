@@ -72,16 +72,14 @@ fun AvatarScene(
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
 
     LaunchedEffect(modelLoader) {
-        val file = withContext(Dispatchers.IO) {
-            val f = java.io.File(ctx.cacheDir, "test_model.glb")
-            ctx.assets.open(MODEL_PATH).use { inp ->
-                f.outputStream().use { out -> inp.copyTo(out) }
-            }
-            f
+        val buffer = withContext(Dispatchers.IO) {
+            val bytes = ctx.assets.open(MODEL_PATH).use { it.readBytes() }
+            ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
         }
-        modelInstance = modelLoader.loadModelInstance(file.path)
+        modelInstance = modelLoader.createModelInstance(buffer)
     }
 
+    /*
     // Применяем цвет кожи после загрузки модели
     LaunchedEffect(modelInstance) {
         val mi = modelInstance ?: return@LaunchedEffect
@@ -114,6 +112,7 @@ fun AvatarScene(
             }
         }
     }
+    */
 
     val currentMorphWeights by rememberUpdatedState(morphWeights)
     val currentPitch by rememberUpdatedState(headPitch)
