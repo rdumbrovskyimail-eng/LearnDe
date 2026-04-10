@@ -226,6 +226,31 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         }
     }
 
+    val saveTextureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png")
+    ) { uri: Uri? ->
+        uri ?: return@rememberLauncherForActivityResult
+        isSaving = true
+        scope.launch(Dispatchers.IO) {
+            try {
+                val bmp = editor.getHeadCompositeBitmap()
+                val ok = if (bmp != null && !bmp.isRecycled) {
+                    ctx.contentResolver.openOutputStream(uri)?.use { out ->
+                        bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                    } ?: false
+                } else false
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(ctx, if (ok) "Текстура сохранена!" else "Нет текстуры", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(ctx, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+            isSaving = false
+        }
+    }
+
     DisposableEffect(Unit) { onDispose { editor.destroy(engine) } }
 
     LaunchedEffect(Unit) {
@@ -242,15 +267,11 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    TextButton(
-                        onClick = { saveLauncher.launch("edited_model.glb") },
-                        enabled = !isSaving
-                    ) {
-                        Text(
-                            if (isSaving) "..." else "Сохранить",
-                            color = if (isSaving) Color.Gray else Color(0xFF4CAF50),
-                            fontWeight = FontWeight.Bold
-                        )
+                    TextButton(onClick = { saveLauncher.launch("edited_model.glb") }, enabled = !isSaving) {
+                        Text(if (isSaving) "..." else "GLB", color = if (isSaving) Color.Gray else Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(onClick = { saveTextureLauncher.launch("head_texture.png") }, enabled = !isSaving) {
+                        Text(if (isSaving) "..." else "TEX", color = if (isSaving) Color.Gray else Color(0xFF2196F3), fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF12121A))
