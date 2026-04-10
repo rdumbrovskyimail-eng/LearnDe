@@ -38,16 +38,11 @@ import java.nio.ByteBuffer
 
 private const val TAG = "AvatarScene"
 private const val MODEL_PATH = "models/source_named.glb"
+private const val HEAD_TEXTURE_PATH = "models/head_texture.png"
 
 private val CAM_POS = Float3(0f, 1.35f, 0.7f)
 private val CAM_TGT = Float3(0f, 1.35f, 0f)
 private const val SCALE = 0.35f
-
-// Имена файлов runtime-текстур (должны совпадать с GlbTextureEditor)
-private const val RT_HEAD = "runtime_head_texture.png"
-private const val RT_EYE_L = "runtime_tex_eyeLeft.png"
-private const val RT_EYE_R = "runtime_tex_eyeRight.png"
-private const val RT_TEETH = "runtime_tex_teeth.png"
 
 @Composable
 fun AvatarScene(
@@ -65,9 +60,6 @@ fun AvatarScene(
 
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
 
-    // Список runtime-текстур для очистки при dispose
-    val runtimeTextures = remember { mutableListOf<Texture>() }
-
     // Загружаем патченную модель (dummy белая текстура → полный PBR шейдер)
     LaunchedEffect(modelLoader) {
         val buffer = withContext(Dispatchers.IO) {
@@ -82,12 +74,11 @@ fun AvatarScene(
         modelInstance = modelLoader.createModelInstance(buffer)
     }
 
-    // После загрузки модели: применяем PBR + runtime-текстуры
+    // После загрузки: PBR + текстура из assets
     LaunchedEffect(modelInstance) {
         val mi = modelInstance ?: return@LaunchedEffect
         val rm = engine.renderableManager
 
-        // Собираем информацию о мешах по morph count
         var headMat: MaterialInstance? = null
         var teethMat: MaterialInstance? = null
         var eyeLMat: MaterialInstance? = null
@@ -99,58 +90,66 @@ fun AvatarScene(
             val ri = rm.getInstance(entity)
             val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
             val primCount = rm.getPrimitiveCount(ri)
-
             for (prim in 0 until primCount) {
                 val mat = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
                 when (morphCount) {
                     51 -> headMat = mat
                     5 -> teethMat = mat
-                    4 -> {
-                        eyeCount++
-                        if (eyeCount == 1) eyeLMat = mat else eyeRMat = mat
-                    }
+                    4 -> { eyeCount++; if (eyeCount == 1) eyeLMat = mat else eyeRMat = mat }
                 }
             }
         }
 
-        // ── PBR-параметры (базовые, без текстур) ──
-        headMat?.let { mat ->
-            try { mat.setParameter("roughnessFactor", 0.6f) } catch (_: Exception) {}
-            try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
+        // PBR-параметры
+        headMat?.let {
+            try { it.setParameter("roughnessFactor", 0.6f) } catch (_: Exception) {}
+            try { it.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
         }
-        teethMat?.let { mat ->
-            try { mat.setParameter("baseColorFactor", 0.88f, 0.84f, 0.75f, 1f) } catch (_: Exception) {}
-            try { mat.setParameter("roughnessFactor", 0.2f) } catch (_: Exception) {}
-            try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
+        teethMat?.let {
+            try { it.setParameter("baseColorFactor", 0.88f, 0.84f, 0.75f, 1f) } catch (_: Exception) {}
+            try { it.setParameter("roughnessFactor", 0.2f) } catch (_: Exception) {}
+            try { it.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
         }
-        eyeLMat?.let { mat ->
-            try { mat.setParameter("baseColorFactor", 0.92f, 0.92f, 0.92f, 1f) } catch (_: Exception) {}
-            try { mat.setParameter("roughnessFactor", 0.05f) } catch (_: Exception) {}
-            try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
-        }
-        eyeRMat?.let { mat ->
-            try { mat.setParameter("baseColorFactor", 0.92f, 0.92f, 0.92f, 1f) } catch (_: Exception) {}
-            try { mat.setParameter("roughnessFactor", 0.05f) } catch (_: Exception) {}
-            try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
+        listOf(eyeLMat, eyeRMat).filterNotNull().forEach {
+            try { it.setParameter("baseColorFactor", 0.92f, 0.92f, 0.92f, 1f) } catch (_: Exception) {}
+            try { it.setParameter("roughnessFactor", 0.05f) } catch (_: Exception) {}
+            try { it.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
         }
 
-        // ── Runtime-текстуры из кэша ──
-        withContext(Dispatchers.IO) {
-            // Голова
-            headMat?.let { mat ->
-                applyRuntimeTexture(engine, mat, File(ctx.cacheDir, RT_HEAD), false, runtimeTextures)
-            }
-            // Зубы
-            teethMat?.let { mat ->
-                applyRuntimeTexture(engine, mat, File(ctx.cacheDir, RT_TEETH), false, runtimeTextures)
-            }
-            // Глаз левый
-            eyeLMat?.let { mat ->
-                applyRuntimeTexture(engine, mat, File(ctx.cacheDir, RT_EYE_L), true, runtimeTextures)
-            }
-            // Глаз правый
-            eyeRMat?.let { mat ->
-                applyRuntimeTexture(engine, mat, File(ctx.cacheDir, RT_EYE_R), true, runtimeTextures)
+        // Текстура головы из assets
+        headMat?.let { mat ->
+            try {
+                val bmp = ctx.assets.open(HEAD_TEXTURE_PATH).use { stream ->
+                    BitmapFactory.decodeStream(stream)
+                }
+                if (bmp != null) {
+                    val mipLevels = (kotlin.math.log2(bmp.width.toFloat())).toInt() + 1
+                    val tex = Texture.Builder()
+                        .width(bmp.width).height(bmp.height).levels(mipLevels)
+                        .sampler(Texture.Sampler.SAMPLER_2D)
+                        .format(Texture.InternalFormat.SRGB8_A8)
+                        .usage(Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
+                                Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE)
+                        .build(engine)
+
+                    val sampler = TextureSampler().apply {
+                        setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
+                        setMagFilter(TextureSampler.MagFilter.LINEAR)
+                        setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+                        setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+                    }
+
+                    TextureHelper.setBitmap(engine, tex, 0, bmp)
+                    tex.generateMipmaps(engine)
+                    mat.setParameter("baseColorMap", tex, sampler)
+                    mat.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
+                    bmp.recycle()
+                    Log.d(TAG, "Head texture applied from assets")
+                }
+            } catch (e: java.io.FileNotFoundException) {
+                Log.d(TAG, "No head_texture.png in assets — using default")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load head texture", e)
             }
         }
     }
@@ -160,9 +159,7 @@ fun AvatarScene(
     val currentYaw by rememberUpdatedState(headYaw)
     val currentRoll by rememberUpdatedState(headRoll)
 
-    val cameraNode = rememberCameraNode(engine) {
-        position = CAM_POS
-    }
+    val cameraNode = rememberCameraNode(engine) { position = CAM_POS }
 
     Box(modifier = modifier.background(Color.Black)) {
         Scene(
@@ -194,7 +191,6 @@ fun AvatarScene(
             }
         }
 
-        // Индикатор загрузки
         if (modelInstance == null) {
             androidx.compose.material3.CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center),
@@ -204,66 +200,15 @@ fun AvatarScene(
     }
 }
 
-/**
- * Загружает PNG из файла и применяет как baseColorMap на MaterialInstance.
- * Вызывается с IO-диспетчера.
- */
-private fun applyRuntimeTexture(
-    engine: Engine,
-    mat: MaterialInstance,
-    file: File,
-    isEye: Boolean,
-    pool: MutableList<Texture>,
-) {
-    if (!file.exists() || file.length() == 0L) return
-
-    try {
-        val bmp = BitmapFactory.decodeFile(file.absolutePath) ?: return
-        val w = bmp.width; val h = bmp.height
-
-        val mipLevels = (kotlin.math.log2(w.toFloat())).toInt() + 1
-        val usage = Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
-                Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
-
-        val tex = Texture.Builder()
-            .width(w).height(h).levels(mipLevels)
-            .sampler(Texture.Sampler.SAMPLER_2D)
-            .format(Texture.InternalFormat.SRGB8_A8)
-            .usage(usage)
-            .build(engine)
-        pool.add(tex)
-
-        val sampler = TextureSampler().apply {
-            setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
-            setMagFilter(TextureSampler.MagFilter.LINEAR)
-            val wrap = if (isEye) TextureSampler.WrapMode.REPEAT
-            else TextureSampler.WrapMode.CLAMP_TO_EDGE
-            setWrapModeS(wrap); setWrapModeT(wrap)
-        }
-
-        TextureHelper.setBitmap(engine, tex, 0, bmp)
-        tex.generateMipmaps(engine)
-        mat.setParameter("baseColorMap", tex, sampler)
-        mat.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
-
-        bmp.recycle()
-        Log.d(TAG, "Runtime texture applied: ${file.name} (${w}x${h})")
-    } catch (e: Exception) {
-        Log.e(TAG, "Failed to apply runtime texture: ${file.name}", e)
-    }
-}
-
 private fun applyMorphsInternal(
     engine: com.google.android.filament.Engine,
     instance: io.github.sceneview.model.ModelInstance,
     headW: FloatArray,
 ) {
     val rm = engine.renderableManager
-
     val teethW = floatArrayOf(headW[14], headW[15], headW[16], headW[17], headW[18])
     val eyeLW  = floatArrayOf(headW[1], headW[2], headW[3], headW[4])
     val eyeRW  = floatArrayOf(headW[8], headW[9], headW[10], headW[11])
-
     var eye4 = 0
     instance.entities
         .filter { rm.hasComponent(it) }
