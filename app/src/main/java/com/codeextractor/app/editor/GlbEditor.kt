@@ -130,6 +130,11 @@ class GlbTextureEditor(private val context: Context) {
 
         // Целевой цвет кожи (sRGB) для bitmap-композитора
         val SKIN_COLOR_SRGB = android.graphics.Color.rgb(185, 142, 96)
+
+        const val RT_HEAD = "runtime_head_texture.png"
+        const val RT_EYE_L = "runtime_tex_eyeLeft.png"
+        const val RT_EYE_R = "runtime_tex_eyeRight.png"
+        const val RT_TEETH = "runtime_tex_teeth.png"
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -512,6 +517,15 @@ class GlbTextureEditor(private val context: Context) {
 
             elem.hasCustomTexture = true
             renderSeparateMeshBitmap(elem)
+
+            val rtName = when (elem.type) {
+                ElementType.EYE_LEFT -> RT_EYE_L
+                ElementType.EYE_RIGHT -> RT_EYE_R
+                ElementType.TEETH -> RT_TEETH
+                else -> null
+            }
+            if (rtName != null) saveRuntimeBitmap(elem.displayBitmap, rtName)
+
             postGpuOp { uploadSeparateMeshTexture(engine, elem) }
             true
         } catch (e: Exception) {
@@ -600,6 +614,8 @@ class GlbTextureEditor(private val context: Context) {
             compositeCanvas.drawBitmap(zoneBuf, 0f, 0f, srcPaint)
         }
         zoneBuf.recycle()
+
+        saveRuntimeBitmap(composite, RT_HEAD)
 
         // Захватываем текущий flushCount для замыкания
         val capturedFlushCount = flushCount
@@ -729,6 +745,19 @@ class GlbTextureEditor(private val context: Context) {
     }
 
     fun getHeadBgColor(): Int = headBgColor
+
+    private fun saveRuntimeBitmap(bitmap: Bitmap?, fileName: String) {
+        if (bitmap == null || bitmap.isRecycled) return
+        try {
+            val file = File(context.cacheDir, fileName)
+            file.outputStream().use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            Log.d(TAG, "Runtime texture saved: $fileName (${bitmap.width}x${bitmap.height})")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save runtime texture: $fileName", e)
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════
     //  LABELS
