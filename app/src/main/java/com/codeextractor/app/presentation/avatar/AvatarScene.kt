@@ -72,11 +72,7 @@ fun AvatarScene(
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
 
     LaunchedEffect(modelLoader) {
-        val buffer = withContext(Dispatchers.IO) {
-            val bytes = ctx.assets.open(MODEL_PATH).use { it.readBytes() }
-            ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
-        }
-        modelInstance = modelLoader.createModelInstance(buffer)
+        modelInstance = modelLoader.loadModelInstance(MODEL_PATH)
     }
 
     /*
