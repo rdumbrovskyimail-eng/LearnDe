@@ -147,17 +147,17 @@ fun AvatarScene(
             setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
         }
 
-        // 👇=== КРАСИМ РОТ ЗДЕСЬ (Теперь whiteTex и defaultSampler доступны!) ===👇
+        // 👇=== КРАСИМ РОТ ЗДЕСЬ (ТЕПЕРЬ ТЁМНО-РОЗОВЫЙ) ===👇
         mouthMaterials.forEach { mat ->
             try {
                 // Принудительно ставим белую текстуру, чтобы цвет наложился идеально
                 mat.setParameter("baseColorMap", whiteTex, defaultSampler)
-                mat.setParameter("baseColorFactor", 0.85f, 0.45f, 0.38f, 1f) // Цвет полости рта (коралловый)
-                mat.setParameter("roughnessFactor", 0.85f) // Делаем рот матовым, без бликов
+                mat.setParameter("baseColorFactor", 0.70f, 0.25f, 0.35f, 1f) // ← ТЁМНО-РОЗОВЫЙ
+                mat.setParameter("roughnessFactor", 0.85f)
                 mat.setParameter("metallicFactor", 0f)
             } catch (_: Exception) {}
         }
-        // 👆========================================================================👆
+        // 👆===================================================👆
 
         // ════════════════════════════════════════════════════════
         // ГОЛОВА (51 morph) — head_texture.png
