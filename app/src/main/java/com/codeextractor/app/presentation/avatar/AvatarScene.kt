@@ -104,56 +104,79 @@ fun AvatarScene(
             }
         }
 
-        // PBR-параметры
+        // PBR
         headMat?.let {
             try { it.setParameter("roughnessFactor", 0.6f) } catch (_: Exception) {}
             try { it.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
         }
         teethMat?.let {
-            try { it.setParameter("baseColorFactor", 0.88f, 0.84f, 0.75f, 1f) } catch (_: Exception) {}
             try { it.setParameter("roughnessFactor", 0.2f) } catch (_: Exception) {}
             try { it.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
         }
         listOf(eyeLMat, eyeRMat).filterNotNull().forEach {
-            try { it.setParameter("baseColorFactor", 0.92f, 0.92f, 0.92f, 1f) } catch (_: Exception) {}
             try { it.setParameter("roughnessFactor", 0.05f) } catch (_: Exception) {}
             try { it.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
         }
 
-        // Текстура головы из assets
+        // ── Голова + рот (композит на один материал) ──
         headMat?.let { mat ->
             try {
-                val bmp = ctx.assets.open(HEAD_TEXTURE_PATH).use { stream ->
-                    BitmapFactory.decodeStream(stream)
-                }
-                if (bmp != null) {
-                    val mipLevels = (kotlin.math.log2(bmp.width.toFloat())).toInt() + 1
-                    val tex = Texture.Builder()
-                        .width(bmp.width).height(bmp.height).levels(mipLevels)
-                        .sampler(Texture.Sampler.SAMPLER_2D)
-                        .format(Texture.InternalFormat.SRGB8_A8)
-                        .usage(Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
-                                Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE)
-                        .build(engine)
+                val headBmp = ctx.assets.open(HEAD_TEXTURE_PATH).use { BitmapFactory.decodeStream(it) }
+                    ?: return@let
 
-                    val sampler = TextureSampler().apply {
-                        setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
-                        setMagFilter(TextureSampler.MagFilter.LINEAR)
-                        setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
-                        setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
-                    }
+                // Пробуем загрузить рот и маску, композитим поверх головы
+                val mouthBmp = try {
+                    ctx.assets.open(MOUTH_TEXTURE_PATH).use { BitmapFactory.decodeStream(it) }
+                } catch (_: Exception) { null }
 
-                    TextureHelper.setBitmap(engine, tex, 0, bmp)
-                    tex.generateMipmaps(engine)
-                    mat.setParameter("baseColorMap", tex, sampler)
-                    mat.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
-                    bmp.recycle()
-                    Log.d(TAG, "Head texture applied from assets")
+                val compositeBmp = if (mouthBmp != null) {
+                    val mouthMask = try {
+                        ctx.assets.open(MOUTH_MASK_PATH).use { BitmapFactory.decodeStream(it) }
+                    } catch (_: Exception) { null }
+
+                    compositeHeadAndMouth(headBmp, mouthBmp, mouthMask)
+                        .also { mouthBmp.recycle(); mouthMask?.recycle() }
+                } else headBmp
+
+                applyTextureToMaterial(engine, mat, compositeBmp)
+                compositeBmp.recycle()
+                if (compositeBmp !== headBmp) headBmp.recycle()
+                Log.d(TAG, "Head+Mouth texture applied")
+            } catch (e: Exception) {
+                Log.e(TAG, "Head texture failed", e)
+            }
+        }
+
+        // ── Глаза (одна текстура на оба) ──
+        val eyeMats = listOf(eyeLMat, eyeRMat).filterNotNull()
+        if (eyeMats.isNotEmpty()) {
+            try {
+                val eyesBmp = ctx.assets.open(EYES_TEXTURE_PATH).use { BitmapFactory.decodeStream(it) }
+                if (eyesBmp != null) {
+                    eyeMats.forEach { mat -> applyTextureToMaterial(engine, mat, eyesBmp) }
+                    eyesBmp.recycle()
+                    Log.d(TAG, "Eyes texture applied")
                 }
             } catch (e: java.io.FileNotFoundException) {
-                Log.d(TAG, "No head_texture.png in assets — using default")
+                Log.d(TAG, "No eyes_texture.png — using default white")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to load head texture", e)
+                Log.e(TAG, "Eyes texture failed", e)
+            }
+        }
+
+        // ── Зубы ──
+        teethMat?.let { mat ->
+            try {
+                val teethBmp = ctx.assets.open(TEETH_TEXTURE_PATH).use { BitmapFactory.decodeStream(it) }
+                if (teethBmp != null) {
+                    applyTextureToMaterial(engine, mat, teethBmp)
+                    teethBmp.recycle()
+                    Log.d(TAG, "Teeth texture applied")
+                }
+            } catch (e: java.io.FileNotFoundException) {
+                Log.d(TAG, "No teeth_texture.png — using default")
+            } catch (e: Exception) {
+                Log.e(TAG, "Teeth texture failed", e)
             }
         }
     }
