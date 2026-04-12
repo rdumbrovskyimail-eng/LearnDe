@@ -39,6 +39,10 @@ import java.nio.ByteBuffer
 private const val TAG = "AvatarScene"
 private const val MODEL_PATH = "models/source_named.glb"
 private const val HEAD_TEXTURE_PATH = "models/head_texture.png"
+private const val EYES_TEXTURE_PATH = "models/eyes_texture.png"
+private const val MOUTH_TEXTURE_PATH = "models/mouth_texture.png"
+private const val TEETH_TEXTURE_PATH = "models/teeth_texture.png"
+private const val MOUTH_MASK_PATH = "masks/mouth_inner.png"
 
 private val CAM_POS = Float3(0f, 1.35f, 0.7f)
 private val CAM_TGT = Float3(0f, 1.35f, 0f)
