@@ -748,6 +748,24 @@ class GlbTextureEditor(private val context: Context) {
 
     fun getHeadCompositeBitmap(): android.graphics.Bitmap? = headCompositeBitmap
 
+    fun getEyesBitmap(): Bitmap? {
+        // Берём левый глаз (правый — зеркальная копия той же текстуры)
+        return elements.firstOrNull { it.type == ElementType.EYE_LEFT }?.displayBitmap
+            ?: elements.firstOrNull { it.type == ElementType.EYE_RIGHT }?.displayBitmap
+    }
+
+    fun getMouthBitmap(): Bitmap? {
+        val zone = elements.firstOrNull {
+            it.type == ElementType.HEAD_ZONE && it.headZone == HeadZone.MOUTH_INNER
+        } ?: return null
+        val zd = zoneDataMap[HeadZone.MOUTH_INNER] ?: return null
+        return zd.sourceBitmap
+    }
+
+    fun getTeethBitmap(): Bitmap? {
+        return elements.firstOrNull { it.type == ElementType.TEETH }?.displayBitmap
+    }
+
     private fun saveRuntimeBitmap(bitmap: Bitmap?, fileName: String) {
         if (bitmap == null || bitmap.isRecycled) return
         try {
