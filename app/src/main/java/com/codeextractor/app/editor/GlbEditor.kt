@@ -344,32 +344,49 @@ class GlbTextureEditor(private val context: Context) {
             for (prim in 0 until primCount) {
                 val mi = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
                 val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
+                val matName = mi.name?.lowercase() ?: ""
 
+                // 1. Изолируем полость рта для редактора
+                if (matName.contains("mouth") || matName.contains("cavity") || matName.contains("tongue")) {
+                    postGpuOp {
+                        safeSet4f(mi, "baseColorFactor", 0.85f, 0.45f, 0.38f, 1f)
+                        safeSet1f(mi, "roughnessFactor", 0.8f)
+                    }
+                    continue // Обязательно пропускаем!
+                }
+
+                // 2. Добавляем элементы безопасно (только если это первый примитив)
                 when (morphCount) {
                     51 -> {
-                        headEntity = entity
-                        headRI = ri
-                        headMI = mi
-                        headMaterialInstance = mi
-                        Log.d(TAG, "Head mesh: entity=$entity")
+                        if (headMI == null) { // Защита от перезаписи
+                            headEntity = entity
+                            headRI = ri
+                            headMI = mi
+                            headMaterialInstance = mi
+                            Log.d(TAG, "Head mesh: entity=$entity, material=$matName")
+                        }
                     }
                     5 -> {
-                        elements.add(EditableElement(
-                            entity = entity, renderableInstance = ri,
-                            primitiveIndex = prim, meshName = "teeth_ORIGINAL",
-                            materialInstance = mi, type = ElementType.TEETH,
-                        ))
+                        if (prim == 0) { // Защита от дублирования
+                            elements.add(EditableElement(
+                                entity = entity, renderableInstance = ri,
+                                primitiveIndex = prim, meshName = "teeth_ORIGINAL",
+                                materialInstance = mi, type = ElementType.TEETH,
+                            ))
+                        }
                     }
                     4 -> {
-                        eyeCounter++
-                        val isLeft = eyeCounter == 1
-                        elements.add(EditableElement(
-                            entity = entity, renderableInstance = ri,
-                            primitiveIndex = prim,
-                            meshName = if (isLeft) "eyeLeft_ORIGINAL" else "eyeRight_ORIGINAL",
-                            materialInstance = mi,
-                            type = if (isLeft) ElementType.EYE_LEFT else ElementType.EYE_RIGHT,
-                        ))
+                        if (prim == 0) { // Защита от дублирования
+                            eyeCounter++
+                            val isLeft = eyeCounter == 1
+                            elements.add(EditableElement(
+                                entity = entity, renderableInstance = ri,
+                                primitiveIndex = prim,
+                                meshName = if (isLeft) "eyeLeft_ORIGINAL" else "eyeRight_ORIGINAL",
+                                materialInstance = mi,
+                                type = if (isLeft) ElementType.EYE_LEFT else ElementType.EYE_RIGHT,
+                            ))
+                        }
                     }
                 }
             }
