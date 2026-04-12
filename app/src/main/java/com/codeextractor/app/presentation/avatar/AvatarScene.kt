@@ -227,6 +227,83 @@ fun AvatarScene(
     }
 }
 
+private fun applyTextureToMaterial(
+    engine: Engine,
+    mat: MaterialInstance,
+    bmp: android.graphics.Bitmap,
+) {
+    val mipLevels = (kotlin.math.log2(bmp.width.toFloat())).toInt() + 1
+    val tex = Texture.Builder()
+        .width(bmp.width).height(bmp.height).levels(mipLevels)
+        .sampler(Texture.Sampler.SAMPLER_2D)
+        .format(Texture.InternalFormat.SRGB8_A8)
+        .usage(
+            Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
+            Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
+        )
+        .build(engine)
+
+    val sampler = TextureSampler().apply {
+        setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
+        setMagFilter(TextureSampler.MagFilter.LINEAR)
+        setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+        setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+    }
+
+    TextureHelper.setBitmap(engine, tex, 0, bmp)
+    tex.generateMipmaps(engine)
+    mat.setParameter("baseColorMap", tex, sampler)
+    mat.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
+}
+
+private fun compositeHeadAndMouth(
+    headBmp: android.graphics.Bitmap,
+    mouthBmp: android.graphics.Bitmap,
+    mouthMask: android.graphics.Bitmap?,
+): android.graphics.Bitmap {
+    val w = headBmp.width
+    val h = headBmp.height
+    val result = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(result)
+
+    // Рисуем голову
+    canvas.drawBitmap(headBmp, 0f, 0f, null)
+
+    if (mouthMask != null) {
+        // Рот через маску: рисуем mouth в буфер, применяем маску, потом на голову
+        val mouthLayer = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        val mc = android.graphics.Canvas(mouthLayer)
+
+        // Масштабируем mouth до размера текстуры
+        val srcRect = android.graphics.RectF(0f, 0f, mouthBmp.width.toFloat(), mouthBmp.height.toFloat())
+        val dstRect = android.graphics.RectF(0f, 0f, w.toFloat(), h.toFloat())
+        val matrix = android.graphics.Matrix()
+        matrix.setRectToRect(srcRect, dstRect, android.graphics.Matrix.ScaleToFit.CENTER)
+        mc.drawBitmap(mouthBmp, matrix, null)
+
+        // Применяем маску
+        val maskScaled = android.graphics.Bitmap.createScaledBitmap(mouthMask, w, h, true)
+        val maskPaint = android.graphics.Paint().apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
+        }
+        mc.drawBitmap(maskScaled, 0f, 0f, maskPaint)
+        maskScaled.recycle()
+
+        // Рисуем замаскированный рот поверх головы
+        canvas.drawBitmap(mouthLayer, 0f, 0f, null)
+        mouthLayer.recycle()
+    } else {
+        // Без маски — просто поверх (не рекомендуется)
+        val srcRect = android.graphics.RectF(0f, 0f, mouthBmp.width.toFloat(), mouthBmp.height.toFloat())
+        val dstRect = android.graphics.RectF(0f, 0f, w.toFloat(), h.toFloat())
+        val matrix = android.graphics.Matrix()
+        matrix.setRectToRect(srcRect, dstRect, android.graphics.Matrix.ScaleToFit.CENTER)
+        canvas.drawBitmap(mouthBmp, matrix, null)
+    }
+
+    return result
+}
+
 private fun applyMorphsInternal(
     engine: com.google.android.filament.Engine,
     instance: io.github.sceneview.model.ModelInstance,
