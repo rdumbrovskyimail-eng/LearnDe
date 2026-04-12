@@ -89,33 +89,38 @@ fun AvatarScene(
         var eyeLMat: MaterialInstance? = null
         var eyeRMat: MaterialInstance? = null
         var eyeCount = 0
+        
+        // НОВОЕ: список для перехвата всех внутренних частей (рот, язык)
+        val mouthMaterials = mutableListOf<MaterialInstance>()
 
         for (entity in mi.entities) {
             if (!rm.hasComponent(entity)) continue
             val ri = rm.getInstance(entity)
             val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
+            
             for (prim in 0 until rm.getPrimitiveCount(ri)) {
                 val mat = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
                 val matName = mat.name?.lowercase() ?: ""
 
-                // 1. Изолируем полость рта и красим в розово-оранжевый (плоть)
-                if (matName.contains("mouth") || matName.contains("cavity") || matName.contains("tongue")) {
-                    try {
-                        mat.setParameter("baseColorFactor", 0.85f, 0.45f, 0.38f, 1f) // Цвет рта
-                        mat.setParameter("roughnessFactor", 0.8f) // Внутри рта меньше бликов
-                        mat.setParameter("metallicFactor", 0f)
-                    } catch (_: Exception) {}
-                    continue // Пропускаем, чтобы он не перезаписал кожу лица!
+                // ЖЕЛЕЗОБЕТОННЫЙ ПЕРЕХВАТ: ищем по имени ИЛИ по тому, что это 2-й слой (prim > 0)
+                val isMouth = matName.contains("mouth") || matName.contains("cavity") || matName.contains("tongue")
+                val isSecondaryLayer = (morphCount == 51 || morphCount == 5) && prim > 0
+
+                if (isMouth || isSecondaryLayer) {
+                    mouthMaterials.add(mat)
+                    continue // Пропускаем, чтобы рот случайно не стал лицом или зубами
                 }
 
-                // 2. Безопасное присвоение (берем только первый подходящий материал)
-                when (morphCount) {
-                    51 -> if (headMat == null) headMat = mat
-                    5 -> if (teethMat == null) teethMat = mat
-                    4 -> { 
-                        if (eyeCount == 0) eyeLMat = mat 
-                        else if (eyeCount == 1) eyeRMat = mat
-                        eyeCount++
+                // Основные материалы берем ТОЛЬКО с 0-го слоя
+                if (prim == 0) {
+                    when (morphCount) {
+                        51 -> headMat = mat
+                        5 -> teethMat = mat
+                        4 -> { 
+                            if (eyeCount == 0) eyeLMat = mat 
+                            else if (eyeCount == 1) eyeRMat = mat
+                            eyeCount++ 
+                        }
                     }
                 }
             }
@@ -123,10 +128,6 @@ fun AvatarScene(
 
         // ════════════════════════════════════════════════════════
         // Белая текстура-заглушка.
-        // SceneView НЕ загружает dummy текстуру из GLB binary chunk.
-        // Без реальной текстуры baseColorFactor ИГНОРИРУЕТСЯ.
-        // Поэтому если PNG файла нет — привязываем белую текстуру,
-        // и тогда baseColorFactor работает как цвет.
         // ════════════════════════════════════════════════════════
         val whiteBmp = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
         Canvas(whiteBmp).drawColor(android.graphics.Color.WHITE)
@@ -145,6 +146,18 @@ fun AvatarScene(
             setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
             setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
         }
+
+        // 👇=== КРАСИМ РОТ ЗДЕСЬ (Теперь whiteTex и defaultSampler доступны!) ===👇
+        mouthMaterials.forEach { mat ->
+            try {
+                // Принудительно ставим белую текстуру, чтобы цвет наложился идеально
+                mat.setParameter("baseColorMap", whiteTex, defaultSampler)
+                mat.setParameter("baseColorFactor", 0.85f, 0.45f, 0.38f, 1f) // Цвет полости рта (коралловый)
+                mat.setParameter("roughnessFactor", 0.85f) // Делаем рот матовым, без бликов
+                mat.setParameter("metallicFactor", 0f)
+            } catch (_: Exception) {}
+        }
+        // 👆========================================================================👆
 
         // ════════════════════════════════════════════════════════
         // ГОЛОВА (51 morph) — head_texture.png
