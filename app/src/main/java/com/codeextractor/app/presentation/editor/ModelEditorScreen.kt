@@ -226,21 +226,39 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         }
     }
 
-    val saveTextureLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("image/png")
-    ) { uri: Uri? ->
-        uri ?: return@rememberLauncherForActivityResult
+    val saveAllTexturesLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { treeUri: Uri? ->
+        treeUri ?: return@rememberLauncherForActivityResult
         isSaving = true
         scope.launch(Dispatchers.IO) {
             try {
-                val bmp = editor.getHeadCompositeBitmap()
-                val ok = if (bmp != null && !bmp.isRecycled) {
-                    ctx.contentResolver.openOutputStream(uri)?.use { out ->
+                val docUri = androidx.documentfile.provider.DocumentFile.fromTreeUri(ctx, treeUri)
+                    ?: throw Exception("Cannot open folder")
+
+                val textures = listOf(
+                    "head_texture.png" to editor.getHeadCompositeBitmap(),
+                    "eyes_texture.png" to editor.getEyesBitmap(),
+                    "mouth_texture.png" to editor.getMouthBitmap(),
+                    "teeth_texture.png" to editor.getTeethBitmap(),
+                )
+
+                var saved = 0
+                for ((name, bmp) in textures) {
+                    if (bmp == null || bmp.isRecycled) continue
+
+                    // Удалить старый файл если есть
+                    docUri.findFile(name)?.delete()
+
+                    val file = docUri.createFile("image/png", name) ?: continue
+                    ctx.contentResolver.openOutputStream(file.uri)?.use { out ->
                         bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-                    } ?: false
-                } else false
+                        saved++
+                    }
+                }
+
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(ctx, if (ok) "Текстура сохранена!" else "Нет текстуры", Toast.LENGTH_LONG).show()
+                    Toast.makeText(ctx, "Сохранено $saved из 4 текстур", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -270,7 +288,7 @@ fun ModelEditorScreen(onBack: () -> Unit) {
                     TextButton(onClick = { saveLauncher.launch("edited_model.glb") }, enabled = !isSaving) {
                         Text(if (isSaving) "..." else "GLB", color = if (isSaving) Color.Gray else Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
                     }
-                    TextButton(onClick = { saveTextureLauncher.launch("head_texture.png") }, enabled = !isSaving) {
+                    TextButton(onClick = { saveAllTexturesLauncher.launch(null) }, enabled = !isSaving) {
                         Text(if (isSaving) "..." else "TEX", color = if (isSaving) Color.Gray else Color(0xFF2196F3), fontWeight = FontWeight.Bold)
                     }
                 },
