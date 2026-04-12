@@ -96,10 +96,28 @@ fun AvatarScene(
             val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
             for (prim in 0 until rm.getPrimitiveCount(ri)) {
                 val mat = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
+                val matName = mat.name?.lowercase() ?: ""
+
+                // 1. Изолируем полость рта и красим в розово-оранжевый (плоть)
+                if (matName.contains("mouth") || matName.contains("cavity") || matName.contains("tongue")) {
+                    try {
+                        mat.setParameter("baseColorMap", whiteTex, defaultSampler)
+                        mat.setParameter("baseColorFactor", 0.85f, 0.45f, 0.38f, 1f) // Цвет рта
+                        mat.setParameter("roughnessFactor", 0.8f) // Внутри рта меньше бликов
+                        mat.setParameter("metallicFactor", 0f)
+                    } catch (_: Exception) {}
+                    continue // Пропускаем, чтобы он не перезаписал кожу лица!
+                }
+
+                // 2. Безопасное присвоение (берем только первый подходящий материал)
                 when (morphCount) {
-                    51 -> headMat = mat
-                    5 -> teethMat = mat
-                    4 -> { eyeCount++; if (eyeCount == 1) eyeLMat = mat else eyeRMat = mat }
+                    51 -> if (headMat == null) headMat = mat
+                    5 -> if (teethMat == null) teethMat = mat
+                    4 -> { 
+                        if (eyeCount == 0) eyeLMat = mat 
+                        else if (eyeCount == 1) eyeRMat = mat
+                        eyeCount++
+                    }
                 }
             }
         }
