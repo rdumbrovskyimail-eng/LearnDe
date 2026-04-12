@@ -249,10 +249,10 @@ class GlbTextureEditor(private val context: Context) {
                     }
 
                     // 👇=== БЕЗОПАСНАЯ РАСКРАСКА ===👇
-                    // Если это материал рта/полости, даем ему реалистичный розово-коралловый цвет
+                    // Если это материал рта/полости, даем ему реалистичный тёмно-розовый цвет
                     if (matName.contains("mouth") || matName.contains("cavity") || matName.contains("tongue") || matName.contains("oral")) {
-                        pbr.put("baseColorFactor", JSONArray(listOf(0.82, 0.45, 0.38, 1.0))) // Оранжево-розовый
-                        pbr.put("roughnessFactor", 0.8) // Полость рта более матовая
+                        pbr.put("baseColorFactor", JSONArray(listOf(0.70, 0.25, 0.35, 1.0)))
+                        pbr.put("roughnessFactor", 0.8)
                     } else {
                         // Для кожи, глаз и зубов оставляем чистый белый (они получат текстуры позже)
                         pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
@@ -349,7 +349,7 @@ class GlbTextureEditor(private val context: Context) {
                 // 1. Изолируем полость рта для редактора
                 if (matName.contains("mouth") || matName.contains("cavity") || matName.contains("tongue")) {
                     postGpuOp {
-                        safeSet4f(mi, "baseColorFactor", 0.85f, 0.45f, 0.38f, 1f)
+                        safeSet4f(mi, "baseColorFactor", 0.70f, 0.25f, 0.35f, 1f)
                         safeSet1f(mi, "roughnessFactor", 0.8f)
                     }
                     continue // Обязательно пропускаем!
