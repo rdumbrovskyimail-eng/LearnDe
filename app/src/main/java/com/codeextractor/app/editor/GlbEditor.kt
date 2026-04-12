@@ -587,6 +587,20 @@ class GlbTextureEditor(private val context: Context) {
                       else SKIN_COLOR_SRGB
         compositeCanvas.drawColor(bgColor)
 
+        // ═══ ДОБАВИТЬ: розовый цвет для внутренней части рта ═══
+        val mouthZd = zoneDataMap[HeadZone.MOUTH_INNER]
+        if (mouthZd != null && !mouthZd.hasTexture) {
+            val mouthColor = android.graphics.Color.rgb(175, 100, 105)
+            val mouthBuf = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
+            val mouthCanvas = Canvas(mouthBuf)
+            mouthCanvas.drawColor(mouthColor)
+            val maskPaint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) }
+            mouthCanvas.drawBitmap(mouthZd.maskBitmap, 0f, 0f, maskPaint)
+            compositeCanvas.drawBitmap(mouthBuf, 0f, 0f, Paint())
+            mouthBuf.recycle()
+        }
+        // ═══ КОНЕЦ ДОБАВЛЕНИЯ ═══
+
         val zoneBuf = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
         val zoneCanvas = Canvas(zoneBuf)
         val srcPaint = Paint().apply { isFilterBitmap = true; isAntiAlias = true }
