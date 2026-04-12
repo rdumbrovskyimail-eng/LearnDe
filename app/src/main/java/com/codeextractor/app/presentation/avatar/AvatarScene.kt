@@ -101,7 +101,6 @@ fun AvatarScene(
                 // 1. Изолируем полость рта и красим в розово-оранжевый (плоть)
                 if (matName.contains("mouth") || matName.contains("cavity") || matName.contains("tongue")) {
                     try {
-                        mat.setParameter("baseColorMap", whiteTex, defaultSampler)
                         mat.setParameter("baseColorFactor", 0.85f, 0.45f, 0.38f, 1f) // Цвет рта
                         mat.setParameter("roughnessFactor", 0.8f) // Внутри рта меньше бликов
                         mat.setParameter("metallicFactor", 0f)
