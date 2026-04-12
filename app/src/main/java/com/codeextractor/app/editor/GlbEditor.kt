@@ -237,6 +237,8 @@ class GlbTextureEditor(private val context: Context) {
             if (materials != null) {
                 for (i in 0 until materials.length()) {
                     val mat = materials.getJSONObject(i)
+                    val matName = mat.optString("name", "").lowercase() // Читаем имя из GLB
+
                     val pbr = mat.optJSONObject("pbrMetallicRoughness")
                         ?: JSONObject().also { mat.put("pbrMetallicRoughness", it) }
 
@@ -245,13 +247,20 @@ class GlbTextureEditor(private val context: Context) {
                             put("index", texIdx); put("texCoord", 0)
                         })
                     }
-                    // ИСПРАВЛЕНО: ВСЕГДА перезаписываем эти значения.
-                    // Оригинальный GLB имеет bcf=[0.503,0.503,0.503] и metallic=0.4
-                    // что делает модель тёмно-серой/чёрной без текстуры.
-                    // Сбрасываем в нейтральные значения — runtime setParameter перекроет их.
-                    pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
+
+                    // 👇=== БЕЗОПАСНАЯ РАСКРАСКА ===👇
+                    // Если это материал рта/полости, даем ему реалистичный розово-коралловый цвет
+                    if (matName.contains("mouth") || matName.contains("cavity") || matName.contains("tongue") || matName.contains("oral")) {
+                        pbr.put("baseColorFactor", JSONArray(listOf(0.82, 0.45, 0.38, 1.0))) // Оранжево-розовый
+                        pbr.put("roughnessFactor", 0.8) // Полость рта более матовая
+                    } else {
+                        // Для кожи, глаз и зубов оставляем чистый белый (они получат текстуры позже)
+                        pbr.put("baseColorFactor", JSONArray(listOf(1.0, 1.0, 1.0, 1.0)))
+                        pbr.put("roughnessFactor", 0.6)
+                    }
+                    
                     pbr.put("metallicFactor", 0.0)
-                    pbr.put("roughnessFactor", 0.6)
+                    // 👆===========================👆
                 }
             }
 
