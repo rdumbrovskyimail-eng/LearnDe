@@ -1,6 +1,8 @@
 package com.codeextractor.app.presentation.avatar
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -16,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.google.android.filament.MaterialInstance
 import com.google.android.filament.Texture
 import com.google.android.filament.TextureSampler
 import com.google.android.filament.android.TextureHelper
@@ -36,7 +39,11 @@ import java.nio.ByteBuffer
 
 private const val TAG = "AvatarScene"
 private const val MODEL_PATH = "models/source_named.glb"
-private const val HEAD_TEXTURE_PATH = "models/head_texture.png"
+
+// Текстуры из assets/models/ — кладутся туда вручную после редактора
+private const val HEAD_TEXTURE = "models/head_texture.png"
+private const val EYES_TEXTURE = "models/eyes_texture.png"
+private const val TEETH_TEXTURE = "models/teeth_texture.png"
 
 private val CAM_POS = Float3(0f, 1.35f, 0.7f)
 private val CAM_TGT = Float3(0f, 1.35f, 0f)
@@ -58,37 +65,36 @@ fun AvatarScene(
 
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
 
-    // Загружаем патченную модель (dummy белая текстура -> полный PBR шейдер)
+    // ── 1. Загрузка патченной модели ──
     LaunchedEffect(modelLoader) {
         val buffer = withContext(Dispatchers.IO) {
             val patchedFile = File(ctx.cacheDir, "patched_model.glb")
-            if (!patchedFile.exists() || patchedFile.length() == 0L) {
-                com.codeextractor.app.editor.GlbTextureEditor(ctx)
-                    .preparePatchedModel(MODEL_PATH)
-            }
+            if (patchedFile.exists()) patchedFile.delete()
+            com.codeextractor.app.editor.GlbTextureEditor(ctx)
+                .preparePatchedModel(MODEL_PATH)
             val bytes = patchedFile.readBytes()
             ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
         }
         modelInstance = modelLoader.createModelInstance(buffer)
     }
 
-    // После загрузки: PBR + текстура из assets
+    // ── 2. Применение текстур и PBR ──
     LaunchedEffect(modelInstance) {
         val mi = modelInstance ?: return@LaunchedEffect
         val rm = engine.renderableManager
 
-        var headMat: com.google.android.filament.MaterialInstance? = null
-        var teethMat: com.google.android.filament.MaterialInstance? = null
-        var eyeLMat: com.google.android.filament.MaterialInstance? = null
-        var eyeRMat: com.google.android.filament.MaterialInstance? = null
+        // Собираем MaterialInstance по morph count
+        var headMat: MaterialInstance? = null
+        var teethMat: MaterialInstance? = null
+        var eyeLMat: MaterialInstance? = null
+        var eyeRMat: MaterialInstance? = null
         var eyeCount = 0
 
         for (entity in mi.entities) {
             if (!rm.hasComponent(entity)) continue
             val ri = rm.getInstance(entity)
             val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
-            val primCount = rm.getPrimitiveCount(ri)
-            for (prim in 0 until primCount) {
+            for (prim in 0 until rm.getPrimitiveCount(ri)) {
                 val mat = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
                 when (morphCount) {
                     51 -> headMat = mat
@@ -98,59 +104,115 @@ fun AvatarScene(
             }
         }
 
-        // PBR-параметры
-        headMat?.let {
-            try { it.setParameter("roughnessFactor", 0.6f) } catch (_: Exception) {}
-            try { it.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
-        }
-        teethMat?.let {
-            try { it.setParameter("baseColorFactor", 0.88f, 0.84f, 0.75f, 1f) } catch (_: Exception) {}
-            try { it.setParameter("roughnessFactor", 0.2f) } catch (_: Exception) {}
-            try { it.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
-        }
-        listOf(eyeLMat, eyeRMat).filterNotNull().forEach {
-            try { it.setParameter("baseColorFactor", 0.92f, 0.92f, 0.92f, 1f) } catch (_: Exception) {}
-            try { it.setParameter("roughnessFactor", 0.05f) } catch (_: Exception) {}
-            try { it.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
+        // ════════════════════════════════════════════════════════
+        // Белая текстура-заглушка.
+        // SceneView НЕ загружает dummy текстуру из GLB binary chunk.
+        // Без реальной текстуры baseColorFactor ИГНОРИРУЕТСЯ.
+        // Поэтому если PNG файла нет — привязываем белую текстуру,
+        // и тогда baseColorFactor работает как цвет.
+        // ════════════════════════════════════════════════════════
+        val whiteBmp = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+        Canvas(whiteBmp).drawColor(android.graphics.Color.WHITE)
+        val whiteTex = Texture.Builder()
+            .width(4).height(4).levels(1)
+            .sampler(Texture.Sampler.SAMPLER_2D)
+            .format(Texture.InternalFormat.SRGB8_A8)
+            .usage(Texture.Usage.SAMPLEABLE or Texture.Usage.UPLOADABLE)
+            .build(engine)
+        TextureHelper.setBitmap(engine, whiteTex, 0, whiteBmp)
+        whiteBmp.recycle()
+
+        val defaultSampler = TextureSampler().apply {
+            setMinFilter(TextureSampler.MinFilter.LINEAR)
+            setMagFilter(TextureSampler.MagFilter.LINEAR)
+            setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+            setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
         }
 
-        // Текстура головы из assets/models/head_texture.png
+        // ════════════════════════════════════════════════════════
+        // ГОЛОВА (51 morph) — head_texture.png
+        // Включает лицо, шею, волосы, РОТ (MOUTH_INNER).
+        // Рот розовый потому что composite bitmap заливает
+        // bgColor = SKIN_COLOR для незакрытых зон.
+        // ════════════════════════════════════════════════════════
         headMat?.let { mat ->
-            try {
-                val bmp = ctx.assets.open(HEAD_TEXTURE_PATH).use { stream ->
-                    BitmapFactory.decodeStream(stream)
+            val loaded = loadTextureFromAssets(ctx, engine, HEAD_TEXTURE)
+            if (loaded != null) {
+                val sampler = TextureSampler().apply {
+                    setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
+                    setMagFilter(TextureSampler.MagFilter.LINEAR)
+                    setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+                    setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
                 }
-                if (bmp != null) {
-                    val mipLevels = (kotlin.math.log2(bmp.width.toFloat())).toInt() + 1
-                    val tex = Texture.Builder()
-                        .width(bmp.width).height(bmp.height).levels(mipLevels)
-                        .sampler(Texture.Sampler.SAMPLER_2D)
-                        .format(Texture.InternalFormat.SRGB8_A8)
-                        .usage(
-                            Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
-                                    Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
-                        )
-                        .build(engine)
-
-                    val sampler = TextureSampler().apply {
-                        setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
-                        setMagFilter(TextureSampler.MagFilter.LINEAR)
-                        setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
-                        setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
-                    }
-
-                    TextureHelper.setBitmap(engine, tex, 0, bmp)
-                    tex.generateMipmaps(engine)
-                    mat.setParameter("baseColorMap", tex, sampler)
+                try {
+                    mat.setParameter("baseColorMap", loaded, sampler)
                     mat.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
-                    bmp.recycle()
-                    Log.d(TAG, "Head texture applied from assets")
-                }
-            } catch (_: java.io.FileNotFoundException) {
-                Log.d(TAG, "No head_texture.png in assets - using default color")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to load head texture", e)
+                } catch (e: Exception) { Log.e(TAG, "Head texture bind failed", e) }
+            } else {
+                // Нет head_texture.png — белая заглушка + цвет кожи
+                try {
+                    mat.setParameter("baseColorMap", whiteTex, defaultSampler)
+                    mat.setParameter("baseColorFactor", 0.73f, 0.56f, 0.38f, 1f)
+                } catch (_: Exception) {}
             }
+            try { mat.setParameter("roughnessFactor", 0.6f) } catch (_: Exception) {}
+            try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
+        }
+
+        // ════════════════════════════════════════════════════════
+        // ЗУБЫ (5 morph) — teeth_texture.png
+        // Аналогично лицу. Если файла нет — белая текстура + белый цвет.
+        // ════════════════════════════════════════════════════════
+        teethMat?.let { mat ->
+            val loaded = loadTextureFromAssets(ctx, engine, TEETH_TEXTURE)
+            if (loaded != null) {
+                val sampler = TextureSampler().apply {
+                    setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
+                    setMagFilter(TextureSampler.MagFilter.LINEAR)
+                    setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+                    setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
+                }
+                try {
+                    mat.setParameter("baseColorMap", loaded, sampler)
+                    mat.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
+                } catch (e: Exception) { Log.e(TAG, "Teeth texture bind failed", e) }
+            } else {
+                // Нет teeth_texture.png — белая заглушка + белый/кремовый цвет
+                try {
+                    mat.setParameter("baseColorMap", whiteTex, defaultSampler)
+                    mat.setParameter("baseColorFactor", 0.92f, 0.90f, 0.85f, 1f)
+                } catch (_: Exception) {}
+            }
+            try { mat.setParameter("roughnessFactor", 0.3f) } catch (_: Exception) {}
+            try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
+        }
+
+        // ════════════════════════════════════════════════════════
+        // ГЛАЗА (4 morph) — eyes_texture.png
+        // Аналогично лицу. Если файла нет — белая текстура + белый цвет.
+        // ════════════════════════════════════════════════════════
+        listOf(eyeLMat, eyeRMat).filterNotNull().forEach { mat ->
+            val loaded = loadTextureFromAssets(ctx, engine, EYES_TEXTURE)
+            if (loaded != null) {
+                val sampler = TextureSampler().apply {
+                    setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
+                    setMagFilter(TextureSampler.MagFilter.LINEAR)
+                    setWrapModeS(TextureSampler.WrapMode.REPEAT)
+                    setWrapModeT(TextureSampler.WrapMode.REPEAT)
+                }
+                try {
+                    mat.setParameter("baseColorMap", loaded, sampler)
+                    mat.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
+                } catch (e: Exception) { Log.e(TAG, "Eye texture bind failed", e) }
+            } else {
+                // Нет eyes_texture.png — белая заглушка + белый цвет
+                try {
+                    mat.setParameter("baseColorMap", whiteTex, defaultSampler)
+                    mat.setParameter("baseColorFactor", 0.95f, 0.95f, 0.95f, 1f)
+                } catch (_: Exception) {}
+            }
+            try { mat.setParameter("roughnessFactor", 0.05f) } catch (_: Exception) {}
+            try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
         }
     }
 
@@ -197,6 +259,42 @@ fun AvatarScene(
                 color = Color.White.copy(alpha = 0.4f)
             )
         }
+    }
+}
+
+/**
+ * Загружает PNG из assets, создаёт Filament Texture с mipmaps.
+ * Возвращает null если файла нет.
+ */
+private fun loadTextureFromAssets(
+    ctx: android.content.Context,
+    engine: com.google.android.filament.Engine,
+    assetPath: String,
+): Texture? {
+    return try {
+        val bmp = ctx.assets.open(assetPath).use { BitmapFactory.decodeStream(it) }
+            ?: return null
+        val mipLevels = (kotlin.math.log2(bmp.width.toFloat())).toInt() + 1
+        val tex = Texture.Builder()
+            .width(bmp.width).height(bmp.height).levels(mipLevels)
+            .sampler(Texture.Sampler.SAMPLER_2D)
+            .format(Texture.InternalFormat.SRGB8_A8)
+            .usage(
+                Texture.Usage.SAMPLEABLE or Texture.Usage.COLOR_ATTACHMENT or
+                        Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE
+            )
+            .build(engine)
+        TextureHelper.setBitmap(engine, tex, 0, bmp)
+        tex.generateMipmaps(engine)
+        bmp.recycle()
+        Log.d(TAG, "Loaded texture: $assetPath")
+        tex
+    } catch (_: java.io.FileNotFoundException) {
+        Log.d(TAG, "No texture in assets: $assetPath")
+        null
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to load texture: $assetPath", e)
+        null
     }
 }
 
