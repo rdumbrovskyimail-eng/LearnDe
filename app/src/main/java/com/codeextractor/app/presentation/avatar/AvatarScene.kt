@@ -41,6 +41,8 @@ private const val MODEL_PATH    = "models/source_named.glb"
 private const val HEAD_TEXTURE  = "models/head_texture.png"
 private const val EYES_TEXTURE  = "models/eyes_texture.png"
 private const val TEETH_TEXTURE = "models/teeth_texture.png"
+private const val MOUTH_MASK_PATH = "masks/mouth_inner.png"
+private const val COMPOSITE_SIZE = 1024
 
 // ── Камера ─────────────────────────────────────────────────────────────────
 private val CAM_POS = dev.romainguy.kotlin.math.Float3(0f, 1.35f, 0.70f)
@@ -545,12 +547,93 @@ private fun buildWhiteTexture(
     return tex
 }
 
+/**
+ * Строит композитную текстуру головы:
+ *   Слой 1: Тёплый цвет кожи (заливка)
+ *   Слой 2: Розовая полость рта (через маску mouth_inner.png)
+ *   Слой 3: head_texture.png поверх (если есть)
+ */
 private fun buildHeadCompositeTexture(
     ctx: android.content.Context,
     engine: com.google.android.filament.Engine,
-): Texture? {
-    // TODO: Implement composite texture logic
-    return loadTexture(ctx, engine, HEAD_TEXTURE, mipmap = true)
+): Texture? = try {
+    val composite = Bitmap.createBitmap(
+        COMPOSITE_SIZE, COMPOSITE_SIZE, Bitmap.Config.ARGB_8888
+    )
+    val canvas = Canvas(composite)
+
+    // ── Слой 1: фон — цвет кожи ──
+    canvas.drawColor(android.graphics.Color.rgb(185, 142, 96))
+
+    // ── Слой 2: розовая полость рта через маску ──
+    try {
+        val mask = ctx.assets.open(MOUTH_MASK_PATH).use {
+            BitmapFactory.decodeStream(it)
+        }
+        if (mask != null) {
+            val scaledMask = if (mask.width != COMPOSITE_SIZE || mask.height != COMPOSITE_SIZE)
+                Bitmap.createScaledBitmap(mask, COMPOSITE_SIZE, COMPOSITE_SIZE, true)
+                    .also { if (it !== mask) mask.recycle() }
+            else mask
+
+            val mouthLayer = Bitmap.createBitmap(
+                COMPOSITE_SIZE, COMPOSITE_SIZE, Bitmap.Config.ARGB_8888
+            )
+            val mc = Canvas(mouthLayer)
+            mc.drawColor(android.graphics.Color.rgb(194, 84, 71))
+            val maskPaint = android.graphics.Paint().apply {
+                xfermode = android.graphics.PorterDuffXfermode(
+                    android.graphics.PorterDuff.Mode.DST_IN
+                )
+            }
+            mc.drawBitmap(scaledMask, 0f, 0f, maskPaint)
+            canvas.drawBitmap(mouthLayer, 0f, 0f, android.graphics.Paint())
+            mouthLayer.recycle()
+            if (scaledMask !== mask) scaledMask.recycle()
+        }
+    } catch (_: Exception) {
+        Log.w(TAG, "Mouth mask not found — skipping mouth color")
+    }
+
+    // ── Слой 3: head_texture.png (кожа, волосы) поверх ──
+    try {
+        val headBmp = ctx.assets.open(HEAD_TEXTURE).use {
+            BitmapFactory.decodeStream(it)
+        }
+        if (headBmp != null) {
+            val scaled = if (headBmp.width != COMPOSITE_SIZE || headBmp.height != COMPOSITE_SIZE)
+                Bitmap.createScaledBitmap(headBmp, COMPOSITE_SIZE, COMPOSITE_SIZE, true)
+                    .also { if (it !== headBmp) headBmp.recycle() }
+            else headBmp
+            canvas.drawBitmap(scaled, 0f, 0f, android.graphics.Paint())
+            if (scaled !== headBmp) scaled.recycle()
+        }
+    } catch (_: Exception) {
+        Log.d(TAG, "head_texture.png not found — composite uses base layers only")
+    }
+
+    // ── Создаём Filament текстуру ──
+    val mipLevels = (kotlin.math.log2(COMPOSITE_SIZE.toFloat())).toInt() + 1
+    val tex = Texture.Builder()
+        .width(COMPOSITE_SIZE).height(COMPOSITE_SIZE).levels(mipLevels)
+        .sampler(Texture.Sampler.SAMPLER_2D)
+        .format(Texture.InternalFormat.SRGB8_A8)
+        .usage(
+            Texture.Usage.SAMPLEABLE or
+            Texture.Usage.UPLOADABLE or
+            Texture.Usage.GEN_MIPMAPPABLE
+        )
+        .build(engine)
+
+    TextureHelper.setBitmap(engine, tex, 0, composite)
+    tex.generateMipmaps(engine)
+    composite.recycle()
+
+    Log.d(TAG, "Head composite texture built with mouth color")
+    tex
+} catch (e: Exception) {
+    Log.e(TAG, "buildHeadCompositeTexture failed", e)
+    null
 }
 
 // ── Sampler builders ──────────────────────────────────────────────────────
