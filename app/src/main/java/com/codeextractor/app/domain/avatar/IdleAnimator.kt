@@ -65,9 +65,9 @@ class IdleAnimator {
         private const val BLINK_SPEAKING_MULT   = 1.6f     // реже при речи
 
         // ── Micro-saccade ─────────────────────────────────────────────────
-        private const val SACCADE_INTERVAL_MIN  = 0.5f
-        private const val SACCADE_INTERVAL_MAX  = 2.0f
-        private const val SACCADE_MAGNITUDE     = 0.08f    // [0..1] в пространстве blendshape
+        private const val SACCADE_INTERVAL_MIN  = 1.2f
+        private const val SACCADE_INTERVAL_MAX  = 3.5f
+        private const val SACCADE_MAGNITUDE     = 0.04f    // [0..1] в пространстве blendshape
         private const val SACCADE_SMOOTH        = 8.0f     // скорость следования
 
         // ── Breathing ─────────────────────────────────────────────────────
