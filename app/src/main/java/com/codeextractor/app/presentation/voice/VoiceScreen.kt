@@ -89,10 +89,6 @@ fun VoiceScreen(
         if (state.transcript.isNotEmpty()) listState.animateScrollToItem(state.transcript.size - 1)
     }
 
-    val renderState by viewModel.avatarAnimator
-        .renderState
-        .collectAsStateWithLifecycle()
-
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier
@@ -109,10 +105,7 @@ fun VoiceScreen(
             ) {
                 AvatarScene(
                     modifier     = Modifier.fillMaxSize(),
-                    morphWeights = renderState.morphWeights,
-                    headPitch    = renderState.headPitch,
-                    headYaw      = renderState.headYaw,
-                    headRoll     = renderState.headRoll,
+                    renderBuffer = viewModel.avatarAnimator.renderBuffer,
                 )
 
                 // Status overlay
