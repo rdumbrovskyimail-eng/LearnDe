@@ -5,19 +5,8 @@ import java.util.concurrent.locks.StampedLock
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  ZERO-ALLOCATION RENDER PIPELINE
-//
-//  Почему не простой double-buffer?
-//  На JVM true lock-free double-buffer требует 3 буфера (write / pending / read),
-//  иначе writer может затереть буфер, который в этот момент читает renderer.
-//  StampedLock с оптимистичным чтением даёт ту же производительность
-//  (contention в 99.9% кадров при 60fps отсутствует) с корректной семантикой
-//  и без лишних аллокаций.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Mutable render snapshot: 51 ARKit morph weights + head rotation.
- * Аллоцируется ОДИН РАЗ при старте, живёт всё время работы приложения.
- */
 class ZeroAllocRenderState {
     val morphWeights: FloatArray = FloatArray(ARKit.COUNT)
     var headPitch: Float = 0f
@@ -37,32 +26,18 @@ class ZeroAllocRenderState {
     }
 }
 
-/**
- * Thread-safe рендер-буфер на StampedLock.
- *
- * Write: animator coroutine (период ~16 мс)
- * Read:  Compose onFrame callback (период ~16 мс, другой поток)
- *
- * [scratch] — приватный буфер writer'а, никогда не читается renderer'ом.
- * Это исключает необходимость в третьем буфере.
- */
 class RenderDoubleBuffer {
-    private val state   = ZeroAllocRenderState()  // shared: читают снаружи
-    private val scratch = ZeroAllocRenderState()  // private: пишет только animator
+    private val state   = ZeroAllocRenderState()
+    private val scratch = ZeroAllocRenderState()
     private val lock    = StampedLock()
 
-    /** Вызывается ТОЛЬКО animator coroutine (single writer). */
     fun publish(src: ZeroAllocRenderState) {
-        scratch.copyFrom(src)                     // готовим локально — без lock
+        scratch.copyFrom(src)
         val stamp = lock.writeLock()
         try   { state.copyFrom(scratch) }
         finally { lock.unlockWrite(stamp) }
     }
 
-    /**
-     * Вызывается renderer'ом (любой поток, любое число читателей).
-     * Оптимистичное чтение: lock берётся только при редкой гонке.
-     */
     fun read(dest: ZeroAllocRenderState) {
         var stamp = lock.tryOptimisticRead()
         dest.copyFrom(state)
@@ -80,30 +55,17 @@ class RenderDoubleBuffer {
 //  EMOTION / PROSODY
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Вектор эмоций, обновляемый ProsodyTracker.
- * Single writer (animator coroutine). Non-critical reads by UI через snapshot.
- *
- * [cognitivePressure] — внутренний spring-аккумулятор: нелинейно нарастает
- *   при паузах (сетевой лаг Gemini, обдумывание), высвобождается «Эврикой»
- *   при первом новом аудиочанке. Публично не экспонируется.
- */
 class EmotionalProsody {
-    var valence: Float           = 0f   // −1 (злость/грусть) .. +1 (радость/смех)
-    var arousal: Float           = 0f   //  0 (спокойно)      ..  1 (возбуждённо)
-    var thoughtfulness: Float    = 0f   //  0 ..  1  (когнитивная нагрузка / пауза)
-    var cognitivePressure: Float = 0f   // internal spring state
+    var valence: Float           = 0f
+    var arousal: Float           = 0f
+    var thoughtfulness: Float    = 0f
+    var cognitivePressure: Float = 0f
 
     fun reset() {
         valence = 0f; arousal = 0f; thoughtfulness = 0f; cognitivePressure = 0f
     }
 }
 
-/**
- * Иммутабельный snapshot для StateFlow → UI.
- * Эмитируется не чаще ~4 раз/сек (только при значимом изменении).
- * НЕ используется для per-frame рендеринга — для этого есть [RenderDoubleBuffer].
- */
 data class EmotionalProsodySnapshot(
     val valence: Float        = 0f,
     val arousal: Float        = 0f,
@@ -111,33 +73,25 @@ data class EmotionalProsodySnapshot(
 )
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  AUDIO FEATURES  (single-writer DSP, single-reader animator — no lock needed)
+//  AUDIO FEATURES (обновлённый — с лингвистическими полями)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Per-frame аудиопризнаки. Аллоцируются ОДИН РАЗ, переиспользуются каждый кадр.
- *
- * Источники:
- *   rms / energyBands / pitch / hasVoice  → оригинал
- *   zcr / spectralFlux / isPlosive        → Gemini
- *   pitchVariance                         → Grok
- */
 class AudioFeatures {
-    // ── Базовые ──────────────────────────────────────────────────────────
+    // ── Базовые (из DSP) ─────────────────────────────────────────────────
     var rms: Float          = 0f
-    var energyLow: Float    = 0f   // 150–800 Hz:   гласные А, О
-    var energyMid: Float    = 0f   // 800–2500 Hz:  гласные Е, И; носовые
-    var energyHigh: Float   = 0f   // 2500–8000 Hz: шипящие С, Ф, Ш
-    var pitch: Float        = 0f   // F0 в Гц  (0 = безголосый)
+    var energyLow: Float    = 0f
+    var energyMid: Float    = 0f
+    var energyHigh: Float   = 0f
+    var pitch: Float        = 0f
     var hasVoice: Boolean   = false
 
     // ── Временны́е характеристики ─────────────────────────────────────────
-    var zcr: Float          = 0f   // Zero-Crossing Rate — детектор фрикативов
-    var spectralFlux: Float = 0f   // Резкость атаки — детектор транзиентов
-    var isPlosive: Boolean  = false // Производный триггер: П, Б, Т, К
+    var zcr: Float          = 0f
+    var spectralFlux: Float = 0f
+    var isPlosive: Boolean  = false
 
     // ── Pitch dynamics ────────────────────────────────────────────────────
-    var pitchVariance: Float = 0f  // Экспрессивность тона (0 = монотонно)
+    var pitchVariance: Float = 0f
 
     fun reset() {
         rms = 0f; energyLow = 0f; energyMid = 0f; energyHigh = 0f
@@ -148,24 +102,25 @@ class AudioFeatures {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  PUBLIC INTERFACE
+//  PUBLIC INTERFACE (обновлённый — с текстовым каналом)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Контракт аниматора аватара.
- *
- * [renderBuffer]  — zero-alloc буфер для 60 fps render loop.
- *                   AvatarScene читает его в onFrame через [RenderDoubleBuffer.read].
- *
- * [emotionFlow]   — низкочастотный StateFlow для UI (значки, цветовые подсветки).
- *                   Не подходит для per-frame рендеринга.
- */
 interface AvatarAnimator {
     val renderBuffer: RenderDoubleBuffer
     val emotionFlow: StateFlow<EmotionalProsodySnapshot>
 
+    /** PCM аудио от Gemini для DSP-анализа */
     fun feedAudio(pcmData: ByteArray)
+
+    /** Текст от Gemini (ModelText / OutputTranscript) для фонемного анализа */
+    fun feedModelText(text: String)
+
+    /** Флаг: AI сейчас говорит */
     fun setSpeaking(speaking: Boolean)
+
+    /** Barge-in: пользователь перебил — сбросить всё */
+    fun bargeInClear()
+
     fun start()
     fun stop()
 }
