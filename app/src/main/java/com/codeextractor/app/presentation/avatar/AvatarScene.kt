@@ -37,7 +37,7 @@ import java.nio.ByteBuffer
 private const val TAG = "AvatarScene"
 
 // ── Пути к ресурсам ────────────────────────────────────────────────────────
-private const val MODEL_PATH    = "models/source_named.glb"
+private const val MODEL_PATH    = "models/test.glb"
 private const val HEAD_TEXTURE  = "models/head_texture.png"
 private const val EYES_TEXTURE  = "models/eyes_texture.png"
 private const val TEETH_TEXTURE = "models/teeth_texture.png"
