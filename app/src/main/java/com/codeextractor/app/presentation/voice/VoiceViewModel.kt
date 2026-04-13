@@ -267,6 +267,7 @@ class VoiceViewModel @Inject constructor(
                         _state.update { it.copy(isAiSpeaking = false) }
                     }
                     is GeminiEvent.GenerationComplete -> {
+                        avatarAnimator.setSpeaking(false)
                         _state.update { it.copy(isAiSpeaking = false) }
                     }
 
