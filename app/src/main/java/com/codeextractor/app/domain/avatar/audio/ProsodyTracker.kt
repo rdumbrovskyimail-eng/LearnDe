@@ -53,6 +53,7 @@ class ProsodyTracker {
         private const val PRESSURE_DECAY_SPEED   = 3.5f    // скорость спада при речи
         private const val EUREKA_THRESHOLD       = 0.38f   // минимальное давление для спайка
         private const val EUREKA_AROUSAL_BOOST   = 0.65f   // множитель спайка Arousal
+        private const val EUREKA_BOOST_SCALE     = EUREKA_AROUSAL_BOOST
 
         // ── Arousal envelope ────────────────────────────────────────────
         private const val AROUSAL_ATTACK         = 10f
@@ -328,7 +329,4 @@ class ProsodyTracker {
     //  COMPANION HELPERS
     // ═══════════════════════════════════════════════════════════════════════
 
-    private companion object {
-        private const val EUREKA_BOOST_SCALE = EUREKA_AROUSAL_BOOST
-    }
 }
