@@ -124,6 +124,11 @@ class SpeechFlowController {
         }
         speechMomentum -= decayRate * dt
         speechMomentum = speechMomentum.coerceIn(0f, 1f)
+
+        // ═══ ДОБАВИТЬ: пока лента не пуста, аватар не затухает ═══
+        if (textAvailable) {
+            speechMomentum = speechMomentum.coerceAtLeast(0.85f)
+        }
     }
 
     fun reset() {
