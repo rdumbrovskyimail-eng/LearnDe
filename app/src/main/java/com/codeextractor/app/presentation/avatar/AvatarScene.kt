@@ -220,12 +220,9 @@ fun AvatarScene(
                 val sampler = if (tex != null) buildMipmapSampler(anisotropy = 8f) else defaultSampler
                 setParam(mat, "baseColorMap", tex ?: wt, sampler)
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
-                // PBR: кожа — матовая с тонким сальным блеском (clearCoat)
+                // PBR: кожа — матовая
                 setParam(mat, "roughnessFactor",    0.48f)
                 setParam(mat, "metallicFactor",     0.00f)
-                setParam(mat, "reflectance",        0.42f)
-                setParam(mat, "clearCoat",          0.30f)
-                setParam(mat, "clearCoatRoughness", 0.44f)
             }
 
             // ЗУБЫ
@@ -235,13 +232,10 @@ fun AvatarScene(
 
                 val sampler = if (tex != null) buildMipmapSampler() else defaultSampler
                 setParam(mat, "baseColorMap", tex ?: wt, sampler)
-                setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
+                setParam(mat, "baseColorFactor", 0.97f, 0.97f, 0.95f, 1f)
                 // PBR: зубная эмаль + слюна — почти зеркальная поверхность
                 setParam(mat, "roughnessFactor",    0.14f)
                 setParam(mat, "metallicFactor",     0.00f)
-                setParam(mat, "reflectance",        0.82f)
-                setParam(mat, "clearCoat",          0.62f)
-                setParam(mat, "clearCoatRoughness", 0.10f)
             }
 
             // ГЛАЗА
@@ -252,12 +246,9 @@ fun AvatarScene(
                 val sampler = if (tex != null) buildMipmapSampler(wrap = TextureSampler.WrapMode.REPEAT) else defaultSampler
                 setParam(mat, "baseColorMap", tex ?: wt, sampler)
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
-                // PBR: роговица — идеальная линза, максимальный clearCoat (слёзная плёнка)
+                // PBR: роговица — идеальная линза
                 setParam(mat, "roughnessFactor",    0.02f)
                 setParam(mat, "metallicFactor",     0.00f)
-                setParam(mat, "reflectance",        1.00f)
-                setParam(mat, "clearCoat",          1.00f)
-                setParam(mat, "clearCoatRoughness", 0.01f)
             }
 
             // РОТ И ВНУТРЕННИЕ ЧАСТИ (всё не обработанное выше)
@@ -273,7 +264,7 @@ fun AvatarScene(
 
                     setParam(mat, "baseColorMap",   wt, defaultSampler)
                     // Тёплый персиково-розовый: слизистая полости рта
-                    setParam(mat, "baseColorFactor", 0.84f, 0.63f, 0.53f, 1f)
+                    setParam(mat, "baseColorFactor", 0.85f, 0.45f, 0.35f, 1f)
                     setParam(mat, "roughnessFactor", 0.78f)
                     setParam(mat, "metallicFactor",  0.00f)
                 }
@@ -520,9 +511,9 @@ private fun loadTexture(
 
     TextureHelper.setBitmap(engine, tex, 0, bmp)
     if (mipmap) tex.generateMipmaps(engine)
-    bmp.recycle()
 
     Log.d(TAG, "Texture loaded: $path (${bmp.width}×${bmp.height}, mips=$mipLevels)")
+    bmp.recycle()
     tex
 } catch (_: java.io.FileNotFoundException) {
     Log.d(TAG, "Texture not found in assets: $path")
