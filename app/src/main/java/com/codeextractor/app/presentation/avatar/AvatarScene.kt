@@ -253,24 +253,6 @@ fun AvatarScene(
                 setParam(mat, "metallicFactor",     0.00f)
             }
 
-            // РОТ И ВНУТРЕННИЕ ЧАСТИ (всё не обработанное выше)
-            for (entity in mi.entities) {
-                if (!rm.hasComponent(entity)) continue
-                val ri       = rm.getInstance(entity)
-                val primCount = rm.getPrimitiveCount(ri)
-
-                for (prim in 0 until primCount) {
-                    if (handled.contains(packKey(entity, prim))) continue
-                    val mat = try { rm.getMaterialInstanceAt(ri, prim) }
-                              catch (_: Exception) { continue }
-
-                    setParam(mat, "baseColorMap",   wt, defaultSampler)
-                    // Тёплый персиково-розовый: слизистая полости рта
-                    setParam(mat, "baseColorFactor", 0.76f, 0.33f, 0.28f, 1f)
-                    setParam(mat, "roughnessFactor", 0.78f)
-                    setParam(mat, "metallicFactor",  0.00f)
-                }
-            }
         }
 
         materialsReady = true
