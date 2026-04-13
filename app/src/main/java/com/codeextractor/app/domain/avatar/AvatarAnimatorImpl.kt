@@ -14,10 +14,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
 
-/**
- * AvatarAnimatorImpl — Центральный контроллер анимации аватара.
- * Dual-Channel Pipeline: Text (phoneme-gated) + Audio (modulated) @ 60fps.
- */
 @Singleton
 class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
 
@@ -123,6 +119,7 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
         isSpeaking = speaking
         if (!speaking) {
             networkHold = true
+            pacer.markTurnEnding()
         }
     }
 
