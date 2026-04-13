@@ -64,7 +64,6 @@ fun AvatarScene(
     val environment = rememberEnvironment(environmentLoader)
 
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
-    var debugText by remember { mutableStateOf("") }
 
     // ── 1. Загрузка патченной модели ──
     LaunchedEffect(modelLoader) {
@@ -84,69 +83,7 @@ fun AvatarScene(
         val mi = modelInstance ?: return@LaunchedEffect
         val rm = engine.renderableManager
 
-        // Собираем MaterialInstance по morph count
-        var headMat: MaterialInstance? = null
-        var teethMat: MaterialInstance? = null
-        var eyeLMat: MaterialInstance? = null
-        var eyeRMat: MaterialInstance? = null
-        var eyeCount = 0
-        
-        // НОВОЕ: список для перехвата всех внутренних частей (рот, язык)
-        val mouthMaterials = mutableListOf<MaterialInstance>()
-
-        for (entity in mi.entities) {
-            if (!rm.hasComponent(entity)) continue
-            val ri = rm.getInstance(entity)
-            val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
-            
-            for (prim in 0 until rm.getPrimitiveCount(ri)) {
-                val mat = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
-                val matName = mat.name?.lowercase() ?: ""
-
-                // ЖЕЛЕЗОБЕТОННЫЙ ПЕРЕХВАТ: ищем по имени ИЛИ по тому, что это 2-й слой (prim > 0)
-                val isMouth = matName.contains("mouth") || matName.contains("cavity") || matName.contains("tongue")
-                val isSecondaryLayer = (morphCount == 51 || morphCount == 5) && prim > 0
-
-                if (isMouth || isSecondaryLayer) {
-                    mouthMaterials.add(mat)
-                    continue // Пропускаем, чтобы рот случайно не стал лицом или зубами
-                }
-
-                // Основные материалы берем ТОЛЬКО с 0-го слоя
-                if (prim == 0) {
-                    when (morphCount) {
-                        51 -> headMat = mat
-                        5 -> teethMat = mat
-                        4 -> { 
-                            if (eyeCount == 0) eyeLMat = mat 
-                            else if (eyeCount == 1) eyeRMat = mat
-                            eyeCount++ 
-                        }
-                    }
-                }
-            }
-        }
-
-        // ═══ DEBUG OVERLAY ═══
-        val sb = StringBuilder()
-        for (entity in mi.entities) {
-            if (!rm.hasComponent(entity)) continue
-            val ri = rm.getInstance(entity)
-            val mc = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
-            val pc = rm.getPrimitiveCount(ri)
-            sb.append("morph=$mc prims=$pc\n")
-            for (p in 0 until pc) {
-                val m = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { continue }
-                sb.append("  p$p: '${m.name ?: "null"}'\n")
-            }
-        }
-        sb.append("mouthMats=${mouthMaterials.size}")
-        debugText = sb.toString()
-        // ═══════════════════
-
-        // ════════════════════════════════════════════════════════
-        // Белая текстура-заглушка.
-        // ════════════════════════════════════════════════════════
+        // ═══ Белая текстура-заглушка ═══
         val whiteBmp = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
         Canvas(whiteBmp).drawColor(android.graphics.Color.WHITE)
         val whiteTex = Texture.Builder()
@@ -165,14 +102,42 @@ fun AvatarScene(
             setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
         }
 
+        // ═══ Фаза 1: Определяем основные материалы ═══
+        var headMat: MaterialInstance? = null
+        var teethMat: MaterialInstance? = null
+        var eyeLMat: MaterialInstance? = null
+        var eyeRMat: MaterialInstance? = null
+        var eyeCount = 0
 
+        // Отслеживаем обработанные (entity, prim) пары
+        val handled = mutableSetOf<Pair<Int, Int>>()
 
-        // ════════════════════════════════════════════════════════
-        // ГОЛОВА (51 morph) — head_texture.png
-        // Включает лицо, шею, волосы, РОТ (MOUTH_INNER).
-        // Рот розовый потому что composite bitmap заливает
-        // bgColor = SKIN_COLOR для незакрытых зон.
-        // ════════════════════════════════════════════════════════
+        for (entity in mi.entities) {
+            if (!rm.hasComponent(entity)) continue
+            val ri = rm.getInstance(entity)
+            val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
+            val primCount = rm.getPrimitiveCount(ri)
+
+            // Берём ТОЛЬКО prim=0 для основных материалов
+            if (primCount > 0 && morphCount > 0) {
+                val mat = try { rm.getMaterialInstanceAt(ri, 0) } catch (_: Exception) { null }
+                if (mat != null) {
+                    when (morphCount) {
+                        51 -> { headMat = mat; handled.add(entity to 0) }
+                        5 -> { teethMat = mat; handled.add(entity to 0) }
+                        4 -> {
+                            if (eyeCount == 0) eyeLMat = mat else eyeRMat = mat
+                            eyeCount++
+                            handled.add(entity to 0)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ═══ Фаза 2: Применяем текстуры к основным материалам ═══
+
+        // ГОЛОВА
         headMat?.let { mat ->
             val loaded = loadTextureFromAssets(ctx, engine, HEAD_TEXTURE)
             if (loaded != null) {
@@ -187,7 +152,6 @@ fun AvatarScene(
                     mat.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
                 } catch (e: Exception) { Log.e(TAG, "Head texture bind failed", e) }
             } else {
-                // Нет head_texture.png — белая заглушка + цвет кожи
                 try {
                     mat.setParameter("baseColorMap", whiteTex, defaultSampler)
                     mat.setParameter("baseColorFactor", 0.73f, 0.56f, 0.38f, 1f)
@@ -197,10 +161,7 @@ fun AvatarScene(
             try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
         }
 
-        // ════════════════════════════════════════════════════════
-        // ЗУБЫ (5 morph) — teeth_texture.png
-        // Аналогично лицу. Если файла нет — белая текстура + белый цвет.
-        // ════════════════════════════════════════════════════════
+        // ЗУБЫ
         teethMat?.let { mat ->
             val loaded = loadTextureFromAssets(ctx, engine, TEETH_TEXTURE)
             if (loaded != null) {
@@ -215,7 +176,6 @@ fun AvatarScene(
                     mat.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
                 } catch (e: Exception) { Log.e(TAG, "Teeth texture bind failed", e) }
             } else {
-                // Нет teeth_texture.png — белая заглушка + белый/кремовый цвет
                 try {
                     mat.setParameter("baseColorMap", whiteTex, defaultSampler)
                     mat.setParameter("baseColorFactor", 0.92f, 0.90f, 0.85f, 1f)
@@ -225,10 +185,7 @@ fun AvatarScene(
             try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
         }
 
-        // ════════════════════════════════════════════════════════
-        // ГЛАЗА (4 morph) — eyes_texture.png
-        // Аналогично лицу. Если файла нет — белая текстура + белый цвет.
-        // ════════════════════════════════════════════════════════
+        // ГЛАЗА
         listOf(eyeLMat, eyeRMat).filterNotNull().forEach { mat ->
             val loaded = loadTextureFromAssets(ctx, engine, EYES_TEXTURE)
             if (loaded != null) {
@@ -243,7 +200,6 @@ fun AvatarScene(
                     mat.setParameter("baseColorFactor", 1f, 1f, 1f, 1f)
                 } catch (e: Exception) { Log.e(TAG, "Eye texture bind failed", e) }
             } else {
-                // Нет eyes_texture.png — белая заглушка + белый цвет
                 try {
                     mat.setParameter("baseColorMap", whiteTex, defaultSampler)
                     mat.setParameter("baseColorFactor", 0.95f, 0.95f, 0.95f, 1f)
@@ -251,6 +207,31 @@ fun AvatarScene(
             }
             try { mat.setParameter("roughnessFactor", 0.05f) } catch (_: Exception) {}
             try { mat.setParameter("metallicFactor", 0f) } catch (_: Exception) {}
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // ФАЗА 3: ВСЁ ОСТАЛЬНОЕ → ЦВЕТ РТА
+        // Любой entity/prim который НЕ был обработан выше —
+        // это ротовая полость, язык, или другие внутренние части.
+        // Красим в тёплый персиково-розовый.
+        // ══════════════════════════════════════════════════════════
+        for (entity in mi.entities) {
+            if (!rm.hasComponent(entity)) continue
+            val ri = rm.getInstance(entity)
+            val primCount = rm.getPrimitiveCount(ri)
+
+            for (prim in 0 until primCount) {
+                if (handled.contains(entity to prim)) continue
+
+                val mat = try { rm.getMaterialInstanceAt(ri, prim) } catch (_: Exception) { continue }
+                try {
+                    mat.setParameter("baseColorMap", whiteTex, defaultSampler)
+                    mat.setParameter("baseColorFactor", 0.84f, 0.64f, 0.54f, 1f)
+                    mat.setParameter("roughnessFactor", 0.8f)
+                    mat.setParameter("metallicFactor", 0f)
+                    Log.d(TAG, "Mouth/unhandled colored: entity=$entity prim=$prim")
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -298,18 +279,7 @@ fun AvatarScene(
             )
         }
 
-        if (debugText.isNotEmpty()) {
-            androidx.compose.material3.Text(
-                debugText,
-                color = Color.Yellow,
-                fontSize = 9.androidx.compose.ui.unit.sp,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.androidx.compose.ui.unit.dp)
-                    .background(Color.Black.copy(alpha = 0.7f))
-                    .padding(6.androidx.compose.ui.unit.dp)
-            )
-        }
+
     }
 }
 
