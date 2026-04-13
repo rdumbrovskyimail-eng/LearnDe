@@ -101,14 +101,14 @@ class HeadMotionEngine {
         private const val MAX_ROLL       = 6f
 
         // ── FocalTarget диапазоны ─────────────────────────────────────────
-        private const val IDLE_YAW_RANGE   = 8.0f   // ±8° при idle
-        private const val IDLE_PITCH_RANGE = 5.0f   // ±5° при idle
-        private const val SPEAK_YAW_RANGE  = 4.0f   // ±4° при речи (чаще смотрит в камеру)
-        private const val SPEAK_PITCH_RANGE = 2.5f
+        private const val IDLE_YAW_RANGE   = 3.0f   // ±3° при idle
+        private const val IDLE_PITCH_RANGE = 2.0f   // ±2° при idle
+        private const val SPEAK_YAW_RANGE  = 1.5f   // ±1.5° при речи (чаще смотрит в камеру)
+        private const val SPEAK_PITCH_RANGE = 1.0f
 
         // ── CognitiveLook ─────────────────────────────────────────────────
-        private const val COG_YAW_MAG   = 8.0f    // градусы в сторону
-        private const val COG_PITCH_MAG = 5.5f    // градусы вверх (вспоминание)
+        private const val COG_YAW_MAG   = 4.5f    // градусы в сторону
+        private const val COG_PITCH_MAG = 3.0f    // градусы вверх (вспоминание)
         private const val COG_THRESHOLD = 0.20f
 
         // ── NodImpulse ────────────────────────────────────────────────────
@@ -140,8 +140,8 @@ class HeadMotionEngine {
         private const val SACCADE_COOLDOWN   = 0.12f  // пауза после смены цели
 
         // ── Вероятность зрительного контакта ─────────────────────────────
-        private const val GAZE_CONTACT_PROB_SPEAKING = 0.72f  // 72% при речи
-        private const val GAZE_CONTACT_PROB_IDLE     = 0.35f  // 35% при idle
+        private const val GAZE_CONTACT_PROB_SPEAKING = 0.92f  // 92% при речи
+        private const val GAZE_CONTACT_PROB_IDLE     = 0.82f  // 82% при idle
     }
 
     // ═══════════════════════════════════════════════════════════════════════
