@@ -251,7 +251,7 @@ class GlbTextureEditor(private val context: Context) {
                     // 👇=== БЕЗОПАСНАЯ РАСКРАСКА ===👇
                     // Если это материал рта/полости, даем ему реалистичный тёмно-розовый цвет
                     if (matName.contains("mouth") || matName.contains("cavity") || matName.contains("tongue") || matName.contains("oral")) {
-                        pbr.put("baseColorFactor", JSONArray(listOf(0.70, 0.25, 0.35, 1.0)))
+                        pbr.put("baseColorFactor", JSONArray(listOf(0.84, 0.64, 0.54, 1.0)))
                         pbr.put("roughnessFactor", 0.8)
                     } else {
                         // Для кожи, глаз и зубов оставляем чистый белый (они получат текстуры позже)
@@ -616,7 +616,7 @@ class GlbTextureEditor(private val context: Context) {
         // ═══ ДОБАВИТЬ: розовый цвет для внутренней части рта ═══
         val mouthZd = zoneDataMap[HeadZone.MOUTH_INNER]
         if (mouthZd != null && !mouthZd.hasTexture) {
-            val mouthColor = android.graphics.Color.rgb(175, 100, 105)
+            val mouthColor = android.graphics.Color.rgb(215, 162, 138)
             val mouthBuf = Bitmap.createBitmap(TEX_SIZE, TEX_SIZE, Bitmap.Config.ARGB_8888)
             val mouthCanvas = Canvas(mouthBuf)
             mouthCanvas.drawColor(mouthColor)
