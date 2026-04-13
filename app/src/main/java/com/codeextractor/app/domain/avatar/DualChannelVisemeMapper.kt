@@ -80,7 +80,8 @@ class DualChannelVisemeMapper {
         // ── Артикуляция ───────────────────────────────────────────────────
         if (hasActivity || ling.textConfidence > 0.1f) {
             if (ling.textConfidence >= TEXT_CONFIDENCE_THR) {
-                applyTextGuided(audio, ling, rms)
+                val textRms = maxOf(rms, flow.speechMomentum * 0.35f)
+                applyTextGuided(audio, ling, textRms)
             } else {
                 applyAudioFallback(audio, rms, momentum)
             }
