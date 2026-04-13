@@ -10,7 +10,6 @@ import com.codeextractor.app.domain.avatar.PhonemeData
  *   - Немецкий: sch, tsch, ch (ich/ach), pf, sp/st, ei/au/eu, ie, ß
  *
  * Покрытие: ~92% русский, ~88% немецкий.
- * Zero-allocation в hot path (pre-allocated buffer).
  */
 class TextPhonemeAnalyzer {
 
@@ -18,6 +17,9 @@ class TextPhonemeAnalyzer {
         private const val INITIAL_CAPACITY = 128
         private const val WORD_PAUSE_MS = 60
         private const val SENTENCE_PAUSE_MS = 200
+
+        // Русские гласные + знаки для проверки йотации
+        private const val RU_VOWELS_AND_SIGNS = "аеёиоуыэюяьъ "
     }
 
     data class PhonemeToken(
@@ -42,7 +44,6 @@ class TextPhonemeAnalyzer {
         while (i < norm.length) {
             val c = norm[i]
 
-            // ── Пробелы и пунктуация ─────────────────────────────────────
             if (c == ' ' || c == '\n' || c == '\t') {
                 addPause(WORD_PAUSE_MS, c); prevSpace = true; i++; continue
             }
@@ -81,6 +82,12 @@ class TextPhonemeAnalyzer {
     //  РУССКИЕ ПРАВИЛА
     // ══════════════════════════════════════════════════════════════════════
 
+    private fun needsYot(text: String, pos: Int, wordStart: Boolean): Boolean {
+        if (wordStart) return true
+        val prev = text.getOrNull(pos - 1) ?: return true
+        return prev in RU_VOWELS_AND_SIGNS || !prev.isLetter()
+    }
+
     private fun tryRussian(text: String, pos: Int, dict: Map<String, PhonemeData.PhonemeProfile>, ws: Boolean): Int {
         val c = text[pos]
         val next = text.getOrNull(pos + 1)
@@ -89,22 +96,19 @@ class TextPhonemeAnalyzer {
         when (c) {
             'е', 'ё' -> {
                 val vk = if (c == 'ё') "о" else "э"
-                val prev = text.getOrNull(pos - 1)
-                if (ws || prev == null || prev in "аеёиоуыэюяьъ " || !prev.isLetter())
+                if (needsYot(text, pos, ws))
                     dict["й"]?.let { add("й", it, it.durationMs, c, ws) }
                 dict[vk]?.let { add(vk, it, it.durationMs, c) }
                 return 1
             }
             'ю' -> {
-                val prev = text.getOrNull(pos - 1)
-                if (ws || prev == null || prev in "аеёиоуыэюяьъ " || !prev.isLetter())
+                if (needsYot(text, pos, ws))
                     dict["й"]?.let { add("й", it, it.durationMs, c, ws) }
                 dict["у"]?.let { add("у", it, it.durationMs, c) }
                 return 1
             }
             'я' -> {
-                val prev = text.getOrNull(pos - 1)
-                if (ws || prev == null || prev in "аеёиоуыэюяьъ " || !prev.isLetter())
+                if (needsYot(text, pos, ws))
                     dict["й"]?.let { add("й", it, it.durationMs, c, ws) }
                 dict["а"]?.let { add("а", it, it.durationMs, c) }
                 return 1
@@ -121,7 +125,7 @@ class TextPhonemeAnalyzer {
         }
 
         // Удвоенные согласные
-        if (next == c && c.isLetter() && c !in "аеёиоуыэюя") {
+        if (next != null && next == c && c.isLetter() && c !in "аеёиоуыэюя") {
             val k = c.toString()
             dict[k]?.let { add(k, it, (it.durationMs * 1.4f).toInt(), c, ws) }; return 2
         }
@@ -131,6 +135,12 @@ class TextPhonemeAnalyzer {
     // ══════════════════════════════════════════════════════════════════════
     //  НЕМЕЦКИЕ ПРАВИЛА
     // ══════════════════════════════════════════════════════════════════════
+
+    /** ich-Laut проверка: после e,i,ä,ö,ü,l,n,r → ç, иначе → x */
+    private fun isIchLautContext(prev: Char?): Boolean {
+        if (prev == null) return true
+        return prev in "eiäöüılnr"
+    }
 
     private fun tryGerman(text: String, pos: Int, dict: Map<String, PhonemeData.PhonemeProfile>, ws: Boolean): Int {
         val rem = text.length - pos
@@ -156,7 +166,7 @@ class TextPhonemeAnalyzer {
             when (di) {
                 "ch" -> {
                     val prev = text.getOrNull(pos - 1)
-                    val k = if (prev in "eiäöüılnr" || prev == null) "ç" else "x"
+                    val k = if (isIchLautContext(prev)) "ç" else "x"
                     dict[k]?.let { add(k, it, it.durationMs, c, ws) }; return 2
                 }
                 "ck" -> { dict["k"]?.let { add("k", it, it.durationMs, c, ws) }; return 2 }
