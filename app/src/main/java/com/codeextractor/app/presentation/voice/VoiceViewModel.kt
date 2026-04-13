@@ -258,6 +258,7 @@ class VoiceViewModel @Inject constructor(
                     }
                     is GeminiEvent.Interrupted -> {
                         audioEngine.flushPlayback()
+                        avatarAnimator.bargeInClear()
                         avatarAnimator.setSpeaking(false)
                         _state.update { it.copy(isAiSpeaking = false) }
                     }
@@ -278,10 +279,12 @@ class VoiceViewModel @Inject constructor(
                     }
                     is GeminiEvent.OutputTranscript -> {
                         conversationStore.appendOrAdd(ConversationMessage.ROLE_MODEL, event.text)
+                        avatarAnimator.feedModelText(event.text)
                         _state.update { it.copy(transcript = conversationStore.getAll()) }
                     }
                     is GeminiEvent.ModelText -> {
                         conversationStore.appendOrAdd(ConversationMessage.ROLE_MODEL, event.text)
+                        avatarAnimator.feedModelText(event.text)
                         _state.update { it.copy(transcript = conversationStore.getAll()) }
                     }
 
