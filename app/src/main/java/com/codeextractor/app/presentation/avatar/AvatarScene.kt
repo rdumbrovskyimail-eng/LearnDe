@@ -544,60 +544,10 @@ private fun buildHeadCompositeTexture(
     )
     val canvas = Canvas(composite)
 
-    // ── Слой 1: фон — цвет кожи ──
+    // Слой 1: фон — цвет кожи
     canvas.drawColor(android.graphics.Color.rgb(185, 142, 96))
 
-            // ── Слой 2: head_texture.png (кожа, волосы) ──
-            try {
-                val headBmp = ctx.assets.open(HEAD_TEXTURE).use {
-                    BitmapFactory.decodeStream(it)
-                }
-                if (headBmp != null) {
-                    val scaled = if (headBmp.width != COMPOSITE_SIZE || headBmp.height != COMPOSITE_SIZE)
-                        Bitmap.createScaledBitmap(headBmp, COMPOSITE_SIZE, COMPOSITE_SIZE, true)
-                            .also { if (it !== headBmp) headBmp.recycle() }
-                    else headBmp
-                    canvas.drawBitmap(scaled, 0f, 0f, android.graphics.Paint())
-                    if (scaled !== headBmp) scaled.recycle()
-                }
-            } catch (_: Exception) {
-                Log.d(TAG, "head_texture.png not found — composite uses base layers only")
-            }
-
-            // ── Слой 3: розовая полость рта через маску (поверх всего) ──
-            try {
-                val mask = ctx.assets.open(MOUTH_MASK_PATH).use {
-                    BitmapFactory.decodeStream(it)
-                }
-                if (mask != null) {
-                    val scaledMask = if (mask.width != COMPOSITE_SIZE || mask.height != COMPOSITE_SIZE)
-                        Bitmap.createScaledBitmap(mask, COMPOSITE_SIZE, COMPOSITE_SIZE, true)
-                            .also { if (it !== mask) mask.recycle() }
-                    else mask
-
-                    val mouthLayer = Bitmap.createBitmap(
-                        COMPOSITE_SIZE, COMPOSITE_SIZE, Bitmap.Config.ARGB_8888
-                    )
-                    val mc = Canvas(mouthLayer)
-                    mc.drawColor(android.graphics.Color.rgb(194, 84, 71))
-                    val maskPaint = android.graphics.Paint().apply {
-                        xfermode = android.graphics.PorterDuffXfermode(
-                            android.graphics.PorterDuff.Mode.DST_IN
-                        )
-                    }
-                    mc.drawBitmap(scaledMask, 0f, 0f, maskPaint)
-                    canvas.drawBitmap(mouthLayer, 0f, 0f, android.graphics.Paint())
-                    mouthLayer.recycle()
-                    if (scaledMask !== mask) scaledMask.recycle()
-                }
-            } catch (_: Exception) {
-                Log.w(TAG, "Mouth mask not found — skipping mouth color")
-            }
-    } catch (_: Exception) {
-        Log.w(TAG, "Mouth mask not found — skipping mouth color")
-    }
-
-    // ── Слой 3: head_texture.png (кожа, волосы) поверх ──
+    // Слой 2: head_texture.png поверх (кожа, волосы)
     try {
         val headBmp = ctx.assets.open(HEAD_TEXTURE).use {
             BitmapFactory.decodeStream(it)
@@ -611,10 +561,10 @@ private fun buildHeadCompositeTexture(
             if (scaled !== headBmp) scaled.recycle()
         }
     } catch (_: Exception) {
-        Log.d(TAG, "head_texture.png not found — composite uses base layers only")
+        Log.d(TAG, "head_texture.png not found — composite uses base color only")
     }
 
-    // ── Создаём Filament текстуру ──
+    // Создаём Filament текстуру
     val mipLevels = (kotlin.math.log2(COMPOSITE_SIZE.toFloat())).toInt() + 1
     val tex = Texture.Builder()
         .width(COMPOSITE_SIZE).height(COMPOSITE_SIZE).levels(mipLevels)
@@ -631,7 +581,7 @@ private fun buildHeadCompositeTexture(
     tex.generateMipmaps(engine)
     composite.recycle()
 
-    Log.d(TAG, "Head composite texture built with mouth color")
+    Log.d(TAG, "Head composite texture built")
     tex
 } catch (e: Exception) {
     Log.e(TAG, "buildHeadCompositeTexture failed", e)
