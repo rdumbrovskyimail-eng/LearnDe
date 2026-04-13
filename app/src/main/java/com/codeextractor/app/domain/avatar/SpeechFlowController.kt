@@ -110,7 +110,7 @@ class SpeechFlowController {
         if (audioActivity > ACTIVITY_VOICE_THR) {
             speechMomentum += (1f - speechMomentum) * MOMENTUM_RISE_AUDIO * dt
         }
-        if (textAvailable && !turnEnded) {
+        if (textAvailable) {
             speechMomentum += (0.7f - speechMomentum).coerceAtLeast(0f) * MOMENTUM_RISE_TEXT * dt
         }
 
