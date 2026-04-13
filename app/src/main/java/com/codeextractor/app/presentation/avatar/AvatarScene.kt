@@ -64,6 +64,7 @@ fun AvatarScene(
     val environment = rememberEnvironment(environmentLoader)
 
     var modelInstance by remember { mutableStateOf<ModelInstance?>(null) }
+    var debugText by remember { mutableStateOf("") }
 
     // ── 1. Загрузка патченной модели ──
     LaunchedEffect(modelLoader) {
@@ -125,6 +126,23 @@ fun AvatarScene(
                 }
             }
         }
+
+        // ═══ DEBUG OVERLAY ═══
+        val sb = StringBuilder()
+        for (entity in mi.entities) {
+            if (!rm.hasComponent(entity)) continue
+            val ri = rm.getInstance(entity)
+            val mc = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
+            val pc = rm.getPrimitiveCount(ri)
+            sb.append("morph=$mc prims=$pc\n")
+            for (p in 0 until pc) {
+                val m = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { continue }
+                sb.append("  p$p: '${m.name ?: "null"}'\n")
+            }
+        }
+        sb.append("mouthMats=${mouthMaterials.size}")
+        debugText = sb.toString()
+        // ═══════════════════
 
         // ════════════════════════════════════════════════════════
         // Белая текстура-заглушка.
@@ -277,6 +295,19 @@ fun AvatarScene(
             androidx.compose.material3.CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center),
                 color = Color.White.copy(alpha = 0.4f)
+            )
+        }
+
+        if (debugText.isNotEmpty()) {
+            androidx.compose.material3.Text(
+                debugText,
+                color = Color.Yellow,
+                fontSize = 9.androidx.compose.ui.unit.sp,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.androidx.compose.ui.unit.dp)
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .padding(6.androidx.compose.ui.unit.dp)
             )
         }
     }
