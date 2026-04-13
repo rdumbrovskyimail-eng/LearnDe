@@ -86,7 +86,7 @@ class VisemeMapper {
 
     companion object {
         // ── Decay ────────────────────────────────────────────────────────
-        private const val VOWEL_DECAY      = 0.72f   // per frame decay для аккумуляторов
+        private const val VOWEL_DECAY      = 0.80f   // per frame decay для аккумуляторов
 
         // ── Plosive ───────────────────────────────────────────────────────
         private const val PLOSIVE_TRIGGER_FLUX = 0.30f
@@ -99,9 +99,9 @@ class VisemeMapper {
         private const val FRICATIVE_MID_ENERGY = 0.10f   // минимум СЧ для Ш/Ж
 
         // ── Jaw Anchoring ─────────────────────────────────────────────────
-        private const val JAW_FROM_RMS_SCALE   = 0.48f
-        private const val JAW_MAX              = 0.88f
-        private const val JAW_COMPENSATOR      = 1.15f  // усиление LipSeal при открытой челюсти
+        private const val JAW_FROM_RMS_SCALE   = 0.18f
+        private const val JAW_MAX              = 0.38f
+        private const val JAW_COMPENSATOR      = 0.60f  // усиление LipSeal при открытой челюсти
 
         // ── Soft tissue ease ──────────────────────────────────────────────
         // Hermite smoothstep: применяется только к lip seal и plosive
@@ -221,20 +221,20 @@ class VisemeMapper {
         when {
             // О / У — доминируют низкие, мало высоких
             loRatio > 0.46f && hiRatio < 0.14f && lo > 0.10f ->
-                vOO = maxOf(vOO, lo * 1.25f)
+                vOO = maxOf(vOO, lo * 0.55f)
 
             // А / Э — широкий спектр, бас + средние
             loRatio > 0.30f && midRatio > 0.22f && rms > 0.10f ->
-                vAA = maxOf(vAA, rms * 1.35f)
+                vAA = maxOf(vAA, rms * 0.60f)
 
             // Е / И — доминируют средние
             midRatio > 0.36f && mid > lo ->
-                vEE = maxOf(vEE, mid * 1.25f)
+                vEE = maxOf(vEE, mid * 0.55f)
 
             // Смешанный / неопределённый
             else -> {
-                vAA = maxOf(vAA, loRatio  * 0.55f)
-                vEE = maxOf(vEE, midRatio * 0.50f)
+                vAA = maxOf(vAA, loRatio  * 0.25f)
+                vEE = maxOf(vEE, midRatio * 0.22f)
             }
         }
     }
@@ -263,9 +263,9 @@ class VisemeMapper {
 
         if (plosiveBilabial) {
             // ── П / Б / М: губы смыкаются поверх открытой челюсти ────────
-            maxW(ARKit.MouthClose,      ease + jawComp)
-            maxW(ARKit.MouthPressLeft,  ease * 0.70f * asymL)
-            maxW(ARKit.MouthPressRight, ease * 0.70f * asymR)
+            maxW(ARKit.MouthClose,      ease * 0.85f + jawComp)
+            maxW(ARKit.MouthPressLeft,  ease * 0.50f * asymL)
+            maxW(ARKit.MouthPressRight, ease * 0.50f * asymR)
             maxW(ARKit.MouthPucker,     ease * 0.22f)
             maxW(ARKit.MouthRollLower,  ease * 0.14f)
             maxW(ARKit.MouthRollUpper,  ease * 0.10f)
@@ -309,17 +309,17 @@ class VisemeMapper {
                 maxW(ARKit.MouthDimpleRight, s * 0.18f)
                 maxW(ARKit.MouthShrugLower,  s * 0.14f)
                 // Подавляем JawOpen при зубных щелевых
-                weights[ARKit.JawOpen] *= 0.18f
+                weights[ARKit.JawOpen] *= 0.12f
             }
 
             // ── Ш / Ж: средний ZCR + средние частоты ─────────────────────
             mid > FRICATIVE_MID_ENERGY && features.zcr > FRICATIVE_ZCR_MID -> {
-                maxW(ARKit.MouthPucker,      s * 0.68f)
-                maxW(ARKit.MouthFunnel,      s * 0.52f)
+                maxW(ARKit.MouthPucker,      s * 0.40f)
+                maxW(ARKit.MouthFunnel,      s * 0.30f)
                 maxW(ARKit.MouthShrugUpper,  s * 0.24f)
                 maxW(ARKit.MouthShrugLower,  s * 0.14f)
                 maxW(ARKit.MouthRollLower,   s * 0.12f)
-                weights[ARKit.JawOpen] *= 0.25f
+                weights[ARKit.JawOpen] *= 0.15f
             }
 
             // ── Ф / В: нижняя губа к зубам ───────────────────────────────
@@ -361,39 +361,39 @@ class VisemeMapper {
         if (s < 0.025f) return
         val v = s.coerceAtMost(0.94f)
         // Широкое открытие рта
-        maxW(ARKit.MouthLowerDownLeft,  v * 0.44f * asymL)
-        maxW(ARKit.MouthLowerDownRight, v * 0.44f * asymR)
-        maxW(ARKit.MouthUpperUpLeft,    v * 0.18f)
-        maxW(ARKit.MouthUpperUpRight,   v * 0.18f)
-        maxW(ARKit.MouthStretchLeft,    v * 0.10f * asymL)
-        maxW(ARKit.MouthStretchRight,   v * 0.10f * asymR)
+        maxW(ARKit.MouthLowerDownLeft,  v * 0.18f * asymL)
+        maxW(ARKit.MouthLowerDownRight, v * 0.18f * asymR)
+        maxW(ARKit.MouthUpperUpLeft,    v * 0.07f)
+        maxW(ARKit.MouthUpperUpRight,   v * 0.07f)
+        maxW(ARKit.MouthStretchLeft,    v * 0.06f * asymL)
+        maxW(ARKit.MouthStretchRight,   v * 0.06f * asymR)
         // Лёгкий funnel от низких частот
-        maxW(ARKit.MouthFunnel,         lo * 0.14f)
+        maxW(ARKit.MouthFunnel,         lo * 0.06f)
     }
 
     private fun applyEE(s: Float) {
         if (s < 0.025f) return
         val v = s.coerceAtMost(0.88f)
         // Растяжение уголков
-        maxW(ARKit.MouthStretchLeft,  v * 0.62f * asymL)
-        maxW(ARKit.MouthStretchRight, v * 0.62f * asymR)
-        maxW(ARKit.MouthSmileLeft,    v * 0.16f * asymL)
-        maxW(ARKit.MouthSmileRight,   v * 0.16f * asymR)
-        maxW(ARKit.MouthDimpleLeft,   v * 0.16f)
-        maxW(ARKit.MouthDimpleRight,  v * 0.16f)
+        maxW(ARKit.MouthStretchLeft,  v * 0.30f * asymL)
+        maxW(ARKit.MouthStretchRight, v * 0.30f * asymR)
+        maxW(ARKit.MouthSmileLeft,    v * 0.08f * asymL)
+        maxW(ARKit.MouthSmileRight,   v * 0.08f * asymR)
+        maxW(ARKit.MouthDimpleLeft,   v * 0.06f)
+        maxW(ARKit.MouthDimpleRight,  v * 0.06f)
         maxW(ARKit.MouthShrugLower,   v * 0.10f)
         // Е/И сужает челюсть относительно гласной А
-        weights[ARKit.JawOpen] *= 0.42f
+        weights[ARKit.JawOpen] *= 0.30f
     }
 
     private fun applyOO(s: Float) {
         if (s < 0.025f) return
         val v = s.coerceAtMost(0.90f)
         // Округление губ
-        maxW(ARKit.MouthFunnel,      v * 0.72f)
-        maxW(ARKit.MouthPucker,      v * 0.56f)
-        maxW(ARKit.MouthPressLeft,   v * 0.18f)
-        maxW(ARKit.MouthPressRight,  v * 0.18f)
+        maxW(ARKit.MouthFunnel,      v * 0.40f)
+        maxW(ARKit.MouthPucker,      v * 0.30f)
+        maxW(ARKit.MouthPressLeft,   v * 0.10f)
+        maxW(ARKit.MouthPressRight,  v * 0.10f)
         maxW(ARKit.MouthRollLower,   v * 0.10f)
         maxW(ARKit.MouthRollUpper,   v * 0.07f)
         // О/У — средне открытая челюсть (уже задана Jaw Anchor)
