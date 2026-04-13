@@ -5,178 +5,194 @@ import com.codeextractor.app.domain.avatar.LinguisticState
 import com.codeextractor.app.domain.avatar.VisemeGroup
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 
 /**
- * TextAudioPacer — Синхронизатор текстовой ленты и аудио-потока.
+ * TextAudioPacer v2 — Speech-Session-Aware Synchronizer
  *
- * ПРОБЛЕМА: Текст приходит целыми фразами мгновенно.
- *           Аудио течёт чанками по ~20мс.
- *           Нужно «проматывать» ленту ровно со скоростью речи.
+ * Между первым AudioChunk и TurnComplete действует «сессия речи».
+ * Внутри сессии лента ВСЕГДА продвигается:
+ *   - Голос активен: rate = 1.0x (с drift correction)
+ *   - Пауза < 800мс: rate = 0.7x (естественная пауза вдоха)
+ *   - Пауза > 800мс: rate = 0.4x (думает/лагает, но не стоит)
+ *   - TurnComplete + лента пуста + тишина: сессия завершается
  *
- * РЕШЕНИЕ — Adaptive Rate Control:
- *   1. Каждая фонема имеет estimatedMs из PhonemeData
- *   2. Таймер копит реальное dt и advance() при истечении
- *   3. Audio clock (по размеру PCM чанков) корректирует скорость
- *   4. При тишине — лента замирает (не убегает вперёд)
- *   5. При отставании — ускоряется (до 1.8x)
- *
- * Zero-allocation. Single writer / single reader.
+ * Confidence НЕ падает ниже 0.35 во время сессии.
  */
 class TextAudioPacer(private val ribbon: PhoneticRibbon) {
 
     companion object {
-        private const val DRIFT_GAIN        = 0.0004f
-        private const val MAX_DRIFT_MS      = 1500L
-        private const val RATE_MIN          = 0.5f
-        private const val RATE_MAX          = 1.8f
-        private const val SILENCE_RATE      = 0.3f
-        private const val CONFIDENCE_RISE   = 0.08f   // per frame when text+audio active
-        private const val CONFIDENCE_DECAY  = 0.03f   // per frame when no text
-        private const val SILENCE_RMS_THR   = 0.03f
+        private const val DRIFT_GAIN        = 0.0005f
+        private const val MAX_DRIFT_MS      = 2000L
+        private const val RATE_MIN          = 0.35f
+        private const val RATE_MAX          = 2.0f
+
+        private const val SHORT_PAUSE_MS    = 800L
+        private const val SHORT_PAUSE_RATE  = 0.7f
+        private const val LONG_PAUSE_RATE   = 0.4f
+        private const val NO_SESSION_RATE   = 0.15f
+
+        private const val CONF_RISE_SPEED   = 0.12f
+        private const val CONF_DECAY_SPEED  = 0.008f
+        private const val CONF_EMPTY_DECAY  = 0.04f
+        private const val CONF_NO_SESSION   = 0.06f
+
+        private const val VOICE_RMS_THR     = 0.025f
     }
 
-    // ── Internal clock ────────────────────────────────────────────────────
     private var accumMs = 0f
-    private var currentDurationMs = 80f   // duration of current phoneme
+    private var currentDurationMs = 80f
     private var playbackRate = 1.0f
 
-    // ── Audio clock (fed by onAudioChunk) ─────────────────────────────────
     private var audioElapsedMs = 0L
     private var textConsumedMs = 0L
 
-    // ── Confidence tracking ───────────────────────────────────────────────
-    private var confidence = 0f
-    private var silentFrames = 0
+    @Volatile
+    private var sessionActive = false
+    private var turnEnding = false
+    private var silenceDurationMs = 0L
+    private var lastVoiceTimeMs = 0L
+    private var totalSessionMs = 0L
 
-    // ── Progress within current phoneme ───────────────────────────────────
+    private var confidence = 0f
+
     private var progress = 0f
     private var wasTransition = false
 
-    // ── Output state (read by AvatarAnimatorImpl) ─────────────────────────
     val linguisticState = LinguisticState()
 
     // ══════════════════════════════════════════════════════════════════════
-    //  PUBLIC API
-    // ══════════════════════════════════════════════════════════════════════
 
-    /**
-     * Вызывается при получении AudioChunk от Gemini.
-     * Обновляет audio clock для drift correction.
-     */
     fun onAudioChunk(pcmBytes: Int, sampleRate: Int = 24_000) {
         val samples = pcmBytes / 2
-        audioElapsedMs += (samples * 1000L) / sampleRate
+        val durationMs = (samples * 1000L) / sampleRate
+        audioElapsedMs += durationMs
+
+        if (!sessionActive) {
+            sessionActive = true
+            turnEnding = false
+            silenceDurationMs = 0L
+            totalSessionMs = 0L
+        }
     }
 
-    /**
-     * Вызывается каждый кадр аниматора.
-     * Продвигает ленту и обновляет LinguisticState.
-     */
     fun tick(dtMs: Long, audio: AudioFeatures) {
         val dt = dtMs.coerceIn(1, 32)
         wasTransition = false
 
-        // ── Нет текста в ленте → деградация confidence ────────────────────
+        if (sessionActive) {
+            totalSessionMs += dt
+            if (turnEnding && !ribbon.hasReadable && silenceDurationMs > 500L) {
+                sessionActive = false
+                turnEnding = false
+            }
+        }
+
+        val hasVoiceNow = audio.hasVoice && audio.rms > VOICE_RMS_THR
+        if (hasVoiceNow) {
+            silenceDurationMs = 0L
+            lastVoiceTimeMs = totalSessionMs
+        } else {
+            silenceDurationMs += dt
+        }
+
         if (!ribbon.hasReadable) {
-            confidence = max(0f, confidence - CONFIDENCE_DECAY)
+            confidence = max(0f, confidence - CONF_EMPTY_DECAY)
             updateLinguisticState()
             return
         }
 
-        // ── Confidence растёт когда есть и текст и голос ───────────────────
-        if (audio.hasVoice && audio.rms > SILENCE_RMS_THR) {
-            confidence = (confidence + CONFIDENCE_RISE).coerceAtMost(1f)
-            silentFrames = 0
+        if (hasVoiceNow && ribbon.hasReadable) {
+            confidence = min(1f, confidence + CONF_RISE_SPEED)
+        } else if (sessionActive) {
+            confidence = max(0.35f, confidence - CONF_DECAY_SPEED)
         } else {
-            silentFrames++
-            if (silentFrames > 5) {
-                confidence = max(0.1f, confidence - CONFIDENCE_DECAY * 0.5f)
-            }
+            confidence = max(0f, confidence - CONF_NO_SESSION)
         }
 
-        // ── Drift correction ──────────────────────────────────────────────
-        val drift = audioElapsedMs - textConsumedMs
-        if (abs(drift) > MAX_DRIFT_MS) {
-            // Катастрофический рассинхрон → hard reset
-            playbackRate = 1.0f
-            accumMs = 0f
+        computePlaybackRate(audio, dt)
+
+        val effectiveRate = if (sessionActive || hasVoiceNow) {
+            playbackRate
         } else {
-            val correction = drift * DRIFT_GAIN
-            var targetRate = 1.0f + correction
-            // При тишине замедляем
-            if (!audio.hasVoice || audio.rms < SILENCE_RMS_THR) {
-                targetRate *= SILENCE_RATE
-            }
-            // При spectralFlux ускоряем (ударные слоги)
-            if (audio.spectralFlux > 0.25f && audio.isPlosive) {
-                targetRate *= 1.3f
-            }
-            playbackRate += (targetRate - playbackRate) * 0.15f
-            playbackRate = playbackRate.coerceIn(RATE_MIN, RATE_MAX)
+            playbackRate * NO_SESSION_RATE
         }
 
-        // ── Только если есть голос или текущая фонема — тишина ─────────────
-        val currentGate = ribbon.peekGate(0)
-        val shouldAdvance = (audio.hasVoice && audio.rms > SILENCE_RMS_THR) ||
-                            currentGate == VisemeGroup.SILENCE
+        currentDurationMs = ribbon.peekDurationMs(0).toFloat().coerceAtLeast(15f)
+        accumMs += dt * effectiveRate
 
-        if (shouldAdvance) {
+        if (accumMs >= currentDurationMs) {
+            textConsumedMs += currentDurationMs.toLong()
+            accumMs -= currentDurationMs
+            accumMs = max(0f, accumMs)
+            ribbon.advance()
+            wasTransition = true
             currentDurationMs = ribbon.peekDurationMs(0).toFloat().coerceAtLeast(15f)
-            accumMs += dt * playbackRate
-
-            if (accumMs >= currentDurationMs) {
-                textConsumedMs += currentDurationMs.toLong()
-                accumMs -= currentDurationMs
-                accumMs = max(0f, accumMs)
-                ribbon.advance()
-                wasTransition = true
-                // Update duration for new phoneme
-                currentDurationMs = ribbon.peekDurationMs(0).toFloat().coerceAtLeast(15f)
-            }
-
-            progress = (accumMs / currentDurationMs).coerceIn(0f, 1f)
-        } else {
-            progress = (accumMs / currentDurationMs).coerceIn(0f, 1f)
         }
 
+        progress = (accumMs / currentDurationMs).coerceIn(0f, 1f)
         updateLinguisticState()
     }
 
-    /** Вызывается при barge-in или turn boundary */
+    fun markTurnEnding() {
+        turnEnding = true
+    }
+
     fun onTurnBoundary() {
+        sessionActive = false
+        turnEnding = false
         audioElapsedMs = 0L
         textConsumedMs = 0L
         accumMs = 0f
         playbackRate = 1.0f
-        silentFrames = 0
+        silenceDurationMs = 0L
+        totalSessionMs = 0L
         progress = 0f
         wasTransition = false
-        // confidence НЕ сбрасываем — пусть плавно деградирует
     }
 
     fun reset() {
         onTurnBoundary()
         confidence = 0f
+        lastVoiceTimeMs = 0L
         linguisticState.reset()
     }
 
     // ══════════════════════════════════════════════════════════════════════
 
-    private fun updateLinguisticState() {
-        val gate = ribbon.peekGate(0)
-        val nextGate = ribbon.peekGate(1)
-        val profile = ribbon.peekProfile(0)
-        val nextProfile = ribbon.peekProfile(1)
-        val punct = ribbon.peekPunctuation(12)
+    private fun computePlaybackRate(audio: AudioFeatures, dt: Long) {
+        val baseRate = when {
+            audio.hasVoice && audio.rms > VOICE_RMS_THR -> 1.0f
+            silenceDurationMs < SHORT_PAUSE_MS          -> SHORT_PAUSE_RATE
+            else                                         -> LONG_PAUSE_RATE
+        }
 
+        val drift = audioElapsedMs - textConsumedMs
+        if (abs(drift) > MAX_DRIFT_MS) {
+            playbackRate = if (drift > 0) RATE_MAX else RATE_MIN
+            return
+        }
+
+        val driftCorrection = drift * DRIFT_GAIN
+        var targetRate = baseRate + driftCorrection
+
+        if (audio.spectralFlux > 0.25f) {
+            targetRate *= 1.2f
+        }
+
+        playbackRate += (targetRate - playbackRate) * 0.20f
+        playbackRate = playbackRate.coerceIn(RATE_MIN, RATE_MAX)
+    }
+
+    private fun updateLinguisticState() {
         linguisticState.update(
-            gate = gate,
-            nextG = nextGate,
-            profile = profile,
-            nextProfile = nextProfile,
+            gate = ribbon.peekGate(0),
+            nextG = ribbon.peekGate(1),
+            profile = ribbon.peekProfile(0),
+            nextProfile = ribbon.peekProfile(1),
             prog = progress,
             transition = wasTransition,
-            punct = punct,
+            punct = ribbon.peekPunctuation(12),
             confidence = confidence,
         )
     }
