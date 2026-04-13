@@ -14,6 +14,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
 
+/**
+ * AvatarAnimatorImpl v3 — SpeechFlowController-integrated.
+ *
+ * Pipeline (60fps):
+ *   1. SpeechFlowController.tick()     ← ПЕРВЫЙ: определяет momentum
+ *   2. ProsodyTracker.update()         ← эмоции
+ *   3. TextAudioPacer.tick()           ← синхронизация текста (читает flow)
+ *   4. DualChannelVisemeMapper.map()   ← артикуляция (читает flow)
+ *   5. IdleAnimator + merge
+ *   6. CoArticulator → Physics → Head → Publish
+ */
 @Singleton
 class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
 
@@ -25,24 +36,34 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
     private val audioFeatures = AudioFeatures()
     private val prosody = EmotionalProsody()
 
+    // ── SUPERVISOR ────────────────────────────────────────────────────────
+    private val flowController = SpeechFlowController()
+
+    // ── DSP ───────────────────────────────────────────────────────────────
     private val audioAnalyzer = AudioDSPAnalyzer()
     private val prosodyTracker = ProsodyTracker()
 
+    // ── Linguistics ───────────────────────────────────────────────────────
     private val ribbon = PhoneticRibbon()
     private val pacer = TextAudioPacer(ribbon)
 
+    // ── Viseme & Animation ────────────────────────────────────────────────
     private val visemeMapper = DualChannelVisemeMapper()
     private val idleAnimator = IdleAnimator()
     private val coArticulator = CoArticulator()
 
+    // ── Physics ───────────────────────────────────────────────────────────
     private val physics = FacePhysicsEngine()
     private val headMotion = HeadMotionEngine()
 
+    // ── Lifecycle ─────────────────────────────────────────────────────────
     private var job: Job? = null
     @Volatile private var isSpeaking = false
     @Volatile private var networkHold = false
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+
+    // ═══════════════════════════════════════════════════════════════════════
 
     override fun start() {
         if (job?.isActive == true) return
@@ -56,18 +77,28 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
                 if (dtMs <= 0L) dtMs = 1L
                 lastMs = nowMs
 
-                prosodyTracker.update(audioFeatures, prosody, dtMs, networkHold)
-                pacer.tick(dtMs, audioFeatures)
+                // ── 1. SUPERVISOR (определяет momentum и pauseDepth) ──────
+                flowController.setTextAvailable(ribbon.hasReadable)
+                flowController.tick(dtMs, audioFeatures.rms, audioFeatures.hasVoice)
 
+                // ── 2. PROSODY (эмоции) ───────────────────────────────────
+                prosodyTracker.update(audioFeatures, prosody, dtMs, networkHold)
+
+                // ── 3. TEXT-AUDIO PACER (читает flowController) ────────────
+                pacer.tick(dtMs, audioFeatures, flowController)
+
+                // ── 4. DUAL-CHANNEL VISEME MAPPER (читает flowController) ─
                 val rawWeights = visemeMapper.map(
-                    audioFeatures, pacer.linguisticState, prosody,
+                    audioFeatures, pacer.linguisticState, prosody, flowController,
                 )
 
+                // ── 5. IDLE + MERGE ───────────────────────────────────────
                 val idleWeights = idleAnimator.update(dtMs, isSpeaking)
                 for (i in 0 until ARKit.COUNT) {
                     rawWeights[i] = max(rawWeights[i], idleWeights[i])
                 }
 
+                // ── 6. CO-ARTICULATION → PHYSICS → HEAD ───────────────────
                 val coArticulated = coArticulator.process(rawWeights)
                 physics.setTargets(coArticulated)
                 val physWeights = physics.update(dtMs)
@@ -76,10 +107,11 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
                     dtMs = dtMs, rms = audioFeatures.rms,
                     arousal = prosody.arousal,
                     thoughtfulness = prosody.thoughtfulness,
-                    isSpeaking = isSpeaking,
+                    isSpeaking = isSpeaking || flowController.isInSpeechFlow,
                     flux = audioFeatures.spectralFlux,
                 )
 
+                // ── 7. PUBLISH ────────────────────────────────────────────
                 for (i in 0 until ARKit.COUNT) {
                     workingState.morphWeights[i] = physWeights[i]
                 }
@@ -105,13 +137,19 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
         job = null
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  INPUT API
+    // ═══════════════════════════════════════════════════════════════════════
+
     override fun feedAudio(pcmData: ByteArray) {
         audioAnalyzer.analyze(pcmData, audioFeatures)
         pacer.onAudioChunk(pcmData.size)
+        flowController.onAudioChunk(pcmData.size)  // ← supervisor знает
     }
 
     override fun feedModelText(text: String) {
         ribbon.feedTextChunk(text)
+        flowController.onTextChunk()  // ← supervisor знает
         networkHold = false
     }
 
@@ -119,13 +157,14 @@ class AvatarAnimatorImpl @Inject constructor() : AvatarAnimator {
         isSpeaking = speaking
         if (!speaking) {
             networkHold = true
-            pacer.markTurnEnding()
+            flowController.onTurnComplete()  // ← supervisor начинает decay
         }
     }
 
     override fun bargeInClear() {
+        flowController.onBargeIn()  // ← supervisor: мгновенный decay
         ribbon.flush()
-        pacer.onTurnBoundary()
+        pacer.resetClocks()
         audioAnalyzer.reset()
         prosodyTracker.reset()
         visemeMapper.reset()
