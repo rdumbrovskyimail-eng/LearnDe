@@ -4,11 +4,6 @@ import com.codeextractor.app.domain.avatar.PhonemeData
 
 /**
  * TextPhonemeAnalyzer — Grapheme-to-Phoneme для русского и немецкого.
- *
- * Правиловая система (не словарная):
- *   - Русский: йотированные, ь/ъ, ТС→Ц, СЧ→Щ, удвоенные
- *   - Немецкий: sch, tsch, ch (ich/ach), pf, sp/st, ei/au/eu, ie, ß
- *
  * Покрытие: ~92% русский, ~88% немецкий.
  */
 class TextPhonemeAnalyzer {
@@ -17,8 +12,6 @@ class TextPhonemeAnalyzer {
         private const val INITIAL_CAPACITY = 128
         private const val WORD_PAUSE_MS = 60
         private const val SENTENCE_PAUSE_MS = 200
-
-        // Русские гласные + знаки для проверки йотации
         private const val RU_VOWELS_AND_SIGNS = "аеёиоуыэюяьъ "
     }
 
@@ -78,10 +71,6 @@ class TextPhonemeAnalyzer {
 
     fun reset() { tokens.clear() }
 
-    // ══════════════════════════════════════════════════════════════════════
-    //  РУССКИЕ ПРАВИЛА
-    // ══════════════════════════════════════════════════════════════════════
-
     private fun needsYot(text: String, pos: Int, wordStart: Boolean): Boolean {
         if (wordStart) return true
         val prev = text.getOrNull(pos - 1) ?: return true
@@ -92,7 +81,6 @@ class TextPhonemeAnalyzer {
         val c = text[pos]
         val next = text.getOrNull(pos + 1)
 
-        // Йотированные
         when (c) {
             'е', 'ё' -> {
                 val vk = if (c == 'ё') "о" else "э"
@@ -116,7 +104,6 @@ class TextPhonemeAnalyzer {
         }
         if (c == 'ь' || c == 'ъ') return 1
 
-        // Диграфы
         if (c == 'т' && next == 'с') {
             dict["ц"]?.let { add("ц", it, it.durationMs, c, ws) }; return 2
         }
@@ -124,7 +111,6 @@ class TextPhonemeAnalyzer {
             dict["щ"]?.let { add("щ", it, it.durationMs, c, ws) }; return 2
         }
 
-        // Удвоенные согласные
         if (next != null && next == c && c.isLetter() && c !in "аеёиоуыэюя") {
             val k = c.toString()
             dict[k]?.let { add(k, it, (it.durationMs * 1.4f).toInt(), c, ws) }; return 2
@@ -132,11 +118,6 @@ class TextPhonemeAnalyzer {
         return 0
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    //  НЕМЕЦКИЕ ПРАВИЛА
-    // ══════════════════════════════════════════════════════════════════════
-
-    /** ich-Laut проверка: после e,i,ä,ö,ü,l,n,r → ç, иначе → x */
     private fun isIchLautContext(prev: Char?): Boolean {
         if (prev == null) return true
         return prev in "eiäöüılnr"
@@ -146,11 +127,9 @@ class TextPhonemeAnalyzer {
         val rem = text.length - pos
         val c = text[pos]
 
-        // 4-char
         if (rem >= 4 && text.substring(pos, pos + 4) == "tsch") {
             dict["ʃ"]?.let { add("ʃ", it, 70, c, ws) }; return 4
         }
-        // 3-char
         if (rem >= 3) {
             when (text.substring(pos, pos + 3)) {
                 "sch" -> { dict["ʃ"]?.let { add("ʃ", it, it.durationMs, c, ws) }; return 3 }
@@ -160,7 +139,6 @@ class TextPhonemeAnalyzer {
                 }
             }
         }
-        // 2-char
         if (rem >= 2) {
             val di = text.substring(pos, pos + 2)
             when (di) {
@@ -204,13 +182,11 @@ class TextPhonemeAnalyzer {
                 "aa" -> { dict["a"]?.let { add("a", it, 150, c, ws) }; return 2 }
                 "ss" -> { dict["s"]?.let { add("s", it, 95, c, ws) }; return 2 }
             }
-            // Удвоенные
             if (text[pos] == text[pos + 1] && text[pos].isLetter()) {
                 val k = text[pos].toString()
                 dict[k]?.let { add(k, it, (it.durationMs * 1.3f).toInt(), c, ws) }; return 2
             }
         }
-        // 1-char specials
         when (c) {
             'ß' -> { dict["s"]?.let { add("s", it, 90, c, ws) }; return 1 }
             'w' -> { dict["v"]?.let { add("v", it, it.durationMs, c, ws) }; return 1 }
@@ -221,15 +197,12 @@ class TextPhonemeAnalyzer {
             'r' -> { dict["ʁ"]?.let { add("ʁ", it, it.durationMs, c, ws) }; return 1 }
             'y' -> { dict["ü"]?.let { add("ü", it, it.durationMs, c, ws) }; return 1 }
         }
-        // äu → eu
         if (rem >= 2 && c == 'ä' && text[pos + 1] == 'u') {
             dict["o"]?.let { add("o", it, 65, c, ws) }
             dict["i"]?.let { add("i", it, 50, text[pos + 1]) }; return 2
         }
         return 0
     }
-
-    // ══════════════════════════════════════════════════════════════════════
 
     private fun add(key: String, profile: PhonemeData.PhonemeProfile, ms: Int, src: Char, wb: Boolean = false) {
         tokens.add(PhonemeToken(key, profile, ms, src, wb))
