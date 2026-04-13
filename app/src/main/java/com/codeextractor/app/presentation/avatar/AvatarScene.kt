@@ -565,32 +565,52 @@ private fun buildHeadCompositeTexture(
     // ── Слой 1: фон — цвет кожи ──
     canvas.drawColor(android.graphics.Color.rgb(185, 142, 96))
 
-    // ── Слой 2: розовая полость рта через маску ──
-    try {
-        val mask = ctx.assets.open(MOUTH_MASK_PATH).use {
-            BitmapFactory.decodeStream(it)
-        }
-        if (mask != null) {
-            val scaledMask = if (mask.width != COMPOSITE_SIZE || mask.height != COMPOSITE_SIZE)
-                Bitmap.createScaledBitmap(mask, COMPOSITE_SIZE, COMPOSITE_SIZE, true)
-                    .also { if (it !== mask) mask.recycle() }
-            else mask
-
-            val mouthLayer = Bitmap.createBitmap(
-                COMPOSITE_SIZE, COMPOSITE_SIZE, Bitmap.Config.ARGB_8888
-            )
-            val mc = Canvas(mouthLayer)
-            mc.drawColor(android.graphics.Color.rgb(194, 84, 71))
-            val maskPaint = android.graphics.Paint().apply {
-                xfermode = android.graphics.PorterDuffXfermode(
-                    android.graphics.PorterDuff.Mode.DST_IN
-                )
+            // ── Слой 2: head_texture.png (кожа, волосы) ──
+            try {
+                val headBmp = ctx.assets.open(HEAD_TEXTURE).use {
+                    BitmapFactory.decodeStream(it)
+                }
+                if (headBmp != null) {
+                    val scaled = if (headBmp.width != COMPOSITE_SIZE || headBmp.height != COMPOSITE_SIZE)
+                        Bitmap.createScaledBitmap(headBmp, COMPOSITE_SIZE, COMPOSITE_SIZE, true)
+                            .also { if (it !== headBmp) headBmp.recycle() }
+                    else headBmp
+                    canvas.drawBitmap(scaled, 0f, 0f, android.graphics.Paint())
+                    if (scaled !== headBmp) scaled.recycle()
+                }
+            } catch (_: Exception) {
+                Log.d(TAG, "head_texture.png not found — composite uses base layers only")
             }
-            mc.drawBitmap(scaledMask, 0f, 0f, maskPaint)
-            canvas.drawBitmap(mouthLayer, 0f, 0f, android.graphics.Paint())
-            mouthLayer.recycle()
-            if (scaledMask !== mask) scaledMask.recycle()
-        }
+
+            // ── Слой 3: розовая полость рта через маску (поверх всего) ──
+            try {
+                val mask = ctx.assets.open(MOUTH_MASK_PATH).use {
+                    BitmapFactory.decodeStream(it)
+                }
+                if (mask != null) {
+                    val scaledMask = if (mask.width != COMPOSITE_SIZE || mask.height != COMPOSITE_SIZE)
+                        Bitmap.createScaledBitmap(mask, COMPOSITE_SIZE, COMPOSITE_SIZE, true)
+                            .also { if (it !== mask) mask.recycle() }
+                    else mask
+
+                    val mouthLayer = Bitmap.createBitmap(
+                        COMPOSITE_SIZE, COMPOSITE_SIZE, Bitmap.Config.ARGB_8888
+                    )
+                    val mc = Canvas(mouthLayer)
+                    mc.drawColor(android.graphics.Color.rgb(194, 84, 71))
+                    val maskPaint = android.graphics.Paint().apply {
+                        xfermode = android.graphics.PorterDuffXfermode(
+                            android.graphics.PorterDuff.Mode.DST_IN
+                        )
+                    }
+                    mc.drawBitmap(scaledMask, 0f, 0f, maskPaint)
+                    canvas.drawBitmap(mouthLayer, 0f, 0f, android.graphics.Paint())
+                    mouthLayer.recycle()
+                    if (scaledMask !== mask) scaledMask.recycle()
+                }
+            } catch (_: Exception) {
+                Log.w(TAG, "Mouth mask not found — skipping mouth color")
+            }
     } catch (_: Exception) {
         Log.w(TAG, "Mouth mask not found — skipping mouth color")
     }
