@@ -264,7 +264,7 @@ fun AvatarScene(
 
                     setParam(mat, "baseColorMap",   wt, defaultSampler)
                     // Тёплый персиково-розовый: слизистая полости рта
-                    setParam(mat, "baseColorFactor", 0.85f, 0.45f, 0.35f, 1f)
+                    setParam(mat, "baseColorFactor", 0.76f, 0.33f, 0.28f, 1f)
                     setParam(mat, "roughnessFactor", 0.78f)
                     setParam(mat, "metallicFactor",  0.00f)
                 }
