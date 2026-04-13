@@ -214,11 +214,11 @@ fun AvatarScene(
 
             // ГОЛОВА
             headMat?.let { mat ->
-                val tex = loadTexture(ctx, engine, HEAD_TEXTURE, mipmap = true)
+                val compositeTex = buildHeadCompositeTexture(ctx, engine)
                     ?.also { trackedTextures.add(it) }
 
-                val sampler = if (tex != null) buildMipmapSampler(anisotropy = 8f) else defaultSampler
-                setParam(mat, "baseColorMap", tex ?: wt, sampler)
+                val sampler = if (compositeTex != null) buildMipmapSampler(anisotropy = 8f) else defaultSampler
+                setParam(mat, "baseColorMap", compositeTex ?: wt, sampler)
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
                 // PBR: кожа — матовая
                 setParam(mat, "roughnessFactor",    0.48f)
@@ -543,6 +543,14 @@ private fun buildWhiteTexture(
     TextureHelper.setBitmap(engine, tex, 0, bmp)
     bmp.recycle()
     return tex
+}
+
+private fun buildHeadCompositeTexture(
+    ctx: android.content.Context,
+    engine: com.google.android.filament.Engine,
+): Texture? {
+    // TODO: Implement composite texture logic
+    return loadTexture(ctx, engine, HEAD_TEXTURE, mipmap = true)
 }
 
 // ── Sampler builders ──────────────────────────────────────────────────────
