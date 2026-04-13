@@ -34,14 +34,30 @@ class EmotionalProsody {
     var thoughtfulness: Float = 0f // 0..1 (pause/thinking)
 }
 
-/** Audio features extracted by DSP */
+/**
+ * Audio features extracted by DSP.
+ * Объединяет лучшее из всех трёх реализаций:
+ * - Базовые band energies (original)
+ * - ZCR для детекции фрикативов (Gemini)
+ * - Spectral Flux + isPlosive для взрывных (Gemini + Claude)
+ * - Pitch Variance для эмоциональной экспрессивности (Grok)
+ */
 class AudioFeatures {
+    // ═══ Базовые ═══
     var rms: Float = 0f
-    var energyLow: Float = 0f     // 150-800 Hz: A, O vowels
-    var energyMid: Float = 0f     // 800-2500 Hz: E, I vowels
-    var energyHigh: Float = 0f    // 2500-8000 Hz: S, F, Sh fricatives
-    var pitch: Float = 0f         // F0 in Hz (0 = unvoiced)
+    var energyLow: Float = 0f      // 150-800 Hz: A, O vowels
+    var energyMid: Float = 0f      // 800-2500 Hz: E, I vowels, nasals
+    var energyHigh: Float = 0f     // 2500-8000 Hz: S, F, Sh fricatives
+    var pitch: Float = 0f          // F0 in Hz (0 = unvoiced)
     var hasVoice: Boolean = false
+
+    // ═══ Новые метрики (из Gemini) ═══
+    var zcr: Float = 0f            // Zero-Crossing Rate: шипящие/фрикативы
+    var spectralFlux: Float = 0f   // Резкость атаки звука (transients)
+    var isPlosive: Boolean = false  // Триггер для взрывных P, B, T, K
+
+    // ═══ Новые метрики (из Grok) ═══
+    var pitchVariance: Float = 0f  // Вариация тона (экспрессивность)
 }
 
 /** Main animator interface */
