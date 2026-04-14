@@ -269,7 +269,7 @@ fun ModelEditorScreen(onBack: () -> Unit) {
         }
     }
 
-    DisposableEffect(Unit) { onDispose { editor.destroy(engine) } }
+    DisposableEffect(engine) { onDispose { editor.destroy(engine, modelInstance) } }
 
     LaunchedEffect(Unit) {
         while (true) { kotlinx.coroutines.delay(16); editor.flushPendingGpuOps(engine) }
