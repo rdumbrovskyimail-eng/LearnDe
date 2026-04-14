@@ -211,11 +211,18 @@ fun AvatarScene(
         eyeRightEntityId = 0
 
         val buffer = withContext(Dispatchers.IO) {
-            val patchedFile = File(ctx.cacheDir, "patched_model_$avatarIndex.glb")
+            // GlbTextureEditor всегда пишет в patched_model.glb
+            val editorOutput = File(ctx.cacheDir, "patched_model.glb")
+            // Кэшированный файл для конкретного аватара
+            val patchedFile  = File(ctx.cacheDir, "patched_model_$avatarIndex.glb")
+
             if (patchedFile.exists()) patchedFile.delete()
 
             com.codeextractor.app.editor.GlbTextureEditor(ctx)
                 .preparePatchedModel(modelPath())
+
+            // Переименовываем выход пайпа в файл с индексом аватара
+            editorOutput.renameTo(patchedFile)
 
             val bytes = patchedFile.readBytes()
             ByteBuffer.allocateDirect(bytes.size).also {
