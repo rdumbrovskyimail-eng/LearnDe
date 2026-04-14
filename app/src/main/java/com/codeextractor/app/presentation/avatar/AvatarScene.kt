@@ -7,12 +7,20 @@ import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.TextUnitType
+import androidx.compose.ui.unit.dp
 import com.codeextractor.app.domain.avatar.ARKit
 import com.codeextractor.app.domain.avatar.RenderDoubleBuffer
 import com.codeextractor.app.domain.avatar.ZeroAllocRenderState
@@ -36,11 +44,18 @@ import java.nio.ByteBuffer
 
 private const val TAG = "AvatarScene"
 
-// ── Пути к ресурсам ────────────────────────────────────────────────────────
-private const val MODEL_PATH      = "models/test.glb"
-private const val HEAD_TEXTURE    = "models/head_texture.png"
-private const val EYES_TEXTURE    = "models/eyes_texture.png"
-private const val TEETH_TEXTURE   = "models/teeth_texture.png"
+// ── Ресурсы аватара 1 (мужской) ───────────────────────────────────────────
+private const val MODEL_PATH_1    = "models/test.glb"
+private const val HEAD_TEXTURE_1  = "models/head_texture.png"
+private const val EYES_TEXTURE_1  = "models/eyes_texture.png"
+private const val TEETH_TEXTURE_1 = "models/teeth_texture.png"
+
+// ── Ресурсы аватара 2 (женский) ───────────────────────────────────────────
+private const val MODEL_PATH_2    = "models/test2.glb"
+private const val HEAD_TEXTURE_2  = "models/head_texture2.png"
+private const val EYES_TEXTURE_2  = "models/eyes_texture2.png"
+private const val TEETH_TEXTURE_2 = "models/teeth_texture2.png"
+
 private const val MOUTH_MASK_PATH = "masks/mouth_inner.png"
 private const val COMPOSITE_SIZE  = 1024
 
@@ -91,10 +106,10 @@ private val gazeResult = FloatArray(16)
  *
  * АРХИТЕКТУРА:
  *
- *   1. Загрузка модели — LaunchedEffect(modelLoader)
+ *   1. Загрузка модели — LaunchedEffect(modelLoader, avatarIndex)
  *      Патч GLB → ByteBuffer → ModelInstance. Dispatchers.IO.
  *
- *   2. Настройка материалов — LaunchedEffect(modelInstance)
+ *   2. Настройка материалов — LaunchedEffect(modelInstance, avatarIndex)
  *      Идентификация мешей, текстуры, PBR-параметры. Dispatchers.IO.
  *      После withContext — захват eye rest-трансформов на Main dispatcher,
  *      пока голова ещё в дефолтной позе (= смотрит на камеру).
@@ -103,6 +118,12 @@ private val gazeResult = FloatArray(16)
  *      applyMorphWeights  — ARKit blend-shapes (анимация сохраняется полностью).
  *      applyHeadRotation  — поворот root entity на (pitch, yaw, roll).
  *      applyEyeGaze       — коррекция взгляда (см. ниже).
+ *
+ * ПЕРЕКЛЮЧЕНИЕ АВАТАРОВ:
+ *   Кнопка ♀/♂ в правом нижнем углу меняет avatarIndex (1 или 2).
+ *   Оба LaunchedEffect имеют avatarIndex в ключах → перезапускаются,
+ *   сбрасывают состояние и загружают ресурсы соответствующего аватара.
+ *   Кэш-файлы раздельные (patched_model_1.glb / patched_model_2.glb).
  *
  * GAZE CORRECTION — математика:
  *   Проблема: root повёрнут на матрицу R → все children (в т.ч. глаза)
@@ -121,12 +142,6 @@ private val gazeResult = FloatArray(16)
  *   Зубы    — roughness 0.35 с текстурой / 0.85 (тёмно-розовая слизистая) без
  *   Глаза   — roughness 0.02 (роговица)
  *
- * GLB содержит ровно 4 меша:
- *   teeth_ORIGINAL    — 5  морф-таргетов → TEETH
- *   head_lod0_ORIGINAL— 51 морф-таргет  → HEAD
- *   eyeLeft_ORIGINAL  — 4  морф-таргета  → EYE_LEFT
- *   eyeRight_ORIGINAL — 4  морф-таргета  → EYE_RIGHT
- *
  * @param renderBuffer  zero-alloc буфер от AvatarAnimatorImpl
  * @param modifier      Modifier для Box-контейнера
  */
@@ -142,12 +157,21 @@ fun AvatarScene(
     val environment       = rememberEnvironment(environmentLoader)
     val cameraNode        = rememberCameraNode(engine) { position = CAM_POS }
 
+    // ── Текущий аватар: 1 = мужской, 2 = женский ─────────────────────────
+    var avatarIndex    by remember { mutableStateOf(1) }
+
     var modelInstance  by remember { mutableStateOf<ModelInstance?>(null) }
     var materialsReady by remember { mutableStateOf(false) }
 
     val trackedTextures = remember { mutableListOf<Texture>() }
     val frameSnapshot   = remember { ZeroAllocRenderState() }
     var whiteTex        by remember { mutableStateOf<Texture?>(null) }
+
+    // Хелперы путей в зависимости от выбранного аватара
+    fun modelPath() = if (avatarIndex == 1) MODEL_PATH_1    else MODEL_PATH_2
+    fun headTex()   = if (avatarIndex == 1) HEAD_TEXTURE_1  else HEAD_TEXTURE_2
+    fun eyesTex()   = if (avatarIndex == 1) EYES_TEXTURE_1  else EYES_TEXTURE_2
+    fun teethTex()  = if (avatarIndex == 1) TEETH_TEXTURE_1 else TEETH_TEXTURE_2
 
     // ── Сброс gaze-состояния при выходе из Composition ───────────────────
     DisposableEffect(Unit) {
@@ -176,14 +200,22 @@ fun AvatarScene(
 
     // ══════════════════════════════════════════════════════════════════════
     //  ЗАГРУЗКА МОДЕЛИ
+    //  Ключ: modelLoader + avatarIndex — перезапускается при смене аватара.
     // ══════════════════════════════════════════════════════════════════════
-    LaunchedEffect(modelLoader) {
+    LaunchedEffect(modelLoader, avatarIndex) {
+        // Сброс состояния перед загрузкой нового аватара
+        modelInstance    = null
+        materialsReady   = false
+        eyeRestCaptured  = false
+        eyeLeftEntityId  = 0
+        eyeRightEntityId = 0
+
         val buffer = withContext(Dispatchers.IO) {
-            val patchedFile = File(ctx.cacheDir, "patched_model.glb")
+            val patchedFile = File(ctx.cacheDir, "patched_model_$avatarIndex.glb")
             if (patchedFile.exists()) patchedFile.delete()
 
             com.codeextractor.app.editor.GlbTextureEditor(ctx)
-                .preparePatchedModel(MODEL_PATH)
+                .preparePatchedModel(modelPath())
 
             val bytes = patchedFile.readBytes()
             ByteBuffer.allocateDirect(bytes.size).also {
@@ -191,22 +223,28 @@ fun AvatarScene(
             }
         }
         modelInstance = modelLoader.createModelInstance(buffer)
-        Log.d(TAG, "Model loaded: ${modelInstance?.entities?.size} entities")
+        Log.d(TAG, "Model loaded [avatar=$avatarIndex]: ${modelInstance?.entities?.size} entities")
     }
 
     // ══════════════════════════════════════════════════════════════════════
     //  НАСТРОЙКА МАТЕРИАЛОВ + ЗАХВАТ EYE REST-ТРАНСФОРМОВ
+    //  Ключ: modelInstance + avatarIndex — перезапускается при смене аватара.
     // ══════════════════════════════════════════════════════════════════════
-    LaunchedEffect(modelInstance) {
+    LaunchedEffect(modelInstance, avatarIndex) {
         val mi = modelInstance ?: return@LaunchedEffect
         val rm = engine.renderableManager
 
-        // Локальные vars для entity ID глаз — используются после withContext
-        // для захвата rest-трансформов до того как начнут применяться повороты.
         var capturedEyeLeft:  Int? = null
         var capturedEyeRight: Int? = null
 
         withContext(Dispatchers.IO) {
+
+            // Освобождаем текстуры предыдущего аватара перед созданием новых
+            for (tex in trackedTextures) {
+                try { engine.destroyTexture(tex) }
+                catch (e: Exception) { Log.w(TAG, "destroyTexture (swap) failed", e) }
+            }
+            trackedTextures.clear()
 
             val wt             = buildWhiteTexture(engine)
             whiteTex           = wt
@@ -243,11 +281,11 @@ fun AvatarScene(
                     ARKit.MeshType.EYE_LEFT,
                     ARKit.MeshType.EYE_RIGHT -> {
                         if (eyeCount == 0) {
-                            eyeLMat       = mat
-                            capturedEyeLeft = entity        // ← сохраняем для rest-захвата
+                            eyeLMat         = mat
+                            capturedEyeLeft = entity
                         } else {
-                            eyeRMat        = mat
-                            capturedEyeRight = entity       // ← сохраняем для rest-захвата
+                            eyeRMat          = mat
+                            capturedEyeRight = entity
                         }
                         eyeCount++
                         handled.add(packKey(entity, 0))
@@ -258,7 +296,7 @@ fun AvatarScene(
 
             // ── ГОЛОВА ────────────────────────────────────────────────────
             headMat?.let { mat ->
-                val compositeTex = buildHeadCompositeTexture(ctx, engine)
+                val compositeTex = buildHeadCompositeTexture(ctx, engine, headTex())
                     ?.also { trackedTextures.add(it) }
                 val sampler = if (compositeTex != null) buildMipmapSampler(anisotropy = 8f)
                               else defaultSampler
@@ -269,11 +307,8 @@ fun AvatarScene(
             }
 
             // ── ЗУБЫ / ВНУТРЕННОСТЬ РТА ──────────────────────────────────
-            // teeth_ORIGINAL — единственный меш на весь объём рта.
-            // Без текстуры белый fallback + roughness 0.14 = зеркальный белый рот (IBL).
-            // Решение: тёмно-розовая слизистая + roughness 0.85 (почти нет отражений).
             teethMat?.let { mat ->
-                val tex = loadTexture(ctx, engine, TEETH_TEXTURE, mipmap = true)
+                val tex = loadTexture(ctx, engine, teethTex(), mipmap = true)
                     ?.also { trackedTextures.add(it) }
 
                 if (tex != null) {
@@ -293,7 +328,7 @@ fun AvatarScene(
 
             // ── ГЛАЗА ─────────────────────────────────────────────────────
             listOf(eyeLMat, eyeRMat).filterNotNull().forEach { mat ->
-                val tex = loadTexture(ctx, engine, EYES_TEXTURE, mipmap = true)
+                val tex = loadTexture(ctx, engine, eyesTex(), mipmap = true)
                     ?.also { trackedTextures.add(it) }
                 val sampler = if (tex != null)
                     buildMipmapSampler(wrap = TextureSampler.WrapMode.REPEAT)
@@ -307,9 +342,6 @@ fun AvatarScene(
         // ── withContext вернулся: мы снова на Main dispatcher ─────────────
 
         // ── ЗАХВАТ EYE REST-ТРАНСФОРМОВ ───────────────────────────────────
-        // Важно: захватываем ДО того как materialsReady = true запустит onFrame.
-        // В этот момент поворот головы = 0 → глаза смотрят прямо на камеру.
-        // Именно эти трансформы станут целевыми для gaze-коррекции.
         val tm = engine.transformManager
 
         capturedEyeLeft?.let { entity ->
@@ -327,9 +359,9 @@ fun AvatarScene(
             }
         }
 
-        eyeRestCaptured = true   // ← gaze-коррекция теперь активна
+        eyeRestCaptured = true
         materialsReady  = true
-        Log.d(TAG, "Materials ready. Gaze correction ON. Tracked textures: ${trackedTextures.size}")
+        Log.d(TAG, "Materials ready [avatar=$avatarIndex]. Gaze ON. Textures: ${trackedTextures.size}")
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -353,10 +385,10 @@ fun AvatarScene(
 
                 renderBuffer?.read(frameSnapshot)
 
-                // 1. Blend-shapes: губы, моргание, прищур, etc. (анимация сохраняется)
+                // 1. Blend-shapes: губы, моргание, прищур, etc.
                 applyMorphWeights(engine, mi, frameSnapshot)
 
-                // 2. Поворот головы (root entity повернётся вместе с глазами)
+                // 2. Поворот головы
                 applyHeadRotation(
                     engine, mi,
                     frameSnapshot.headPitch,
@@ -364,8 +396,7 @@ fun AvatarScene(
                     frameSnapshot.headRoll,
                 )
 
-                // 3. Компенсируем поворот у глаз → взгляд всегда на камеру.
-                //    Морф-анимация при этом не затрагивается (она в blend-shapes).
+                // 3. Компенсируем поворот у глаз → взгляд всегда на камеру
                 applyEyeGaze(
                     engine,
                     frameSnapshot.headPitch,
@@ -384,10 +415,32 @@ fun AvatarScene(
             }
         }
 
+        // ── Индикатор загрузки ────────────────────────────────────────────
         if (modelInstance == null || !materialsReady) {
             CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center),
                 color    = Color.White.copy(alpha = 0.35f),
+            )
+        }
+
+        // ── Кнопка переключения аватара ───────────────────────────────────
+        IconButton(
+            onClick = {
+                avatarIndex = if (avatarIndex == 1) 2 else 1
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .size(48.dp)
+                .background(
+                    color  = Color.White.copy(alpha = 0.15f),
+                    shape  = CircleShape,
+                ),
+        ) {
+            Text(
+                text     = if (avatarIndex == 1) "♀" else "♂",
+                color    = Color.White,
+                fontSize = TextUnit(22f, TextUnitType.Sp),
             )
         }
     }
@@ -487,7 +540,6 @@ private fun applyHeadRotation(
 //  R⁻¹ = Rᵀ в column-major:
 //    Исходная column-major запись: mat[col*4 + row] = R[row, col]
 //    Транспонирование:             mat_T[col*4 + row] = R[col, row]
-//    Т.е. меняем местами col и row в исходных rij.
 // ═══════════════════════════════════════════════════════════════════════════
 
 private fun applyEyeGaze(
@@ -499,7 +551,6 @@ private fun applyEyeGaze(
     if (!eyeRestCaptured) return
     if (eyeLeftEntityId == 0 && eyeRightEntityId == 0) return
 
-    // ── Строим R (те же углы, что в applyHeadRotation) ───────────────────
     val p = Math.toRadians(pitchDeg.toDouble()).toFloat()
     val y = Math.toRadians(yawDeg.toDouble()).toFloat()
     val r = Math.toRadians(rollDeg.toDouble()).toFloat()
@@ -512,10 +563,7 @@ private fun applyEyeGaze(
     val r10 = -cy*sr + sy*sp*cr;  val r11 = cp*cr;  val r12 =  sy*sr + cy*sp*cr
     val r20 =  sy*cp;             val r21 = -sp;    val r22 =  cy*cp
 
-    // ── R⁻¹ = Rᵀ (column-major transpose) ───────────────────────────────
-    // col 0 транспозиции ← row 0 оригинала: (r00, r01, r02)
-    // col 1 транспозиции ← row 1 оригинала: (r10, r11, r12)
-    // col 2 транспозиции ← row 2 оригинала: (r20, r21, r22)
+    // R⁻¹ = Rᵀ (column-major transpose)
     val inv = gazeInvRotation
     inv[0]  = r00;  inv[1]  = r01;  inv[2]  = r02;  inv[3]  = 0f
     inv[4]  = r10;  inv[5]  = r11;  inv[6]  = r12;  inv[7]  = 0f
@@ -529,11 +577,14 @@ private fun applyEyeGaze(
 }
 
 /**
- * Вычисляет и применяет скорректированный трансформ для одного глаза:
- *   gazeResult = gazeInvRotation × rest  (column-major 4×4 multiply)
+ * Вычисляет и применяет скорректированный трансформ для одного глаза.
  *
- * Использует файловые pre-allocated массивы [gazeInvRotation] и [gazeResult].
- * Вызывается строго из Compose onFrame (один поток) — thread-safe.
+ * ТОЛЬКО верхний левый блок 3×3 (ориентация) умножается на R⁻¹.
+ * Колонка трансляции (позиция глаза в локальном пространстве головы)
+ * берётся из rest без изменений — именно это не давало глазу «плавать».
+ *
+ *   out_rot  = inv_rot × rest_rot   ← 3×3 умножение
+ *   out_pos  = rest_pos             ← без изменений (глаз остаётся в глазнице!)
  */
 private fun applyGazeToEye(
     tm:       com.google.android.filament.TransformManager,
@@ -545,14 +596,22 @@ private fun applyGazeToEye(
     val inv = gazeInvRotation
     val out = gazeResult
 
-    // out = inv × rest  (стандартное умножение матриц, column-major)
-    for (col in 0..3) {
-        for (row in 0..3) {
+    // ── Умножаем только 3×3 блок ориентации ──────────────────────────────
+    // col-major: mat[col*4 + row], ограничиваем k до 0..2 (чистое вращение)
+    for (col in 0..2) {
+        for (row in 0..2) {
             var sum = 0f
-            for (k in 0..3) sum += inv[k * 4 + row] * rest[col * 4 + k]
+            for (k in 0..2) sum += inv[k * 4 + row] * rest[col * 4 + k]
             out[col * 4 + row] = sum
         }
+        out[col * 4 + 3] = 0f   // w-компонент каждой колонки вращения = 0
     }
+
+    // ── Позицию глаза берём из rest — глаз НЕ смещается из глазницы ──────
+    out[12] = rest[12]
+    out[13] = rest[13]
+    out[14] = rest[14]
+    out[15] = 1f
 
     tm.setTransform(ti, out)
 }
@@ -644,8 +703,9 @@ private fun buildWhiteTexture(engine: com.google.android.filament.Engine): Textu
 }
 
 private fun buildHeadCompositeTexture(
-    ctx:    android.content.Context,
-    engine: com.google.android.filament.Engine,
+    ctx:     android.content.Context,
+    engine:  com.google.android.filament.Engine,
+    texPath: String = HEAD_TEXTURE_1,
 ): Texture? = try {
     val composite = Bitmap.createBitmap(COMPOSITE_SIZE, COMPOSITE_SIZE, Bitmap.Config.ARGB_8888)
     val canvas    = Canvas(composite)
@@ -653,7 +713,7 @@ private fun buildHeadCompositeTexture(
     canvas.drawColor(android.graphics.Color.rgb(185, 142, 96))
 
     try {
-        val headBmp = ctx.assets.open(HEAD_TEXTURE).use { BitmapFactory.decodeStream(it) }
+        val headBmp = ctx.assets.open(texPath).use { BitmapFactory.decodeStream(it) }
         if (headBmp != null) {
             val scaled = if (headBmp.width != COMPOSITE_SIZE || headBmp.height != COMPOSITE_SIZE)
                 Bitmap.createScaledBitmap(headBmp, COMPOSITE_SIZE, COMPOSITE_SIZE, true)
@@ -663,7 +723,7 @@ private fun buildHeadCompositeTexture(
             if (scaled !== headBmp) scaled.recycle()
         }
     } catch (_: Exception) {
-        Log.d(TAG, "head_texture.png not found — base skin color used")
+        Log.d(TAG, "Texture not found: $texPath — base skin color used")
     }
 
     val mipLevels = (kotlin.math.log2(COMPOSITE_SIZE.toFloat())).toInt() + 1
@@ -681,7 +741,7 @@ private fun buildHeadCompositeTexture(
     TextureHelper.setBitmap(engine, tex, 0, composite)
     tex.generateMipmaps(engine)
     composite.recycle()
-    Log.d(TAG, "Head composite texture built")
+    Log.d(TAG, "Head composite texture built: $texPath")
     tex
 } catch (e: Exception) {
     Log.e(TAG, "buildHeadCompositeTexture failed", e)
