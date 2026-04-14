@@ -44,106 +44,46 @@ import java.nio.ByteBuffer
 
 private const val TAG = "AvatarScene"
 
-// ── Ресурсы аватара 1 (мужской) ───────────────────────────────────────────
+// \u2500\u2500 \u0420\u0435\u0441\u0443\u0440\u0441\u044b \u0430\u0432\u0430\u0442\u0430\u0440\u0430 1 (\u043c\u0443\u0436\u0441\u043a\u043e\u0439) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 private const val MODEL_PATH_1    = "models/test.glb"
 private const val HEAD_TEXTURE_1  = "models/head_texture.png"
 private const val EYES_TEXTURE_1  = "models/eyes_texture.png"
 private const val TEETH_TEXTURE_1 = "models/teeth_texture.png"
 
-// ── Ресурсы аватара 2 (женский) ───────────────────────────────────────────
+// \u2500\u2500 \u0420\u0435\u0441\u0443\u0440\u0441\u044b \u0430\u0432\u0430\u0442\u0430\u0440\u0430 2 (\u0436\u0435\u043d\u0441\u043a\u0438\u0439) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 private const val MODEL_PATH_2    = "models/test2.glb"
 private const val HEAD_TEXTURE_2  = "models/head_texture2.png"
 private const val EYES_TEXTURE_2  = "models/eyes_texture2.png"
 private const val TEETH_TEXTURE_2 = "models/teeth_texture2.png"
 
-private const val MOUTH_MASK_PATH = "masks/mouth_inner.png"
-private const val COMPOSITE_SIZE  = 1024
+private const val COMPOSITE_SIZE = 1024
 
-// ── Камера ─────────────────────────────────────────────────────────────────
+// \u2500\u2500 \u041a\u0430\u043c\u0435\u0440\u0430 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 private val CAM_POS = dev.romainguy.kotlin.math.Float3(0f, 1.35f, 0.70f)
 private val CAM_TGT = dev.romainguy.kotlin.math.Float3(0f, 1.35f, 0.00f)
 private const val MODEL_SCALE = 0.35f
 
-// ══════════════════════════════════════════════════════════════════════════
-//  PRE-ALLOCATED ARRAYS (zero-alloc в onFrame, один экземпляр на процесс)
-//  Все массивы используются строго из одного потока (Compose onFrame).
-// ══════════════════════════════════════════════════════════════════════════
-
-/** Матрица трансформа для поворота головы (root entity). */
+// \u2500\u2500 Pre-allocated array \u0434\u043b\u044f \u043f\u043e\u0432\u043e\u0440\u043e\u0442\u0430 \u0433\u043e\u043b\u043e\u0432\u044b (zero-alloc \u0432 onFrame) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 private val reusableTransformMatrix = FloatArray(16)
 
 /**
- * REST-трансформы глаз — снимаются один раз после загрузки модели,
- * когда голова ещё не повёрнута (дефолтная поза = смотрит на камеру).
- * Используются в [applyEyeGaze] как эталон «взгляд на клиента».
- */
-private val eyeLeftRestTransform  = FloatArray(16)
-private val eyeRightRestTransform = FloatArray(16)
-
-/** R⁻¹ = Rᵀ — инверсия матрицы поворота головы, вычисляется каждый кадр. */
-private val gazeInvRotation = FloatArray(16)
-
-/** Результирующий трансформ глаза: R⁻¹ × rest_transform. */
-private val gazeResult = FloatArray(16)
-
-/**
- * Флаг: rest-трансформы захвачены, gaze-коррекция активна.
- * Volatile: пишется из LaunchedEffect (Main), читается из onFrame (Main).
- */
-@Volatile private var eyeRestCaptured = false
-
-/**
- * Entity ID левого и правого глаз.
- * 0 = не захвачен. Volatile достаточно: запись и чтение на Main dispatcher.
- */
-@Volatile private var eyeLeftEntityId:  Int = 0
-@Volatile private var eyeRightEntityId: Int = 0
-
-// ══════════════════════════════════════════════════════════════════════════
-
-/**
- * AvatarScene v7 — Production-Ready 3D Avatar Renderer
+ * AvatarScene \u2014 3D Avatar Renderer
  *
- * АРХИТЕКТУРА:
+ * \u0410\u0420\u0425\u0418\u0422\u0415\u041a\u0422\u0423\u0420\u0410:
+ *   1. \u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u043c\u043e\u0434\u0435\u043b\u0438 \u2014 LaunchedEffect(modelLoader, avatarIndex)
+ *   2. \u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0430 \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u043e\u0432 \u2014 LaunchedEffect(modelInstance, avatarIndex)
+ *   3. \u0420\u0435\u043d\u0434\u0435\u0440-\u0446\u0438\u043a\u043b \u2014 Scene.onFrame (60 fps):
+ *      \u2022 applyMorphWeights \u2014 ARKit blend-shapes (\u0433\u0443\u0431\u044b, \u043c\u043e\u0440\u0433\u0430\u043d\u0438\u0435, \u043c\u0438\u043c\u0438\u043a\u0430)
+ *      \u2022 applyHeadRotation \u2014 \u043f\u043e\u0432\u043e\u0440\u043e\u0442 root entity
  *
- *   1. Загрузка модели — LaunchedEffect(modelLoader, avatarIndex)
- *      Патч GLB → ByteBuffer → ModelInstance. Dispatchers.IO.
+ * \u0413\u041b\u0410\u0417\u0410: glb-\u043c\u0435\u0448\u0438 \u0433\u043b\u0430\u0437 \u044f\u0432\u043b\u044f\u044e\u0442\u0441\u044f \u0434\u043e\u0447\u0435\u0440\u043d\u0438\u043c\u0438 \u043e\u0431\u044a\u0435\u043a\u0442\u0430\u043c\u0438 \u0447\u0435\u0440\u0435\u043f\u0430 \u0438 \u0432\u0440\u0430\u0449\u0430\u044e\u0442\u0441\u044f
+ * \u0432\u043c\u0435\u0441\u0442\u0435 \u0441 \u043d\u0438\u043c \u2014 \u044d\u0442\u043e \u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u043e\u0435 \u043f\u043e\u0432\u0435\u0434\u0435\u043d\u0438\u0435. \u041d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0432\u0437\u0433\u043b\u044f\u0434\u0430 \u0443\u043f\u0440\u0430\u0432\u043b\u044f\u0435\u0442\u0441\u044f
+ * \u0447\u0435\u0440\u0435\u0437 ARKit blend-shapes (eyeLookUp/Down/In/Out), \u0430 \u043d\u0435 \u0447\u0435\u0440\u0435\u0437 transform.
  *
- *   2. Настройка материалов — LaunchedEffect(modelInstance, avatarIndex)
- *      Идентификация мешей, текстуры, PBR-параметры. Dispatchers.IO.
- *      После withContext — захват eye rest-трансформов на Main dispatcher,
- *      пока голова ещё в дефолтной позе (= смотрит на камеру).
- *
- *   3. Рендер-цикл — Scene.onFrame (60 fps), zero-alloc:
- *      applyMorphWeights  — ARKit blend-shapes (анимация сохраняется полностью).
- *      applyHeadRotation  — поворот root entity на (pitch, yaw, roll).
- *      applyEyeGaze       — коррекция взгляда (см. ниже).
- *
- * ПЕРЕКЛЮЧЕНИЕ АВАТАРОВ:
- *   Кнопка ♀/♂ в правом нижнем углу меняет avatarIndex (1 или 2).
- *   Оба LaunchedEffect имеют avatarIndex в ключах → перезапускаются,
- *   сбрасывают состояние и загружают ресурсы соответствующего аватара.
- *   Кэш-файлы раздельные (patched_model_1.glb / patched_model_2.glb).
- *
- * GAZE CORRECTION — математика:
- *   Проблема: root повёрнут на матрицу R → все children (в т.ч. глаза)
- *             поворачиваются вместе → взгляд уходит от камеры.
- *   Решение:  eye_local_new = R⁻¹ × eye_local_rest
- *   Доказательство:
- *     eye_world = R × eye_local_new = R × (R⁻¹ × rest) = rest   ← всегда на камеру ✓
- *   R⁻¹ = Rᵀ (транспонирование ортогональной матрицы вращения).
- *
- *   Анимация СОХРАНЯЕТСЯ:
- *     Морф-таргеты глаз (моргание, прищур) живут в blend-shapes и
- *     не зависят от transform entity → работают как прежде. ✓
- *
- * PBR МАТЕРИАЛЫ:
- *   Голова  — roughness 0.48 (матовая кожа)
- *   Зубы    — roughness 0.35 с текстурой / 0.85 (тёмно-розовая слизистая) без
- *   Глаза   — roughness 0.02 (роговица)
- *
- * @param renderBuffer  zero-alloc буфер от AvatarAnimatorImpl
- * @param modifier      Modifier для Box-контейнера
+ * PBR \u041c\u0410\u0422\u0415\u0420\u0418\u0410\u041b\u042b:
+ *   \u0413\u043e\u043b\u043e\u0432\u0430  \u2014 roughness 0.48 (\u043c\u0430\u0442\u043e\u0432\u0430\u044f \u043a\u043e\u0436\u0430)
+ *   \u0417\u0443\u0431\u044b    \u2014 roughness 0.35 \u0441 \u0442\u0435\u043a\u0441\u0442\u0443\u0440\u043e\u0439 / 0.85 (\u0441\u043b\u0438\u0437\u0438\u0441\u0442\u0430\u044f) \u0431\u0435\u0437 \u0442\u0435\u043a\u0441\u0442\u0443\u0440\u044b
+ *   \u0413\u043b\u0430\u0437\u0430   \u2014 roughness 0.02 (\u0440\u043e\u0433\u043e\u0432\u0438\u0446\u0430)
  */
 @Composable
 fun AvatarScene(
@@ -157,9 +97,8 @@ fun AvatarScene(
     val environment       = rememberEnvironment(environmentLoader)
     val cameraNode        = rememberCameraNode(engine) { position = CAM_POS }
 
-    // ── Текущий аватар: 1 = мужской, 2 = женский ─────────────────────────
+    // \u2500\u2500 \u0422\u0435\u043a\u0443\u0449\u0438\u0439 \u0430\u0432\u0430\u0442\u0430\u0440: 1 = \u043c\u0443\u0436\u0441\u043a\u043e\u0439, 2 = \u0436\u0435\u043d\u0441\u043a\u0438\u0439 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     var avatarIndex    by remember { mutableStateOf(1) }
-
     var modelInstance  by remember { mutableStateOf<ModelInstance?>(null) }
     var materialsReady by remember { mutableStateOf(false) }
 
@@ -167,53 +106,35 @@ fun AvatarScene(
     val frameSnapshot   = remember { ZeroAllocRenderState() }
     var whiteTex        by remember { mutableStateOf<Texture?>(null) }
 
-    // Хелперы путей в зависимости от выбранного аватара
     fun modelPath() = if (avatarIndex == 1) MODEL_PATH_1    else MODEL_PATH_2
     fun headTex()   = if (avatarIndex == 1) HEAD_TEXTURE_1  else HEAD_TEXTURE_2
     fun eyesTex()   = if (avatarIndex == 1) EYES_TEXTURE_1  else EYES_TEXTURE_2
     fun teethTex()  = if (avatarIndex == 1) TEETH_TEXTURE_1 else TEETH_TEXTURE_2
 
-    // ── Сброс gaze-состояния при выходе из Composition ───────────────────
-    DisposableEffect(Unit) {
-        onDispose {
-            eyeRestCaptured  = false
-            eyeLeftEntityId  = 0
-            eyeRightEntityId = 0
-        }
-    }
-
-    // ── Очистка GPU-памяти ────────────────────────────────────────────────
+    // \u2500\u2500 \u041e\u0447\u0438\u0441\u0442\u043a\u0430 GPU-\u043f\u0430\u043c\u044f\u0442\u0438 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     DisposableEffect(engine) {
         onDispose {
             Log.d(TAG, "Disposing ${trackedTextures.size} textures")
             for (tex in trackedTextures) {
-                try { engine.destroyTexture(tex) }
-                catch (e: Exception) { Log.w(TAG, "destroyTexture failed", e) }
+                try { engine.destroyTexture(tex) } catch (e: Exception) { Log.w(TAG, "destroyTexture failed", e) }
             }
             trackedTextures.clear()
             whiteTex?.let {
-                try { engine.destroyTexture(it) }
-                catch (e: Exception) { Log.w(TAG, "destroyTexture (white) failed", e) }
+                try { engine.destroyTexture(it) } catch (e: Exception) { Log.w(TAG, "destroyTexture (white) failed", e) }
             }
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    //  ЗАГРУЗКА МОДЕЛИ
-    //  Ключ: modelLoader + avatarIndex — перезапускается при смене аватара.
-    // ══════════════════════════════════════════════════════════════════════
+    // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    //  \u0417\u0410\u0413\u0420\u0423\u0417\u041a\u0410 \u041c\u041e\u0414\u0415\u041b\u0418
+    // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
     LaunchedEffect(modelLoader, avatarIndex) {
-        // Сброс состояния перед загрузкой нового аватара
-        modelInstance    = null
-        materialsReady   = false
-        eyeRestCaptured  = false
-        eyeLeftEntityId  = 0
-        eyeRightEntityId = 0
+        modelInstance  = null
+        materialsReady = false
 
         val buffer = withContext(Dispatchers.IO) {
-            // GlbTextureEditor всегда пишет в patched_model.glb
+            // GlbTextureEditor \u0432\u0441\u0435\u0433\u0434\u0430 \u043f\u0438\u0448\u0435\u0442 \u0432 patched_model.glb
             val editorOutput = File(ctx.cacheDir, "patched_model.glb")
-            // Кэшированный файл для конкретного аватара
             val patchedFile  = File(ctx.cacheDir, "patched_model_$avatarIndex.glb")
 
             if (patchedFile.exists()) patchedFile.delete()
@@ -221,35 +142,28 @@ fun AvatarScene(
             com.codeextractor.app.editor.GlbTextureEditor(ctx)
                 .preparePatchedModel(modelPath())
 
-            // Переименовываем выход пайпа в файл с индексом аватара
+            // \u041f\u0435\u0440\u0435\u0438\u043c\u0435\u043d\u043e\u0432\u044b\u0432\u0430\u0435\u043c \u0432 \u0444\u0430\u0439\u043b \u0441 \u0438\u043d\u0434\u0435\u043a\u0441\u043e\u043c \u0430\u0432\u0430\u0442\u0430\u0440\u0430
             editorOutput.renameTo(patchedFile)
 
             val bytes = patchedFile.readBytes()
-            ByteBuffer.allocateDirect(bytes.size).also {
-                it.put(bytes); it.rewind()
-            }
+            ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
         }
         modelInstance = modelLoader.createModelInstance(buffer)
         Log.d(TAG, "Model loaded [avatar=$avatarIndex]: ${modelInstance?.entities?.size} entities")
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    //  НАСТРОЙКА МАТЕРИАЛОВ + ЗАХВАТ EYE REST-ТРАНСФОРМОВ
-    //  Ключ: modelInstance + avatarIndex — перезапускается при смене аватара.
-    // ══════════════════════════════════════════════════════════════════════
+    // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    //  \u041d\u0410\u0421\u0422\u0420\u041e\u0419\u041a\u0410 \u041c\u0410\u0422\u0415\u0420\u0418\u0410\u041b\u041e\u0412
+    // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
     LaunchedEffect(modelInstance, avatarIndex) {
         val mi = modelInstance ?: return@LaunchedEffect
         val rm = engine.renderableManager
 
-        var capturedEyeLeft:  Int? = null
-        var capturedEyeRight: Int? = null
-
         withContext(Dispatchers.IO) {
 
-            // Освобождаем текстуры предыдущего аватара перед созданием новых
+            // \u041e\u0441\u0432\u043e\u0431\u043e\u0436\u0434\u0430\u0435\u043c \u0442\u0435\u043a\u0441\u0442\u0443\u0440\u044b \u043f\u0440\u0435\u0434\u044b\u0434\u0443\u0449\u0435\u0433\u043e \u0430\u0432\u0430\u0442\u0430\u0440\u0430
             for (tex in trackedTextures) {
-                try { engine.destroyTexture(tex) }
-                catch (e: Exception) { Log.w(TAG, "destroyTexture (swap) failed", e) }
+                try { engine.destroyTexture(tex) } catch (e: Exception) { Log.w(TAG, "destroyTexture (swap) failed", e) }
             }
             trackedTextures.clear()
 
@@ -262,7 +176,6 @@ fun AvatarScene(
             var eyeLMat:  MaterialInstance? = null
             var eyeRMat:  MaterialInstance? = null
             var eyeCount = 0
-            val handled  = mutableSetOf<Long>()
 
             for (entity in mi.entities) {
                 if (!rm.hasComponent(entity)) continue
@@ -274,50 +187,33 @@ fun AvatarScene(
                 val mat = try { rm.getMaterialInstanceAt(ri, 0) } catch (_: Exception) { null }
                     ?: continue
 
-                val meshType = identifyMeshType(mi, entity, morphCount, eyeCount)
-
-                when (meshType) {
-                    ARKit.MeshType.HEAD  -> {
-                        headMat = mat
-                        handled.add(packKey(entity, 0))
-                    }
-                    ARKit.MeshType.TEETH -> {
-                        teethMat = mat
-                        handled.add(packKey(entity, 0))
-                    }
+                when (identifyMeshType(mi, entity, morphCount, eyeCount)) {
+                    ARKit.MeshType.HEAD  -> headMat  = mat
+                    ARKit.MeshType.TEETH -> teethMat = mat
                     ARKit.MeshType.EYE_LEFT,
                     ARKit.MeshType.EYE_RIGHT -> {
-                        if (eyeCount == 0) {
-                            eyeLMat         = mat
-                            capturedEyeLeft = entity
-                        } else {
-                            eyeRMat          = mat
-                            capturedEyeRight = entity
-                        }
+                        if (eyeCount == 0) eyeLMat = mat else eyeRMat = mat
                         eyeCount++
-                        handled.add(packKey(entity, 0))
                     }
-                    ARKit.MeshType.OTHER -> { /* не трогаем */ }
+                    ARKit.MeshType.OTHER -> { /* \u043d\u0435 \u0442\u0440\u043e\u0433\u0430\u0435\u043c */ }
                 }
             }
 
-            // ── ГОЛОВА ────────────────────────────────────────────────────
+            // \u2500\u2500 \u0413\u041e\u041b\u041e\u0412\u0410 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
             headMat?.let { mat ->
-                val compositeTex = buildHeadCompositeTexture(ctx, engine, headTex())
+                val tex = buildHeadCompositeTexture(ctx, engine, headTex())
                     ?.also { trackedTextures.add(it) }
-                val sampler = if (compositeTex != null) buildMipmapSampler(anisotropy = 8f)
-                              else defaultSampler
-                setParam(mat, "baseColorMap",    compositeTex ?: wt, sampler)
+                val sampler = if (tex != null) buildMipmapSampler(anisotropy = 8f) else defaultSampler
+                setParam(mat, "baseColorMap",    tex ?: wt, sampler)
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
                 setParam(mat, "roughnessFactor", 0.48f)
                 setParam(mat, "metallicFactor",  0.00f)
             }
 
-            // ── ЗУБЫ / ВНУТРЕННОСТЬ РТА ──────────────────────────────────
+            // \u2500\u2500 \u0417\u0423\u0411\u042b \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
             teethMat?.let { mat ->
                 val tex = loadTexture(ctx, engine, teethTex(), mipmap = true)
                     ?.also { trackedTextures.add(it) }
-
                 if (tex != null) {
                     setParam(mat, "baseColorMap",    tex, buildMipmapSampler())
                     setParam(mat, "baseColorFactor", 0.97f, 0.97f, 0.95f, 1f)
@@ -329,11 +225,11 @@ fun AvatarScene(
                     setParam(mat, "baseColorFactor", 0.55f, 0.22f, 0.20f, 1f)
                     setParam(mat, "roughnessFactor", 0.85f)
                     setParam(mat, "metallicFactor",  0.00f)
-                    Log.d(TAG, "Teeth: no texture → mouth interior fallback")
+                    Log.d(TAG, "Teeth: no texture \u2192 mouth interior fallback")
                 }
             }
 
-            // ── ГЛАЗА ─────────────────────────────────────────────────────
+            // \u2500\u2500 \u0413\u041b\u0410\u0417\u0410 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
             listOf(eyeLMat, eyeRMat).filterNotNull().forEach { mat ->
                 val tex = loadTexture(ctx, engine, eyesTex(), mipmap = true)
                     ?.also { trackedTextures.add(it) }
@@ -346,34 +242,14 @@ fun AvatarScene(
                 setParam(mat, "metallicFactor",  0.00f)
             }
         }
-        // ── withContext вернулся: мы снова на Main dispatcher ─────────────
 
-        // ── ЗАХВАТ EYE REST-ТРАНСФОРМОВ ───────────────────────────────────
-        val tm = engine.transformManager
-
-        capturedEyeLeft?.let { entity ->
-            eyeLeftEntityId = entity
-            if (tm.hasComponent(entity)) {
-                tm.getTransform(tm.getInstance(entity), eyeLeftRestTransform)
-                Log.d(TAG, "Eye left  rest transform captured (entity=$entity)")
-            }
-        }
-        capturedEyeRight?.let { entity ->
-            eyeRightEntityId = entity
-            if (tm.hasComponent(entity)) {
-                tm.getTransform(tm.getInstance(entity), eyeRightRestTransform)
-                Log.d(TAG, "Eye right rest transform captured (entity=$entity)")
-            }
-        }
-
-        eyeRestCaptured = true
-        materialsReady  = true
-        Log.d(TAG, "Materials ready [avatar=$avatarIndex]. Gaze ON. Textures: ${trackedTextures.size}")
+        materialsReady = true
+        Log.d(TAG, "Materials ready [avatar=$avatarIndex]. Textures: ${trackedTextures.size}")
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+    // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
     //  RENDER
-    // ══════════════════════════════════════════════════════════════════════
+    // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
     Box(modifier = modifier.background(Color.Black)) {
 
         Scene(
@@ -392,20 +268,12 @@ fun AvatarScene(
 
                 renderBuffer?.read(frameSnapshot)
 
-                // 1. Blend-shapes: губы, моргание, прищур, etc.
+                // 1. Blend-shapes: \u043c\u0438\u043c\u0438\u043a\u0430, \u043c\u043e\u0440\u0433\u0430\u043d\u0438\u0435, \u0440\u043e\u0442 \u0438 \u0442.\u0434.
                 applyMorphWeights(engine, mi, frameSnapshot)
 
-                // 2. Поворот головы
+                // 2. \u041f\u043e\u0432\u043e\u0440\u043e\u0442 \u0433\u043e\u043b\u043e\u0432\u044b (\u0433\u043b\u0430\u0437\u0430 \u2014 \u0434\u043e\u0447\u0435\u0440\u043d\u0438\u0435 \u043c\u0435\u0448\u0438, \u0432\u0440\u0430\u0449\u0430\u044e\u0442\u0441\u044f \u0432\u043c\u0435\u0441\u0442\u0435)
                 applyHeadRotation(
                     engine, mi,
-                    frameSnapshot.headPitch,
-                    frameSnapshot.headYaw,
-                    frameSnapshot.headRoll,
-                )
-
-                // 3. Компенсируем поворот у глаз → взгляд всегда на камеру
-                applyEyeGaze(
-                    engine,
                     frameSnapshot.headPitch,
                     frameSnapshot.headYaw,
                     frameSnapshot.headRoll,
@@ -422,7 +290,7 @@ fun AvatarScene(
             }
         }
 
-        // ── Индикатор загрузки ────────────────────────────────────────────
+        // \u2500\u2500 \u0418\u043d\u0434\u0438\u043a\u0430\u0442\u043e\u0440 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
         if (modelInstance == null || !materialsReady) {
             CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center),
@@ -430,22 +298,17 @@ fun AvatarScene(
             )
         }
 
-        // ── Кнопка переключения аватара ───────────────────────────────────
+        // \u2500\u2500 \u041a\u043d\u043e\u043f\u043a\u0430 \u043f\u0435\u0440\u0435\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f \u0430\u0432\u0430\u0442\u0430\u0440\u0430 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
         IconButton(
-            onClick = {
-                avatarIndex = if (avatarIndex == 1) 2 else 1
-            },
+            onClick = { avatarIndex = if (avatarIndex == 1) 2 else 1 },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
                 .size(48.dp)
-                .background(
-                    color  = Color.White.copy(alpha = 0.15f),
-                    shape  = CircleShape,
-                ),
+                .background(color = Color.White.copy(alpha = 0.15f), shape = CircleShape),
         ) {
             Text(
-                text     = if (avatarIndex == 1) "♀" else "♂",
+                text     = if (avatarIndex == 1) "\u2640" else "\u2642",
                 color    = Color.White,
                 fontSize = TextUnit(22f, TextUnitType.Sp),
             )
@@ -453,9 +316,9 @@ fun AvatarScene(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 //  MORPH APPLICATION
-// ═══════════════════════════════════════════════════════════════════════════
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 private fun applyMorphWeights(
     engine:   com.google.android.filament.Engine,
@@ -466,7 +329,7 @@ private fun applyMorphWeights(
     val head = state.morphWeights
 
     val teethW = FloatArray(5) { i -> head[ARKit.TEETH_SOURCE_INDICES[i]] }
-    val eyeLW  = FloatArray(4) { i -> head[ARKit.EYE_SOURCE_INDICES[i]]   }
+    val eyeLW  = FloatArray(4) { i -> head[ARKit.EYE_SOURCE_INDICES[i]] }
     val eyeRW  = FloatArray(4) { i -> head[ARKit.EYE_SOURCE_INDICES[i] + ARKit.EYE_RIGHT_OFFSET] }
 
     var eyeIdx = 0
@@ -488,9 +351,9 @@ private fun applyMorphWeights(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 //  HEAD ROTATION  (zero-alloc)
-// ═══════════════════════════════════════════════════════════════════════════
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 private fun applyHeadRotation(
     engine:   com.google.android.filament.Engine,
@@ -511,20 +374,20 @@ private fun applyHeadRotation(
     val mat = reusableTransformMatrix
     tm.getTransform(ti, mat)
 
-    val sx = kotlin.math.sqrt(mat[0]*mat[0] + mat[1]*mat[1] + mat[2]*mat[2])
-    val sy = kotlin.math.sqrt(mat[4]*mat[4] + mat[5]*mat[5] + mat[6]*mat[6])
-    val sz = kotlin.math.sqrt(mat[8]*mat[8] + mat[9]*mat[9] + mat[10]*mat[10])
-    val tx = mat[12]; val ty = mat[13]; val tz = mat[14]
+    val sx  = kotlin.math.sqrt(mat[0]*mat[0] + mat[1]*mat[1] + mat[2]*mat[2])
+    val sy  = kotlin.math.sqrt(mat[4]*mat[4] + mat[5]*mat[5] + mat[6]*mat[6])
+    val sz  = kotlin.math.sqrt(mat[8]*mat[8] + mat[9]*mat[9] + mat[10]*mat[10])
+    val tx  = mat[12]; val ty = mat[13]; val tz = mat[14]
 
-    val p = Math.toRadians(pitchDeg.toDouble()).toFloat()
-    val y = Math.toRadians(yawDeg.toDouble()).toFloat()
-    val r = Math.toRadians(rollDeg.toDouble()).toFloat()
+    val p  = Math.toRadians(pitchDeg.toDouble()).toFloat()
+    val y  = Math.toRadians(yawDeg.toDouble()).toFloat()
+    val r  = Math.toRadians(rollDeg.toDouble()).toFloat()
 
-    val cp = kotlin.math.cos(p); val sp = kotlin.math.sin(p)
+    val cp = kotlin.math.cos(p); val sp  = kotlin.math.sin(p)
     val cy = kotlin.math.cos(y); val sy2 = kotlin.math.sin(y)
     val cr = kotlin.math.cos(r); val sr  = kotlin.math.sin(r)
 
-    // R = Ry × Rx × Rz  (column-major)
+    // R = Ry \u00d7 Rx \u00d7 Rz  (column-major)
     val r00 =  cy*cr + sy2*sp*sr;  val r01 = cp*sr;  val r02 = -sy2*cr + cy*sp*sr
     val r10 = -cy*sr + sy2*sp*cr;  val r11 = cp*cr;  val r12 =  sy2*sr + cy*sp*cr
     val r20 =  sy2*cp;             val r21 = -sp;    val r22 =  cy*cp
@@ -537,95 +400,9 @@ private fun applyHeadRotation(
     tm.setTransform(ti, mat)
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  EYE GAZE CORRECTION  (zero-alloc)
-//
-//  Математика (подробнее в KDoc класса):
-//    eye_local_new = R⁻¹ × eye_local_rest
-//    eye_world     = R × eye_local_new = rest   ← всегда на камеру
-//
-//  R⁻¹ = Rᵀ в column-major:
-//    Исходная column-major запись: mat[col*4 + row] = R[row, col]
-//    Транспонирование:             mat_T[col*4 + row] = R[col, row]
-// ═══════════════════════════════════════════════════════════════════════════
-
-private fun applyEyeGaze(
-    engine:   com.google.android.filament.Engine,
-    pitchDeg: Float,
-    yawDeg:   Float,
-    rollDeg:  Float,
-) {
-    if (!eyeRestCaptured) return
-    if (eyeLeftEntityId == 0 && eyeRightEntityId == 0) return
-
-    val p = Math.toRadians(pitchDeg.toDouble()).toFloat()
-    val y = Math.toRadians(yawDeg.toDouble()).toFloat()
-    val r = Math.toRadians(rollDeg.toDouble()).toFloat()
-
-    val cp = kotlin.math.cos(p); val sp = kotlin.math.sin(p)
-    val cy = kotlin.math.cos(y); val sy = kotlin.math.sin(y)
-    val cr = kotlin.math.cos(r); val sr = kotlin.math.sin(r)
-
-    val r00 =  cy*cr + sy*sp*sr;  val r01 = cp*sr;  val r02 = -sy*cr + cy*sp*sr
-    val r10 = -cy*sr + sy*sp*cr;  val r11 = cp*cr;  val r12 =  sy*sr + cy*sp*cr
-    val r20 =  sy*cp;             val r21 = -sp;    val r22 =  cy*cp
-
-    // R⁻¹ = Rᵀ (column-major transpose)
-    val inv = gazeInvRotation
-    inv[0]  = r00;  inv[1]  = r01;  inv[2]  = r02;  inv[3]  = 0f
-    inv[4]  = r10;  inv[5]  = r11;  inv[6]  = r12;  inv[7]  = 0f
-    inv[8]  = r20;  inv[9]  = r21;  inv[10] = r22;  inv[11] = 0f
-    inv[12] = 0f;   inv[13] = 0f;   inv[14] = 0f;   inv[15] = 1f
-
-    val tm = engine.transformManager
-
-    applyGazeToEye(tm, eyeLeftEntityId,  eyeLeftRestTransform)
-    applyGazeToEye(tm, eyeRightEntityId, eyeRightRestTransform)
-}
-
-/**
- * Вычисляет и применяет скорректированный трансформ для одного глаза.
- *
- * ТОЛЬКО верхний левый блок 3×3 (ориентация) умножается на R⁻¹.
- * Колонка трансляции (позиция глаза в локальном пространстве головы)
- * берётся из rest без изменений — именно это не давало глазу «плавать».
- *
- *   out_rot  = inv_rot × rest_rot   ← 3×3 умножение
- *   out_pos  = rest_pos             ← без изменений (глаз остаётся в глазнице!)
- */
-private fun applyGazeToEye(
-    tm:       com.google.android.filament.TransformManager,
-    entityId: Int,
-    rest:     FloatArray,
-) {
-    if (entityId == 0 || !tm.hasComponent(entityId)) return
-    val ti  = tm.getInstance(entityId)
-    val inv = gazeInvRotation
-    val out = gazeResult
-
-    // ── Умножаем только 3×3 блок ориентации ──────────────────────────────
-    // col-major: mat[col*4 + row], ограничиваем k до 0..2 (чистое вращение)
-    for (col in 0..2) {
-        for (row in 0..2) {
-            var sum = 0f
-            for (k in 0..2) sum += inv[k * 4 + row] * rest[col * 4 + k]
-            out[col * 4 + row] = sum
-        }
-        out[col * 4 + 3] = 0f   // w-компонент каждой колонки вращения = 0
-    }
-
-    // ── Позицию глаза берём из rest — глаз НЕ смещается из глазницы ──────
-    out[12] = rest[12]
-    out[13] = rest[13]
-    out[14] = rest[14]
-    out[15] = 1f
-
-    tm.setTransform(ti, out)
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 //  MESH IDENTIFICATION
-// ═══════════════════════════════════════════════════════════════════════════
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 private fun identifyMeshType(
     instance:   ModelInstance,
@@ -634,15 +411,14 @@ private fun identifyMeshType(
     eyeCount:   Int,
 ): ARKit.MeshType {
     try {
-        val asset = instance.asset
-        val name  = asset?.getName(entity)?.lowercase() ?: ""
+        val name = instance.asset?.getName(entity)?.lowercase() ?: ""
         when {
-            name.contains("head")  || name.contains("face")     -> return ARKit.MeshType.HEAD
-            name.contains("teeth") || name.contains("tooth")    -> return ARKit.MeshType.TEETH
+            name.contains("head")  || name.contains("face")                          -> return ARKit.MeshType.HEAD
+            name.contains("teeth") || name.contains("tooth")                         -> return ARKit.MeshType.TEETH
             name.contains("eyeleft")  || name.contains("eye_l") ||
-            (name.contains("eye") && name.contains("left"))     -> return ARKit.MeshType.EYE_LEFT
+            (name.contains("eye") && name.contains("left"))                          -> return ARKit.MeshType.EYE_LEFT
             name.contains("eyeright") || name.contains("eye_r") ||
-            (name.contains("eye") && name.contains("right"))    -> return ARKit.MeshType.EYE_RIGHT
+            (name.contains("eye") && name.contains("right"))                         -> return ARKit.MeshType.EYE_RIGHT
         }
     } catch (_: Exception) { }
 
@@ -654,9 +430,9 @@ private fun identifyMeshType(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 //  TEXTURE HELPERS
-// ═══════════════════════════════════════════════════════════════════════════
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 private fun loadTexture(
     ctx:    android.content.Context,
@@ -664,8 +440,7 @@ private fun loadTexture(
     path:   String,
     mipmap: Boolean = true,
 ): Texture? = try {
-    val bmp = ctx.assets.open(path).use { BitmapFactory.decodeStream(it) }
-        ?: return null
+    val bmp = ctx.assets.open(path).use { BitmapFactory.decodeStream(it) } ?: return null
 
     val mipLevels = if (mipmap)
         (kotlin.math.log2(bmp.width.toFloat())).toInt().coerceAtLeast(1) + 1
@@ -683,7 +458,7 @@ private fun loadTexture(
 
     TextureHelper.setBitmap(engine, tex, 0, bmp)
     if (mipmap) tex.generateMipmaps(engine)
-    Log.d(TAG, "Texture loaded: $path (${bmp.width}×${bmp.height}, mips=$mipLevels)")
+    Log.d(TAG, "Texture loaded: $path (${bmp.width}\u00d7${bmp.height}, mips=$mipLevels)")
     bmp.recycle()
     tex
 } catch (_: java.io.FileNotFoundException) {
@@ -729,69 +504,4 @@ private fun buildHeadCompositeTexture(
             canvas.drawBitmap(scaled, 0f, 0f, android.graphics.Paint())
             if (scaled !== headBmp) scaled.recycle()
         }
-    } catch (_: Exception) {
-        Log.d(TAG, "Texture not found: $texPath — base skin color used")
-    }
-
-    val mipLevels = (kotlin.math.log2(COMPOSITE_SIZE.toFloat())).toInt() + 1
-    val tex = Texture.Builder()
-        .width(COMPOSITE_SIZE).height(COMPOSITE_SIZE).levels(mipLevels)
-        .sampler(Texture.Sampler.SAMPLER_2D)
-        .format(Texture.InternalFormat.SRGB8_A8)
-        .usage(
-            Texture.Usage.SAMPLEABLE or
-            Texture.Usage.UPLOADABLE or
-            Texture.Usage.GEN_MIPMAPPABLE
-        )
-        .build(engine)
-
-    TextureHelper.setBitmap(engine, tex, 0, composite)
-    tex.generateMipmaps(engine)
-    composite.recycle()
-    Log.d(TAG, "Head composite texture built: $texPath")
-    tex
-} catch (e: Exception) {
-    Log.e(TAG, "buildHeadCompositeTexture failed", e)
-    null
-}
-
-// ── Sampler builders ──────────────────────────────────────────────────────
-
-private fun buildDefaultSampler() = TextureSampler().apply {
-    setMinFilter(TextureSampler.MinFilter.LINEAR)
-    setMagFilter(TextureSampler.MagFilter.LINEAR)
-    setWrapModeS(TextureSampler.WrapMode.CLAMP_TO_EDGE)
-    setWrapModeT(TextureSampler.WrapMode.CLAMP_TO_EDGE)
-}
-
-private fun buildMipmapSampler(
-    anisotropy: Float = 4f,
-    wrap: TextureSampler.WrapMode = TextureSampler.WrapMode.CLAMP_TO_EDGE,
-) = TextureSampler().apply {
-    setMinFilter(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR)
-    setMagFilter(TextureSampler.MagFilter.LINEAR)
-    setWrapModeS(wrap)
-    setWrapModeT(wrap)
-    setAnisotropy(anisotropy)
-}
-
-// ── Material parameter setters ────────────────────────────────────────────
-
-private fun setParam(mat: MaterialInstance, name: String, tex: Texture, sampler: TextureSampler) {
-    try { mat.setParameter(name, tex, sampler) }
-    catch (e: Exception) { Log.v(TAG, "setParameter($name) skipped: ${e.message}") }
-}
-
-private fun setParam(mat: MaterialInstance, name: String, vararg floats: Float) {
-    try {
-        when (floats.size) {
-            1 -> mat.setParameter(name, floats[0])
-            4 -> mat.setParameter(name, floats[0], floats[1], floats[2], floats[3])
-        }
-    } catch (e: Exception) { Log.v(TAG, "setParameter($name) skipped: ${e.message}") }
-}
-
-// ── Key packing ───────────────────────────────────────────────────────────
-
-private fun packKey(entity: Int, prim: Int): Long =
-    entity.toLong().shl(32) or prim.toLong()
+    } catch
