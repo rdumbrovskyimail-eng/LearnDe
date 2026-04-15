@@ -50,7 +50,7 @@ class ProsodyTracker {
         // ── Cognitive Pressure ───────────────────────────────────────────
         private const val PRESSURE_ONSET_MS      = 400L    // пауза до начала накопления
         private const val PRESSURE_RISE_SPEED    = 1.2f    // скорость нарастания (asymptotic)
-        private const val PRESSURE_DECAY_SPEED   = 3.5f    // скорость спада при речи
+        private const val PRESSURE_DECAY_SPEED   = 12.0f   // Мгновенный сброс задумчивости при начале речи
         private const val EUREKA_THRESHOLD       = 0.38f   // минимальное давление для спайка
         private const val EUREKA_AROUSAL_BOOST   = 0.65f   // множитель спайка Arousal
         private const val EUREKA_BOOST_SCALE     = EUREKA_AROUSAL_BOOST
