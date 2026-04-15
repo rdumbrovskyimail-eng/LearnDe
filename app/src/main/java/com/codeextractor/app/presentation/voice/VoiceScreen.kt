@@ -101,14 +101,23 @@ fun VoiceScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    .weight(1f) // Оставляем резерв места под верхнюю половину экрана
             ) {
-                AvatarScene(
-                    modifier     = Modifier.fillMaxSize(),
-                    renderBuffer = viewModel.avatarAnimator.renderBuffer,
-                )
+                // ── Контейнер сцены (Уменьшен в 2 раза, выровнен вправо-вверх) ──
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)  // Половина ширины экрана
+                        .fillMaxHeight(0.5f) // Половина высоты от верхнего блока
+                        .align(Alignment.TopEnd)
+                        .clip(RoundedCornerShape(bottomStart = 16.dp)) // Мягкое скругление левого нижнего угла
+                ) {
+                    AvatarScene(
+                        modifier     = Modifier.fillMaxSize(),
+                        renderBuffer = viewModel.avatarAnimator.renderBuffer,
+                    )
+                }
 
-                // Status overlay
+                // Status overlay (Остается слева сверху)
                 StatusBadge(
                     state    = state,
                     modifier = Modifier
@@ -116,11 +125,11 @@ fun VoiceScreen(
                         .padding(8.dp),
                 )
 
-                // ── Кнопка редактора ──
+                // ── Кнопка редактора (Сместим вниз, чтобы не перекрывала лицо аватара) ──
                 OutlinedButton(
                     onClick  = onOpenEditor,
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        .align(Alignment.BottomEnd) // Перенесли вниз
                         .padding(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = Color.Black.copy(alpha = 0.5f)
