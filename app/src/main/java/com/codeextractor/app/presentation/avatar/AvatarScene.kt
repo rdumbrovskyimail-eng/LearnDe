@@ -108,6 +108,7 @@ fun AvatarScene(
     var materialsReady by remember { mutableStateOf(false) }
 
     val trackedTextures = remember { mutableListOf<Texture>() }
+    val trackedMaterialInstances = remember { mutableListOf<MaterialInstance>() }
     val frameSnapshot   = remember { ZeroAllocRenderState() }
     var whiteTex        by remember { mutableStateOf<Texture?>(null) }
 
@@ -119,7 +120,13 @@ fun AvatarScene(
     // ── Очистка GPU-памяти ───────────────────────────────────────────────────
     DisposableEffect(engine) {
         onDispose {
-            Log.d(TAG, "Disposing ${trackedTextures.size} textures")
+            Log.d(TAG, "Disposing ${trackedMaterialInstances.size} materialInstances, ${trackedTextures.size} textures")
+            // ШАГ 1: уничтожаем MaterialInstance ДО текстур
+            for (mi in trackedMaterialInstances) {
+                try { engine.destroyMaterialInstance(mi) } catch (e: Exception) { Log.w(TAG, "destroyMaterialInstance failed", e) }
+            }
+            trackedMaterialInstances.clear()
+            // ШАГ 2: только потом текстуры
             for (tex in trackedTextures) {
                 try { engine.destroyTexture(tex) } catch (e: Exception) { Log.w(TAG, "destroyTexture failed", e) }
             }
@@ -165,6 +172,10 @@ fun AvatarScene(
         withContext(Dispatchers.IO) {
 
             // Освобождаем текстуры предыдущего аватара
+            for (mi in trackedMaterialInstances) {
+                try { engine.destroyMaterialInstance(mi) } catch (e: Exception) { Log.w(TAG, "destroyMaterialInstance (swap) failed", e) }
+            }
+            trackedMaterialInstances.clear()
             for (tex in trackedTextures) {
                 try { engine.destroyTexture(tex) } catch (e: Exception) { Log.w(TAG, "destroyTexture (swap) failed", e) }
             }
@@ -191,11 +202,12 @@ fun AvatarScene(
                     ?: continue
 
                 when (identifyMeshType(mi, entity, morphCount, eyeCount)) {
-                    ARKit.MeshType.HEAD  -> headMat  = mat
-                    ARKit.MeshType.TEETH -> teethMat = mat
+                    ARKit.MeshType.HEAD  -> { headMat  = mat; trackedMaterialInstances.add(mat) }
+                    ARKit.MeshType.TEETH -> { teethMat = mat; trackedMaterialInstances.add(mat) }
                     ARKit.MeshType.EYE_LEFT,
                     ARKit.MeshType.EYE_RIGHT -> {
-                        if (eyeCount == 0) eyeLMat = mat else eyeRMat = mat
+                        if (eyeCount == 0) { eyeLMat = mat; trackedMaterialInstances.add(mat) }
+                        else { eyeRMat = mat; trackedMaterialInstances.add(mat) }
                         eyeCount++
                     }
                     ARKit.MeshType.OTHER -> { /* не трогаем */ }
