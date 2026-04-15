@@ -161,47 +161,42 @@ fun AvatarScene(
         val mi = modelInstance ?: return@LaunchedEffect
         val rm = engine.renderableManager
 
-        // ── Шаг 1: Отвязываем старые текстуры от материалов (main thread) ────
+        // ── Шаг 1: Сохраняем старые текстуры для удаления ────
+        val texturesToDestroy = trackedTextures.toList()
         val oldWt = whiteTex
-        if (oldWt != null && trackedTextures.isNotEmpty()) {
-            val fallbackSampler = buildDefaultSampler()
-            // Пробуем отвязать от предыдущего modelInstance
-            // (entities могли измениться, но пробуем безопасно)
-            for (entity in mi.entities) {
-                if (!rm.hasComponent(entity)) continue
-                val ri = rm.getInstance(entity)
-                val primCount = try { rm.getPrimitiveCount(ri) } catch (_: Exception) { 0 }
-                for (p in 0 until primCount) {
-                    val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null }
-                        ?: continue
-                    try {
-                        mat.setParameter("baseColorMap", oldWt, fallbackSampler)
-                    } catch (_: Exception) {}
-                }
-            }
-        }
-
-        // ── Шаг 2: Уничтожаем старые текстуры (main thread, уже отвязаны) ───
-        for (tex in trackedTextures) {
-            try { engine.destroyTexture(tex) } catch (e: Exception) {
-                Log.w(TAG, "destroyTexture (swap) failed", e)
-            }
-        }
         trackedTextures.clear()
 
-        // Уничтожаем старый whiteTex
-        oldWt?.let {
-            try { engine.destroyTexture(it) } catch (e: Exception) {
-                Log.w(TAG, "destroyTexture (old white) failed", e)
+        // ── Шаг 2: Создаём НОВУЮ whiteTex ─────
+        val newWt: Texture = buildWhiteTexture(engine)
+        whiteTex = newWt
+        val defaultSampler = buildDefaultSampler()
+
+        // ── Шаг 3: Отвязываем старые текстуры, привязывая НОВУЮ whiteTex ────
+        for (entity in mi.entities) {
+            if (!rm.hasComponent(entity)) continue
+            val ri = rm.getInstance(entity)
+            val primCount = try { rm.getPrimitiveCount(ri) } catch (_: Exception) { 0 }
+            for (p in 0 until primCount) {
+                val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null } ?: continue
+                try {
+                    mat.setParameter("baseColorMap", newWt, defaultSampler)
+                } catch (_: Exception) {}
             }
         }
 
-        // ── Шаг 3: Создаём новый whiteTex (main thread — Filament вызов) ─────
-        val wt: Texture = buildWhiteTexture(engine)
-        whiteTex = wt
-        val defaultSampler = buildDefaultSampler()
+        // ── Шаг 4: ВАЖНО! Ждём, пока GPU применит новые параметры ───
+        // Это гарантирует, что GPU больше не использует старые текстуры
+        engine.flushAndWait()
 
-        // ── Шаг 4: Сканируем entities на IO, текстуры грузим тоже на IO ──────
+        // ── Шаг 5: Теперь БЕЗОПАСНО уничтожаем старые текстуры ───
+        for (tex in texturesToDestroy) {
+            try { engine.destroyTexture(tex) } catch (e: Exception) {}
+        }
+        oldWt?.let {
+            try { engine.destroyTexture(it) } catch (e: Exception) {}
+        }
+
+        // ── Шаг 6: Сканируем entities на IO, текстуры грузим тоже на IO ──────
         withContext(Dispatchers.IO) {
 
             var headMat:  MaterialInstance? = null
