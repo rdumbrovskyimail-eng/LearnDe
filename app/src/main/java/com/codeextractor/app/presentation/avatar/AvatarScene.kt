@@ -44,14 +44,15 @@ import java.nio.ByteBuffer
 
 private const val TAG = "AvatarScene"
 
+// ── Базовая модель (общая для всех) ──────────────────────────────────────────
+private const val BASE_MODEL_PATH = "models/test.glb"
+
 // ── Ресурсы аватара 1 (мужской) ──────────────────────────────────────────────
-private const val MODEL_PATH_1    = "models/test.glb"
 private const val HEAD_TEXTURE_1  = "models/head_texture.png"
 private const val EYES_TEXTURE_1  = "models/eyes_texture.png"
 private const val TEETH_TEXTURE_1 = "models/teeth_texture.png"
 
 // ── Ресурсы аватара 2 (женский) ──────────────────────────────────────────────
-private const val MODEL_PATH_2    = "models/test2.glb"
 private const val HEAD_TEXTURE_2  = "models/head_texture2.png"
 private const val EYES_TEXTURE_2  = "models/eyes_texture2.png"
 private const val TEETH_TEXTURE_2 = "models/teeth_texture2.png"
@@ -111,7 +112,6 @@ fun AvatarScene(
     val frameSnapshot   = remember { ZeroAllocRenderState() }
     var whiteTex        by remember { mutableStateOf<Texture?>(null) }
 
-    fun modelPath() = if (avatarIndex == 1) MODEL_PATH_1    else MODEL_PATH_2
     fun headTex()   = if (avatarIndex == 1) HEAD_TEXTURE_1  else HEAD_TEXTURE_2
     fun eyesTex()   = if (avatarIndex == 1) EYES_TEXTURE_1  else EYES_TEXTURE_2
     fun teethTex()  = if (avatarIndex == 1) TEETH_TEXTURE_1 else TEETH_TEXTURE_2
@@ -130,20 +130,20 @@ fun AvatarScene(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  ЗАГРУЗКА МОДЕЛИ
+    //  ЗАГРУЗКА БАЗОВОЙ МОДЕЛИ (ОДИН РАЗ ПРИ СТАРТЕ)
     // ═══════════════════════════════════════════════════════════════════════════
-    LaunchedEffect(modelLoader, avatarIndex) {
+    LaunchedEffect(modelLoader) {
         modelInstance  = null
         materialsReady = false
 
         val buffer = withContext(Dispatchers.IO) {
             val editorOutput = File(ctx.cacheDir, "patched_model.glb")
-            val patchedFile  = File(ctx.cacheDir, "patched_model_$avatarIndex.glb")
+            val patchedFile  = File(ctx.cacheDir, "patched_model_base.glb")
 
             if (patchedFile.exists()) patchedFile.delete()
 
             com.codeextractor.app.editor.GlbTextureEditor(ctx)
-                .preparePatchedModel(modelPath())
+                .preparePatchedModel(BASE_MODEL_PATH)
 
             editorOutput.renameTo(patchedFile)
 
@@ -151,60 +151,36 @@ fun AvatarScene(
             ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
         }
         modelInstance = modelLoader.createModelInstance(buffer)
-        Log.d(TAG, "Model loaded [avatar=$avatarIndex]: ${modelInstance?.entities?.size} entities")
+        Log.d(TAG, "Base model loaded: ${modelInstance?.entities?.size} entities")
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  НАСТРОЙКА МАТЕРИАЛОВ
+    //  НАСТРОЙКА МАТЕРИАЛОВ И СМЕНА ТЕКСТУР
     // ═══════════════════════════════════════════════════════════════════════════
     LaunchedEffect(modelInstance, avatarIndex) {
         val mi = modelInstance ?: return@LaunchedEffect
         val rm = engine.renderableManager
 
-        // ── Шаг 1: Сохраняем старые текстуры для удаления ────
+        materialsReady = false
+
+        // ── Сохраняем старые текстуры, чтобы удалить их ПОСЛЕ применения новых ──
         val texturesToDestroy = trackedTextures.toList()
-        val oldWt = whiteTex
         trackedTextures.clear()
 
-        // ── Шаг 2: Создаём НОВУЮ whiteTex ─────
-        val wt: Texture = buildWhiteTexture(engine)
-        whiteTex = wt
+        // Создаем заглушку для зубов (если текстуры нет), она будет жить до конца
+        if (whiteTex == null) {
+            whiteTex = buildWhiteTexture(engine)
+        }
         val defaultSampler = buildDefaultSampler()
 
-        // ── Шаг 3: Отвязываем старые текстуры, привязывая НОВУЮ whiteTex ────
-        for (entity in mi.entities) {
-            if (!rm.hasComponent(entity)) continue
-            val ri = rm.getInstance(entity)
-            val primCount = try { rm.getPrimitiveCount(ri) } catch (_: Exception) { 0 }
-            for (p in 0 until primCount) {
-                val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null } ?: continue
-                try {
-                    mat.setParameter("baseColorMap", wt, defaultSampler)
-                } catch (_: Exception) {}
-            }
-        }
-
-        // ── Шаг 4: ВАЖНО! Ждём, пока GPU применит новые параметры ───
-        // Это гарантирует, что GPU больше не использует старые текстуры
-        engine.flushAndWait()
-
-        // ── Шаг 5: Теперь БЕЗОПАСНО уничтожаем старые текстуры ───
-        for (tex in texturesToDestroy) {
-            try { engine.destroyTexture(tex) } catch (e: Exception) {}
-        }
-        oldWt?.let {
-            try { engine.destroyTexture(it) } catch (e: Exception) {}
-        }
-
-        // ── Шаг 6: Сканируем entities на IO, текстуры грузим тоже на IO ──────
         withContext(Dispatchers.IO) {
-
             var headMat:  MaterialInstance? = null
             var teethMat: MaterialInstance? = null
             var eyeLMat:  MaterialInstance? = null
             var eyeRMat:  MaterialInstance? = null
             var eyeCount = 0
 
+            // Ищем материалы
             for (entity in mi.entities) {
                 if (!rm.hasComponent(entity)) continue
                 val ri         = rm.getInstance(entity)
@@ -212,64 +188,68 @@ fun AvatarScene(
                 val primCount  = rm.getPrimitiveCount(ri)
                 if (primCount <= 0 || morphCount <= 0) continue
 
-                val mat = try { rm.getMaterialInstanceAt(ri, 0) } catch (_: Exception) { null }
-                    ?: continue
+                val mat = try { rm.getMaterialInstanceAt(ri, 0) } catch (_: Exception) { null } ?: continue
 
                 when (identifyMeshType(mi, entity, morphCount, eyeCount)) {
-                    ARKit.MeshType.HEAD  -> { headMat  = mat }
-                    ARKit.MeshType.TEETH -> { teethMat = mat }
+                    ARKit.MeshType.HEAD  -> headMat  = mat
+                    ARKit.MeshType.TEETH -> teethMat = mat
                     ARKit.MeshType.EYE_LEFT,
                     ARKit.MeshType.EYE_RIGHT -> {
-                        if (eyeCount == 0) { eyeLMat = mat }
-                        else { eyeRMat = mat }
+                        if (eyeCount == 0) eyeLMat = mat else eyeRMat = mat
                         eyeCount++
                     }
                     ARKit.MeshType.OTHER -> { /* не трогаем */ }
                 }
             }
 
-            // ── ГОЛОВА ───────────────────────────────────────────────────────
+            // ── ГОЛОВА ──
             headMat?.let { mat ->
                 val tex = buildHeadCompositeTexture(ctx, engine, headTex())
-                    ?.also { trackedTextures.add(it) }
-                val sampler = if (tex != null) buildMipmapSampler(anisotropy = 8f) else defaultSampler
-                setParam(mat, "baseColorMap",    tex ?: wt, sampler)
+                if (tex != null) {
+                    trackedTextures.add(tex)
+                    setParam(mat, "baseColorMap", tex, buildMipmapSampler(anisotropy = 8f))
+                }
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
                 setParam(mat, "roughnessFactor", 0.48f)
                 setParam(mat, "metallicFactor",  0.00f)
             }
 
-            // ── ЗУБЫ ────────────────────────────────────────────────────────
+            // ── ЗУБЫ ──
             teethMat?.let { mat ->
                 val tex = loadTexture(ctx, engine, teethTex(), mipmap = true)
-                    ?.also { trackedTextures.add(it) }
                 if (tex != null) {
-                    setParam(mat, "baseColorMap",    tex, buildMipmapSampler())
+                    trackedTextures.add(tex)
+                    setParam(mat, "baseColorMap", tex, buildMipmapSampler())
                     setParam(mat, "baseColorFactor", 0.97f, 0.97f, 0.95f, 1f)
                     setParam(mat, "roughnessFactor", 0.35f)
-                    setParam(mat, "metallicFactor",  0.00f)
-                    Log.d(TAG, "Teeth: texture mode")
                 } else {
-                    setParam(mat, "baseColorMap",    wt, defaultSampler)
+                    setParam(mat, "baseColorMap", whiteTex!!, defaultSampler)
                     setParam(mat, "baseColorFactor", 0.55f, 0.22f, 0.20f, 1f)
                     setParam(mat, "roughnessFactor", 0.85f)
-                    setParam(mat, "metallicFactor",  0.00f)
-                    Log.d(TAG, "Teeth: no texture → mouth interior fallback")
                 }
-            }
-
-            // ── ГЛАЗА ───────────────────────────────────────────────────────
-            listOf(eyeLMat, eyeRMat).filterNotNull().forEach { mat ->
-                val tex = loadTexture(ctx, engine, eyesTex(), mipmap = true)
-                    ?.also { trackedTextures.add(it) }
-                val sampler = if (tex != null)
-                    buildMipmapSampler(wrap = TextureSampler.WrapMode.REPEAT)
-                else defaultSampler
-                setParam(mat, "baseColorMap",    tex ?: wt, sampler)
-                setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
-                setParam(mat, "roughnessFactor", 0.02f)
                 setParam(mat, "metallicFactor",  0.00f)
             }
+
+            // ── ГЛАЗА ──
+            val eyeTex = loadTexture(ctx, engine, eyesTex(), mipmap = true)
+            eyeTex?.let { tex ->
+                trackedTextures.add(tex)
+                val sampler = buildMipmapSampler(wrap = TextureSampler.WrapMode.REPEAT)
+                listOf(eyeLMat, eyeRMat).filterNotNull().forEach { mat ->
+                    setParam(mat, "baseColorMap", tex, sampler)
+                    setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
+                    setParam(mat, "roughnessFactor", 0.02f)
+                    setParam(mat, "metallicFactor",  0.00f)
+                }
+            }
+        }
+
+        // ── ВАЖНО: Ждём, пока GPU применит новые текстуры к материалам ──
+        engine.flushAndWait()
+
+        // ── ТЕПЕРЬ БЕЗОПАСНО: Уничтожаем старые текстуры ──
+        for (tex in texturesToDestroy) {
+            try { engine.destroyTexture(tex) } catch (e: Exception) {}
         }
 
         materialsReady = true
