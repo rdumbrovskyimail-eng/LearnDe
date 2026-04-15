@@ -49,23 +49,27 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.codeextractor.app.domain.model.ConversationMessage
 import com.codeextractor.app.presentation.avatar.AvatarScene
+import com.codeextractor.app.presentation.navigation.VoiceGender
 import com.codeextractor.app.util.resolve
 
 @Composable
 fun VoiceScreen(
     viewModel: VoiceViewModel = hiltViewModel(),
     onOpenEditor: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // Маппинг голоса → аватар
+    val avatarIndex = VoiceGender.avatarIndexForVoice(state.currentVoiceId)
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -97,28 +101,27 @@ fun VoiceScreen(
                 .padding(innerPadding),
         ) {
             // ══════════════════════════════════════════════════════
-            //  TOP HALF — 3D Avatar
+            //  TOP — 3D Avatar
             // ══════════════════════════════════════════════════════
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f) // Оставляем резерв места под верхнюю половину экрана
+                    .weight(1f)
             ) {
-                // ── Контейнер сцены (Уменьшен в 2 раза, выровнен вправо-вверх) ──
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.5f)  // Половина ширины экрана
-                        .fillMaxHeight(0.5f) // Половина высоты от верхнего блока
+                        .fillMaxWidth(0.5f)
+                        .fillMaxHeight(0.5f)
                         .align(Alignment.TopEnd)
-                        .clip(RoundedCornerShape(bottomStart = 16.dp)) // Мягкое скругление левого нижнего угла
+                        .clip(RoundedCornerShape(bottomStart = 16.dp))
                 ) {
                     AvatarScene(
                         modifier     = Modifier.fillMaxSize(),
                         renderBuffer = viewModel.avatarAnimator.renderBuffer,
+                        avatarIndex  = avatarIndex, // ← Из настроек!
                     )
                 }
 
-                // Status overlay (Остается слева сверху)
                 StatusBadge(
                     state    = state,
                     modifier = Modifier
@@ -126,22 +129,48 @@ fun VoiceScreen(
                         .padding(8.dp),
                 )
 
-                // ── Кнопка редактора (Сместим вниз, чтобы не перекрывала лицо аватара) ──
-                OutlinedButton(
-                    onClick  = onOpenEditor,
+                // Кнопки
+                Row(
                     modifier = Modifier
-                        .align(Alignment.BottomEnd) // Перенесли вниз
+                        .align(Alignment.BottomEnd)
                         .padding(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.Black.copy(alpha = 0.5f)
-                    )
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text("Edit", color = Color.White, fontSize = 11.sp)
+                    OutlinedButton(
+                        onClick = onOpenSettings,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Black.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Text("⚙", color = Color.White, fontSize = 14.sp)
+                    }
+                    OutlinedButton(
+                        onClick = onOpenEditor,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Black.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Text("Edit", color = Color.White, fontSize = 11.sp)
+                    }
+                }
+
+                // Usage metadata
+                if (state.showUsageMetadata && state.totalTokens > 0) {
+                    Text(
+                        text = "Tokens: ${state.totalTokens}",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 10.sp,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
             }
 
             // ══════════════════════════════════════════════════════
-            //  BOTTOM HALF — Chat + Controls
+            //  BOTTOM — Chat + Controls
             // ══════════════════════════════════════════════════════
             Column(
                 modifier = Modifier
@@ -188,7 +217,7 @@ fun VoiceScreen(
 }
 
 // ════════════════════════════════════════════════════════════════
-//  COMPONENTS (без изменений)
+//  COMPONENTS
 // ════════════════════════════════════════════════════════════════
 
 @Composable
@@ -295,10 +324,10 @@ private fun ChatBubble(message: ConversationMessage) {
 
 @Composable
 private fun ControlButtons(
-    state        : VoiceState,
-    onToggleMic  : () -> Unit,
-    onStop       : () -> Unit,
-    onSaveLog    : () -> Unit,
+    state: VoiceState,
+    onToggleMic: () -> Unit,
+    onStop: () -> Unit,
+    onSaveLog: () -> Unit,
 ) {
     val isReady     = state.connectionStatus == ConnectionStatus.Ready
     val isRecording = state.connectionStatus == ConnectionStatus.Recording
