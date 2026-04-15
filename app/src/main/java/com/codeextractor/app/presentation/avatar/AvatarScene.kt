@@ -167,8 +167,8 @@ fun AvatarScene(
         trackedTextures.clear()
 
         // ── Шаг 2: Создаём НОВУЮ whiteTex ─────
-        val newWt: Texture = buildWhiteTexture(engine)
-        whiteTex = newWt
+        val wt: Texture = buildWhiteTexture(engine)
+        whiteTex = wt
         val defaultSampler = buildDefaultSampler()
 
         // ── Шаг 3: Отвязываем старые текстуры, привязывая НОВУЮ whiteTex ────
@@ -179,7 +179,7 @@ fun AvatarScene(
             for (p in 0 until primCount) {
                 val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null } ?: continue
                 try {
-                    mat.setParameter("baseColorMap", newWt, defaultSampler)
+                    mat.setParameter("baseColorMap", wt, defaultSampler)
                 } catch (_: Exception) {}
             }
         }
