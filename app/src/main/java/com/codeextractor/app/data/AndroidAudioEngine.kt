@@ -48,6 +48,13 @@ class AndroidAudioEngine @Inject constructor(
     )
     override val micOutput: Flow<ByteArray> = _micOutput.asSharedFlow()
 
+    private val _playbackSync = MutableSharedFlow<ByteArray>(
+        replay = 0,
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val playbackSync: Flow<ByteArray> = _playbackSync.asSharedFlow()
+
     @Volatile
     override var isCapturing: Boolean = false
         private set
@@ -213,11 +220,13 @@ class AndroidAudioEngine @Inject constructor(
                             catch (_: Exception) { return@repeat }
                         }
                         for (buffered in preBuffer) {
+                            _playbackSync.tryEmit(buffered)
                             track.write(buffered, 0, buffered.size)
                         }
                         isFirstBatch = false
                         logger.d("Jitter pre-buffer: ${preBuffer.size} chunks")
                     } else {
+                        _playbackSync.tryEmit(chunk)
                         track.write(chunk, 0, chunk.size)
                     }
 
