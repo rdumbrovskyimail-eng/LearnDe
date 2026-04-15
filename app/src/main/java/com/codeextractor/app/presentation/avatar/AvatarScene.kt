@@ -135,15 +135,6 @@ fun AvatarScene(
     //  ЗАГРУЗКА БАЗОВОЙ МОДЕЛИ (ПЕРЕЗАПУСКАЕТСЯ ПРИ СМЕНЕ АВАТАРА)
     // ═══════════════════════════════════════════════════════════════════════════
     LaunchedEffect(modelLoader, avatarIndex) {
-        // 1. Очищаем старую модель из памяти видеокарты
-        modelInstance?.let { oldInstance ->
-            try {
-                oldInstance.destroy()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error destroying old model instance", e)
-            }
-        }
-        
         modelInstance  = null
         materialsReady = false
 
