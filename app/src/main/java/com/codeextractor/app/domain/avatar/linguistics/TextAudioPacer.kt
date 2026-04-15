@@ -29,7 +29,7 @@ class TextAudioPacer(private val ribbon: PhoneticRibbon) {
         private const val DRIFT_GAIN    = 0.0005f
         private const val MAX_DRIFT_MS  = 2500L
         private const val RATE_MIN      = 0.25f
-        private const val RATE_MAX      = 2.2f
+        private const val RATE_MAX      = 1.6f
 
         // Скорость по уровню активности
         private const val RATE_FULL_VOICE = 1.0f    // голос активен
@@ -154,7 +154,7 @@ class TextAudioPacer(private val ribbon: PhoneticRibbon) {
         // ── Drift correction ──────────────────────────────────────────────
         val drift = audioElapsedMs - textConsumedMs
         val driftCorrection = if (abs(drift) > MAX_DRIFT_MS) {
-            if (drift > 0) 0.8f else -0.3f  // hard correction
+            if (drift > 0) 0.5f else -0.2f  // Более мягкая хард-коррекция
         } else {
             drift * DRIFT_GAIN
         }
