@@ -3,11 +3,16 @@ package com.codeextractor.app.presentation.voice
 import androidx.datastore.core.DataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.codeextractor.app.data.InMemoryConversationStore
+import android.content.Context
+import com.codeextractor.app.GeminiLiveForegroundService
 import com.codeextractor.app.data.settings.AppSettings
 import com.codeextractor.app.domain.AudioEngine
+import com.codeextractor.app.domain.ConversationRepository
 import com.codeextractor.app.domain.LiveClient
 import com.codeextractor.app.domain.ToolResponse
+import com.codeextractor.app.domain.tools.ToolRegistry
+import com.codeextractor.app.presentation.voice.haptics.HapticEngine
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.codeextractor.app.domain.avatar.AvatarAnimator
 import com.codeextractor.app.domain.model.ConversationMessage
 import com.codeextractor.app.domain.model.GeminiEvent
@@ -30,18 +35,16 @@ import javax.inject.Inject
 
 @HiltViewModel
 class VoiceViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val liveClient: LiveClient,
     private val audioEngine: AudioEngine,
-    private val conversationStore: InMemoryConversationStore,
+    private val conversationRepository: ConversationRepository,
     private val logger: AppLogger,
     private val settingsStore: DataStore<AppSettings>,
+    private val toolRegistry: ToolRegistry,
+    private val hapticEngine: HapticEngine,
     val avatarAnimator: AvatarAnimator
 ) : ViewModel() {
-
-    companion object {
-        private const val MAX_RECONNECT_ATTEMPTS = 5
-        private const val RECONNECT_BASE_DELAY_MS = 2_000L
-    }
 
     private val _state = MutableStateFlow(VoiceState())
     val state: StateFlow<VoiceState> = _state.asStateFlow()
@@ -55,6 +58,17 @@ class VoiceViewModel @Inject constructor(
     private var reconnectAttempt = 0
     private var reconnectJob: Job? = null
     private var micJob: Job? = null
+
+    /** Флаг: context уже был seeded в текущей сессии */
+    @Volatile
+    private var contextSeeded = false
+
+    /** Текущий API ключ (основной или backup при ротации) */
+    @Volatile
+    private var activeApiKey: String = ""
+
+    /** Pending tool call IDs — для обработки cancellation */
+    private val pendingToolCalls = mutableSetOf<String>()
 
     init {
         observeSettings()
@@ -79,23 +93,39 @@ class VoiceViewModel @Inject constructor(
             is VoiceIntent.UpdateLatencyProfile -> updateSetting { copy(latencyProfile = intent.profile.name) }
             is VoiceIntent.UpdateAec            -> updateSetting { copy(useAec = intent.enabled) }
             is VoiceIntent.UpdateServerVad      -> updateSetting { copy(enableServerVad = intent.enabled) }
+            is VoiceIntent.UpdateTemperature    -> updateSetting { copy(temperature = intent.value) }
+            is VoiceIntent.UpdateTopP           -> updateSetting { copy(topP = intent.value) }
+            is VoiceIntent.UpdateTopK           -> updateSetting { copy(topK = intent.value) }
+            is VoiceIntent.UpdateMaxTokens      -> updateSetting { copy(maxOutputTokens = intent.value) }
+            is VoiceIntent.UpdateModel          -> updateSetting { copy(model = intent.model) }
+            is VoiceIntent.UpdateSystemInstruction -> updateSetting { copy(systemInstruction = intent.text) }
+            is VoiceIntent.UpdateGoogleSearch   -> updateSetting { copy(enableGoogleSearch = intent.enabled) }
+            is VoiceIntent.UpdateCompression    -> updateSetting { copy(enableContextCompression = intent.enabled) }
+            is VoiceIntent.UpdateResumption     -> updateSetting { copy(enableSessionResumption = intent.enabled) }
+            is VoiceIntent.UpdateDebugLog       -> updateSetting { copy(showDebugLog = intent.enabled) }
+            is VoiceIntent.UpdateLogRawFrames   -> updateSetting { copy(logRawWebSocketFrames = intent.enabled) }
+            is VoiceIntent.UpdateShowUsage      -> updateSetting { copy(showUsageMetadata = intent.enabled) }
+            is VoiceIntent.UpdateLanguage       -> updateSetting { copy(languageCode = intent.code) }
+            is VoiceIntent.UpdateBackupKey      -> handleSubmitBackupKey(intent.key)
+            is VoiceIntent.ClearConversation    -> handleClearConversation()
         }
     }
 
     // ════════════════════════════════════════════════════════════
-    //  SETTINGS OBSERVER — DataStore → cachedSettings → UI State
+    //  SETTINGS → UI STATE
     // ════════════════════════════════════════════════════════════
 
     private fun observeSettings() {
         viewModelScope.launch {
             settingsStore.data
                 .catch { e ->
-                    logger.e("DataStore read error — falling back to defaults: ${e.message}")
+                    logger.e("DataStore read error: ${e.message}")
                     emit(AppSettings())
                 }
                 .collect { settings ->
                     val wasKeyEmpty = cachedSettings.apiKey.isEmpty()
                     cachedSettings = settings
+                    activeApiKey = settings.apiKey
 
                     val profile = runCatching {
                         enumValueOf<LatencyProfile>(settings.latencyProfile)
@@ -110,14 +140,27 @@ class VoiceViewModel @Inject constructor(
                             currentVoiceId        = settings.voiceId,
                             currentLatencyProfile = profile,
                             useAec                = settings.useAec,
-                            showDebugLog          = settings.showDebugLog
+                            showDebugLog          = settings.showDebugLog,
+                            // Новые поля:
+                            temperature           = settings.temperature,
+                            topP                  = settings.topP,
+                            topK                  = settings.topK,
+                            maxOutputTokens       = settings.maxOutputTokens,
+                            model                 = settings.model,
+                            systemInstruction     = settings.systemInstruction,
+                            enableGoogleSearch    = settings.enableGoogleSearch,
+                            enableCompression     = settings.enableContextCompression,
+                            enableResumption      = settings.enableSessionResumption,
+                            languageCode          = settings.languageCode,
+                            logRawFrames          = settings.logRawWebSocketFrames,
+                            showUsageMetadata     = settings.showUsageMetadata
                         )
                     }
 
                     if (hasKey && wasKeyEmpty &&
                         _state.value.connectionStatus == ConnectionStatus.Disconnected
                     ) {
-                        logger.d("✓ API ключ загружен из DataStore → авто-коннект")
+                        logger.d("✓ API ключ загружен → авто-коннект")
                         handleConnect()
                     }
                 }
@@ -125,7 +168,7 @@ class VoiceViewModel @Inject constructor(
     }
 
     // ════════════════════════════════════════════════════════════
-    //  SESSION CONFIG — AppSettings → SessionConfig
+    //  SESSION CONFIG BUILDER
     // ════════════════════════════════════════════════════════════
 
     private fun buildSessionConfig(): SessionConfig {
@@ -134,9 +177,30 @@ class VoiceViewModel @Inject constructor(
         }.getOrDefault(LatencyProfile.UltraLow)
 
         return SessionConfig(
-            voiceId               = cachedSettings.voiceId,
-            latencyProfile        = profile,
-            autoActivityDetection = cachedSettings.enableServerVad
+            model                    = cachedSettings.model,
+            temperature              = cachedSettings.temperature,
+            topP                     = cachedSettings.topP,
+            topK                     = cachedSettings.topK,
+            maxOutputTokens          = cachedSettings.maxOutputTokens,
+            presencePenalty          = cachedSettings.presencePenalty,
+            frequencyPenalty         = cachedSettings.frequencyPenalty,
+            voiceId                  = cachedSettings.voiceId,
+            languageCode             = cachedSettings.languageCode,
+            latencyProfile           = profile,
+            autoActivityDetection    = cachedSettings.enableServerVad,
+            vadStartSensitivity      = cachedSettings.vadStartOfSpeechSensitivity,
+            vadEndSensitivity        = cachedSettings.vadEndOfSpeechSensitivity,
+            vadSilenceTimeoutMs      = cachedSettings.vadSilenceTimeoutMs,
+            systemInstruction        = cachedSettings.systemInstruction,
+            inputTranscription       = cachedSettings.inputTranscription,
+            outputTranscription      = cachedSettings.outputTranscription,
+            enableSessionResumption  = cachedSettings.enableSessionResumption,
+            transparentResumption    = cachedSettings.transparentResumption,
+            sessionHandle            = liveClient.sessionHandle,  // ← Передаём handle!
+            enableContextCompression = cachedSettings.enableContextCompression,
+            compressionTriggerTokens = cachedSettings.compressionTriggerTokens,
+            enableGoogleSearch       = cachedSettings.enableGoogleSearch,
+            sendAudioStreamEnd       = cachedSettings.sendAudioStreamEnd
         )
     }
 
@@ -151,18 +215,44 @@ class VoiceViewModel @Inject constructor(
         }
         viewModelScope.launch {
             settingsStore.updateData { it.copy(apiKey = key) }
-            logger.d("✓ API ключ сохранён (AES-256-GCM, Android Keystore)")
+            logger.d("✓ API ключ сохранён (AES-256-GCM)")
+        }
+    }
+
+    private fun handleSubmitBackupKey(key: String) {
+        if (key.isNotEmpty() && key.length < 20) {
+            _effects.tryEmit(VoiceEffect.ShowToast(UiText.Plain("Backup ключ слишком короткий")))
+            return
+        }
+        viewModelScope.launch {
+            settingsStore.updateData { it.copy(apiKeyBackup = key, autoRotateKeys = key.isNotEmpty()) }
+            logger.d("✓ Backup API ключ ${if (key.isEmpty()) "удалён" else "сохранён"}")
         }
     }
 
     private fun handleConnect() {
-        if (cachedSettings.apiKey.isEmpty()) return
+        if (activeApiKey.isEmpty()) return
         val status = _state.value.connectionStatus
         if (status == ConnectionStatus.Connecting || status == ConnectionStatus.Ready) return
 
+        contextSeeded = false
         _state.update { it.copy(connectionStatus = ConnectionStatus.Connecting) }
+
+        // Запуск Foreground Service для работы в фоне
+        try {
+            appContext.startForegroundService(
+                GeminiLiveForegroundService.startIntent(appContext)
+            )
+        } catch (e: Exception) {
+            logger.w("ForegroundService start failed: ${e.message}")
+        }
+
         viewModelScope.launch {
-            liveClient.connect(cachedSettings.apiKey, buildSessionConfig())
+            liveClient.connect(
+                apiKey = activeApiKey,
+                config = buildSessionConfig(),
+                logRaw = cachedSettings.logRawWebSocketFrames
+            )
         }
     }
 
@@ -180,6 +270,12 @@ class VoiceViewModel @Inject constructor(
                 )
             }
         }
+        // Остановка Foreground Service
+        try {
+            appContext.startService(
+                GeminiLiveForegroundService.stopIntent(appContext)
+            )
+        } catch (_: Exception) { }
     }
 
     private fun handleToggleMic() {
@@ -205,7 +301,13 @@ class VoiceViewModel @Inject constructor(
         micJob = null
         viewModelScope.launch {
             audioEngine.stopCapture()
+
+            // audioStreamEnd → flush серверного кеша (рекомендация Google 2026)
+            if (cachedSettings.sendAudioStreamEnd) {
+                liveClient.sendAudioStreamEnd()
+            }
             liveClient.sendTurnComplete()
+
             _state.update {
                 it.copy(
                     isMicActive      = false,
@@ -219,12 +321,17 @@ class VoiceViewModel @Inject constructor(
     private fun handleSendText(text: String) {
         if (text.isBlank()) return
         liveClient.sendText(text)
-        conversationStore.add(ConversationMessage.user(text))
-        _state.update { it.copy(transcript = conversationStore.getAll()) }
+        conversationRepository.add(ConversationMessage.user(text))
+        _state.update { it.copy(transcript = conversationRepository.getAll()) }
     }
 
     private fun handleSaveLog() {
         _effects.tryEmit(VoiceEffect.SaveLogToFile(logger.getFullLog()))
+    }
+
+    private fun handleClearConversation() {
+        conversationRepository.clear()
+        _state.update { it.copy(transcript = emptyList()) }
     }
 
     private fun updateSetting(transform: AppSettings.() -> AppSettings) {
@@ -244,60 +351,126 @@ class VoiceViewModel @Inject constructor(
                     is GeminiEvent.Connected -> {
                         _state.update { it.copy(connectionStatus = ConnectionStatus.Negotiating) }
                     }
+
                     is GeminiEvent.SetupComplete -> {
                         reconnectAttempt = 0
                         _state.update { it.copy(connectionStatus = ConnectionStatus.Ready) }
-                        val history = conversationStore.getAll()
-                        if (history.isNotEmpty()) liveClient.restoreContext(history)
+
+                        // Seed context ОДИН РАЗ в начале сессии
+                        if (!contextSeeded) {
+                            val history = conversationRepository.getAll()
+                            if (history.isNotEmpty()) {
+                                liveClient.restoreContext(history)
+                            }
+                            contextSeeded = true
+                        }
                     }
+
                     is GeminiEvent.AudioChunk -> {
                         _state.update { it.copy(isAiSpeaking = true) }
                         audioEngine.enqueuePlayback(event.pcmData)
                         avatarAnimator.setSpeaking(true)
                     }
+
                     is GeminiEvent.Interrupted -> {
                         audioEngine.flushPlayback()
                         avatarAnimator.bargeInClear()
                         avatarAnimator.setSpeaking(false)
                         _state.update { it.copy(isAiSpeaking = false) }
                     }
+
                     is GeminiEvent.TurnComplete -> {
                         audioEngine.onTurnComplete()
                         avatarAnimator.setSpeaking(false)
                         _state.update { it.copy(isAiSpeaking = false) }
                     }
+
                     is GeminiEvent.GenerationComplete -> {
                         avatarAnimator.setSpeaking(false)
                         _state.update { it.copy(isAiSpeaking = false) }
                     }
 
-                    // ── Транскрипция: юзер → add(), модель → appendOrAdd() ──
                     is GeminiEvent.InputTranscript -> {
-                        conversationStore.add(ConversationMessage.user(event.text))
-                        _state.update { it.copy(transcript = conversationStore.getAll()) }
-                    }
-                    is GeminiEvent.OutputTranscript -> {
-                        conversationStore.appendOrAdd(ConversationMessage.ROLE_MODEL, event.text)
-                        avatarAnimator.feedModelText(event.text)
-                        _state.update { it.copy(transcript = conversationStore.getAll()) }
-                    }
-                    is GeminiEvent.ModelText -> {
-                        conversationStore.appendOrAdd(ConversationMessage.ROLE_MODEL, event.text)
-                        avatarAnimator.feedModelText(event.text)
-                        _state.update { it.copy(transcript = conversationStore.getAll()) }
+                        conversationRepository.add(ConversationMessage.user(event.text))
+                        _state.update { it.copy(transcript = conversationRepository.getAll()) }
                     }
 
-                    is GeminiEvent.ToolCall          -> handleToolCalls(event)
-                    is GeminiEvent.SessionHandleUpdate -> { /* сохраняется в liveClient */ }
-                    is GeminiEvent.GoAway            -> { reconnectAttempt = 0 }
+                    is GeminiEvent.OutputTranscript -> {
+                        conversationRepository.appendOrAdd(ConversationMessage.ROLE_MODEL, event.text)
+                        avatarAnimator.feedModelText(event.text)
+                        _state.update { it.copy(transcript = conversationRepository.getAll()) }
+                    }
+
+                    is GeminiEvent.ModelText -> {
+                        conversationRepository.appendOrAdd(ConversationMessage.ROLE_MODEL, event.text)
+                        avatarAnimator.feedModelText(event.text)
+                        _state.update { it.copy(transcript = conversationRepository.getAll()) }
+                    }
+
+                    is GeminiEvent.ToolCall -> {
+                        handleToolCalls(event)
+                    }
+
+                    is GeminiEvent.ToolCallCancellation -> {
+                        // Отмена tool calls при barge-in
+                        for (id in event.ids) {
+                            pendingToolCalls.remove(id)
+                            logger.d("⚠ Tool call $id cancelled by server")
+                        }
+                    }
+
+                    is GeminiEvent.SessionHandleUpdate -> {
+                        logger.d("Session handle updated (resumable=${event.resumable})")
+                        // Handle хранится в liveClient, будет использован при reconnect
+                    }
+
+                    is GeminiEvent.GoAway -> {
+                        logger.d("GoAway received (timeLeft=${event.timeLeft})")
+                        // Проактивный reconnect — не ждём закрытия
+                        reconnectAttempt = 0
+                        scheduleReconnect(proactive = true)
+                    }
+
+                    is GeminiEvent.UsageMetadata -> {
+                        if (cachedSettings.showUsageMetadata) {
+                            _state.update {
+                                it.copy(
+                                    promptTokens = event.promptTokens,
+                                    responseTokens = event.responseTokens,
+                                    totalTokens = event.totalTokens
+                                )
+                            }
+                        }
+                    }
+
+                    is GeminiEvent.GroundingMetadata -> {
+                        logger.d("Grounding metadata: ${event.rawJson.take(200)}")
+                    }
+
                     is GeminiEvent.Disconnected -> {
                         _state.update {
-                            it.copy(connectionStatus = ConnectionStatus.Disconnected, isMicActive = false)
+                            it.copy(
+                                connectionStatus = ConnectionStatus.Disconnected,
+                                isMicActive      = false
+                            )
                         }
                         viewModelScope.launch { audioEngine.stopCapture() }
                         scheduleReconnect()
                     }
+
                     is GeminiEvent.ConnectionError -> {
+                        val isRateLimit = event.message.contains("429") ||
+                                          event.message.contains("rate", ignoreCase = true)
+
+                        if (isRateLimit && cachedSettings.autoRotateKeys &&
+                            cachedSettings.apiKeyBackup.isNotEmpty()
+                        ) {
+                            // Ротация ключей при rate limit
+                            activeApiKey = if (activeApiKey == cachedSettings.apiKey)
+                                cachedSettings.apiKeyBackup else cachedSettings.apiKey
+                            logger.d("🔄 Rate limit — rotating to backup key")
+                        }
+
                         _state.update {
                             it.copy(
                                 connectionStatus = ConnectionStatus.Disconnected,
@@ -309,7 +482,10 @@ class VoiceViewModel @Inject constructor(
                         scheduleReconnect()
                     }
                 }
-                _state.update { it.copy(logText = logger.getDisplayLog()) }
+
+                if (cachedSettings.showDebugLog) {
+                    _state.update { it.copy(logText = logger.getDisplayLog()) }
+                }
             }
         }
     }
@@ -319,12 +495,25 @@ class VoiceViewModel @Inject constructor(
     // ════════════════════════════════════════════════════════════
 
     private fun handleToolCalls(event: GeminiEvent.ToolCall) {
-        val responses = event.calls.map { call ->
+        for (call in event.calls) {
+            pendingToolCalls.add(call.id)
+        }
+
+        val responses = event.calls.mapNotNull { call ->
+            // Проверяем: не был ли отменён пока мы обрабатывали
+            if (call.id !in pendingToolCalls) {
+                logger.d("⚠ Skipping cancelled tool call: ${call.name}")
+                return@mapNotNull null
+            }
             val result = dispatchTool(call.name, call.args)
             logger.d("🔧 TOOL_RESULT: ${call.name} → $result")
+            pendingToolCalls.remove(call.id)
             ToolResponse(call.name, call.id, result)
         }
-        liveClient.sendToolResponse(responses)
+
+        if (responses.isNotEmpty()) {
+            liveClient.sendToolResponse(responses)
+        }
     }
 
     private fun dispatchTool(name: String, args: Map<String, String>): String = when (name) {
@@ -335,23 +524,35 @@ class VoiceViewModel @Inject constructor(
     }
 
     // ════════════════════════════════════════════════════════════
-    //  RECONNECT (exponential backoff)
+    //  RECONNECT
     // ════════════════════════════════════════════════════════════
 
-    private fun scheduleReconnect() {
-        if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
-            logger.d("Max reconnect attempts ($MAX_RECONNECT_ATTEMPTS) reached")
-            _effects.tryEmit(VoiceEffect.ShowToast(UiText.Plain("Connection lost")))
+    private fun scheduleReconnect(proactive: Boolean = false) {
+        val maxAttempts = cachedSettings.maxReconnectAttempts
+        if (reconnectAttempt >= maxAttempts && !proactive) {
+            logger.d("Max reconnect attempts ($maxAttempts) reached")
+            _effects.tryEmit(VoiceEffect.ShowToast(UiText.Plain("Соединение потеряно")))
             return
         }
-        val delayMs = RECONNECT_BASE_DELAY_MS * (1L shl reconnectAttempt)
-        reconnectAttempt++
-        logger.d("Reconnect #$reconnectAttempt in ${delayMs}ms")
+
+        val baseDelay = cachedSettings.reconnectBaseDelayMs
+        val maxDelay = cachedSettings.reconnectMaxDelayMs
+        val delayMs = if (proactive) {
+            1000L // GoAway → быстрый reconnect
+        } else {
+            (baseDelay * (1L shl reconnectAttempt)).coerceAtMost(maxDelay)
+        }
+
+        if (!proactive) reconnectAttempt++
+        logger.d("Reconnect #$reconnectAttempt in ${delayMs}ms" +
+                 if (proactive) " (proactive/GoAway)" else "")
+
         _state.update { it.copy(connectionStatus = ConnectionStatus.Reconnecting) }
 
         reconnectJob?.cancel()
         reconnectJob = viewModelScope.launch {
             delay(delayMs)
+            contextSeeded = false // Позволяем re-seed при новой сессии
             handleConnect()
         }
     }
