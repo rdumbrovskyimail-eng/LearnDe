@@ -1,33 +1,60 @@
 package com.codeextractor.app.domain.model
 
 /**
- * Конфигурация сессии Gemini Live.
- * Передаётся в LiveClient.connect() → формирует setup JSON.
+ * Конфигурация сессии Gemini Live API — полная спецификация 2026.
  *
- * Подготовлено под Этап 3 (экран настроек) — каждый параметр
- * будет привязан к UI-контролу.
+ * Формируется из AppSettings → передаётся в LiveClient.connect().
+ * Каждое поле маппится на JSON-поле в setup message.
+ *
+ * Документация: https://ai.google.dev/api/live
+ * Модель: gemini-3.1-flash-live-preview (128k context, 64k output)
  */
 data class SessionConfig(
-    /** Модель Gemini. В 2026: gemini-3.1-flash-live-preview */
+
+    // ── Model ──
     val model: String = DEFAULT_MODEL,
 
-    /** Голос TTS. Варианты: Puck, Charon, Kore, Fenrir, Aoede, Leda, Orus, Zephyr */
-    val voiceId: String = "Aoede",
+    // ── Generation Config ──
+    val responseModality: String = "AUDIO",
+    val temperature: Float = 1.0f,
+    val topP: Float = 0.95f,
+    val topK: Int = 40,
+    val maxOutputTokens: Int = 8192,
+    val presencePenalty: Float = 0.0f,
+    val frequencyPenalty: Float = 0.0f,
 
-    /** Профиль латентности → thinkingLevel в setup */
+    // ── Voice ──
+    val voiceId: String = "Aoede",
+    val languageCode: String = "",
+
+    // ── Thinking ──
     val latencyProfile: LatencyProfile = LatencyProfile.UltraLow,
 
-    /** Серверный VAD (Voice Activity Detection) */
+    // ── VAD ──
     val autoActivityDetection: Boolean = true,
+    val vadStartSensitivity: Float = 0.5f,
+    val vadEndSensitivity: Float = 0.5f,
+    val vadSilenceTimeoutMs: Int = 0,
 
-    /** Системная инструкция для модели */
+    // ── System Instruction ──
     val systemInstruction: String = DEFAULT_SYSTEM_INSTRUCTION,
 
-    /** Включить транскрипцию входящего аудио */
+    // ── Transcription ──
     val inputTranscription: Boolean = true,
+    val outputTranscription: Boolean = true,
 
-    /** Включить транскрипцию ответа модели */
-    val outputTranscription: Boolean = true
+    // ── Session Management ──
+    val enableSessionResumption: Boolean = true,
+    val transparentResumption: Boolean = true,
+    val sessionHandle: String? = null,
+    val enableContextCompression: Boolean = true,
+    val compressionTriggerTokens: Int = 0,
+
+    // ── Tools ──
+    val enableGoogleSearch: Boolean = false,
+
+    // ── Audio ──
+    val sendAudioStreamEnd: Boolean = true
 ) {
     companion object {
         const val DEFAULT_MODEL = "models/gemini-3.1-flash-live-preview"
@@ -48,16 +75,16 @@ data class SessionConfig(
 }
 
 /**
- * Профиль латентности.
- * Gemini 3.1: thinkingLevel вместо thinkingBudget.
+ * Профиль латентности → thinkingLevel в Gemini 3.1 setup.
+ *
+ * minimal — минимальная задержка, подходит для голосового чата
+ * low     — немного больше reasoning при умеренной латентности
+ * medium  — баланс скорость/качество
+ * high    — максимальный reasoning, высокая латентность
  */
-enum class LatencyProfile(val thinkingLevel: String) {
-    /** Минимальная латентность — оптимально для голосового чата */
-    UltraLow("minimal"),
-
-    /** Баланс между скоростью и качеством */
-    Balanced("medium"),
-
-    /** Максимальный reasoning — высокая латентность */
-    Reasoning("high")
+enum class LatencyProfile(val thinkingLevel: String, val displayName: String) {
+    UltraLow("minimal", "Ultra Low (minimal thinking)"),
+    Low("low", "Low (light thinking)"),
+    Balanced("medium", "Balanced (medium thinking)"),
+    Reasoning("high", "Reasoning (deep thinking)")
 }
