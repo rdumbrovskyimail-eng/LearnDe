@@ -295,7 +295,7 @@ fun AvatarScene(
                 ModelNode(
                     modelInstance = mi,
                     scaleToUnits  = MODEL_SCALE,
-                    centerOrigin  = Position(0f, 0f, 0f),
+                    centerOrigin  = Position(0f, -0.65f, 0f),
                     autoAnimate   = false,
                 )
             }
