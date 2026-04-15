@@ -44,8 +44,9 @@ import java.nio.ByteBuffer
 
 private const val TAG = "AvatarScene"
 
-// ── Базовая модель (общая для всех) ──────────────────────────────────────────
-private const val BASE_MODEL_PATH = "models/test.glb"
+// ── Базовые модели (разные для каждого аватара) ──────────────────────────────
+private const val BASE_MODEL_PATH_1 = "models/test.glb"
+private const val BASE_MODEL_PATH_2 = "models/test2.glb"
 
 // ── Ресурсы аватара 1 (мужской) ──────────────────────────────────────────────
 private const val HEAD_TEXTURE_1  = "models/head_texture.png"
@@ -112,6 +113,7 @@ fun AvatarScene(
     val frameSnapshot   = remember { ZeroAllocRenderState() }
     var whiteTex        by remember { mutableStateOf<Texture?>(null) }
 
+    fun modelPath() = if (avatarIndex == 1) BASE_MODEL_PATH_1 else BASE_MODEL_PATH_2
     fun headTex()   = if (avatarIndex == 1) HEAD_TEXTURE_1  else HEAD_TEXTURE_2
     fun eyesTex()   = if (avatarIndex == 1) EYES_TEXTURE_1  else EYES_TEXTURE_2
     fun teethTex()  = if (avatarIndex == 1) TEETH_TEXTURE_1 else TEETH_TEXTURE_2
@@ -130,34 +132,47 @@ fun AvatarScene(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  ЗАГРУЗКА БАЗОВОЙ МОДЕЛИ (ОДИН РАЗ ПРИ СТАРТЕ)
+    //  ЗАГРУЗКА БАЗОВОЙ МОДЕЛИ (ПЕРЕЗАПУСКАЕТСЯ ПРИ СМЕНЕ АВАТАРА)
     // ═══════════════════════════════════════════════════════════════════════════
-    LaunchedEffect(modelLoader) {
+    LaunchedEffect(modelLoader, avatarIndex) {
+        // 1. Очищаем старую модель из памяти видеокарты
+        modelInstance?.let { oldInstance ->
+            try {
+                oldInstance.destroy()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error destroying old model instance", e)
+            }
+        }
+        
         modelInstance  = null
         materialsReady = false
 
         val buffer = withContext(Dispatchers.IO) {
             val editorOutput = File(ctx.cacheDir, "patched_model.glb")
-            val patchedFile  = File(ctx.cacheDir, "patched_model_base.glb")
+            // 2. Разделяем кэш для двух аватаров, чтобы не патчить их каждый раз
+            val patchedFile  = File(ctx.cacheDir, "patched_model_base_$avatarIndex.glb")
 
-            if (patchedFile.exists()) patchedFile.delete()
+            if (!patchedFile.exists()) {
+                com.codeextractor.app.editor.GlbTextureEditor(ctx)
+                    .preparePatchedModel(modelPath()) // <-- Используем нужный путь
 
-            com.codeextractor.app.editor.GlbTextureEditor(ctx)
-                .preparePatchedModel(BASE_MODEL_PATH)
-
-            editorOutput.renameTo(patchedFile)
+                if (editorOutput.exists()) {
+                    editorOutput.renameTo(patchedFile)
+                }
+            }
 
             val bytes = patchedFile.readBytes()
             ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
         }
+        
         modelInstance = modelLoader.createModelInstance(buffer)
-        Log.d(TAG, "Base model loaded: ${modelInstance?.entities?.size} entities")
+        Log.d(TAG, "Model loaded for avatar $avatarIndex: ${modelInstance?.entities?.size} entities")
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
     //  НАСТРОЙКА МАТЕРИАЛОВ И СМЕНА ТЕКСТУР
     // ═══════════════════════════════════════════════════════════════════════════
-    LaunchedEffect(modelInstance, avatarIndex) {
+    LaunchedEffect(modelInstance) {
         val mi = modelInstance ?: return@LaunchedEffect
         val rm = engine.renderableManager
 
