@@ -253,7 +253,6 @@ class VoiceViewModel @Inject constructor(
                     is GeminiEvent.AudioChunk -> {
                         _state.update { it.copy(isAiSpeaking = true) }
                         audioEngine.enqueuePlayback(event.pcmData)
-                        avatarAnimator.feedAudio(event.pcmData)
                         avatarAnimator.setSpeaking(true)
                     }
                     is GeminiEvent.Interrupted -> {
@@ -363,6 +362,13 @@ class VoiceViewModel @Inject constructor(
 
     private fun initAudioPlayback() {
         viewModelScope.launch { audioEngine.initPlayback() }
+
+        // ДОБАВЛЕНО: Слушаем чанки, которые РЕАЛЬНО идут в динамик прямо сейчас
+        viewModelScope.launch {
+            audioEngine.playbackSync.collect { pcmChunk ->
+                avatarAnimator.feedAudio(pcmChunk)
+            }
+        }
     }
 
     override fun onCleared() {
