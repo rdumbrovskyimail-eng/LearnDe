@@ -120,13 +120,34 @@ fun AvatarScene(
     DisposableEffect(engine) {
         onDispose {
             Log.d(TAG, "Disposing ${trackedTextures.size} textures")
+
+            val wt = whiteTex
+            if (wt != null) {
+                val fallbackSampler = buildDefaultSampler()
+                val mi = modelInstance
+                if (mi != null) {
+                    val rm = engine.renderableManager
+                    for (entity in mi.entities) {
+                        if (!rm.hasComponent(entity)) continue
+                        val ri = rm.getInstance(entity)
+                        val primCount = rm.getPrimitiveCount(ri)
+                        for (p in 0 until primCount) {
+                            val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null }
+                                ?: continue
+                            try { mat.setParameter("baseColorMap", wt, fallbackSampler) } catch (_: Exception) {}
+                        }
+                    }
+                }
+            }
+
             for (tex in trackedTextures) {
                 try { engine.destroyTexture(tex) } catch (e: Exception) { Log.w(TAG, "destroyTexture failed", e) }
             }
             trackedTextures.clear()
-            whiteTex?.let {
+            wt?.let {
                 try { engine.destroyTexture(it) } catch (e: Exception) { Log.w(TAG, "destroyTexture (white) failed", e) }
             }
+            whiteTex = null
         }
     }
 
@@ -165,12 +186,29 @@ fun AvatarScene(
         withContext(Dispatchers.IO) {
 
             // Освобождаем текстуры предыдущего аватара
+            val wt = whiteTex
+            if (wt != null) {
+                val fallbackSampler = buildDefaultSampler()
+                val rm = engine.renderableManager
+                for (entity in mi.entities) {
+                    if (!rm.hasComponent(entity)) continue
+                    val ri = rm.getInstance(entity)
+                    val primCount = rm.getPrimitiveCount(ri)
+                    for (p in 0 until primCount) {
+                        val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null }
+                            ?: continue
+                        try { mat.setParameter("baseColorMap", wt, fallbackSampler) } catch (_: Exception) {}
+                    }
+                }
+            }
+
             for (tex in trackedTextures) {
                 try { engine.destroyTexture(tex) } catch (e: Exception) { Log.w(TAG, "destroyTexture (swap) failed", e) }
             }
             trackedTextures.clear()
 
-            val wt             = buildWhiteTexture(engine)
+            val newWt          = buildWhiteTexture(engine)
+            whiteTex           = newWt
             whiteTex           = wt
             val defaultSampler = buildDefaultSampler()
 
