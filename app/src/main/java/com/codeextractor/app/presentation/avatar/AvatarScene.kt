@@ -109,7 +109,7 @@ fun AvatarScene(
     var modelInstance  by remember { mutableStateOf<ModelInstance?>(null) }
     var materialsReady by remember { mutableStateOf(false) }
 
-    val trackedTextures = remember { mutableListOf<Texture>() }
+    val textureCache    = remember { mutableMapOf<String, Texture>() }
     val frameSnapshot   = remember { ZeroAllocRenderState() }
     var whiteTex        by remember { mutableStateOf<Texture?>(null) }
 
@@ -118,15 +118,16 @@ fun AvatarScene(
     fun eyesTex()   = if (avatarIndex == 1) EYES_TEXTURE_1  else EYES_TEXTURE_2
     fun teethTex()  = if (avatarIndex == 1) TEETH_TEXTURE_1 else TEETH_TEXTURE_2
 
-    // ── Очистка GPU-памяти ───────────────────────────────────────────────────
+    // ── Очистка GPU-памяти при выходе с экрана ───────────────────────────────
     DisposableEffect(engine) {
         onDispose {
             Log.d(TAG, "Disposing AvatarScene")
-            // ВАЖНО: Мы НЕ отвязываем текстуры и НЕ удаляем их вручную здесь.
-            // При выходе с экрана rememberEngine() сам вызовет engine.destroy(), 
-            // что безопасно очистит всю память. 
-            // Ручное удаление привязанных текстур вызывает краш use-after-free.
-            trackedTextures.clear()
+            // Безопасно удаляем все текстуры только при полном закрытии экрана
+            textureCache.values.forEach { 
+                try { engine.destroyTexture(it) } catch (e: Exception) {} 
+            }
+            textureCache.clear()
+            whiteTex?.let { try { engine.destroyTexture(it) } catch (e: Exception) {} }
             whiteTex = null
         }
     }
@@ -161,7 +162,7 @@ fun AvatarScene(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  НАСТРОЙКА МАТЕРИАЛОВ И СМЕНА ТЕКСТУР
+    //  НАСТРОЙКА МАТЕРИАЛОВ И СМЕНА ТЕКСТУР (С КЭШИРОВАНИЕМ)
     // ═══════════════════════════════════════════════════════════════════════════
     LaunchedEffect(modelInstance) {
         val mi = modelInstance ?: return@LaunchedEffect
@@ -169,11 +170,6 @@ fun AvatarScene(
 
         materialsReady = false
 
-        // ── Сохраняем старые текстуры, чтобы удалить их ПОСЛЕ применения новых ──
-        val texturesToDestroy = trackedTextures.toList()
-        trackedTextures.clear()
-
-        // Создаем заглушку для зубов (если текстуры нет), она будет жить до конца
         if (whiteTex == null) {
             whiteTex = buildWhiteTexture(engine)
         }
@@ -186,7 +182,6 @@ fun AvatarScene(
             var eyeRMat:  MaterialInstance? = null
             var eyeCount = 0
 
-            // Ищем материалы
             for (entity in mi.entities) {
                 if (!rm.hasComponent(entity)) continue
                 val ri         = rm.getInstance(entity)
@@ -210,9 +205,10 @@ fun AvatarScene(
 
             // ── ГОЛОВА ──
             headMat?.let { mat ->
-                val tex = buildHeadCompositeTexture(ctx, engine, headTex())
+                val key = "head_$avatarIndex"
+                val tex = textureCache[key] ?: buildHeadCompositeTexture(ctx, engine, headTex())?.also { textureCache[key] = it }
+                
                 if (tex != null) {
-                    trackedTextures.add(tex)
                     setParam(mat, "baseColorMap", tex, buildMipmapSampler(anisotropy = 8f))
                 }
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
@@ -222,9 +218,10 @@ fun AvatarScene(
 
             // ── ЗУБЫ ──
             teethMat?.let { mat ->
-                val tex = loadTexture(ctx, engine, teethTex(), mipmap = true)
+                val key = "teeth_$avatarIndex"
+                val tex = textureCache[key] ?: loadTexture(ctx, engine, teethTex(), mipmap = true)?.also { textureCache[key] = it }
+                
                 if (tex != null) {
-                    trackedTextures.add(tex)
                     setParam(mat, "baseColorMap", tex, buildMipmapSampler())
                     setParam(mat, "baseColorFactor", 0.97f, 0.97f, 0.95f, 1f)
                     setParam(mat, "roughnessFactor", 0.35f)
@@ -237,9 +234,10 @@ fun AvatarScene(
             }
 
             // ── ГЛАЗА ──
-            val eyeTex = loadTexture(ctx, engine, eyesTex(), mipmap = true)
+            val key = "eyes_$avatarIndex"
+            val eyeTex = textureCache[key] ?: loadTexture(ctx, engine, eyesTex(), mipmap = true)?.also { textureCache[key] = it }
+            
             eyeTex?.let { tex ->
-                trackedTextures.add(tex)
                 val sampler = buildMipmapSampler(wrap = TextureSampler.WrapMode.REPEAT)
                 listOf(eyeLMat, eyeRMat).filterNotNull().forEach { mat ->
                     setParam(mat, "baseColorMap", tex, sampler)
@@ -250,16 +248,9 @@ fun AvatarScene(
             }
         }
 
-        // ── ВАЖНО: Ждём, пока GPU применит новые текстуры к материалам ──
         engine.flushAndWait()
-
-        // ── ТЕПЕРЬ БЕЗОПАСНО: Уничтожаем старые текстуры ──
-        for (tex in texturesToDestroy) {
-            try { engine.destroyTexture(tex) } catch (e: Exception) {}
-        }
-
         materialsReady = true
-        Log.d(TAG, "Materials ready [avatar=$avatarIndex]. Textures: ${trackedTextures.size}")
+        Log.d(TAG, "Materials ready [avatar=$avatarIndex]. Cached textures: ${textureCache.size}")
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
