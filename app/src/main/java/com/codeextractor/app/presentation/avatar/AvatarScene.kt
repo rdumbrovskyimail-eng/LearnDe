@@ -121,6 +121,9 @@ fun AvatarScene(
     // иначе Filament крашит с "Invalid texture still bound to MaterialInstance"
     DisposableEffect(engine) {
         onDispose {
+            // Дождаться завершения всех GPU-операций перед удалением текстур
+            engine.flushAndWait()
+
             Log.d(TAG, "Disposing ${trackedTextures.size} textures")
 
             val wt = whiteTex
