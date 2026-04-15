@@ -117,35 +117,47 @@ fun AvatarScene(
     fun teethTex()  = if (avatarIndex == 1) TEETH_TEXTURE_1 else TEETH_TEXTURE_2
 
     // ── Очистка GPU-памяти ───────────────────────────────────────────────────
+    // ВАЖНО: перед уничтожением текстур отвязываем их от всех MaterialInstance,
+    // иначе Filament крашит с "Invalid texture still bound to MaterialInstance"
     DisposableEffect(engine) {
         onDispose {
             Log.d(TAG, "Disposing ${trackedTextures.size} textures")
 
             val wt = whiteTex
-            if (wt != null) {
+            val mi = modelInstance
+
+            // 1. Отвязываем все кастомные текстуры от материалов
+            if (wt != null && mi != null) {
                 val fallbackSampler = buildDefaultSampler()
-                val mi = modelInstance
-                if (mi != null) {
-                    val rm = engine.renderableManager
-                    for (entity in mi.entities) {
-                        if (!rm.hasComponent(entity)) continue
-                        val ri = rm.getInstance(entity)
-                        val primCount = rm.getPrimitiveCount(ri)
-                        for (p in 0 until primCount) {
-                            val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null }
-                                ?: continue
-                            try { mat.setParameter("baseColorMap", wt, fallbackSampler) } catch (_: Exception) {}
-                        }
+                val rm = engine.renderableManager
+                for (entity in mi.entities) {
+                    if (!rm.hasComponent(entity)) continue
+                    val ri = rm.getInstance(entity)
+                    val primCount = try { rm.getPrimitiveCount(ri) } catch (_: Exception) { 0 }
+                    for (p in 0 until primCount) {
+                        val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null }
+                            ?: continue
+                        try {
+                            mat.setParameter("baseColorMap", wt, fallbackSampler)
+                        } catch (_: Exception) {}
                     }
                 }
             }
 
+            // 2. Уничтожаем кастомные текстуры (уже отвязаны)
             for (tex in trackedTextures) {
-                try { engine.destroyTexture(tex) } catch (e: Exception) { Log.w(TAG, "destroyTexture failed", e) }
+                try { engine.destroyTexture(tex) } catch (e: Exception) {
+                    Log.w(TAG, "destroyTexture failed", e)
+                }
             }
             trackedTextures.clear()
+
+            // 3. whiteTex уничтожаем последним (все материалы ещё указывают на неё,
+            //    но Scene уже не рендерит — onDispose значит composable удалён)
             wt?.let {
-                try { engine.destroyTexture(it) } catch (e: Exception) { Log.w(TAG, "destroyTexture (white) failed", e) }
+                try { engine.destroyTexture(it) } catch (e: Exception) {
+                    Log.w(TAG, "destroyTexture (white) failed", e)
+                }
             }
             whiteTex = null
         }
@@ -183,34 +195,48 @@ fun AvatarScene(
         val mi = modelInstance ?: return@LaunchedEffect
         val rm = engine.renderableManager
 
-        withContext(Dispatchers.IO) {
-
-            // Освобождаем текстуры предыдущего аватара
-            val wt = whiteTex
-            if (wt != null) {
-                val fallbackSampler = buildDefaultSampler()
-                val rm = engine.renderableManager
-                for (entity in mi.entities) {
-                    if (!rm.hasComponent(entity)) continue
-                    val ri = rm.getInstance(entity)
-                    val primCount = rm.getPrimitiveCount(ri)
-                    for (p in 0 until primCount) {
-                        val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null }
-                            ?: continue
-                        try { mat.setParameter("baseColorMap", wt, fallbackSampler) } catch (_: Exception) {}
-                    }
+        // ── Шаг 1: Отвязываем старые текстуры от материалов (main thread) ────
+        val oldWt = whiteTex
+        if (oldWt != null && trackedTextures.isNotEmpty()) {
+            val fallbackSampler = buildDefaultSampler()
+            // Пробуем отвязать от предыдущего modelInstance
+            // (entities могли измениться, но пробуем безопасно)
+            for (entity in mi.entities) {
+                if (!rm.hasComponent(entity)) continue
+                val ri = rm.getInstance(entity)
+                val primCount = try { rm.getPrimitiveCount(ri) } catch (_: Exception) { 0 }
+                for (p in 0 until primCount) {
+                    val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null }
+                        ?: continue
+                    try {
+                        mat.setParameter("baseColorMap", oldWt, fallbackSampler)
+                    } catch (_: Exception) {}
                 }
             }
+        }
 
-            for (tex in trackedTextures) {
-                try { engine.destroyTexture(tex) } catch (e: Exception) { Log.w(TAG, "destroyTexture (swap) failed", e) }
+        // ── Шаг 2: Уничтожаем старые текстуры (main thread, уже отвязаны) ───
+        for (tex in trackedTextures) {
+            try { engine.destroyTexture(tex) } catch (e: Exception) {
+                Log.w(TAG, "destroyTexture (swap) failed", e)
             }
-            trackedTextures.clear()
+        }
+        trackedTextures.clear()
 
-            val newWt          = buildWhiteTexture(engine)
-            whiteTex           = newWt
-            whiteTex           = wt
-            val defaultSampler = buildDefaultSampler()
+        // Уничтожаем старый whiteTex
+        oldWt?.let {
+            try { engine.destroyTexture(it) } catch (e: Exception) {
+                Log.w(TAG, "destroyTexture (old white) failed", e)
+            }
+        }
+
+        // ── Шаг 3: Создаём новый whiteTex (main thread — Filament вызов) ─────
+        val wt: Texture = buildWhiteTexture(engine)
+        whiteTex = wt
+        val defaultSampler = buildDefaultSampler()
+
+        // ── Шаг 4: Сканируем entities на IO, текстуры грузим тоже на IO ──────
+        withContext(Dispatchers.IO) {
 
             var headMat:  MaterialInstance? = null
             var teethMat: MaterialInstance? = null
@@ -246,7 +272,7 @@ fun AvatarScene(
                 val tex = buildHeadCompositeTexture(ctx, engine, headTex())
                     ?.also { trackedTextures.add(it) }
                 val sampler = if (tex != null) buildMipmapSampler(anisotropy = 8f) else defaultSampler
-                setParam(mat, "baseColorMap",    tex ?: wt!!, sampler)
+                setParam(mat, "baseColorMap",    tex ?: wt, sampler)
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
                 setParam(mat, "roughnessFactor", 0.48f)
                 setParam(mat, "metallicFactor",  0.00f)
@@ -263,7 +289,7 @@ fun AvatarScene(
                     setParam(mat, "metallicFactor",  0.00f)
                     Log.d(TAG, "Teeth: texture mode")
                 } else {
-                    setParam(mat, "baseColorMap",    wt!!, defaultSampler)
+                    setParam(mat, "baseColorMap",    wt, defaultSampler)
                     setParam(mat, "baseColorFactor", 0.55f, 0.22f, 0.20f, 1f)
                     setParam(mat, "roughnessFactor", 0.85f)
                     setParam(mat, "metallicFactor",  0.00f)
@@ -278,7 +304,7 @@ fun AvatarScene(
                 val sampler = if (tex != null)
                     buildMipmapSampler(wrap = TextureSampler.WrapMode.REPEAT)
                 else defaultSampler
-                setParam(mat, "baseColorMap",    tex ?: wt!!, sampler)
+                setParam(mat, "baseColorMap",    tex ?: wt, sampler)
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
                 setParam(mat, "roughnessFactor", 0.02f)
                 setParam(mat, "metallicFactor",  0.00f)
@@ -390,24 +416,19 @@ private fun applyMorphWeights(
     val head = state.morphWeights
 
     // ── Коэффициенты компенсации (подобраны эмпирически) ─────────────────
-    // Максимальный поворот головы ~30°, при 30° нужна полная компенсация ~0.6
     val gazePerDeg = 0.020f
 
     // Вертикальная компенсация: pitch > 0 → голова вниз → глаза вверх
     val pitchComp = headPitchDeg * gazePerDeg
-    val eyeUpComp   = (-pitchComp).coerceAtLeast(0f)  // положительный pitch → lookUp
-    val eyeDownComp = pitchComp.coerceAtLeast(0f)      // отрицательный pitch → lookDown
+    val eyeUpComp   = (-pitchComp).coerceAtLeast(0f)
+    val eyeDownComp = pitchComp.coerceAtLeast(0f)
 
     // Горизонтальная компенсация: yaw > 0 → голова вправо
     val yawComp = headYawDeg * gazePerDeg
 
-    // Для левого глаза: yaw > 0 (голова вправо) → глаз смотрит In (к носу = влево)
-    // eyeLookIn_L  при yaw > 0, eyeLookOut_L при yaw < 0
     val eyeLInComp  = yawComp.coerceAtLeast(0f)
     val eyeLOutComp = (-yawComp).coerceAtLeast(0f)
 
-    // Для правого глаза: yaw > 0 (голова вправо) → глаз смотрит Out (от носа = влево)
-    // eyeLookOut_R при yaw > 0, eyeLookIn_R при yaw < 0
     val eyeROutComp = yawComp.coerceAtLeast(0f)
     val eyeRInComp  = (-yawComp).coerceAtLeast(0f)
 
@@ -415,14 +436,13 @@ private fun applyMorphWeights(
     val teethW = FloatArray(5) { i -> head[ARKit.TEETH_SOURCE_INDICES[i]] }
 
     // ── Собираем веса для глаз с компенсацией ────────────────────────────
-    // ARKit eye blendshapes order: [lookDown, lookIn, lookOut, lookUp]
     val eyeLW = FloatArray(4) { i ->
         val base = head[ARKit.EYE_SOURCE_INDICES[i]]
         val comp = when (i) {
-            0 -> eyeDownComp   // lookDown
-            1 -> eyeLInComp    // lookIn
-            2 -> eyeLOutComp   // lookOut
-            3 -> eyeUpComp     // lookUp
+            0 -> eyeDownComp
+            1 -> eyeLInComp
+            2 -> eyeLOutComp
+            3 -> eyeUpComp
             else -> 0f
         }
         (base + comp).coerceIn(0f, EYE_LOOK_MAX)
@@ -431,10 +451,10 @@ private fun applyMorphWeights(
     val eyeRW = FloatArray(4) { i ->
         val base = head[ARKit.EYE_SOURCE_INDICES[i] + ARKit.EYE_RIGHT_OFFSET]
         val comp = when (i) {
-            0 -> eyeDownComp   // lookDown
-            1 -> eyeRInComp    // lookIn
-            2 -> eyeROutComp   // lookOut
-            3 -> eyeUpComp     // lookUp
+            0 -> eyeDownComp
+            1 -> eyeRInComp
+            2 -> eyeROutComp
+            3 -> eyeUpComp
             else -> 0f
         }
         (base + comp).coerceIn(0f, EYE_LOOK_MAX)
@@ -645,9 +665,6 @@ private fun buildHeadCompositeTexture(
 //  SAMPLER BUILDERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Дефолтный сэмплер — линейная фильтрация, clamp-to-edge.
- */
 private fun buildDefaultSampler(): TextureSampler {
     return TextureSampler().apply {
         setMinFilter(TextureSampler.MinFilter.LINEAR)
@@ -657,9 +674,6 @@ private fun buildDefaultSampler(): TextureSampler {
     }
 }
 
-/**
- * Сэмплер с mipmap-фильтрацией и опциональной анизотропной фильтрацией.
- */
 private fun buildMipmapSampler(
     anisotropy: Float = 1f,
     wrap: TextureSampler.WrapMode = TextureSampler.WrapMode.CLAMP_TO_EDGE,
@@ -677,10 +691,6 @@ private fun buildMipmapSampler(
 //  MATERIAL PARAM HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Безопасная установка текстурного параметра материала.
- * Если параметр не существует в материале — ловим исключение и логируем.
- */
 private fun setParam(
     mat:     MaterialInstance,
     name:    String,
@@ -694,9 +704,6 @@ private fun setParam(
     }
 }
 
-/**
- * Безопасная установка float4 параметра материала (например baseColorFactor).
- */
 private fun setParam(
     mat:  MaterialInstance,
     name: String,
@@ -709,9 +716,6 @@ private fun setParam(
     }
 }
 
-/**
- * Безопасная установка float параметра материала (например roughnessFactor).
- */
 private fun setParam(
     mat:   MaterialInstance,
     name:  String,
