@@ -18,9 +18,12 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -32,8 +35,18 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Реализация LiveClient — вся WebSocket-логика Gemini Live API.
- * Перенесено из оригинального MainActivity: connect, setup, parse, send.
+ * Gemini Live API WebSocket клиент — полная реализация 2026.
+ *
+ * Поддерживает все возможности gemini-3.1-flash-live-preview:
+ *  - Session resumption с handle (прозрачный reconnect)
+ *  - Context window compression (sliding window)
+ *  - Google Search grounding
+ *  - audioStreamEnd для flush кеша
+ *  - toolCallCancellation обработка
+ *  - Usage metadata tracking
+ *  - Полная конфигурация VAD
+ *  - Полная generationConfig (temperature, topP, topK и т.д.)
+ *  - historyConfig для корректного seeding context
  */
 @Singleton
 class GeminiLiveClient @Inject constructor(
@@ -51,7 +64,7 @@ class GeminiLiveClient @Inject constructor(
 
     private val _events = MutableSharedFlow<GeminiEvent>(
         replay = 0,
-        extraBufferCapacity = 64,
+        extraBufferCapacity = 128,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     override val events: Flow<GeminiEvent> = _events.asSharedFlow()
@@ -64,20 +77,24 @@ class GeminiLiveClient @Inject constructor(
     override var isReady: Boolean = false
         private set
 
+    @Volatile
+    private var logRawFrames: Boolean = false
+
     private var currentConfig: SessionConfig? = null
 
     // ════════════════════════════════════════════════════════════
     //  CONNECT / DISCONNECT
     // ════════════════════════════════════════════════════════════
 
-    override suspend fun connect(apiKey: String, config: SessionConfig) {
+    override suspend fun connect(apiKey: String, config: SessionConfig, logRaw: Boolean) {
         if (webSocket != null) disconnect()
 
         currentConfig = config
+        logRawFrames = logRaw
         isReady = false
 
         val url = "wss://${SessionConfig.WS_HOST}/${SessionConfig.WS_PATH}?key=$apiKey"
-        logger.d("Connecting to ${config.model} via v1beta…")
+        logger.d("Connecting to ${config.model}…")
 
         val request = Request.Builder().url(url).build()
 
@@ -90,6 +107,10 @@ class GeminiLiveClient @Inject constructor(
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
+                if (logRawFrames) {
+                    val preview = if (text.length > 300) text.take(300) + "…" else text
+                    logger.d("RAW ← $preview")
+                }
                 parseServerMessage(text)
             }
 
@@ -123,7 +144,7 @@ class GeminiLiveClient @Inject constructor(
     }
 
     // ════════════════════════════════════════════════════════════
-    //  SETUP
+    //  SETUP — полная конфигурация Gemini 3.1 Flash Live
     // ════════════════════════════════════════════════════════════
 
     private fun sendSetup(config: SessionConfig) {
@@ -131,24 +152,39 @@ class GeminiLiveClient @Inject constructor(
             put("setup", buildJsonObject {
                 put("model", config.model)
 
+                // ── generationConfig ──
                 put("generationConfig", buildJsonObject {
                     put("responseModalities", buildJsonArray {
-                        add(JsonPrimitive("AUDIO"))
+                        add(JsonPrimitive(config.responseModality))
                     })
 
+                    // Temperature / sampling
+                    put("temperature", config.temperature)
+                    put("topP", config.topP)
+                    if (config.topK > 0) put("topK", config.topK)
+                    put("maxOutputTokens", config.maxOutputTokens)
+                    if (config.presencePenalty != 0.0f) put("presencePenalty", config.presencePenalty)
+                    if (config.frequencyPenalty != 0.0f) put("frequencyPenalty", config.frequencyPenalty)
+
+                    // Speech
                     put("speechConfig", buildJsonObject {
                         put("voiceConfig", buildJsonObject {
                             put("prebuiltVoiceConfig", buildJsonObject {
                                 put("voiceName", config.voiceId)
                             })
                         })
+                        if (config.languageCode.isNotBlank()) {
+                            put("languageCode", config.languageCode)
+                        }
                     })
 
+                    // Thinking
                     put("thinkingConfig", buildJsonObject {
                         put("thinkingLevel", config.latencyProfile.thinkingLevel)
                     })
                 })
 
+                // ── System instruction ──
                 put("systemInstruction", buildJsonObject {
                     put("parts", buildJsonArray {
                         add(buildJsonObject {
@@ -157,18 +193,68 @@ class GeminiLiveClient @Inject constructor(
                     })
                 })
 
+                // ── VAD / Realtime input config ──
                 put("realtimeInputConfig", buildJsonObject {
                     put("automaticActivityDetection", buildJsonObject {
                         put("disabled", !config.autoActivityDetection)
+                        if (config.autoActivityDetection) {
+                            if (config.vadStartSensitivity != 0.5f) {
+                                put("startOfSpeechSensitivity", config.vadStartSensitivity)
+                            }
+                            if (config.vadEndSensitivity != 0.5f) {
+                                put("endOfSpeechSensitivity", config.vadEndSensitivity)
+                            }
+                            if (config.vadSilenceTimeoutMs > 0) {
+                                put("silenceTimeout", "${config.vadSilenceTimeoutMs}ms")
+                            }
+                        }
                     })
                 })
 
+                // ── Transcription ──
                 if (config.inputTranscription) {
                     put("inputAudioTranscription", buildJsonObject {})
                 }
                 if (config.outputTranscription) {
                     put("outputAudioTranscription", buildJsonObject {})
                 }
+
+                // ── Session Resumption ──
+                if (config.enableSessionResumption) {
+                    put("sessionResumption", buildJsonObject {
+                        if (config.sessionHandle != null) {
+                            put("handle", config.sessionHandle)
+                        }
+                        if (config.transparentResumption) {
+                            put("transparent", true)
+                        }
+                    })
+                }
+
+                // ── Context Window Compression ──
+                if (config.enableContextCompression) {
+                    put("contextWindowCompression", buildJsonObject {
+                        put("slidingWindow", buildJsonObject {
+                            if (config.compressionTriggerTokens > 0) {
+                                put("targetTokens", config.compressionTriggerTokens)
+                            }
+                        })
+                    })
+                }
+
+                // ── Tools ──
+                if (config.enableGoogleSearch) {
+                    put("tools", buildJsonArray {
+                        add(buildJsonObject {
+                            put("googleSearch", buildJsonObject {})
+                        })
+                    })
+                }
+
+                // ── History Config (для корректного seeding через clientContent) ──
+                put("historyConfig", buildJsonObject {
+                    put("initialHistoryInClientContent", true)
+                })
             })
         }
 
@@ -190,6 +276,7 @@ class GeminiLiveClient @Inject constructor(
 
     override fun sendText(text: String) {
         if (!isReady) return
+        // Gemini 3.1: текст через realtimeInput (не clientContent!)
         val msg = buildJsonObject {
             put("realtimeInput", buildJsonObject {
                 put("text", text)
@@ -197,6 +284,13 @@ class GeminiLiveClient @Inject constructor(
         }
         logger.d("TEXT → (${text.length} chars)")
         webSocket?.send(msg.toString())
+    }
+
+    override fun sendAudioStreamEnd() {
+        if (!isReady) return
+        val msg = """{"realtimeInput":{"audioStreamEnd":true}}"""
+        logger.d("AUDIO_STREAM_END →")
+        webSocket?.send(msg)
     }
 
     override fun sendTurnComplete() {
@@ -230,6 +324,13 @@ class GeminiLiveClient @Inject constructor(
         webSocket?.send(raw)
     }
 
+    /**
+     * Восстановление контекста — ТОЛЬКО при начале сессии.
+     *
+     * Gemini 3.1: clientContent с turns разрешён ТОЛЬКО для seeding
+     * начальной истории (при historyConfig.initialHistoryInClientContent = true).
+     * После первого model turn — 1007 error.
+     */
     override fun restoreContext(history: List<ConversationMessage>) {
         if (history.isEmpty()) return
         val msg = buildJsonObject {
@@ -260,7 +361,7 @@ class GeminiLiveClient @Inject constructor(
         try {
             val root = json.parseToJsonElement(raw).jsonObject
 
-            // setupComplete
+            // ── setupComplete ──
             if (root.containsKey("setupComplete")) {
                 logger.d("✓ SETUP COMPLETE")
                 isReady = true
@@ -268,35 +369,73 @@ class GeminiLiveClient @Inject constructor(
                 return
             }
 
-            // toolCall
+            // ── toolCall ──
             root["toolCall"]?.jsonObject?.let { toolCall ->
                 parseToolCall(toolCall)
                 return
             }
 
-            // sessionResumptionUpdate
+            // ── toolCallCancellation ──
+            root["toolCallCancellation"]?.jsonObject?.let { cancellation ->
+                val ids = cancellation["ids"]?.jsonArray
+                    ?.map { it.jsonPrimitive.content }
+                    ?: emptyList()
+                logger.d("⚠ TOOL_CALL_CANCELLATION: $ids")
+                _events.tryEmit(GeminiEvent.ToolCallCancellation(ids))
+                return
+            }
+
+            // ── sessionResumptionUpdate ──
             root["sessionResumptionUpdate"]?.jsonObject?.let { update ->
-                update["newHandle"]?.jsonPrimitive?.content?.let { handle ->
-                    if (sessionHandle != handle) {
-                        sessionHandle = handle
-                        logger.d("SESSION_RESUMPTION: handle updated")
-                        _events.tryEmit(GeminiEvent.SessionHandleUpdate(handle))
-                    }
+                val resumable = update["resumable"]?.jsonPrimitive?.booleanOrNull ?: false
+                val newHandle = update["newHandle"]?.jsonPrimitive?.content
+                val lastConsumedIndex = update["lastConsumedClientMessageIndex"]
+                    ?.jsonPrimitive?.longOrNull
+
+                if (newHandle != null && resumable) {
+                    sessionHandle = newHandle
+                    logger.d("SESSION_RESUMPTION: handle updated (resumable=$resumable)")
+                    _events.tryEmit(
+                        GeminiEvent.SessionHandleUpdate(
+                            handle = newHandle,
+                            resumable = resumable,
+                            lastConsumedIndex = lastConsumedIndex
+                        )
+                    )
                 }
                 return
             }
 
-            // goAway
-            if (root.containsKey("goAway")) {
-                logger.d("GO_AWAY — server will close soon")
-                _events.tryEmit(GeminiEvent.GoAway)
+            // ── goAway ──
+            root["goAway"]?.jsonObject?.let { goAway ->
+                val timeLeftMs = goAway["timeLeft"]?.jsonPrimitive?.content
+                logger.d("GO_AWAY — server will close soon (timeLeft=$timeLeftMs)")
+                _events.tryEmit(GeminiEvent.GoAway(timeLeftMs))
                 return
             }
 
-            // serverContent
+            // ── usageMetadata ──
+            root["usageMetadata"]?.jsonObject?.let { usage ->
+                val promptTokens = usage["promptTokenCount"]?.jsonPrimitive?.intOrNull ?: 0
+                val responseTokens = (usage["candidatesTokenCount"]
+                    ?: usage["responseTokenCount"])?.jsonPrimitive?.intOrNull ?: 0
+                val totalTokens = usage["totalTokenCount"]?.jsonPrimitive?.intOrNull ?: 0
+                _events.tryEmit(
+                    GeminiEvent.UsageMetadata(
+                        promptTokens = promptTokens,
+                        responseTokens = responseTokens,
+                        totalTokens = totalTokens
+                    )
+                )
+                return
+            }
+
+            // ── serverContent ──
             val sc = root["serverContent"]?.jsonObject ?: run {
-                val preview = if (raw.length > 200) raw.take(200) + "…" else raw
-                logger.d("SERVER ← $preview")
+                if (logRawFrames) {
+                    val preview = if (raw.length > 200) raw.take(200) + "…" else raw
+                    logger.d("SERVER ← $preview")
+                }
                 return
             }
 
@@ -317,7 +456,7 @@ class GeminiLiveClient @Inject constructor(
                     _events.tryEmit(GeminiEvent.OutputTranscript(text))
                 }
 
-            // Barge-in
+            // Barge-in / Interrupted
             if (sc["interrupted"]?.jsonPrimitive?.booleanOrNull == true) {
                 logger.d("⚡ INTERRUPTED — barge-in")
                 _events.tryEmit(GeminiEvent.Interrupted)
@@ -335,7 +474,13 @@ class GeminiLiveClient @Inject constructor(
                 _events.tryEmit(GeminiEvent.GenerationComplete)
             }
 
-            // Audio / text parts
+            // Grounding metadata (Google Search results)
+            sc["groundingMetadata"]?.jsonObject?.let { grounding ->
+                logger.d("🔍 GROUNDING METADATA received")
+                _events.tryEmit(GeminiEvent.GroundingMetadata(grounding.toString()))
+            }
+
+            // Audio / text parts — обрабатываем ВСЕ parts в одном событии
             val parts = sc["modelTurn"]?.jsonObject
                 ?.get("parts") as? JsonArray ?: return
 
@@ -394,6 +539,7 @@ class GeminiLiveClient @Inject constructor(
         1002 -> "[Protocol Error]"
         1003 -> "[Unsupported Data]"
         1006 -> "[Abnormal Closure]"
+        1007 -> "[Invalid Frame Payload — clientContent after model turn?]"
         1008 -> "[Policy Violation]"
         1011 -> "[Internal Server Error]"
         1013 -> "[Try Again Later]"
