@@ -31,6 +31,9 @@ interface AudioEngine {
     /** true если идёт воспроизведение аудио */
     val isPlaying: Boolean
 
+    /** Поток синхронизации воспроизведения */
+    val playbackSync: Flow<ByteArray>
+
     /**
      * Начать запись с микрофона.
      * Требует RECORD_AUDIO permission.
