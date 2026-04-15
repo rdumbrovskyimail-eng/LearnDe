@@ -1,23 +1,14 @@
 package com.codeextractor.app.domain.model
 
 /**
- * Все события от Gemini WebSocket сервера.
- * LiveClient парсит JSON и эмитит типизированные события.
- * ViewModel подписывается и обновляет VoiceState.
+ * Все события от Gemini WebSocket сервера — полная спецификация 2026.
  *
- * Маппинг на протокол v1beta:
- *  - setupComplete         → SetupComplete
- *  - serverContent.modelTurn.parts[].inlineData → AudioChunk
- *  - serverContent.modelTurn.parts[].text       → ModelText
- *  - serverContent.inputTranscription           → InputTranscript
- *  - serverContent.outputTranscription          → OutputTranscript
- *  - serverContent.interrupted                  → Interrupted (barge-in)
- *  - serverContent.turnComplete                 → TurnComplete
- *  - serverContent.generationComplete           → GenerationComplete
- *  - toolCall                                   → ToolCall
- *  - sessionResumptionUpdate                    → SessionHandleUpdate
- *  - goAway                                     → GoAway
- *  - WS onFailure / onClosed                    → ConnectionError / Disconnected
+ * Новое в Gemini 3.1 Flash Live:
+ *  - ToolCallCancellation  — отмена tool call при barge-in
+ *  - UsageMetadata          — подсчёт токенов
+ *  - GroundingMetadata      — результаты Google Search
+ *  - GoAway с timeLeft      — время до закрытия
+ *  - SessionHandleUpdate    — resumable + lastConsumedIndex
  */
 sealed interface GeminiEvent {
 
@@ -31,16 +22,16 @@ sealed interface GeminiEvent {
         override fun hashCode(): Int = pcmData.contentHashCode()
     }
 
-    /** Текстовый ответ модели (если responseModalities включает TEXT) */
+    /** Текстовый ответ модели */
     data class ModelText(val text: String) : GeminiEvent
 
-    /** Транскрипция речи пользователя (от сервера) */
+    /** Транскрипция речи пользователя */
     data class InputTranscript(val text: String) : GeminiEvent
 
-    /** Транскрипция ответа модели (от сервера) */
+    /** Транскрипция ответа модели */
     data class OutputTranscript(val text: String) : GeminiEvent
 
-    /** Пользователь перебил модель — нужен flush playback */
+    /** Пользователь перебил модель — flush playback */
     data object Interrupted : GeminiEvent
 
     /** Модель закончила текущий ход */
@@ -52,11 +43,45 @@ sealed interface GeminiEvent {
     /** Сервер вызывает функцию (синхронный tool calling) */
     data class ToolCall(val calls: List<FunctionCall>) : GeminiEvent
 
-    /** Обновление session handle для reconnect */
-    data class SessionHandleUpdate(val handle: String) : GeminiEvent
+    /**
+     * Сервер отменяет ранее выданный tool call (при barge-in).
+     * Клиент должен попытаться отменить/откатить side-effects.
+     */
+    data class ToolCallCancellation(val ids: List<String>) : GeminiEvent
 
-    /** Сервер предупреждает о скором закрытии */
-    data object GoAway : GeminiEvent
+    /**
+     * Обновление session handle для reconnect.
+     * @param handle     новый handle для возобновления
+     * @param resumable  true если сессия может быть возобновлена
+     * @param lastConsumedIndex индекс последнего обработанного сообщения (transparent mode)
+     */
+    data class SessionHandleUpdate(
+        val handle: String,
+        val resumable: Boolean = true,
+        val lastConsumedIndex: Long? = null
+    ) : GeminiEvent
+
+    /**
+     * Сервер предупреждает о скором закрытии.
+     * @param timeLeft оставшееся время (строка, e.g. "30s")
+     */
+    data class GoAway(val timeLeft: String? = null) : GeminiEvent
+
+    /**
+     * Статистика использования токенов.
+     * Gemini/Vertex используют разные имена полей — клиент нормализует.
+     */
+    data class UsageMetadata(
+        val promptTokens: Int,
+        val responseTokens: Int,
+        val totalTokens: Int
+    ) : GeminiEvent
+
+    /**
+     * Результаты Google Search grounding.
+     * @param rawJson сырой JSON для отображения/обработки
+     */
+    data class GroundingMetadata(val rawJson: String) : GeminiEvent
 
     /** WebSocket подключён (до setup) */
     data object Connected : GeminiEvent
