@@ -246,7 +246,7 @@ fun AvatarScene(
                 val tex = buildHeadCompositeTexture(ctx, engine, headTex())
                     ?.also { trackedTextures.add(it) }
                 val sampler = if (tex != null) buildMipmapSampler(anisotropy = 8f) else defaultSampler
-                setParam(mat, "baseColorMap",    tex ?: wt, sampler)
+                setParam(mat, "baseColorMap",    tex ?: wt!!, sampler)
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
                 setParam(mat, "roughnessFactor", 0.48f)
                 setParam(mat, "metallicFactor",  0.00f)
@@ -263,7 +263,7 @@ fun AvatarScene(
                     setParam(mat, "metallicFactor",  0.00f)
                     Log.d(TAG, "Teeth: texture mode")
                 } else {
-                    setParam(mat, "baseColorMap",    wt, defaultSampler)
+                    setParam(mat, "baseColorMap",    wt!!, defaultSampler)
                     setParam(mat, "baseColorFactor", 0.55f, 0.22f, 0.20f, 1f)
                     setParam(mat, "roughnessFactor", 0.85f)
                     setParam(mat, "metallicFactor",  0.00f)
@@ -278,7 +278,7 @@ fun AvatarScene(
                 val sampler = if (tex != null)
                     buildMipmapSampler(wrap = TextureSampler.WrapMode.REPEAT)
                 else defaultSampler
-                setParam(mat, "baseColorMap",    tex ?: wt, sampler)
+                setParam(mat, "baseColorMap",    tex ?: wt!!, sampler)
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
                 setParam(mat, "roughnessFactor", 0.02f)
                 setParam(mat, "metallicFactor",  0.00f)
