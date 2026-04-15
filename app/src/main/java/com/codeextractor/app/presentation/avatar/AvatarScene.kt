@@ -117,51 +117,14 @@ fun AvatarScene(
     fun teethTex()  = if (avatarIndex == 1) TEETH_TEXTURE_1 else TEETH_TEXTURE_2
 
     // ── Очистка GPU-памяти ───────────────────────────────────────────────────
-    // ВАЖНО: перед уничтожением текстур отвязываем их от всех MaterialInstance,
-    // иначе Filament крашит с "Invalid texture still bound to MaterialInstance"
     DisposableEffect(engine) {
         onDispose {
-            // Дождаться завершения всех GPU-операций перед удалением текстур
-            engine.flushAndWait()
-
-            Log.d(TAG, "Disposing ${trackedTextures.size} textures")
-
-            val wt = whiteTex
-            val mi = modelInstance
-
-            // 1. Отвязываем все кастомные текстуры от материалов
-            if (wt != null && mi != null) {
-                val fallbackSampler = buildDefaultSampler()
-                val rm = engine.renderableManager
-                for (entity in mi.entities) {
-                    if (!rm.hasComponent(entity)) continue
-                    val ri = rm.getInstance(entity)
-                    val primCount = try { rm.getPrimitiveCount(ri) } catch (_: Exception) { 0 }
-                    for (p in 0 until primCount) {
-                        val mat = try { rm.getMaterialInstanceAt(ri, p) } catch (_: Exception) { null }
-                            ?: continue
-                        try {
-                            mat.setParameter("baseColorMap", wt, fallbackSampler)
-                        } catch (_: Exception) {}
-                    }
-                }
-            }
-
-            // 2. Уничтожаем кастомные текстуры (уже отвязаны)
-            for (tex in trackedTextures) {
-                try { engine.destroyTexture(tex) } catch (e: Exception) {
-                    Log.w(TAG, "destroyTexture failed", e)
-                }
-            }
+            Log.d(TAG, "Disposing AvatarScene")
+            // ВАЖНО: Мы НЕ отвязываем текстуры и НЕ удаляем их вручную здесь.
+            // При выходе с экрана rememberEngine() сам вызовет engine.destroy(), 
+            // что безопасно очистит всю память. 
+            // Ручное удаление привязанных текстур вызывает краш use-after-free.
             trackedTextures.clear()
-
-            // 3. whiteTex уничтожаем последним (все материалы ещё указывают на неё,
-            //    но Scene уже не рендерит — onDispose значит composable удалён)
-            wt?.let {
-                try { engine.destroyTexture(it) } catch (e: Exception) {
-                    Log.w(TAG, "destroyTexture (white) failed", e)
-                }
-            }
             whiteTex = null
         }
     }
