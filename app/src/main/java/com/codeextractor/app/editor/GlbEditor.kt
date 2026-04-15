@@ -1030,13 +1030,9 @@ class GlbTextureEditor(private val context: Context) {
         Log.d(TAG, "destroy")
         synchronized(gpuOpsLock) { pendingGpuOps.clear() }
 
-        // Уничтожаем всё из очереди отложенного удаления
-        texturesToDestroy.forEach { (tex, _) ->
-            try { engine.destroyTexture(tex) } catch (_: Exception) {}
-        }
+        // Убираем engine.destroyTexture(), так как SceneView сам уничтожит Engine 
+        // и все его ресурсы при закрытии экрана.
         texturesToDestroy.clear()
-
-        texturePool.forEach { try { engine.destroyTexture(it) } catch (_: Exception) {} }
         texturePool.clear()
 
         elements.forEach { elem ->
