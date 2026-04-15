@@ -53,7 +53,7 @@ class AndroidAudioEngine @Inject constructor(
         extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val playbackSync: Flow<ByteArray> = _playbackSync.asSharedFlow()
+    override val playbackSync: Flow<ByteArray> = _playbackSync.asSharedFlow()
 
     @Volatile
     override var isCapturing: Boolean = false
