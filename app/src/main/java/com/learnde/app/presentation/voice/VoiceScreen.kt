@@ -44,6 +44,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -77,7 +78,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -433,14 +436,13 @@ private fun ChatBubble(
     showTimestamp: Boolean
 ) {
     val isUser = message.role == ConversationMessage.ROLE_USER
-    // surfaceContainerHigh доступен с Material3 1.2+. На случай старого кеша —
-    // мы экспортировали его и в Theme.kt, и он гарантированно есть в BOM 2026.03.01.
     val bubbleColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
                       else MaterialTheme.colorScheme.surfaceContainerHigh
     val textColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurface
     val alignment = if (isUser) Alignment.End else Alignment.Start
     val label = if (isUser) "🎤 Вы" else "🔊 Gemini"
+    val clipboardManager = LocalClipboardManager.current
 
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
         if (showLabel) {
@@ -454,17 +456,51 @@ private fun ChatBubble(
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
             )
         }
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(bubbleColor)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = message.text,
-                fontSize = (13 * fontScale).sp,
-                color = textColor
-            )
+            if (!isUser) {
+                IconButton(
+                    onClick = { clipboardManager.setText(AnnotatedString(message.text)) },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.ContentCopy,
+                        contentDescription = "Копировать",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+                Spacer(Modifier.width(2.dp))
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(bubbleColor)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = message.text,
+                    fontSize = (13 * fontScale).sp,
+                    color = textColor
+                )
+            }
+            if (isUser) {
+                Spacer(Modifier.width(2.dp))
+                IconButton(
+                    onClick = { clipboardManager.setText(AnnotatedString(message.text)) },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.ContentCopy,
+                        contentDescription = "Копировать",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+            }
         }
     }
 }
