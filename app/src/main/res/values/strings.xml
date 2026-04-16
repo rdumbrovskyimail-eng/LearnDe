@@ -1,4 +1,10 @@
+<!-- ═══════════════════════════════════════════════════════════
+     НОВЫЙ ФАЙЛ
+     Путь: app/src/main/res/values/strings.xml
+     ═══════════════════════════════════════════════════════════ -->
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Gemini Live</string>
+    <string name="app_name">CopyM</string>
+    <string name="mic_permission_rationale">Для работы голосового ассистента необходим доступ к микрофону</string>
+    <string name="notification_permission_rationale">Для отображения статуса сессии необходимы уведомления</string>
 </resources>
