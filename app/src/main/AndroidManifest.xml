@@ -12,6 +12,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Android 13+ READ_MEDIA_IMAGES для импорта PNG-фона сцены -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Legacy для Android ≤ 12 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
