@@ -500,7 +500,10 @@ class VoiceViewModel @Inject constructor(
     private fun scheduleReconnect(proactive: Boolean = false) {
         val maxAttempts = cachedSettings.maxReconnectAttempts
         if (reconnectAttempt >= maxAttempts && !proactive) {
-            _effects.tryEmit(VoiceEffect.ShowToast(UiText.Plain("Соединение потеряно")))
+            _effects.tryEmit(VoiceEffect.ShowToast(UiText.Plain(
+                "Соединение потеряно после $maxAttempts попыток. Проверьте ключ и модель в настройках."
+            )))
+            reconnectAttempt = 0
             return
         }
         val baseDelay = cachedSettings.reconnectBaseDelayMs
