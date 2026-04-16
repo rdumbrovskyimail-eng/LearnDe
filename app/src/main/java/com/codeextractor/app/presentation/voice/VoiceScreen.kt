@@ -287,26 +287,31 @@ fun VoiceScreen(
 // ════════════════════════════════════════════════════════════
 //  SCENE SWITCHER
 // ════════════════════════════════════════════════════════════
+/**
+ * Единый контейнер сцены — принимает BoxScope из родительского Box
+ * и корректно переключается между compact (правый верхний угол)
+ * и fullscreen (на весь экран) режимами.
+ */
 @Composable
-private fun SceneContainer(
+private fun androidx.compose.foundation.layout.BoxScope.SceneContainer(
     state: VoiceState,
     viewModel: VoiceViewModel,
     avatarIndex: Int
 ) {
     val sceneShape = if (state.isSceneFullscreen) RoundedCornerShape(0.dp)
                      else RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp)
-    val sceneWidth = if (state.isSceneFullscreen) 1f else 0.55f
-    val sceneHeight = if (state.isSceneFullscreen) 1f else 0.58f
+
+    val base: Modifier = if (state.isSceneFullscreen) {
+        Modifier.matchParentSize()
+    } else {
+        Modifier
+            .fillMaxWidth(0.55f)
+            .fillMaxHeight(0.58f)
+            .align(Alignment.TopEnd)
+    }
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth(sceneWidth)
-            .fillMaxHeight(sceneHeight)
-            .align(if (state.isSceneFullscreen) Alignment.Center else Alignment.TopEnd.let { it })
-            .let { base ->
-                if (state.isSceneFullscreen) Modifier.fillMaxSize()
-                else base
-            }
+        modifier = base
             .clip(sceneShape)
             .background(Color.Black)
     ) {
@@ -320,9 +325,7 @@ private fun SceneContainer(
                 modifier = Modifier.fillMaxSize(),
                 playbackSync = viewModel.audioPlaybackFlow
             )
-            SceneMode.CUSTOM_IMAGE -> CustomImageScene(
-                viewModel = viewModel
-            )
+            SceneMode.CUSTOM_IMAGE -> CustomImageScene(viewModel = viewModel)
         }
     }
 }
