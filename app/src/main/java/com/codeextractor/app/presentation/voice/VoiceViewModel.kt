@@ -268,17 +268,15 @@ class VoiceViewModel @Inject constructor(
         // ═══ FIX: startNewSession() при каждом подключении ═══
         (conversationRepository as? PersistentConversationRepository)?.startNewSession()
 
-        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            _effects.tryEmit(VoiceEffect.ShowToast(UiText.Plain("Требуется разрешение на микрофон")))
-            return
-        }
-
-        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             try {
                 appContext.startForegroundService(GeminiLiveForegroundService.startIntent(appContext))
             } catch (e: Exception) {
                 logger.w("ForegroundService start failed: ${e.message}")
             }
+        } else {
+            _effects.tryEmit(VoiceEffect.ShowToast(UiText.Plain("Требуется разрешение на микрофон")))
+            return
         }
 
         viewModelScope.launch {
