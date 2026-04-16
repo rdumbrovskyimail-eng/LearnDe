@@ -163,6 +163,7 @@ class VoiceViewModel @Inject constructor(
 
                     val hasKey = settings.apiKey.isNotEmpty()
 
+                    val sceneMode = com.codeextractor.app.domain.scene.SceneMode.from(settings.sceneMode)
                     _state.update {
                         it.copy(
                             apiKeySet = hasKey, showApiKeyInput = !hasKey,
@@ -181,9 +182,23 @@ class VoiceViewModel @Inject constructor(
                             enableResumption = settings.enableSessionResumption,
                             languageCode = settings.languageCode,
                             logRawFrames = settings.logRawWebSocketFrames,
-                            showUsageMetadata = settings.showUsageMetadata
+                            showUsageMetadata = settings.showUsageMetadata,
+                            // ═══ NEW ═══
+                            playbackVolume = settings.playbackVolume,
+                            forceSpeakerOutput = settings.forceSpeakerOutput,
+                            sceneMode = sceneMode,
+                            sceneBgHasImage = settings.sceneBgHasImage,
+                            chatFontScale = settings.chatFontScale,
+                            chatShowRoleLabels = settings.chatShowRoleLabels,
+                            chatShowTimestamps = settings.chatShowTimestamps,
+                            chatAutoScroll = settings.chatAutoScroll,
+                            chatBackgroundAlpha = settings.chatBackgroundAlpha
                         )
                     }
+                    // Применить громкость сразу — программный gain
+                    audioEngine.setPlaybackVolume(settings.playbackVolume / 100f)
+                    audioEngine.setMicGain(settings.micGain / 100f)
+                    audioEngine.setSpeakerRouting(settings.forceSpeakerOutput)
 
                     if (hasKey && wasKeyEmpty &&
                         _state.value.connectionStatus == ConnectionStatus.Disconnected
