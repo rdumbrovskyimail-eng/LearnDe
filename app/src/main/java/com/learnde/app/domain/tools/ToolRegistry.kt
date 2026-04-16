@@ -83,18 +83,29 @@ class ToolRegistry @Inject constructor(
     private val timeTool: GetCurrentTimeTool,
     private val deviceTool: DeviceStatusTool,
     private val bus: FunctionsEventBus,
+    private val awardTool: com.learnde.app.Learn.Test.A0a1.AwardPointsTool,
+    private val finishTool: com.learnde.app.Learn.Test.A0a1.FinishTestTool,
     private val logger: AppLogger
 ) {
     private val executors: Map<String, ToolExecutor> by lazy {
-        val base = listOf<ToolExecutor>(timeTool, deviceTool)
+        val base = listOf<ToolExecutor>(timeTool, deviceTool, awardTool, finishTool)
         val tests = FunctionsRegistry.ALL.map { TestFunctionTool(it, bus, logger) }
         (base + tests).associateBy { it.name }
     }
 
     /** Для передачи в SessionConfig (setup.tools.functionDeclarations). */
     fun getFunctionDeclarationConfigs(): List<FunctionDeclarationConfig> =
-        executors.values.map {
-            FunctionDeclarationConfig(name = it.name, description = it.description)
+        executors.values.map { exec ->
+            when (exec.name) {
+                com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD  ->
+                    com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.AWARD_DECLARATION
+                com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_FINISH ->
+                    com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FINISH_DECLARATION
+                else -> FunctionDeclarationConfig(
+                    name = exec.name,
+                    description = exec.description
+                )
+            }
         }
 
     suspend fun dispatch(call: FunctionCall): String {
