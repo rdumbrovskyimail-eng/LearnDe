@@ -2,16 +2,16 @@
 // ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/codeextractor/app/presentation/settings/SettingsViewModel.kt
 // Изменения:
-//   + Устранён вечный subscribe на DataStore (отписываемся после первого emit)
-//   + Debounce сохранения 300мс (как раньше)
-//   + Корректный cleanup в onCleared()
-//   + Не теряем состояние при повторном входе в экран
+//   + importSceneBackground / clearSceneBackground
+//   + BackgroundImageStore инжектируется
 // ═══════════════════════════════════════════════════════════
 package com.codeextractor.app.presentation.settings
 
+import android.net.Uri
 import androidx.datastore.core.DataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.codeextractor.app.data.BackgroundImageStore
 import com.codeextractor.app.data.settings.AppSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -26,10 +26,10 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val settingsStore: DataStore<AppSettings>
+    private val settingsStore: DataStore<AppSettings>,
+    private val bgStore: BackgroundImageStore
 ) : ViewModel() {
 
-    // Локальный стейт для МГНОВЕННОГО отклика UI (без лагов IPC до DataStore)
     private val _uiState = MutableStateFlow(AppSettings())
     val settings: StateFlow<AppSettings> = _uiState.asStateFlow()
 
@@ -37,38 +37,42 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            // Читаем только первое значение — дальше работаем с локальным стейтом.
-            // Это исключает race-condition при одновременных ViewModel-инстансах.
             runCatching { settingsStore.data.first() }
                 .onSuccess { _uiState.value = it }
         }
     }
 
-    /**
-     * Обновляет локальный UI-стейт мгновенно,
-     * затем через 300мс дебаунса пишет в зашифрованный DataStore.
-     */
     fun update(transform: AppSettings.() -> AppSettings) {
         _uiState.update(transform)
-
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(300)
-            runCatching {
-                settingsStore.updateData { _uiState.value }
-            }.onFailure {
-                // DataStore write error не критичен для UI — локальный стейт уже обновлён
-            }
+            runCatching { settingsStore.updateData { _uiState.value } }
         }
     }
 
-    /** Полный сброс к заводским значениям. */
     fun resetToDefaults() {
         val defaults = AppSettings()
         _uiState.value = defaults
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             runCatching { settingsStore.updateData { defaults } }
+            runCatching { bgStore.clear() }
+        }
+    }
+
+    /** Импорт PNG-фона. Результат сохраняется в internal-storage. */
+    fun importSceneBackground(uri: Uri) {
+        viewModelScope.launch {
+            val ok = bgStore.importFromUri(uri)
+            if (ok) update { copy(sceneBgHasImage = true) }
+        }
+    }
+
+    fun clearSceneBackground() {
+        viewModelScope.launch {
+            bgStore.clear()
+            update { copy(sceneBgHasImage = false) }
         }
     }
 
