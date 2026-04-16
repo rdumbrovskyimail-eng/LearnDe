@@ -64,7 +64,8 @@ class VoiceViewModel @Inject constructor(
     private val hapticEngine: HapticEngine,
     private val networkMonitor: NetworkMonitor,
     val avatarAnimator: AvatarAnimator,
-    private val backgroundStore: BackgroundImageStore
+    private val backgroundStore: BackgroundImageStore,
+    private val a0a1TestBus: com.learnde.app.Learn.Test.A0a1.A0a1TestBus
 ) : ViewModel() {
 
     val audioPlaybackFlow get() = audioEngine.playbackSync
@@ -94,6 +95,7 @@ class VoiceViewModel @Inject constructor(
         initAudioPlayback()
         observeNetwork()
         avatarAnimator.start()
+        observeA0a1TestSignals()
     }
 
     // ════════════════════════════════════════════════════════════
@@ -151,6 +153,107 @@ class VoiceViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  A0-A1 TEST MODE
+    // ════════════════════════════════════════════════════════════
+
+    private fun observeA0a1TestSignals() {
+        viewModelScope.launch {
+            a0a1TestBus.startSignal.collect {
+                logger.d("▶ A0a1 START signal")
+                enterA0a1TestMode()
+            }
+        }
+        viewModelScope.launch {
+            a0a1TestBus.exitSignal.collect {
+                logger.d("◀ A0a1 EXIT signal")
+                exitA0a1TestMode()
+            }
+        }
+    }
+
+    /**
+     * Переподключает сессию с systemInstruction для теста A0-A1.
+     * После SetupComplete модели автоматически отправится "Начни тест.".
+     */
+    private fun enterA0a1TestMode() {
+        _state.update { it.copy(a0a1TestActive = true) }
+        viewModelScope.launch {
+            reconnectJob?.cancel()
+            micJob?.cancel()
+            audioEngine.stopCapture()
+            liveClient.disconnect()
+            _state.update {
+                it.copy(
+                    connectionStatus = ConnectionStatus.Disconnected,
+                    isMicActive = false,
+                    isAiSpeaking = false
+                )
+            }
+            connectInFlight.set(false)
+
+            delay(400)  // даём WS корректно закрыться
+
+            if (activeApiKey.isEmpty()) {
+                logger.w("A0a1: cannot start — API key empty")
+                return@launch
+            }
+            if (!connectInFlight.compareAndSet(false, true)) return@launch
+            contextSeeded = true  // в тест-режиме НЕ подмешиваем старую историю
+            _state.update { it.copy(connectionStatus = ConnectionStatus.Connecting) }
+
+            runCatching {
+                liveClient.connect(
+                    apiKey = activeApiKey,
+                    config = buildA0a1SessionConfig(),
+                    logRaw = cachedSettings.logRawWebSocketFrames
+                )
+            }.onFailure { e ->
+                logger.e("A0a1 connect error: ${e.message}", e)
+                connectInFlight.set(false)
+                _state.update { it.copy(connectionStatus = ConnectionStatus.Disconnected) }
+            }
+        }
+    }
+
+    /** Возвращает сессию в обычный режим. */
+    private fun exitA0a1TestMode() {
+        if (!_state.value.a0a1TestActive) return
+        _state.update { it.copy(a0a1TestActive = false) }
+        viewModelScope.launch {
+            reconnectJob?.cancel()
+            micJob?.cancel()
+            audioEngine.stopCapture()
+            liveClient.disconnect()
+            connectInFlight.set(false)
+            delay(400)
+            contextSeeded = false
+            handleConnect()
+        }
+    }
+
+    /**
+     * SessionConfig для режима теста:
+     *   • подменяем systemInstruction,
+     *   • в tools оставляем ТОЛЬКО award_points и finish_test
+     *     (чтобы модель случайно не вызвала test_function_N),
+     *   • отключаем googleSearch и resumption — сессия свежая.
+     */
+    private fun buildA0a1SessionConfig(): SessionConfig {
+        val base = buildSessionConfig()
+        val testDecls = toolRegistry.getFunctionDeclarationConfigs().filter { decl ->
+            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD ||
+            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_FINISH
+        }
+        return base.copy(
+            systemInstruction = com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.SYSTEM_INSTRUCTION,
+            functionDeclarations = testDecls,
+            enableGoogleSearch = false,
+            sessionHandle = null,
+            enableSessionResumption = false
+        )
     }
 
     // ════════════════════════════════════════════════════════════
