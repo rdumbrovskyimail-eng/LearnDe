@@ -514,6 +514,12 @@ class VoiceViewModel @Inject constructor(
                             logger.d("Resumed via sessionHandle — skip manual context seed")
                         }
                         contextSeeded = true
+                        // В режиме теста A0-A1 — отправляем стартовую команду модели
+                        if (_state.value.a0a1TestActive) {
+                            logger.d("A0a1: sending start message to model")
+                            liveClient.sendText("Начни тест.")
+                            liveClient.sendTurnComplete()
+                        }
                     }
 
                     is GeminiEvent.AudioChunk -> {
