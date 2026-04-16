@@ -229,7 +229,7 @@ class VoiceViewModel @Inject constructor(
             enableGoogleSearch = cachedSettings.enableGoogleSearch,
             sendAudioStreamEnd = cachedSettings.sendAudioStreamEnd,
             // ═══ FIX: tool declarations теперь отправляются в setup ═══
-            functionDeclarations = toolRegistry.getFunctionDeclarationConfigs(),
+            functionDeclarations = emptyList(),
         )
     }
 
