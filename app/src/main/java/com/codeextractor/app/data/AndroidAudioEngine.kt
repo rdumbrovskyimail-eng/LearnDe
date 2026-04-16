@@ -51,8 +51,10 @@ class AndroidAudioEngine @Inject constructor(
     )
     override val micOutput: Flow<ByteArray> = _micOutput.asSharedFlow()
 
+    // ═══ Увеличен буфер: сейчас 2 коллектора (AvatarAnimator + AudioVisualizerScene).
+    //     128 chunk'ов по 24 кГц = ~2.5 сек аудио — безопасный запас для UI-frame drops.
     private val _playbackSync = MutableSharedFlow<ByteArray>(
-        replay = 0, extraBufferCapacity = 64,
+        replay = 0, extraBufferCapacity = 128,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     override val playbackSync: Flow<ByteArray> = _playbackSync.asSharedFlow()
