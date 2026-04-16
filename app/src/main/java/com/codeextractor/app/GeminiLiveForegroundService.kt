@@ -85,18 +85,35 @@ class GeminiLiveForegroundService : Service() {
     //  BLUETOOTH SCO — аудио через наушники
     // ════════════════════════════════════════════════════════════
 
+    /**
+     * ФИКС ТИХОГО ЗВУКА:
+     *  - По умолчанию SPEAKER + MODE_NORMAL (STREAM_MUSIC) — громкий вывод.
+     *  - SCO включаем ТОЛЬКО если уже подключён BT-headset (ACTION_HEADSET_PLUG).
+     *  - Режим IN_COMMUNICATION ставим ТОЛЬКО при активном SCO — иначе
+     *    Android загоняет звук в маленький ушной динамик и громкость обрезана.
+     */
     private fun routeAudioToBluetooth() {
         val am = audioManager ?: return
-        if (am.isBluetoothScoAvailableOffCall) {
-            try {
+        val hasBtHeadset = runCatching {
+            val devices = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            devices.any {
+                it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+            }
+        }.getOrDefault(false)
+
+        if (hasBtHeadset && am.isBluetoothScoAvailableOffCall) {
+            runCatching {
                 am.startBluetoothSco()
                 am.isBluetoothScoOn = true
                 bluetoothScoActive = true
-            } catch (_: Exception) {
-                // Bluetooth SCO недоступен — используем встроенный микрофон
+                am.mode = AudioManager.MODE_IN_COMMUNICATION
             }
+        } else {
+            // ═══ ГРОМКИЙ ВЫВОД — SPEAKER + NORMAL ═══
+            am.mode = AudioManager.MODE_NORMAL
+            am.isSpeakerphoneOn = true
         }
-        am.mode = AudioManager.MODE_IN_COMMUNICATION
     }
 
     private fun releaseBluetoothSco() {
