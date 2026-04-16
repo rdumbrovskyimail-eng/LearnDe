@@ -130,10 +130,10 @@ fun FunctionsTestScreen(
                 contentPadding = PaddingValues(vertical = 4.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(fns, key = { it.number }) { fn ->
-                    val isActive = state.lastExecutedNumber == fn.number
-                    FunctionTile(
-                        number = fn.number,
+    items(fns, key = { it.number }) { fn ->
+        val isActive = state.lastExecutedNumber == fn.number
+        FunctionTile(
+            number = fn.number,
                         title = fn.title,
                         isActive = isActive,
                         onClick = { viewModel.onFunctionExecuted(fn) }
