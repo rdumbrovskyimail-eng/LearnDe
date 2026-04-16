@@ -32,6 +32,7 @@ class GeminiLiveForegroundService : Service() {
         private const val NOTIFICATION_ID = 2026
         const val ACTION_START = "com.codeextractor.app.ACTION_START_SESSION"
         const val ACTION_STOP = "com.codeextractor.app.ACTION_STOP_SESSION"
+        const val EXTRA_FORCE_SPEAKER = "extra_force_speaker"
 
         fun startIntent(context: Context): Intent =
             Intent(context, GeminiLiveForegroundService::class.java).apply {
@@ -66,7 +67,10 @@ class GeminiLiveForegroundService : Service() {
                     startForeground(NOTIFICATION_ID, buildNotification())
                 }
                 requestAudioFocus()
-                routeAudioToBluetooth()
+
+                // Читаем forceSpeakerOutput из intent extras (ViewModel его передаёт)
+                val forceSpeaker = intent.getBooleanExtra(EXTRA_FORCE_SPEAKER, true)
+                routeAudio(forceSpeaker)
             }
             ACTION_STOP -> {
                 releaseAudioFocus()
