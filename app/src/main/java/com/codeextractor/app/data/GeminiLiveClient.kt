@@ -1,7 +1,14 @@
 // ═══════════════════════════════════════════════════════════
-// ЗАМЕНА
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/codeextractor/app/data/GeminiLiveClient.kt
-// Изменения: + function declarations в setup, + prefixTurns support
+// Изменения (КРИТИЧЕСКИ ВАЖНО):
+//   + speechConfig вынесен ИЗ generationConfig НА setup-уровень
+//     (по спецификации Gemini Live API 2026 это поле верхнего уровня)
+//   + thinkingConfig вынесен ИЗ generationConfig НА setup-уровень
+//     (иначе сервер молча отвергает setup → клиент вечно в yellow)
+//   + languageCode перенесён в speechConfig (где он и должен быть)
+//   + Детальное логирование причины close (1007/1008/4001/4003)
+//   + При ошибке setup эмитим ConnectionError с пояснением
 // ═══════════════════════════════════════════════════════════
 package com.codeextractor.app.data
 
@@ -113,8 +120,14 @@ class GeminiLiveClient @Inject constructor(
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
-                logger.d("WS closed: $code ${describeCloseCode(code)} reason='$reason'")
+                val desc = describeCloseCode(code)
+                logger.d("WS closed: $code $desc reason='$reason'")
                 isReady = false
+                // Для нештатных кодов дополнительно эмитим ConnectionError —
+                // чтобы UI показал человекочитаемое сообщение, а не просто «соединение потеряно».
+                if (code != 1000 && code != 1001) {
+                    _events.tryEmit(GeminiEvent.ConnectionError("WS closed $code: $desc ${reason.ifBlank { "" }}"))
+                }
                 _events.tryEmit(GeminiEvent.Disconnected(code, reason))
             }
 
@@ -134,7 +147,17 @@ class GeminiLiveClient @Inject constructor(
     }
 
     // ════════════════════════════════════════════════════════════
-    //  SETUP — полная конфигурация Gemini 3.1 Flash Live
+    //  SETUP — полная спецификация Gemini Live API 2026
+    //
+    //  ВАЖНО: структура setup-сообщения строго определена.
+    //  - speechConfig       → ВЕРХНИЙ уровень setup (НЕ внутри generationConfig)
+    //  - thinkingConfig     → ВЕРХНИЙ уровень setup (НЕ внутри generationConfig)
+    //  - languageCode       → внутри speechConfig
+    //  - realtimeInputConfig → верхний уровень
+    //  - inputAudioTranscription, outputAudioTranscription → верхний уровень
+    //  - sessionResumption, contextWindowCompression       → верхний уровень
+    //  - tools              → верхний уровень (массив)
+    //  - historyConfig      → верхний уровень (для 3.1 Flash Live)
     // ════════════════════════════════════════════════════════════
 
     private fun sendSetup(config: SessionConfig) {
@@ -142,33 +165,35 @@ class GeminiLiveClient @Inject constructor(
             put("setup", buildJsonObject {
                 put("model", config.model)
 
-                // ── generationConfig ──
+                // ── generationConfig: ТОЛЬКО параметры семплирования ──
                 put("generationConfig", buildJsonObject {
                     put("responseModalities", buildJsonArray {
                         add(JsonPrimitive(config.responseModality))
                     })
-
                     put("temperature", config.temperature)
                     put("topP", config.topP)
                     if (config.topK > 0) put("topK", config.topK)
                     put("maxOutputTokens", config.maxOutputTokens)
                     if (config.presencePenalty != 0.0f) put("presencePenalty", config.presencePenalty)
                     if (config.frequencyPenalty != 0.0f) put("frequencyPenalty", config.frequencyPenalty)
+                })
 
-                    put("speechConfig", buildJsonObject {
-                        put("voiceConfig", buildJsonObject {
-                            put("prebuiltVoiceConfig", buildJsonObject {
-                                put("voiceName", config.voiceId)
-                            })
+                // ── speechConfig: верхний уровень setup ──
+                put("speechConfig", buildJsonObject {
+                    put("voiceConfig", buildJsonObject {
+                        put("prebuiltVoiceConfig", buildJsonObject {
+                            put("voiceName", config.voiceId)
                         })
-                        if (config.languageCode.isNotBlank()) {
-                            put("languageCode", config.languageCode)
-                        }
                     })
+                    if (config.languageCode.isNotBlank()) {
+                        put("languageCode", config.languageCode)
+                    }
+                })
 
-                    put("thinkingConfig", buildJsonObject {
-                        put("thinkingLevel", config.latencyProfile.thinkingLevel)
-                    })
+                // ── thinkingConfig: верхний уровень setup ──
+                // (поддерживается моделями с thinking: 2.5 Flash Live и 3.1 Flash Live)
+                put("thinkingConfig", buildJsonObject {
+                    put("thinkingLevel", config.latencyProfile.thinkingLevel)
                 })
 
                 // ── System instruction ──
@@ -229,10 +254,7 @@ class GeminiLiveClient @Inject constructor(
                     })
                 }
 
-                // ══════════════════════════════════════════════════════
-                //  TOOLS — Google Search + Function Declarations
-                //  FIX: ранее function declarations не отправлялись!
-                // ══════════════════════════════════════════════════════
+                // ── Tools: Google Search + Function Declarations ──
                 val hasTools = config.enableGoogleSearch || config.functionDeclarations.isNotEmpty()
                 if (hasTools) {
                     put("tools", buildJsonArray {
@@ -269,7 +291,7 @@ class GeminiLiveClient @Inject constructor(
                     })
                 }
 
-                // ── History Config ──
+                // ── History Config: требуется для gemini-3.1-flash-live-preview ──
                 put("historyConfig", buildJsonObject {
                     put("initialHistoryInClientContent", true)
                 })
@@ -278,6 +300,7 @@ class GeminiLiveClient @Inject constructor(
 
         val raw = msg.toString()
         logger.d("SETUP → ${config.model} (${raw.length} chars, tools=${config.functionDeclarations.size})")
+        if (logRawFrames) logger.d("SETUP_RAW → ${raw.take(500)}")
         webSocket?.send(raw)
     }
 
@@ -431,7 +454,6 @@ class GeminiLiveClient @Inject constructor(
                         totalTokens = totalTokens
                     )
                 )
-                // usageMetadata может быть вместе с serverContent — НЕ return!
             }
 
             val sc = root["serverContent"]?.jsonObject ?: run {
@@ -532,14 +554,14 @@ class GeminiLiveClient @Inject constructor(
         1002 -> "[Protocol Error]"
         1003 -> "[Unsupported Data]"
         1006 -> "[Abnormal Closure]"
-        1007 -> "[Invalid Frame Payload — clientContent after model turn?]"
-        1008 -> "[Policy Violation]"
+        1007 -> "[Invalid Frame Payload — возможно, clientContent после model turn]"
+        1008 -> "[Policy Violation — чаще всего: модель недоступна вашему ключу или неправильный JSON setup]"
         1011 -> "[Internal Server Error]"
         1013 -> "[Try Again Later]"
         4000 -> "[Gemini: Session expired (15 min)]"
-        4001 -> "[Gemini: Invalid setup]"
-        4002 -> "[Gemini: Rate limited]"
-        4003 -> "[Gemini: Auth failed]"
+        4001 -> "[Gemini: Invalid setup — проверьте структуру setup-сообщения]"
+        4002 -> "[Gemini: Rate limited — 429]"
+        4003 -> "[Gemini: Auth failed — неверный API ключ]"
         else -> "[Code $code]"
     }
 }
