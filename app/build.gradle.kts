@@ -12,11 +12,11 @@ plugins {
 }
 
 android {
-    namespace = "com.codeextractor.app"
+    namespace = "com.learnde.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.codeextractor.app"
+        applicationId = "com.learnde.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

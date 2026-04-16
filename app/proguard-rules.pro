@@ -15,9 +15,9 @@
 -keepclasseswithmembers class kotlinx.serialization.json.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
--keep,includedescriptorclasses class com.codeextractor.app.data.settings.**$$serializer { *; }
--keepclassmembers class com.codeextractor.app.data.settings.** { *** Companion; }
--keepclasseswithmembers class com.codeextractor.app.data.settings.** {
+-keep,includedescriptorclasses class com.learnde.app.data.settings.**$$serializer { *; }
+-keepclassmembers class com.learnde.app.data.settings.** { *** Companion; }
+-keepclasseswithmembers class com.learnde.app.data.settings.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 -keep @kotlinx.serialization.Serializable class *
