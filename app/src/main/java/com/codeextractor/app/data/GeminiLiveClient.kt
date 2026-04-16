@@ -60,7 +60,7 @@ class GeminiLiveClient @Inject constructor(
     private var webSocket: WebSocket? = null
 
     private val _events = MutableSharedFlow<GeminiEvent>(
-        replay = 0,
+        replay = 1,
         extraBufferCapacity = 128,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
