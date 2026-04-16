@@ -283,7 +283,9 @@ class VoiceViewModel @Inject constructor(
         // Сокет должен подключиться, чтобы кнопка стала зеленой ("Ready").
         if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             try {
-                appContext.startForegroundService(GeminiLiveForegroundService.startIntent(appContext))
+                appContext.startForegroundService(
+                    GeminiLiveForegroundService.startIntent(appContext, cachedSettings.forceSpeakerOutput)
+                )
             } catch (e: Exception) {
                 logger.w("ForegroundService start failed: ${e.message}")
             }
