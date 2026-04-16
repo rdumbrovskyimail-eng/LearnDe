@@ -36,10 +36,8 @@ class FunctionsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            bus.lastExecuted.collect { fn ->
-                if (fn != null) {
-                    onFunctionExecuted(fn)
-                }
+            bus.executed.collect { fn ->
+                onFunctionExecuted(fn)
             }
         }
     }
