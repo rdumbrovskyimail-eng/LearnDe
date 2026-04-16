@@ -1,3 +1,8 @@
+// ═══════════════════════════════════════════════════════════
+// ЗАМЕНА
+// Путь: app/src/main/java/com/codeextractor/app/data/PersistentConversationRepository.kt
+// Изменения: startNewSession() вызывается из ConversationRepository интерфейса
+// ═══════════════════════════════════════════════════════════
 package com.codeextractor.app.data
 
 import com.codeextractor.app.data.db.ConversationDao
@@ -9,11 +14,6 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Room-реализация хранилища разговора.
- * Persistent — история сохраняется между перезапусками.
- * Заменяет InMemoryConversationStore.
- */
 @Singleton
 class PersistentConversationRepository @Inject constructor(
     private val dao: ConversationDao
@@ -26,6 +26,7 @@ class PersistentConversationRepository @Inject constructor(
     @Volatile
     private var currentSessionId: String = System.currentTimeMillis().toString()
 
+    /** Начинает новую сессию. Вызывать при каждом handleConnect(). */
     fun startNewSession() {
         currentSessionId = System.currentTimeMillis().toString()
     }
