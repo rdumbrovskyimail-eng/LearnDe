@@ -15,7 +15,10 @@ package com.codeextractor.app.presentation.voice
 import androidx.datastore.core.DataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import com.codeextractor.app.GeminiLiveForegroundService
 import com.codeextractor.app.data.NetworkMonitor
 import com.codeextractor.app.data.PersistentConversationRepository
@@ -264,6 +267,11 @@ class VoiceViewModel @Inject constructor(
 
         // ═══ FIX: startNewSession() при каждом подключении ═══
         (conversationRepository as? PersistentConversationRepository)?.startNewSession()
+
+        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            _effects.tryEmit(VoiceEffect.ShowToast(UiText.Plain("Требуется разрешение на микрофон")))
+            return
+        }
 
         try {
             appContext.startForegroundService(GeminiLiveForegroundService.startIntent(appContext))
