@@ -1,13 +1,27 @@
+// ═══════════════════════════════════════════════════════════
+// ЗАМЕНА
+// Путь: app/src/main/java/com/codeextractor/app/domain/model/SessionConfig.kt
+// Изменения: + FunctionDeclarationConfig, + functionDeclarations field
+// ═══════════════════════════════════════════════════════════
 package com.codeextractor.app.domain.model
 
 /**
+ * Декларация функции для Gemini tool calling.
+ * Передаётся в setup message → tools[].functionDeclarations[].
+ */
+data class FunctionDeclarationConfig(
+    val name: String,
+    val description: String,
+    val parameters: Map<String, ParameterConfig> = emptyMap()
+)
+
+data class ParameterConfig(
+    val type: String = "STRING",
+    val description: String = ""
+)
+
+/**
  * Конфигурация сессии Gemini Live API — полная спецификация 2026.
- *
- * Формируется из AppSettings → передаётся в LiveClient.connect().
- * Каждое поле маппится на JSON-поле в setup message.
- *
- * Документация: https://ai.google.dev/api/live
- * Модель: gemini-3.1-flash-live-preview (128k context, 64k output)
  */
 data class SessionConfig(
 
@@ -52,6 +66,7 @@ data class SessionConfig(
 
     // ── Tools ──
     val enableGoogleSearch: Boolean = false,
+    val functionDeclarations: List<FunctionDeclarationConfig> = emptyList(),
 
     // ── Audio ──
     val sendAudioStreamEnd: Boolean = true
@@ -74,14 +89,6 @@ data class SessionConfig(
     }
 }
 
-/**
- * Профиль латентности → thinkingLevel в Gemini 3.1 setup.
- *
- * minimal — минимальная задержка, подходит для голосового чата
- * low     — немного больше reasoning при умеренной латентности
- * medium  — баланс скорость/качество
- * high    — максимальный reasoning, высокая латентность
- */
 enum class LatencyProfile(val thinkingLevel: String, val displayName: String) {
     UltraLow("minimal", "Ultra Low (minimal thinking)"),
     Low("low", "Low (light thinking)"),
