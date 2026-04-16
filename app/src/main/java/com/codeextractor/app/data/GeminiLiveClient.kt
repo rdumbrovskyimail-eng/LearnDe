@@ -54,7 +54,7 @@ class GeminiLiveClient @Inject constructor(
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .pingInterval(30, TimeUnit.SECONDS)
+        .pingInterval(0, TimeUnit.SECONDS)
         .build()
 
     private var webSocket: WebSocket? = null
