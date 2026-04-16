@@ -40,6 +40,11 @@ class AndroidAudioEngine @Inject constructor(
     @Volatile private var jitterPreBufferChunks = 3
     @Volatile private var jitterTimeoutMs = 150L
 
+    // ═══ NEW: программный gain ═══
+    @Volatile private var playbackGain: Float = 0.9f   // 0..1 → setVolume
+    @Volatile private var micGain: Float = 1.0f        // 0.5..2.0 → умножение сэмплов
+    @Volatile private var forceSpeakerOutput: Boolean = true
+
     private val _micOutput = MutableSharedFlow<ByteArray>(
         replay = 0, extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
