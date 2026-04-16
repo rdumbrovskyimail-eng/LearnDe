@@ -62,13 +62,18 @@ fun AudioVisualizerScene(
         }
     }
 
-    // Если модель молчит — плавно гасим
+    // Плавное затухание при тишине — независимо от частоты кадров.
     LaunchedEffect(Unit) {
+        var prevFrame = System.nanoTime()
         while (true) {
             withFrameNanos { now ->
+                val dt = (now - prevFrame).coerceAtLeast(0L) / 1_000_000_000f
+                prevFrame = now
                 val silenceNanos = now - lastDecayNanos
-                if (silenceNanos > 120_000_000L) { // 120 мс без данных
-                    rms = max(0f, rms * 0.90f)
+                if (silenceNanos > 120_000_000L) {
+                    // Экспоненциальное затухание: за 1 секунду ~98% погашения.
+                    val decay = Math.pow(0.02, dt.toDouble()).toFloat()
+                    rms = max(0f, rms * decay)
                 }
             }
         }
