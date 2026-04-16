@@ -8,20 +8,18 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Глобальная шина уведомлений о выполнении тестовых функций.
+ * Шина событий выполнения тестовых функций.
  *
- * ToolRegistry при dispatch-е функции публикует TestFunction, а
- * FunctionsTestScreen (через FunctionsViewModel) слушает этот поток
- * и обновляет UI лампочек + строку «Сейчас выполняется: …».
- *
- * Таким образом UI теста работает в любом месте приложения —
- * не обязательно находиться на экране в момент вызова.
+ * replay = 1 — FunctionsTestScreen, открытый ПОСЛЕ вызова функции,
+ * всё равно получает последнее событие и отобразит корректное состояние
+ * лампочек/статуса (если они ещё не успели угаснуть — это решается TTL
+ * на стороне FunctionsViewModel).
  */
 @Singleton
 class FunctionsEventBus @Inject constructor() {
 
     private val _executed = MutableSharedFlow<FunctionsRegistry.TestFunction>(
-        replay = 0,
+        replay = 1,
         extraBufferCapacity = 8,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
