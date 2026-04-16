@@ -58,8 +58,18 @@ fun AppNavGraph(
             exitTransition   = { slideOutHorizontally(tween(300)) { -it } },
         ) {
             VoiceScreen(
-                onOpenEditor   = { navController.navigate(Routes.EDITOR) },
-                onOpenSettings = { navController.navigate(Routes.SETTINGS) }
+                onOpenEditor = {
+                    navController.navigate(Routes.EDITOR) {
+                        launchSingleTop = true
+                    }
+                },
+                onOpenSettings = {
+                    // Возврат к существующему Settings, без дублирования ViewModel
+                    navController.navigate(Routes.SETTINGS) {
+                        popUpTo(Routes.SETTINGS) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
 
