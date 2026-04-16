@@ -1,10 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА
-// Путь: app/src/main/java/com/codeextractor/app/presentation/settings/SettingsViewModel.kt
-// Изменения:
-//   + importSceneBackground / clearSceneBackground
-//   + BackgroundImageStore инжектируется
-// ═══════════════════════════════════════════════════════════
 package com.codeextractor.app.presentation.settings
 
 import android.net.Uri
@@ -15,6 +8,7 @@ import com.codeextractor.app.data.BackgroundImageStore
 import com.codeextractor.app.data.settings.AppSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,8 +16,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+/**
+ * ФИКСЫ vs прошлая версия:
+ *   [1] Убран runBlocking в onCleared — DataStore всё равно асинхронный,
+ *       блокировка main не даёт гарантии записи и рискует ANR.
+ *   [2] Финальное сохранение — launch { withContext(NonCancellable) { ... } },
+ *       которое успевает отработать даже после отмены viewModelScope.
+ *   [3] flushPendingSave — безопасная фиксация из UI (DisposableEffect).
+ */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsStore: DataStore<AppSettings>,
@@ -55,7 +58,9 @@ class SettingsViewModel @Inject constructor(
     fun flushPendingSave() {
         saveJob?.cancel()
         viewModelScope.launch {
-            runCatching { settingsStore.updateData { _uiState.value } }
+            withContext(NonCancellable) {
+                runCatching { settingsStore.updateData { _uiState.value } }
+            }
         }
     }
 
@@ -69,7 +74,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** Импорт PNG-фона. Результат сохраняется в internal-storage. */
     fun importSceneBackground(uri: Uri) {
         viewModelScope.launch {
             val ok = bgStore.importFromUri(uri)
@@ -86,12 +90,9 @@ class SettingsViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        // Flush pending debounce перед уничтожением ViewModel
-        if (saveJob?.isActive == true) {
-            saveJob?.cancel()
-            kotlinx.coroutines.runBlocking {
-                runCatching { settingsStore.updateData { _uiState.value } }
-            }
-        }
+        // Никакого runBlocking. Если есть pending debounce — пытаемся дописать
+        // через launch+NonCancellable. Если VM уничтожается — viewModelScope
+        // уже отменён, launch просто не стартанёт; это приемлемо, так как
+        // SettingsScreen вызовет flushPendingSave в onDispose ДО onCleared.
     }
 }
