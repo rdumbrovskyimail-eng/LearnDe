@@ -101,17 +101,24 @@ fun AvatarScene(
             val patchedFile = File(ctx.cacheDir, "patched_model_base_$avatarIndex.glb")
             if (!patchedFile.exists()) {
                 val editorOutput = File(ctx.cacheDir, "patched_model.glb")
-                runCatching {
+                val patchOk = runCatching {
                     com.codeextractor.app.editor.GlbTextureEditor(ctx).preparePatchedModel(modelPath())
-                }
-                if (editorOutput.exists()) editorOutput.renameTo(patchedFile)
+                    editorOutput.exists()
+                }.getOrDefault(false)
+                if (patchOk) editorOutput.renameTo(patchedFile)
             }
-            // Fallback: если patched так и не создался — грузим оригинал из assets
-            val bytes: ByteArray = if (patchedFile.exists()) patchedFile.readBytes()
-                else ctx.assets.open(modelPath()).use { it.readBytes() }
+            // Fallback: если patched так и не создался — грузим оригинал из assets.
+            // Это гарантирует, что аватар всегда появится, даже если GlbTextureEditor
+            // недоступен или падает на конкретной модели устройства.
+            val bytes: ByteArray = if (patchedFile.exists()) {
+                patchedFile.readBytes()
+            } else {
+                runCatching { ctx.assets.open(modelPath()).use { it.readBytes() } }
+                    .getOrNull() ?: return@withContext null
+            }
             ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
         }
-        modelInstance = modelLoader.createModelInstance(buffer)
+        if (buffer != null) modelInstance = modelLoader.createModelInstance(buffer)
     }
 
     LaunchedEffect(modelInstance) {
