@@ -243,8 +243,13 @@ class VoiceViewModel @Inject constructor(
             compressionTriggerTokens = cachedSettings.compressionTriggerTokens,
             enableGoogleSearch = cachedSettings.enableGoogleSearch,
             sendAudioStreamEnd = cachedSettings.sendAudioStreamEnd,
-            // ═══ FIX: tool declarations теперь отправляются в setup ═══
-            functionDeclarations = emptyList(),
+            // ═══ FIX: tool declarations теперь действительно отправляются ═══
+            functionDeclarations = if (cachedSettings.enableTestFunctions)
+                toolRegistry.getFunctionDeclarationConfigs()
+            else
+                toolRegistry.getFunctionDeclarationConfigs().filter {
+                    it.name == "get_current_time" || it.name == "get_device_status"
+                },
         )
     }
 
