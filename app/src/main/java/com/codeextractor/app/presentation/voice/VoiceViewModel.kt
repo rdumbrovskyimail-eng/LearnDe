@@ -442,6 +442,9 @@ class VoiceViewModel @Inject constructor(
 
                     is GeminiEvent.Disconnected -> {
                         _state.update { it.copy(connectionStatus = ConnectionStatus.Disconnected, isMicActive = false) }
+                        _effects.tryEmit(VoiceEffect.ShowToast(
+                            UiText.Plain("WS closed: code=${event.code} reason='${event.reason}'")
+                        ))
                         audioEngine.stopCapture()
                         scheduleReconnect()
                     }
@@ -458,6 +461,9 @@ class VoiceViewModel @Inject constructor(
                             connectionStatus = ConnectionStatus.Disconnected,
                             isMicActive = false, error = UiText.Plain(event.message)
                         ) }
+                        _effects.tryEmit(VoiceEffect.ShowToast(
+                            UiText.Plain("Ошибка: ${event.message.take(160)}")
+                        ))
                         audioEngine.stopCapture()
                         scheduleReconnect()
                     }
