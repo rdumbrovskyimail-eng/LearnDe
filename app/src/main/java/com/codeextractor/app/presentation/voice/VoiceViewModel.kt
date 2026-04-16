@@ -117,6 +117,9 @@ class VoiceViewModel @Inject constructor(
             is VoiceIntent.UpdateShowUsage      -> updateSetting { copy(showUsageMetadata = intent.enabled) }
             is VoiceIntent.UpdateLanguage       -> updateSetting { copy(languageCode = intent.code) }
             is VoiceIntent.UpdateBackupKey      -> handleSubmitBackupKey(intent.key)
+            is VoiceIntent.ToggleFullscreenScene -> _state.update {
+                it.copy(isSceneFullscreen = !it.isSceneFullscreen)
+            }
         }
     }
 
