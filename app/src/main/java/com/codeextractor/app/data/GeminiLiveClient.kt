@@ -285,19 +285,19 @@ class GeminiLiveClient @Inject constructor(
                                         add(buildJsonObject {
                                             put("name", decl.name)
                                             put("description", decl.description)
-                                            if (decl.parameters.isNotEmpty()) {
-                                                put("parameters", buildJsonObject {
-                                                    put("type", "OBJECT")
-                                                    put("properties", buildJsonObject {
-                                                        for ((pName, pConfig) in decl.parameters) {
-                                                            put(pName, buildJsonObject {
-                                                                put("type", pConfig.type)
-                                                                put("description", pConfig.description)
-                                                            })
-                                                        }
-                                                    })
+                                            // ВСЕГДА передаём parameters — Gemini 3.1 требует корректную схему
+                                            // даже для функций без аргументов (иначе сервер может вернуть INVALID_ARGUMENT).
+                                            put("parameters", buildJsonObject {
+                                                put("type", "OBJECT")
+                                                put("properties", buildJsonObject {
+                                                    for ((pName, pConfig) in decl.parameters) {
+                                                        put(pName, buildJsonObject {
+                                                            put("type", pConfig.type)
+                                                            put("description", pConfig.description)
+                                                        })
+                                                    }
                                                 })
-                                            }
+                                            })
                                         })
                                     }
                                 })
