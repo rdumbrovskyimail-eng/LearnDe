@@ -56,11 +56,11 @@ class GeminiLiveForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                     startForeground(
                         NOTIFICATION_ID,
                         buildNotification(),
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
                     )
                 } else {
                     startForeground(NOTIFICATION_ID, buildNotification())
