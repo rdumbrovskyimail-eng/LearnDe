@@ -433,6 +433,8 @@ private fun ChatBubble(
     showTimestamp: Boolean
 ) {
     val isUser = message.role == ConversationMessage.ROLE_USER
+    // surfaceContainerHigh доступен с Material3 1.2+. На случай старого кеша —
+    // мы экспортировали его и в Theme.kt, и он гарантированно есть в BOM 2026.03.01.
     val bubbleColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
                       else MaterialTheme.colorScheme.surfaceContainerHigh
     val textColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
