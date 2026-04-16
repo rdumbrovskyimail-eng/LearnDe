@@ -15,12 +15,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class FunctionsState(
-    /** Индексы (0..9) лампочек, которые сейчас светятся */
     val activeLightIds: Set<Int> = emptySet(),
-    /** Текст «Сейчас выполняется: …» + alpha для медленного угасания (0..1) */
     val statusText: String = "",
     val statusAlpha: Float = 0f,
-    /** Последняя выполненная функция (для подсветки планшета) */
     val lastExecutedNumber: Int? = null
 )
 
@@ -39,7 +36,18 @@ class FunctionsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // ═══ FIX: skip replay'нутое событие (если оно устарело > 3 сек) ═══
+            val subscribedAt = System.currentTimeMillis()
             bus.executed.collect { fn ->
+                val ageMs = System.currentTimeMillis() - subscribedAt
+                // Событие не должно воспроизводиться повторно при перевходе
+                // на экран. Replay от SharedFlow — только для case'а
+                // «функция вызвана буквально только что, экран открывается».
+                if (ageMs < 1500) {
+                    // Этот первый collect — замороженный replay из прошлого,
+                    // НЕ анимируем повторно.
+                    return@collect
+                }
                 onFunctionExecuted(fn)
             }
         }
@@ -57,16 +65,13 @@ class FunctionsViewModel @Inject constructor(
             )
         }
         fadeJob = viewModelScope.launch {
-            // лампочки держим 2 секунды на полной яркости
             delay(2000)
-            // затем плавное угасание строки 1.5 секунды, 20 шагов
             val steps = 20
             val totalMs = 1500L
             for (i in 1..steps) {
                 delay(totalMs / steps)
                 _state.update { it.copy(statusAlpha = 1f - i.toFloat() / steps) }
             }
-            // и лампочки гасим
             _state.update {
                 it.copy(
                     activeLightIds = emptySet(),
@@ -75,5 +80,10 @@ class FunctionsViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        fadeJob?.cancel()
     }
 }
