@@ -51,6 +51,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** Принудительный flush debounce'а — вызывать при уходе с экрана. */
+    fun flushPendingSave() {
+        saveJob?.cancel()
+        viewModelScope.launch {
+            runCatching { settingsStore.updateData { _uiState.value } }
+        }
+    }
+
     fun resetToDefaults() {
         val defaults = AppSettings()
         _uiState.value = defaults
