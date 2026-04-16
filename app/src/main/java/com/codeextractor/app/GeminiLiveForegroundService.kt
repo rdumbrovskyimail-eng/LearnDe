@@ -30,14 +30,15 @@ class GeminiLiveForegroundService : Service() {
     companion object {
         private const val CHANNEL_ID = "gemini_live_channel"
         private const val NOTIFICATION_ID = 2026
-        const val ACTION_START = "com.codeextractor.app.ACTION_START_SESSION"
-        const val ACTION_STOP = "com.codeextractor.app.ACTION_STOP_SESSION"
-        const val EXTRA_FORCE_SPEAKER = "extra_force_speaker"
+    const val ACTION_START = "com.codeextractor.app.ACTION_START_SESSION"
+    const val ACTION_STOP = "com.codeextractor.app.ACTION_STOP_SESSION"
+    const val EXTRA_FORCE_SPEAKER = "extra_force_speaker"
 
-        fun startIntent(context: Context): Intent =
-            Intent(context, GeminiLiveForegroundService::class.java).apply {
-                action = ACTION_START
-            }
+    fun startIntent(context: Context, forceSpeaker: Boolean = true): Intent =
+        Intent(context, GeminiLiveForegroundService::class.java).apply {
+            action = ACTION_START
+            putExtra(EXTRA_FORCE_SPEAKER, forceSpeaker)
+        }
 
         fun stopIntent(context: Context): Intent =
             Intent(context, GeminiLiveForegroundService::class.java).apply {
@@ -96,7 +97,7 @@ class GeminiLiveForegroundService : Service() {
      *  - Режим IN_COMMUNICATION ставим ТОЛЬКО при активном SCO — иначе
      *    Android загоняет звук в маленький ушной динамик и громкость обрезана.
      */
-    private fun routeAudioToBluetooth() {
+    private fun routeAudio(forceSpeaker: Boolean) {
         val am = audioManager ?: return
         val hasBtHeadset = runCatching {
             val devices = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
@@ -106,7 +107,7 @@ class GeminiLiveForegroundService : Service() {
             }
         }.getOrDefault(false)
 
-        if (hasBtHeadset && am.isBluetoothScoAvailableOffCall) {
+        if (!forceSpeaker && hasBtHeadset && am.isBluetoothScoAvailableOffCall) {
             runCatching {
                 am.startBluetoothSco()
                 am.isBluetoothScoOn = true
