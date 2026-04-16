@@ -99,24 +99,7 @@ class VoiceViewModel @Inject constructor(
             is VoiceIntent.SendText             -> handleSendText(intent.text)
             is VoiceIntent.SaveLog              -> handleSaveLog()
             is VoiceIntent.ClearConversation    -> handleClearConversation()
-            is VoiceIntent.UpdateVoiceId        -> updateSetting { copy(voiceId = intent.voiceId) }
-            is VoiceIntent.UpdateLatencyProfile -> updateSetting { copy(latencyProfile = intent.profile.name) }
-            is VoiceIntent.UpdateAec            -> updateSetting { copy(useAec = intent.enabled) }
-            is VoiceIntent.UpdateServerVad      -> updateSetting { copy(enableServerVad = intent.enabled) }
-            is VoiceIntent.UpdateTemperature    -> updateSetting { copy(temperature = intent.value) }
-            is VoiceIntent.UpdateTopP           -> updateSetting { copy(topP = intent.value) }
-            is VoiceIntent.UpdateTopK           -> updateSetting { copy(topK = intent.value) }
-            is VoiceIntent.UpdateMaxTokens      -> updateSetting { copy(maxOutputTokens = intent.value) }
-            is VoiceIntent.UpdateModel          -> updateSetting { copy(model = intent.model) }
-            is VoiceIntent.UpdateSystemInstruction -> updateSetting { copy(systemInstruction = intent.text) }
-            is VoiceIntent.UpdateGoogleSearch   -> updateSetting { copy(enableGoogleSearch = intent.enabled) }
-            is VoiceIntent.UpdateCompression    -> updateSetting { copy(enableContextCompression = intent.enabled) }
-            is VoiceIntent.UpdateResumption     -> updateSetting { copy(enableSessionResumption = intent.enabled) }
-            is VoiceIntent.UpdateDebugLog       -> updateSetting { copy(showDebugLog = intent.enabled) }
-            is VoiceIntent.UpdateLogRawFrames   -> updateSetting { copy(logRawWebSocketFrames = intent.enabled) }
-            is VoiceIntent.UpdateShowUsage      -> updateSetting { copy(showUsageMetadata = intent.enabled) }
-            is VoiceIntent.UpdateLanguage       -> updateSetting { copy(languageCode = intent.code) }
-            is VoiceIntent.UpdateBackupKey      -> handleSubmitBackupKey(intent.key)
+
             is VoiceIntent.ToggleFullscreenScene -> _state.update {
                 it.copy(isSceneFullscreen = !it.isSceneFullscreen)
             }
