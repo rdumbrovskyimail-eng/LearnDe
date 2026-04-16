@@ -186,6 +186,9 @@ class VoiceViewModel @Inject constructor(
             reconnectJob?.cancel()
             micJob?.cancel()
             audioEngine.stopCapture()
+
+            // ВАЖНО: помечаем, что закрытие — инициировано нами
+            selfDisconnecting.set(true)
             liveClient.disconnect()
             _state.update {
                 it.copy(
@@ -228,6 +231,9 @@ class VoiceViewModel @Inject constructor(
             reconnectJob?.cancel()
             micJob?.cancel()
             audioEngine.stopCapture()
+
+            // ВАЖНО
+            selfDisconnecting.set(true)
             liveClient.disconnect()
             connectInFlight.set(false)
             delay(400)
