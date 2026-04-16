@@ -265,20 +265,19 @@ class VoiceViewModel @Inject constructor(
         contextSeeded = false
         _state.update { it.copy(connectionStatus = ConnectionStatus.Connecting) }
 
-        // ═══ FIX: startNewSession() при каждом подключении ═══
         (conversationRepository as? PersistentConversationRepository)?.startNewSession()
 
+        // ВАЖНО: Мы больше НЕ блокируем подключение к WebSocket из-за микрофона!
+        // Сокет должен подключиться, чтобы кнопка стала зеленой ("Ready").
         if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             try {
                 appContext.startForegroundService(GeminiLiveForegroundService.startIntent(appContext))
             } catch (e: Exception) {
                 logger.w("ForegroundService start failed: ${e.message}")
             }
-        } else {
-            _effects.tryEmit(VoiceEffect.ShowToast(UiText.Plain("Требуется разрешение на микрофон")))
-            return
         }
 
+        // Подключаем WebSocket в любом случае
         viewModelScope.launch {
             liveClient.connect(
                 apiKey = activeApiKey,
