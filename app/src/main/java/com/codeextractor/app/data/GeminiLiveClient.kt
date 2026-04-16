@@ -1,3 +1,8 @@
+// ═══════════════════════════════════════════════════════════
+// ЗАМЕНА
+// Путь: app/src/main/java/com/codeextractor/app/data/GeminiLiveClient.kt
+// Изменения: + function declarations в setup, + prefixTurns support
+// ═══════════════════════════════════════════════════════════
 package com.codeextractor.app.data
 
 import android.util.Base64
@@ -22,7 +27,6 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
@@ -34,20 +38,6 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Gemini Live API WebSocket клиент — полная реализация 2026.
- *
- * Поддерживает все возможности gemini-3.1-flash-live-preview:
- *  - Session resumption с handle (прозрачный reconnect)
- *  - Context window compression (sliding window)
- *  - Google Search grounding
- *  - audioStreamEnd для flush кеша
- *  - toolCallCancellation обработка
- *  - Usage metadata tracking
- *  - Полная конфигурация VAD
- *  - Полная generationConfig (temperature, topP, topK и т.д.)
- *  - historyConfig для корректного seeding context
- */
 @Singleton
 class GeminiLiveClient @Inject constructor(
     private val logger: AppLogger
@@ -158,7 +148,6 @@ class GeminiLiveClient @Inject constructor(
                         add(JsonPrimitive(config.responseModality))
                     })
 
-                    // Temperature / sampling
                     put("temperature", config.temperature)
                     put("topP", config.topP)
                     if (config.topK > 0) put("topK", config.topK)
@@ -166,7 +155,6 @@ class GeminiLiveClient @Inject constructor(
                     if (config.presencePenalty != 0.0f) put("presencePenalty", config.presencePenalty)
                     if (config.frequencyPenalty != 0.0f) put("frequencyPenalty", config.frequencyPenalty)
 
-                    // Speech
                     put("speechConfig", buildJsonObject {
                         put("voiceConfig", buildJsonObject {
                             put("prebuiltVoiceConfig", buildJsonObject {
@@ -178,7 +166,6 @@ class GeminiLiveClient @Inject constructor(
                         }
                     })
 
-                    // Thinking
                     put("thinkingConfig", buildJsonObject {
                         put("thinkingLevel", config.latencyProfile.thinkingLevel)
                     })
@@ -242,16 +229,47 @@ class GeminiLiveClient @Inject constructor(
                     })
                 }
 
-                // ── Tools ──
-                if (config.enableGoogleSearch) {
+                // ══════════════════════════════════════════════════════
+                //  TOOLS — Google Search + Function Declarations
+                //  FIX: ранее function declarations не отправлялись!
+                // ══════════════════════════════════════════════════════
+                val hasTools = config.enableGoogleSearch || config.functionDeclarations.isNotEmpty()
+                if (hasTools) {
                     put("tools", buildJsonArray {
-                        add(buildJsonObject {
-                            put("googleSearch", buildJsonObject {})
-                        })
+                        if (config.enableGoogleSearch) {
+                            add(buildJsonObject {
+                                put("googleSearch", buildJsonObject {})
+                            })
+                        }
+                        if (config.functionDeclarations.isNotEmpty()) {
+                            add(buildJsonObject {
+                                put("functionDeclarations", buildJsonArray {
+                                    for (decl in config.functionDeclarations) {
+                                        add(buildJsonObject {
+                                            put("name", decl.name)
+                                            put("description", decl.description)
+                                            if (decl.parameters.isNotEmpty()) {
+                                                put("parameters", buildJsonObject {
+                                                    put("type", "OBJECT")
+                                                    put("properties", buildJsonObject {
+                                                        for ((pName, pConfig) in decl.parameters) {
+                                                            put(pName, buildJsonObject {
+                                                                put("type", pConfig.type)
+                                                                put("description", pConfig.description)
+                                                            })
+                                                        }
+                                                    })
+                                                })
+                                            }
+                                        })
+                                    }
+                                })
+                            })
+                        }
                     })
                 }
 
-                // ── History Config (для корректного seeding через clientContent) ──
+                // ── History Config ──
                 put("historyConfig", buildJsonObject {
                     put("initialHistoryInClientContent", true)
                 })
@@ -259,7 +277,7 @@ class GeminiLiveClient @Inject constructor(
         }
 
         val raw = msg.toString()
-        logger.d("SETUP → ${config.model} (${raw.length} chars)")
+        logger.d("SETUP → ${config.model} (${raw.length} chars, tools=${config.functionDeclarations.size})")
         webSocket?.send(raw)
     }
 
@@ -276,7 +294,6 @@ class GeminiLiveClient @Inject constructor(
 
     override fun sendText(text: String) {
         if (!isReady) return
-        // Gemini 3.1: текст через realtimeInput (не clientContent!)
         val msg = buildJsonObject {
             put("realtimeInput", buildJsonObject {
                 put("text", text)
@@ -324,13 +341,6 @@ class GeminiLiveClient @Inject constructor(
         webSocket?.send(raw)
     }
 
-    /**
-     * Восстановление контекста — ТОЛЬКО при начале сессии.
-     *
-     * Gemini 3.1: clientContent с turns разрешён ТОЛЬКО для seeding
-     * начальной истории (при historyConfig.initialHistoryInClientContent = true).
-     * После первого model turn — 1007 error.
-     */
     override fun restoreContext(history: List<ConversationMessage>) {
         if (history.isEmpty()) return
         val msg = buildJsonObject {
@@ -361,31 +371,27 @@ class GeminiLiveClient @Inject constructor(
         try {
             val root = json.parseToJsonElement(raw).jsonObject
 
-            // ── setupComplete ──
             if (root.containsKey("setupComplete")) {
-                logger.d("✓ SETUP COMPLETE")
+                logger.d("SETUP COMPLETE")
                 isReady = true
                 _events.tryEmit(GeminiEvent.SetupComplete)
                 return
             }
 
-            // ── toolCall ──
             root["toolCall"]?.jsonObject?.let { toolCall ->
                 parseToolCall(toolCall)
                 return
             }
 
-            // ── toolCallCancellation ──
             root["toolCallCancellation"]?.jsonObject?.let { cancellation ->
                 val ids = cancellation["ids"]?.jsonArray
                     ?.map { it.jsonPrimitive.content }
                     ?: emptyList()
-                logger.d("⚠ TOOL_CALL_CANCELLATION: $ids")
+                logger.d("TOOL_CALL_CANCELLATION: $ids")
                 _events.tryEmit(GeminiEvent.ToolCallCancellation(ids))
                 return
             }
 
-            // ── sessionResumptionUpdate ──
             root["sessionResumptionUpdate"]?.jsonObject?.let { update ->
                 val resumable = update["resumable"]?.jsonPrimitive?.booleanOrNull ?: false
                 val newHandle = update["newHandle"]?.jsonPrimitive?.content
@@ -406,7 +412,6 @@ class GeminiLiveClient @Inject constructor(
                 return
             }
 
-            // ── goAway ──
             root["goAway"]?.jsonObject?.let { goAway ->
                 val timeLeftMs = goAway["timeLeft"]?.jsonPrimitive?.content
                 logger.d("GO_AWAY — server will close soon (timeLeft=$timeLeftMs)")
@@ -414,7 +419,6 @@ class GeminiLiveClient @Inject constructor(
                 return
             }
 
-            // ── usageMetadata ──
             root["usageMetadata"]?.jsonObject?.let { usage ->
                 val promptTokens = usage["promptTokenCount"]?.jsonPrimitive?.intOrNull ?: 0
                 val responseTokens = (usage["candidatesTokenCount"]
@@ -427,10 +431,9 @@ class GeminiLiveClient @Inject constructor(
                         totalTokens = totalTokens
                     )
                 )
-                return
+                // usageMetadata может быть вместе с serverContent — НЕ return!
             }
 
-            // ── serverContent ──
             val sc = root["serverContent"]?.jsonObject ?: run {
                 if (logRawFrames) {
                     val preview = if (raw.length > 200) raw.take(200) + "…" else raw
@@ -439,12 +442,11 @@ class GeminiLiveClient @Inject constructor(
                 return
             }
 
-            // Транскрипции
             sc["inputTranscription"]?.jsonObject
                 ?.get("text")?.jsonPrimitive?.content
                 ?.takeIf { it.isNotBlank() }
                 ?.let { text ->
-                    logger.d("🎤 USER: $text")
+                    logger.d("USER: $text")
                     _events.tryEmit(GeminiEvent.InputTranscript(text))
                 }
 
@@ -452,35 +454,30 @@ class GeminiLiveClient @Inject constructor(
                 ?.get("text")?.jsonPrimitive?.content
                 ?.takeIf { it.isNotBlank() }
                 ?.let { text ->
-                    logger.d("🔊 GEMINI: $text")
+                    logger.d("GEMINI: $text")
                     _events.tryEmit(GeminiEvent.OutputTranscript(text))
                 }
 
-            // Barge-in / Interrupted
             if (sc["interrupted"]?.jsonPrimitive?.booleanOrNull == true) {
-                logger.d("⚡ INTERRUPTED — barge-in")
+                logger.d("INTERRUPTED — barge-in")
                 _events.tryEmit(GeminiEvent.Interrupted)
             }
 
-            // Turn complete
             if (sc["turnComplete"]?.jsonPrimitive?.booleanOrNull == true) {
-                logger.d("⏹ TURN COMPLETE")
+                logger.d("TURN COMPLETE")
                 _events.tryEmit(GeminiEvent.TurnComplete)
             }
 
-            // Generation complete
             if (sc["generationComplete"]?.jsonPrimitive?.booleanOrNull == true) {
-                logger.d("✅ GENERATION COMPLETE")
+                logger.d("GENERATION COMPLETE")
                 _events.tryEmit(GeminiEvent.GenerationComplete)
             }
 
-            // Grounding metadata (Google Search results)
             sc["groundingMetadata"]?.jsonObject?.let { grounding ->
-                logger.d("🔍 GROUNDING METADATA received")
+                logger.d("GROUNDING METADATA received")
                 _events.tryEmit(GeminiEvent.GroundingMetadata(grounding.toString()))
             }
 
-            // Audio / text parts — обрабатываем ВСЕ parts в одном событии
             val parts = sc["modelTurn"]?.jsonObject
                 ?.get("parts") as? JsonArray ?: return
 
@@ -522,16 +519,12 @@ class GeminiLiveClient @Inject constructor(
             argsObj?.forEach { (key, value) ->
                 args[key] = value.jsonPrimitive.content
             }
-            logger.d("🔧 TOOL_CALL: $name($args)")
+            logger.d("TOOL_CALL: $name($args)")
             FunctionCall(name, id, args)
         }
 
         _events.tryEmit(GeminiEvent.ToolCall(calls))
     }
-
-    // ════════════════════════════════════════════════════════════
-    //  UTILS
-    // ════════════════════════════════════════════════════════════
 
     private fun describeCloseCode(code: Int): String = when (code) {
         1000 -> "[Normal Closure]"
