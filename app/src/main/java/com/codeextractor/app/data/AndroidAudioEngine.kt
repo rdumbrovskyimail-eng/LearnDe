@@ -125,6 +125,14 @@ class AndroidAudioEngine @Inject constructor(
                         while (isActive && isCapturing) {
                             val read = recorder.read(buffer, 0, buffer.size)
                             if (read > 0) {
+                                val g = micGain
+                                if (g != 1.0f) {
+                                    for (i in 0 until read) {
+                                        val amplified = (buffer[i] * g).toInt()
+                                            .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                                        buffer[i] = amplified.toShort()
+                                    }
+                                }
                                 byteBuffer.clear()
                                 byteBuffer.asShortBuffer().put(buffer, 0, read)
                                 _micOutput.tryEmit(rawBytes.copyOf(read * 2))
