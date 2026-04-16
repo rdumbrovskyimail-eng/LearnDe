@@ -87,6 +87,8 @@ class VoiceViewModel @Inject constructor(
 
     /** Защита от параллельных connect()-ов. */
     private val connectInFlight = AtomicBoolean(false)
+    /** Флаг «мы сами закрываем сокет», чтобы не триггерить auto-reconnect. */
+    private val selfDisconnecting = java.util.concurrent.atomic.AtomicBoolean(false)
 
     init {
         observeSettings()
@@ -595,13 +597,18 @@ class VoiceViewModel @Inject constructor(
                                 isMicActive = false
                             )
                         }
-                        _effects.tryEmit(
-                            VoiceEffect.ShowToast(
-                                UiText.Plain("WS closed: code=${event.code} reason='${event.reason}'")
-                            )
-                        )
                         audioEngine.stopCapture()
-                        scheduleReconnect()
+                        // Мы сами закрыли сокет (например, при смене режима) — не реконнектим и не спамим toast
+                        if (selfDisconnecting.getAndSet(false)) {
+                            logger.d("WS closed by self — no reconnect")
+                        } else {
+                            _effects.tryEmit(
+                                VoiceEffect.ShowToast(
+                                    UiText.Plain("WS closed: code=${event.code} reason='${event.reason}'")
+                                )
+                            )
+                            scheduleReconnect()
+                        }
                     }
 
                     is GeminiEvent.ConnectionError -> {
@@ -621,13 +628,17 @@ class VoiceViewModel @Inject constructor(
                                 isMicActive = false, error = UiText.Plain(event.message)
                             )
                         }
-                        _effects.tryEmit(
-                            VoiceEffect.ShowToast(
-                                UiText.Plain("Ошибка: ${event.message.take(160)}")
-                            )
-                        )
                         audioEngine.stopCapture()
-                        scheduleReconnect()
+                        if (selfDisconnecting.getAndSet(false)) {
+                            logger.d("WS error during self-disconnect — ignored")
+                        } else {
+                            _effects.tryEmit(
+                                VoiceEffect.ShowToast(
+                                    UiText.Plain("Ошибка: ${event.message.take(160)}")
+                                )
+                            )
+                            scheduleReconnect()
+                        }
                     }
                 }
 
