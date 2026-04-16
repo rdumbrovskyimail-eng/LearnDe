@@ -318,7 +318,11 @@ private fun androidx.compose.foundation.layout.BoxScope.SceneContainer(
             .clip(sceneShape)
             .background(Color.Black)
     ) {
-        when (state.sceneMode) {
+        val effectiveMode = when {
+            state.sceneMode == SceneMode.CUSTOM_IMAGE && !state.sceneBgHasImage -> SceneMode.AVATAR
+            else -> state.sceneMode
+        }
+        when (effectiveMode) {
             SceneMode.AVATAR -> AvatarScene(
                 modifier = Modifier.fillMaxSize(),
                 renderBuffer = viewModel.avatarAnimator.renderBuffer,
