@@ -1,3 +1,10 @@
+<!-- ═══════════════════════════════════════════════════════════
+     ЗАМЕНА
+     Путь: app/src/main/AndroidManifest.xml
+     Изменения:
+       + FOREGROUND_SERVICE_MEDIA_PLAYBACK permission
+       + foregroundServiceType="microphone|mediaPlayback"
+     ═══════════════════════════════════════════════════════════ -->
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -8,11 +15,11 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
-
-    <!-- AR-камера НЕ required — мы используем SceneView, не ARSceneView -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
 
@@ -44,10 +51,9 @@
 
         <service
             android:name=".GeminiLiveForegroundService"
-            android:foregroundServiceType="microphone"
+            android:foregroundServiceType="microphone|mediaPlayback"
             android:exported="false" />
 
-        <!-- Перебиваем arsceneview-библиотечный manifest: ARCore optional -->
         <meta-data
             android:name="com.google.ar.core"
             android:value="optional"
