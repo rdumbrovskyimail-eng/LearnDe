@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
@@ -104,6 +105,7 @@ fun VoiceScreen(
     onOpenEditor: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenFunctions: () -> Unit = {},
+    onOpenA0a1Test: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -212,7 +214,8 @@ fun VoiceScreen(
                         modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        SceneIconButton(Icons.Filled.Tune, "Функции/Тест", onOpenFunctions)
+                        SceneIconButton(Icons.Filled.School, "Тест A0-A1", onOpenA0a1Test)
+                        SceneIconButton(Icons.Filled.Tune, "Функции", onOpenFunctions)
                         SceneIconButton(Icons.Filled.Settings, "Настройки", onOpenSettings)
                     }
                 }
