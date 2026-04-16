@@ -367,11 +367,21 @@ class VoiceViewModel @Inject constructor(
                     is GeminiEvent.SetupComplete -> {
                         reconnectAttempt = 0
                         _state.update { it.copy(connectionStatus = ConnectionStatus.Ready) }
-                        if (!contextSeeded) {
+
+                        // Seed истории ТОЛЬКО если:
+                        //   1) мы ещё не засеивали её в этой сессии
+                        //   2) нет sessionHandle (это не transparent-reconnect)
+                        //   3) history не пуст
+                        if (!contextSeeded && liveClient.sessionHandle == null) {
                             val history = conversationRepository.getAll()
-                            if (history.isNotEmpty()) liveClient.restoreContext(history)
-                            contextSeeded = true
+                            if (history.isNotEmpty()) {
+                                logger.d("Seeding initial context (${history.size} msgs)")
+                                liveClient.restoreContext(history)
+                            }
+                        } else if (liveClient.sessionHandle != null) {
+                            logger.d("Resumed via sessionHandle — skip manual context seed")
                         }
+                        contextSeeded = true
                     }
 
                     is GeminiEvent.AudioChunk -> {
