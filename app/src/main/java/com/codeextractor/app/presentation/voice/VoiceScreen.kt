@@ -171,7 +171,10 @@ fun VoiceScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(if (state.isSceneFullscreen) 1000f else 1f)
+                    .then(
+                        if (state.isSceneFullscreen) Modifier.weight(1f, fill = true)
+                        else Modifier.weight(0.55f, fill = true)
+                    )
             ) {
                 SceneContainer(
                     state = state,
