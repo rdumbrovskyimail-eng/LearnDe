@@ -1,15 +1,19 @@
 // ═══════════════════════════════════════════════════════════
-// ЗАМЕНА
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/codeextractor/app/presentation/voice/VoiceScreen.kt
 // Изменения:
-//   + POST_NOTIFICATIONS runtime permission (Android 13+)
-//   + RECORD_AUDIO rationale dialog
-//   + Permission checks before mic start
+//   + Новый Gemini-минималистичный дизайн через MaterialTheme
+//   + 3 режима сцены (AVATAR / VISUALIZER / CUSTOM_IMAGE)
+//   + Кнопка «Функции» → переход на FunctionsTestScreen
+//   + Кнопка fullscreen для сцены
+//   + Чат с настройками из state (font scale, role labels, timestamps, bg alpha)
+//   + Удалены все неиспользуемые intent'ы
 // ═══════════════════════════════════════════════════════════
 package com.codeextractor.app.presentation.voice
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,6 +23,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,17 +42,29 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,29 +75,37 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.codeextractor.app.data.BackgroundImageStore
 import com.codeextractor.app.domain.model.ConversationMessage
+import com.codeextractor.app.domain.scene.SceneMode
+import com.codeextractor.app.presentation.avatar.AudioVisualizerScene
 import com.codeextractor.app.presentation.avatar.AvatarScene
 import com.codeextractor.app.presentation.navigation.VoiceGender
 import com.codeextractor.app.util.resolve
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun VoiceScreen(
     viewModel: VoiceViewModel = hiltViewModel(),
     onOpenEditor: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenFunctions: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val avatarIndex = VoiceGender.avatarIndexForVoice(state.currentVoiceId)
 
-    // ── Mic permission rationale dialog ──
     var showMicRationale by remember { mutableStateOf(false) }
 
     val micPermissionLauncher = rememberLauncherForActivityResult(
@@ -90,20 +115,16 @@ fun VoiceScreen(
         else Toast.makeText(context, "Микрофон необходим для голосового общения", Toast.LENGTH_SHORT).show()
     }
 
-    // ── Notification permission (Android 13+) ──
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* granted or not — FG service will still work, just no notification on 13+ */ }
+    ) { /* no-op */ }
 
-    // Запрашиваем notification permission при первом запуске на Android 13+
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val hasNotifPermission = ContextCompat.checkSelfPermission(
+            val has = ContextCompat.checkSelfPermission(
                 context, Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
-            if (!hasNotifPermission) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
+            if (!has) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
@@ -119,16 +140,17 @@ fun VoiceScreen(
     }
 
     val listState = rememberLazyListState()
-    LaunchedEffect(state.transcript.size) {
-        if (state.transcript.isNotEmpty()) listState.animateScrollToItem(state.transcript.size - 1)
+    LaunchedEffect(state.transcript.size, state.chatAutoScroll) {
+        if (state.chatAutoScroll && state.transcript.isNotEmpty()) {
+            listState.animateScrollToItem(state.transcript.size - 1)
+        }
     }
 
-    // ── Mic rationale dialog ──
     if (showMicRationale) {
         AlertDialog(
             onDismissRequest = { showMicRationale = false },
             title = { Text("Доступ к микрофону") },
-            text = { Text("Для работы голосового ассистента необходим доступ к микрофону. Нажмите «Разрешить» для продолжения.") },
+            text = { Text("Для работы голосового ассистента необходим доступ к микрофону.") },
             confirmButton = {
                 TextButton(onClick = {
                     showMicRationale = false
@@ -141,140 +163,242 @@ fun VoiceScreen(
         )
     }
 
-    Scaffold { innerPadding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            modifier = Modifier.fillMaxSize().padding(innerPadding)
         ) {
-            // ══════════════════════════════════════════════════════
-            //  TOP — 3D Avatar
-            // ══════════════════════════════════════════════════════
-            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(0.5f).fillMaxHeight(0.5f)
-                        .align(Alignment.TopEnd)
-                        .clip(RoundedCornerShape(bottomStart = 16.dp))
+            // ═══ SCENE ═══
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(if (state.isSceneFullscreen) 1000f else 1f)
+            ) {
+                SceneContainer(
+                    state = state,
+                    viewModel = viewModel,
+                    avatarIndex = avatarIndex
+                )
+
+                StatusBadge(
+                    state = state,
+                    modifier = Modifier.align(Alignment.TopStart).padding(10.dp)
+                )
+
+                // Верхний правый: ⛶ fullscreen
+                IconButton(
+                    onClick = { viewModel.onIntent(VoiceIntent.ToggleFullscreenScene) },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = Color.Black.copy(alpha = 0.4f),
+                        contentColor = Color.White
+                    )
                 ) {
-                    AvatarScene(
-                        modifier = Modifier.fillMaxSize(),
-                        renderBuffer = viewModel.avatarAnimator.renderBuffer,
-                        avatarIndex = avatarIndex,
+                    Icon(
+                        if (state.isSceneFullscreen) Icons.Filled.FullscreenExit
+                        else Icons.Filled.Fullscreen,
+                        contentDescription = "Развернуть"
                     )
                 }
 
-                StatusBadge(state = state, modifier = Modifier.align(Alignment.TopStart).padding(8.dp))
-
-                Row(
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onOpenSettings,
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Black.copy(alpha = 0.5f))
-                    ) { Text("⚙", color = Color.White, fontSize = 14.sp) }
-                    OutlinedButton(
-                        onClick = onOpenEditor,
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Black.copy(alpha = 0.5f))
-                    ) { Text("Edit", color = Color.White, fontSize = 11.sp) }
+                // Нижний правый: ⚙ + 🧪 + Edit
+                if (!state.isSceneFullscreen) {
+                    Row(
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        SceneIconButton(Icons.Filled.Tune, "Функции/Тест", onOpenFunctions)
+                        SceneIconButton(Icons.Filled.Settings, "Настройки", onOpenSettings)
+                    }
                 }
 
-                if (state.showUsageMetadata && state.totalTokens > 0) {
+                if (state.showUsageMetadata && state.totalTokens > 0 && !state.isSceneFullscreen) {
                     Text(
                         text = "Tokens: ${state.totalTokens}",
-                        color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp,
-                        modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
+                        color = Color.White.copy(alpha = 0.75f),
+                        fontSize = 10.sp,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp)
                             .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
             }
 
-            // ══════════════════════════════════════════════════════
-            //  BOTTOM — Chat + Controls
-            // ══════════════════════════════════════════════════════
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Spacer(modifier = Modifier.height(6.dp))
-
-                if (state.showApiKeyInput) {
-                    ApiKeyInput(onSubmit = { viewModel.onIntent(VoiceIntent.SubmitApiKey(it)) })
-                    Spacer(modifier = Modifier.height(6.dp))
-                }
-
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f).fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                        .padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+            if (!state.isSceneFullscreen) {
+                // ═══ CHAT + CONTROLS ═══
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    items(state.transcript, key = { "${it.timestamp}_${it.role}" }) { msg ->
-                        ChatBubble(message = msg)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (state.showApiKeyInput) {
+                        ApiKeyInput { viewModel.onIntent(VoiceIntent.SubmitApiKey(it)) }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                ControlButtons(
-                    state = state,
-                    onToggleMic = {
-                        // Проверяем разрешение ИМЕННО в момент нажатия на кнопку Start
-                        val hasMicPermission = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.RECORD_AUDIO
-                        ) == PackageManager.PERMISSION_GRANTED
-
-                        if (hasMicPermission) {
-                            viewModel.onIntent(VoiceIntent.ToggleMic)
-                        } else {
-                            showMicRationale = true
+                    val chatBgAlpha = (state.chatBackgroundAlpha / 100f).coerceIn(0f, 1f)
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = chatBgAlpha))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(state.transcript, key = { "${it.timestamp}_${it.role}" }) { msg ->
+                            ChatBubble(
+                                message = msg,
+                                fontScale = state.chatFontScale,
+                                showLabel = state.chatShowRoleLabels,
+                                showTimestamp = state.chatShowTimestamps
+                            )
                         }
-                    },
-                    onStop = { viewModel.onIntent(VoiceIntent.ToggleMic) },
-                    onSaveLog = { viewModel.onIntent(VoiceIntent.SaveLog) },
-                )
+                    }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    ControlButtons(
+                        state = state,
+                        onToggleMic = {
+                            val hasMic = ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (hasMic) viewModel.onIntent(VoiceIntent.ToggleMic)
+                            else showMicRationale = true
+                        },
+                        onStop = { viewModel.onIntent(VoiceIntent.ToggleMic) },
+                        onSaveLog = { viewModel.onIntent(VoiceIntent.SaveLog) }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
             }
         }
     }
 }
 
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+//  SCENE SWITCHER
+// ════════════════════════════════════════════════════════════
+@Composable
+private fun SceneContainer(
+    state: VoiceState,
+    viewModel: VoiceViewModel,
+    avatarIndex: Int
+) {
+    val sceneShape = if (state.isSceneFullscreen) RoundedCornerShape(0.dp)
+                     else RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp)
+    val sceneWidth = if (state.isSceneFullscreen) 1f else 0.55f
+    val sceneHeight = if (state.isSceneFullscreen) 1f else 0.58f
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(sceneWidth)
+            .fillMaxHeight(sceneHeight)
+            .align(if (state.isSceneFullscreen) Alignment.Center else Alignment.TopEnd.let { it })
+            .let { base ->
+                if (state.isSceneFullscreen) Modifier.fillMaxSize()
+                else base
+            }
+            .clip(sceneShape)
+            .background(Color.Black)
+    ) {
+        when (state.sceneMode) {
+            SceneMode.AVATAR -> AvatarScene(
+                modifier = Modifier.fillMaxSize(),
+                renderBuffer = viewModel.avatarAnimator.renderBuffer,
+                avatarIndex = avatarIndex
+            )
+            SceneMode.VISUALIZER -> AudioVisualizerScene(
+                modifier = Modifier.fillMaxSize(),
+                playbackSync = viewModel.audioPlaybackFlow
+            )
+            SceneMode.CUSTOM_IMAGE -> CustomImageScene(
+                viewModel = viewModel
+            )
+        }
+    }
+}
+
+@Composable
+private fun CustomImageScene(viewModel: VoiceViewModel) {
+    val bmp by viewModel.backgroundBitmap.collectAsState()
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        bmp?.let {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } ?: Text(
+            "Загрузите PNG в настройках → «Сцена аватара»",
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 13.sp,
+            modifier = Modifier.align(Alignment.Center)
+        )
+    }
+}
+
+// ════════════════════════════════════════════════════════════
 //  COMPONENTS
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+@Composable
+private fun SceneIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, onClick: () -> Unit) {
+    FilledIconButton(
+        onClick = onClick,
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = Color.Black.copy(alpha = 0.4f),
+            contentColor = Color.White
+        )
+    ) {
+        Icon(icon, contentDescription = desc)
+    }
+}
 
 @Composable
 private fun StatusBadge(state: VoiceState, modifier: Modifier = Modifier) {
-    val statusColor = when (state.connectionStatus) {
-        ConnectionStatus.Disconnected -> Color(0xFFF44336)
-        ConnectionStatus.Connecting, ConnectionStatus.Negotiating, ConnectionStatus.Reconnecting -> Color(0xFFFFC107)
-        ConnectionStatus.Ready -> Color(0xFF4CAF50)
-        ConnectionStatus.Recording -> Color(0xFFFF5252)
+    val color = when (state.connectionStatus) {
+        ConnectionStatus.Disconnected -> MaterialTheme.colorScheme.error
+        ConnectionStatus.Connecting, ConnectionStatus.Negotiating, ConnectionStatus.Reconnecting -> Color(0xFFF29900)
+        ConnectionStatus.Ready -> Color(0xFF1E8E3E)
+        ConnectionStatus.Recording -> Color(0xFFD93025)
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
-        if (state.connectionStatus == ConnectionStatus.Recording) PulsingDot(color = statusColor)
-        else Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(statusColor))
+        if (state.connectionStatus == ConnectionStatus.Recording) PulsingDot(color = color)
+        else Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
         Spacer(modifier = Modifier.width(6.dp))
-        Text(text = state.connectionStatus.label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        if (state.isAiSpeaking) { Spacer(Modifier.width(8.dp)); Text("🔊", fontSize = 12.sp) }
+        Text(
+            text = state.connectionStatus.label,
+            color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium
+        )
+        if (state.isAiSpeaking) {
+            Spacer(Modifier.width(6.dp))
+            Text("🔊", fontSize = 11.sp)
+        }
     }
 }
 
 @Composable
 private fun PulsingDot(color: Color) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val scale by infiniteTransition.animateFloat(0.6f, 1.3f, infiniteRepeatable(tween(1200), RepeatMode.Restart), label = "s")
-    val alpha by infiniteTransition.animateFloat(0.8f, 0.2f, infiniteRepeatable(tween(1200), RepeatMode.Restart), label = "a")
+    val t = rememberInfiniteTransition(label = "pulse")
+    val scale by t.animateFloat(0.6f, 1.3f, infiniteRepeatable(tween(1200), RepeatMode.Restart), label = "s")
+    val alpha by t.animateFloat(0.8f, 0.2f, infiniteRepeatable(tween(1200), RepeatMode.Restart), label = "a")
     Box(contentAlignment = Alignment.Center) {
-        Box(modifier = Modifier.size(16.dp).scale(scale).alpha(alpha).clip(CircleShape).background(color))
-        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(color))
+        Box(modifier = Modifier.size(14.dp).scale(scale).alpha(alpha).clip(CircleShape).background(color))
+        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
     }
 }
 
@@ -282,38 +406,96 @@ private fun PulsingDot(color: Color) {
 private fun ApiKeyInput(onSubmit: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("API Key") }, singleLine = true, modifier = Modifier.weight(1f))
+        OutlinedTextField(
+            value = text, onValueChange = { text = it },
+            label = { Text("API Key") }, singleLine = true, modifier = Modifier.weight(1f)
+        )
         Spacer(modifier = Modifier.width(8.dp))
         Button(onClick = { onSubmit(text.trim()) }) { Text("OK") }
     }
 }
 
 @Composable
-private fun ChatBubble(message: ConversationMessage) {
+private fun ChatBubble(
+    message: ConversationMessage,
+    fontScale: Float,
+    showLabel: Boolean,
+    showTimestamp: Boolean
+) {
     val isUser = message.role == ConversationMessage.ROLE_USER
-    val bubbleColor = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
+    val bubbleColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
+                      else MaterialTheme.colorScheme.surfaceContainerHigh
+    val textColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurface
     val alignment = if (isUser) Alignment.End else Alignment.Start
-    val label = if (isUser) "🎤 You" else "🔊 Gemini"
+    val label = if (isUser) "🎤 Вы" else "🔊 Gemini"
+
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
-        Text(text = label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
-        Box(modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(bubbleColor).padding(horizontal = 10.dp, vertical = 6.dp)) {
-            Text(text = message.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+        if (showLabel) {
+            val ts = if (showTimestamp)
+                " · ${SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(message.timestamp))}"
+            else ""
+            Text(
+                text = label + ts,
+                fontSize = (10 * fontScale).sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+            )
+        }
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(bubbleColor)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = message.text,
+                fontSize = (13 * fontScale).sp,
+                color = textColor
+            )
         }
     }
 }
 
 @Composable
-private fun ControlButtons(state: VoiceState, onToggleMic: () -> Unit, onStop: () -> Unit, onSaveLog: () -> Unit) {
+private fun ControlButtons(
+    state: VoiceState,
+    onToggleMic: () -> Unit,
+    onStop: () -> Unit,
+    onSaveLog: () -> Unit
+) {
     val isReady = state.connectionStatus == ConnectionStatus.Ready
     val isRecording = state.connectionStatus == ConnectionStatus.Recording
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
-        Button(onClick = onToggleMic, enabled = isReady, modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))) {
-            Text("Start", color = Color.White, fontSize = 12.sp) }
-        Button(onClick = onStop, enabled = isRecording, modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))) {
-            Text("Stop", color = Color.White, fontSize = 12.sp) }
-        OutlinedButton(onClick = onSaveLog, modifier = Modifier.weight(0.7f)) {
-            Text("Log", fontSize = 12.sp) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+    ) {
+        Button(
+            onClick = onToggleMic, enabled = isReady,
+            modifier = Modifier.weight(1f).height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF1E8E3E),
+                disabledContainerColor = Color(0xFF1E8E3E).copy(alpha = 0.25f)
+            )
+        ) {
+            Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Говорить", color = Color.White, fontSize = 14.sp)
+        }
+        Button(
+            onClick = onStop, enabled = isRecording,
+            modifier = Modifier.weight(1f).height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFD93025),
+                disabledContainerColor = Color(0xFFD93025).copy(alpha = 0.25f)
+            )
+        ) {
+            Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Стоп", color = Color.White, fontSize = 14.sp)
+        }
     }
 }
