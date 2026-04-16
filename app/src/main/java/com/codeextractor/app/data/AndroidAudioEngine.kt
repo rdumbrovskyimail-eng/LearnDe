@@ -167,6 +167,7 @@ class AndroidAudioEngine @Inject constructor(
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .setBufferSizeInBytes(minBuf * 2).build()
             audioTrack = track
+            runCatching { track.setVolume(playbackGain) }
             track.play()
             isPlaying = true
             logger.d("Speaker ready (rate=$sampleRate)")
