@@ -220,7 +220,7 @@ fun VoiceScreen(
                 ControlButtons(
                     state = state,
                     onToggleMic = {
-                        // ═══ FIX: permission rationale перед запросом ═══
+                        // Проверяем разрешение ИМЕННО в момент нажатия на кнопку Start
                         val hasMicPermission = ContextCompat.checkSelfPermission(
                             context, Manifest.permission.RECORD_AUDIO
                         ) == PackageManager.PERMISSION_GRANTED
