@@ -137,6 +137,9 @@ fun SettingsScreen(
     onStartSession: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { viewModel.flushPendingSave() }
+    }
     val s by viewModel.settings.collectAsStateWithLifecycle()
     val accent = MaterialTheme.colorScheme.primary
     val error  = MaterialTheme.colorScheme.error
