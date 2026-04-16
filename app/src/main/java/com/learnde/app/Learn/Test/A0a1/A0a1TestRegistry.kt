@@ -12,7 +12,7 @@
 package com.learnde.app.Learn.Test.A0a1
 
 import com.learnde.app.domain.model.FunctionDeclarationConfig
-import com.learnde.app.domain.model.ParamConfig
+import com.learnde.app.domain.model.ParameterConfig
 
 object A0a1TestRegistry {
 
@@ -50,9 +50,9 @@ object A0a1TestRegistry {
         name = FN_AWARD,
         description = AWARD_DESCRIPTION,
         parameters = mapOf(
-            "question_number" to ParamConfig("INTEGER", "Номер вопроса от 1 до 20"),
-            "points"          to ParamConfig("INTEGER", "Балл от 0 до 3"),
-            "reason"          to ParamConfig("STRING",  "Краткое обоснование оценки на русском")
+            "question_number" to ParameterConfig("INTEGER", "Номер вопроса от 1 до 20"),
+            "points"          to ParameterConfig("INTEGER", "Балл от 0 до 3"),
+            "reason"          to ParameterConfig("STRING",  "Краткое обоснование оценки на русском")
         )
     )
 
