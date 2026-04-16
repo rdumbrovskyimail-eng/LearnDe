@@ -101,10 +101,14 @@ fun AvatarScene(
             val patchedFile = File(ctx.cacheDir, "patched_model_base_$avatarIndex.glb")
             if (!patchedFile.exists()) {
                 val editorOutput = File(ctx.cacheDir, "patched_model.glb")
-                com.codeextractor.app.editor.GlbTextureEditor(ctx).preparePatchedModel(modelPath())
+                runCatching {
+                    com.codeextractor.app.editor.GlbTextureEditor(ctx).preparePatchedModel(modelPath())
+                }
                 if (editorOutput.exists()) editorOutput.renameTo(patchedFile)
             }
-            val bytes = patchedFile.readBytes()
+            // Fallback: если patched так и не создался — грузим оригинал из assets
+            val bytes: ByteArray = if (patchedFile.exists()) patchedFile.readBytes()
+                else ctx.assets.open(modelPath()).use { it.readBytes() }
             ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
         }
         modelInstance = modelLoader.createModelInstance(buffer)
