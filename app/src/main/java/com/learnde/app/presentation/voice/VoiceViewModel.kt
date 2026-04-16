@@ -527,6 +527,12 @@ class VoiceViewModel @Inject constructor(
                             logger.d("A0a1: sending start message to model")
                             liveClient.sendText("Начни тест.")
                             liveClient.sendTurnComplete()
+                            // Авто-старт микрофона: юзер сразу может отвечать голосом
+                            delay(300)
+                            if (liveClient.isReady && !_state.value.isMicActive) {
+                                logger.d("A0a1: auto-starting mic")
+                                startMic()
+                            }
                         }
                     }
 
