@@ -24,8 +24,8 @@ class AwardPointsTool @Inject constructor(
     override val description: String = A0a1TestRegistry.AWARD_DESCRIPTION
 
     override suspend fun execute(args: Map<String, String>): String {
-        val qn = args["question_number"]?.toIntOrNull()
-        val pts = args["points"]?.toIntOrNull()
+        val qn = args["question_number"]?.toDoubleOrNull()?.toInt()
+        val pts = args["points"]?.toDoubleOrNull()?.toInt()
         val reason = args["reason"].orEmpty()
 
         if (qn == null || qn !in 1..A0a1TestRegistry.TOTAL_QUESTIONS) {
