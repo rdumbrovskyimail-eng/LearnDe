@@ -164,12 +164,13 @@ fun A0a1TestScreen(
             Spacer(Modifier.height(16.dp))
 
             Text(
-                "Проходной балл для уровня A1 — ${state.threshold} из ${state.maxPoints}. " +
-                        "Говорите спокойно, преподаватель оценит каждый ответ.",
+                "Проходной балл для уровня A1 — ${state.threshold} из ${state.maxPoints}.\n" +
+                        "Микрофон включается автоматически — говорите, когда преподаватель задаст вопрос.",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 12.dp)
+                modifier = Modifier.padding(horizontal = 12.dp),
+                lineHeight = 18.sp
             )
 
             Spacer(Modifier.weight(1f))
