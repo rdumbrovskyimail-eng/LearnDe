@@ -1,7 +1,10 @@
-name: Rename Package codeextractor -> learnde
+name: Rename Package codeextractor to learnde
 
 on:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   rename:
@@ -9,6 +12,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Replace package name in all files
         run: |
@@ -28,7 +33,6 @@ jobs:
           DST="app/src/main/java/com/learnde"
           if [ -d "$SRC" ]; then
             mv "$SRC" "$DST"
-            echo "Renamed $SRC -> $DST"
           else
             echo "Folder $SRC not found!"
             exit 1
@@ -41,14 +45,13 @@ jobs:
             DST="app/src/$TEST_TYPE/java/com/learnde"
             if [ -d "$SRC" ]; then
               mv "$SRC" "$DST"
-              echo "Renamed $SRC -> $DST"
             fi
           done
 
-      - name: Commit and push changes
+      - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "refactor: rename package codeextractor -> learnde"
+          git diff --cached --quiet || git commit -m "refactor: rename package codeextractor to learnde"
           git push
