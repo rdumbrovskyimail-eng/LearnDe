@@ -1,3 +1,8 @@
+// ═══════════════════════════════════════════════════════════
+// ЗАМЕНА
+// Путь: app/src/main/java/com/codeextractor/app/data/AndroidAudioEngine.kt
+// Изменения: + updateJitterConfig() implementation
+// ═══════════════════════════════════════════════════════════
 package com.codeextractor.app.data
 
 import android.media.AudioAttributes
@@ -26,148 +31,103 @@ import java.nio.ByteOrder
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Реализация AudioEngine — запись микрофона + воспроизведение.
- * Перенесено из оригинального MainActivity: AudioRecord, AudioTrack, jitter buffer.
- */
 @Singleton
 class AndroidAudioEngine @Inject constructor(
     private val logger: AppLogger
 ) : AudioEngine {
 
-    companion object {
-        private const val PLAYBACK_QUEUE_CAPACITY = 256
-        private const val JITTER_PRE_BUFFER_CHUNKS = 3
-        private const val JITTER_TIMEOUT_MS = 150L
-    }
+    @Volatile private var playbackQueueCapacity = 256
+    @Volatile private var jitterPreBufferChunks = 3
+    @Volatile private var jitterTimeoutMs = 150L
 
     private val _micOutput = MutableSharedFlow<ByteArray>(
-        replay = 0,
-        extraBufferCapacity = 64,
+        replay = 0, extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     override val micOutput: Flow<ByteArray> = _micOutput.asSharedFlow()
 
     private val _playbackSync = MutableSharedFlow<ByteArray>(
-        replay = 0,
-        extraBufferCapacity = 64,
+        replay = 0, extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     override val playbackSync: Flow<ByteArray> = _playbackSync.asSharedFlow()
 
-    @Volatile
-    override var isCapturing: Boolean = false
-        private set
-
-    @Volatile
-    override var isPlaying: Boolean = false
-        private set
+    @Volatile override var isCapturing: Boolean = false; private set
+    @Volatile override var isPlaying: Boolean = false; private set
 
     private var audioRecord: AudioRecord? = null
     private var echoCanceler: AcousticEchoCanceler? = null
     private var audioTrack: AudioTrack? = null
+    private val playbackChannel = Channel<ByteArray>(256)
+    @Volatile private var isFirstBatch = true
+    @Volatile private var awaitingDrain = false
 
-    private val playbackChannel = Channel<ByteArray>(PLAYBACK_QUEUE_CAPACITY)
-
-    @Volatile
-    private var isFirstBatch = true
-
-    @Volatile
-    private var awaitingDrain = false
-
-    // ════════════════════════════════════════════════════════════
-    //  CAPTURE (микрофон)
-    // ════════════════════════════════════════════════════════════
+    override fun updateJitterConfig(preBufferChunks: Int, timeoutMs: Long, queueCapacity: Int) {
+        jitterPreBufferChunks = preBufferChunks.coerceIn(1, 10)
+        jitterTimeoutMs = timeoutMs.coerceIn(50L, 500L)
+        playbackQueueCapacity = queueCapacity.coerceIn(64, 512)
+        logger.d("Jitter config: preBuffer=$jitterPreBufferChunks, timeout=${jitterTimeoutMs}ms")
+    }
 
     @Suppress("MissingPermission")
     override suspend fun startCapture() {
         if (isCapturing) return
-
         withContext(Dispatchers.IO) {
             val sampleRate = SessionConfig.INPUT_SAMPLE_RATE
             val minBuf = AudioRecord.getMinBufferSize(
                 sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
             )
             if (minBuf == AudioRecord.ERROR || minBuf == AudioRecord.ERROR_BAD_VALUE) {
-                logger.e("AudioRecord.getMinBufferSize failed: $minBuf")
-                return@withContext
+                logger.e("AudioRecord.getMinBufferSize failed: $minBuf"); return@withContext
             }
-
             try {
                 val recorder = AudioRecord(
-                    MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                    sampleRate,
-                    AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT,
-                    minBuf * 2
+                    MediaRecorder.AudioSource.VOICE_COMMUNICATION, sampleRate,
+                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minBuf * 2
                 )
                 if (recorder.state != AudioRecord.STATE_INITIALIZED) {
-                    logger.e("AudioRecord init failed")
-                    recorder.release()
-                    return@withContext
+                    logger.e("AudioRecord init failed"); recorder.release(); return@withContext
                 }
-
-                // AEC
                 if (AcousticEchoCanceler.isAvailable()) {
                     try {
                         echoCanceler = AcousticEchoCanceler.create(recorder.audioSessionId)?.apply {
                             enabled = true
-                            logger.d("AEC enabled (sessionId=${recorder.audioSessionId})")
                         }
-                    } catch (e: Exception) {
-                        logger.e("AEC init error: ${e.message}")
-                    }
+                    } catch (e: Exception) { logger.e("AEC init error: ${e.message}") }
                 }
-
                 recorder.startRecording()
                 audioRecord = recorder
                 isCapturing = true
-                logger.d("🎙 Recording started (buf=$minBuf, rate=$sampleRate)")
-
-                // Цикл чтения — coroutineScope для структурированной отмены
+                logger.d("Recording started (rate=$sampleRate)")
                 coroutineScope {
                     launch {
                         val buffer = ShortArray(minBuf)
                         val byteBuffer = ByteBuffer.allocate(minBuf * 2).order(ByteOrder.LITTLE_ENDIAN)
                         val rawBytes = byteBuffer.array()
-
                         while (isActive && isCapturing) {
                             val read = recorder.read(buffer, 0, buffer.size)
                             if (read > 0) {
                                 byteBuffer.clear()
                                 byteBuffer.asShortBuffer().put(buffer, 0, read)
-                                val chunk = rawBytes.copyOf(read * 2)
-                                _micOutput.tryEmit(chunk)
+                                _micOutput.tryEmit(rawBytes.copyOf(read * 2))
                             }
                         }
                     }
                 }
-            } catch (e: SecurityException) {
-                logger.e("SECURITY: ${e.message}")
-            } catch (e: Exception) {
-                logger.e("AUDIO CAPTURE ERROR: ${e.message}", e)
-            }
+            } catch (e: SecurityException) { logger.e("SECURITY: ${e.message}")
+            } catch (e: Exception) { logger.e("CAPTURE ERROR: ${e.message}", e) }
         }
     }
 
     override suspend fun stopCapture() {
         isCapturing = false
         withContext(Dispatchers.IO) {
-            echoCanceler?.let {
-                runCatching { it.enabled = false; it.release() }
-            }
+            echoCanceler?.let { runCatching { it.enabled = false; it.release() } }
             echoCanceler = null
-            audioRecord?.let {
-                runCatching { it.stop(); it.release() }
-            }
+            audioRecord?.let { runCatching { it.stop(); it.release() } }
             audioRecord = null
-            logger.d("🎙 Recording stopped")
         }
     }
-
-    // ════════════════════════════════════════════════════════════
-    //  PLAYBACK (динамик)
-    // ════════════════════════════════════════════════════════════
 
     override suspend fun initPlayback() {
         withContext(Dispatchers.IO) {
@@ -176,45 +136,30 @@ class AndroidAudioEngine @Inject constructor(
                 sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
             )
             if (minBuf == AudioTrack.ERROR || minBuf == AudioTrack.ERROR_BAD_VALUE) {
-                logger.e("⚠ Device does not support ${sampleRate}Hz output!")
-                return@withContext
+                logger.e("Device does not support ${sampleRate}Hz!"); return@withContext
             }
-
             val track = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .build()
-                )
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(sampleRate)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                        .build()
-                )
+                .setAudioAttributes(AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
                 .setTransferMode(AudioTrack.MODE_STREAM)
-                .setBufferSizeInBytes(minBuf * 2)
-                .build()
-
+                .setBufferSizeInBytes(minBuf * 2).build()
             audioTrack = track
             track.play()
             isPlaying = true
-            logger.d("Speaker ready (rate=$sampleRate, minBuf=$minBuf)")
-
-            // Playback loop
+            logger.d("Speaker ready (rate=$sampleRate)")
             launch {
                 for (chunk in playbackChannel) {
                     if (!isActive) break
-
                     if (isFirstBatch) {
                         val preBuffer = mutableListOf(chunk)
-                        repeat(JITTER_PRE_BUFFER_CHUNKS - 1) {
+                        repeat(jitterPreBufferChunks - 1) {
                             try {
-                                val next = withTimeoutOrNull(JITTER_TIMEOUT_MS) {
-                                    playbackChannel.receive()
-                                }
+                                val next = withTimeoutOrNull(jitterTimeoutMs) { playbackChannel.receive() }
                                 if (next != null) preBuffer.add(next)
                             } catch (_: ClosedReceiveChannelException) { return@repeat }
                             catch (_: Exception) { return@repeat }
@@ -224,16 +169,12 @@ class AndroidAudioEngine @Inject constructor(
                             track.write(buffered, 0, buffered.size)
                         }
                         isFirstBatch = false
-                        logger.d("Jitter pre-buffer: ${preBuffer.size} chunks")
                     } else {
                         _playbackSync.tryEmit(chunk)
                         track.write(chunk, 0, chunk.size)
                     }
-
                     if (awaitingDrain && playbackChannel.isEmpty) {
-                        logger.d("⏹ Playback drained")
-                        awaitingDrain = false
-                        isFirstBatch = true
+                        awaitingDrain = false; isFirstBatch = true
                     }
                 }
             }
@@ -244,36 +185,23 @@ class AndroidAudioEngine @Inject constructor(
         awaitingDrain = false
         val result = playbackChannel.trySend(pcmData)
         if (result.isFailure) {
-            logger.w("Playback queue full — dropping oldest")
             playbackChannel.tryReceive()
             playbackChannel.trySend(pcmData)
         }
     }
 
     override suspend fun flushPlayback() {
-        while (playbackChannel.tryReceive().isSuccess) { /* drain */ }
-        isFirstBatch = true
-        awaitingDrain = false
-        audioTrack?.apply {
-            pause()
-            flush()
-            play()
-        }
-        logger.d("⚡ Playback flushed (barge-in)")
+        while (playbackChannel.tryReceive().isSuccess) { }
+        isFirstBatch = true; awaitingDrain = false
+        audioTrack?.apply { pause(); flush(); play() }
     }
 
-    override suspend fun onTurnComplete() {
-        awaitingDrain = true
-    }
+    override suspend fun onTurnComplete() { awaitingDrain = true }
 
     override suspend fun releaseAll() {
         stopCapture()
         playbackChannel.close()
-        audioTrack?.let {
-            runCatching { it.stop(); it.release() }
-        }
-        audioTrack = null
-        isPlaying = false
-        logger.d("Audio engine released")
+        audioTrack?.let { runCatching { it.stop(); it.release() } }
+        audioTrack = null; isPlaying = false
     }
 }
