@@ -18,6 +18,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.learnde.app.Learn.Test.A0a1.A0a1TestScreen
 import com.learnde.app.presentation.editor.ModelEditorScreen
 import com.learnde.app.presentation.functions.FunctionsTestScreen
 import com.learnde.app.presentation.settings.SettingsScreen
@@ -28,6 +29,7 @@ object Routes {
     const val VOICE     = "voice"
     const val EDITOR    = "editor"
     const val FUNCTIONS = "functions"
+    const val TEST_A0A1 = "test_a0a1"
 }
 
 object VoiceGender {
@@ -84,6 +86,9 @@ fun AppNavGraph(
                 },
                 onOpenFunctions = {
                     navController.navigate(Routes.FUNCTIONS) { launchSingleTop = true }
+                },
+                onOpenA0a1Test   = {
+                    navController.navigate(Routes.TEST_A0A1) { launchSingleTop = true }
                 }
             )
         }
@@ -102,6 +107,14 @@ fun AppNavGraph(
             exitTransition  = { fadeOut(tween(200)) },
         ) {
             FunctionsTestScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Routes.TEST_A0A1,
+            enterTransition = { fadeIn(tween(250)) },
+            exitTransition  = { fadeOut(tween(200)) },
+        ) {
+            A0a1TestScreen(onBack = { navController.popBackStack() })
         }
     }
 }
