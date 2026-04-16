@@ -31,4 +31,7 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindConversationRepository(impl: PersistentConversationRepository): ConversationRepository
+
+    // BackgroundImageStore и FunctionsEventBus используют @Singleton + @Inject constructor,
+    // поэтому Hilt сам их регистрирует без @Provides. Дополнительная конфигурация не нужна.
 }
