@@ -74,6 +74,19 @@ class AndroidAudioEngine @Inject constructor(
         logger.d("Jitter config: preBuffer=$jitterPreBufferChunks, timeout=${jitterTimeoutMs}ms")
     }
 
+    override fun setPlaybackVolume(gain: Float) {
+        playbackGain = gain.coerceIn(0f, 1f)
+        runCatching { audioTrack?.setVolume(playbackGain) }
+    }
+
+    override fun setMicGain(gain: Float) {
+        micGain = gain.coerceIn(0.5f, 2.0f)
+    }
+
+    override fun setSpeakerRouting(forceSpeaker: Boolean) {
+        forceSpeakerOutput = forceSpeaker
+    }
+
     @Suppress("MissingPermission")
     override suspend fun startCapture() {
         if (isCapturing) return
