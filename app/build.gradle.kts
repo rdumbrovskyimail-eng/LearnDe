@@ -1,3 +1,8 @@
+// ═══════════════════════════════════════════════════════════
+// ЗАМЕНА
+// Путь: app/build.gradle.kts
+// Изменения: + Room (runtime, ktx, compiler via ksp)
+// ═══════════════════════════════════════════════════════════
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -93,6 +98,12 @@ dependencies {
     ksp("com.google.dagger:hilt-android-compiler:2.59.2")
     implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
 
+    // ====================== ROOM ======================
+    val roomVersion = "2.7.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
+
     // Network
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
 
@@ -107,6 +118,5 @@ dependencies {
     implementation("com.jakewharton.timber:timber:5.0.1")
 
     // ====================== SCENEVIEW ======================
-    // arsceneview включает sceneview — используем SceneView (не ARSceneView)
     implementation("io.github.sceneview:arsceneview:3.5.2")
 }
