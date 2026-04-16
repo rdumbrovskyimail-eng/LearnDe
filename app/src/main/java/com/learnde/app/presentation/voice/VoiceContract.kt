@@ -72,7 +72,8 @@ data class VoiceState(
     val chatShowRoleLabels: Boolean           = true,
     val chatShowTimestamps: Boolean           = false,
     val chatAutoScroll: Boolean               = true,
-    val chatBackgroundAlpha: Int              = 30
+    val chatBackgroundAlpha: Int              = 30,
+    val a0a1TestActive: Boolean               = false
 )
 
 enum class ConnectionStatus(val label: String) {
