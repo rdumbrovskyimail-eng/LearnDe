@@ -45,8 +45,11 @@ class DeviceStatusTool @Inject constructor(
     override val name = "get_device_status"
     override val description = "Возвращает уровень заряда батареи и статус устройства"
     override suspend fun execute(args: Map<String, String>): String {
-        val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let {
-            context.registerReceiver(null, it)
+        val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { filter ->
+            androidx.core.content.ContextCompat.registerReceiver(
+                context, null, filter,
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+            )
         }
         val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
