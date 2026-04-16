@@ -61,8 +61,15 @@ class VoiceViewModel @Inject constructor(
     private val toolRegistry: ToolRegistry,
     private val hapticEngine: HapticEngine,
     private val networkMonitor: NetworkMonitor,
-    val avatarAnimator: AvatarAnimator
+    val avatarAnimator: AvatarAnimator,
+    private val backgroundStore: com.codeextractor.app.data.BackgroundImageStore
 ) : ViewModel() {
+
+    /** Поток PCM-чанков модели для AudioVisualizerScene. */
+    val audioPlaybackFlow get() = audioEngine.playbackSync
+
+    /** Загруженный пользователем PNG-фон (null = нет). */
+    val backgroundBitmap = backgroundStore.bitmap
 
     private val _state = MutableStateFlow(VoiceState())
     val state: StateFlow<VoiceState> = _state.asStateFlow()
