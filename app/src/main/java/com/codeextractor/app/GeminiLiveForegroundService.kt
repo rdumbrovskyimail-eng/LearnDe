@@ -117,14 +117,15 @@ class GeminiLiveForegroundService : Service() {
     }
 
     private fun releaseBluetoothSco() {
-        if (bluetoothScoActive) {
-            audioManager?.let {
-                it.stopBluetoothSco()
+        audioManager?.let {
+            if (bluetoothScoActive) {
+                runCatching { it.stopBluetoothSco() }
                 it.isBluetoothScoOn = false
-                it.mode = AudioManager.MODE_NORMAL
             }
-            bluetoothScoActive = false
+            it.isSpeakerphoneOn = false
+            it.mode = AudioManager.MODE_NORMAL
         }
+        bluetoothScoActive = false
     }
 
     // ════════════════════════════════════════════════════════════
