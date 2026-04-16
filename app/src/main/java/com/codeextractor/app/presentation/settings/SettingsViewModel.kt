@@ -86,6 +86,12 @@ class SettingsViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        saveJob?.cancel()
+        // Flush pending debounce перед уничтожением ViewModel
+        if (saveJob?.isActive == true) {
+            saveJob?.cancel()
+            kotlinx.coroutines.runBlocking {
+                runCatching { settingsStore.updateData { _uiState.value } }
+            }
+        }
     }
 }
