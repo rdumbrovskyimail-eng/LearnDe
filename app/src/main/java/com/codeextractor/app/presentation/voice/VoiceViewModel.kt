@@ -99,14 +99,13 @@ class VoiceViewModel @Inject constructor(
 
     fun onIntent(intent: VoiceIntent) {
         when (intent) {
-            is VoiceIntent.SubmitApiKey         -> handleSubmitApiKey(intent.key)
-            is VoiceIntent.Connect              -> handleConnect()
-            is VoiceIntent.Disconnect           -> handleDisconnect()
-            is VoiceIntent.ToggleMic            -> handleToggleMic()
-            is VoiceIntent.SendText             -> handleSendText(intent.text)
-            is VoiceIntent.SaveLog              -> handleSaveLog()
-            is VoiceIntent.ClearConversation    -> handleClearConversation()
-
+            is VoiceIntent.SubmitApiKey          -> handleSubmitApiKey(intent.key)
+            is VoiceIntent.Connect               -> handleConnect()
+            is VoiceIntent.Disconnect            -> handleDisconnect()
+            is VoiceIntent.ToggleMic             -> handleToggleMic()
+            is VoiceIntent.SendText              -> handleSendText(intent.text)
+            is VoiceIntent.SaveLog               -> handleSaveLog()
+            is VoiceIntent.ClearConversation     -> handleClearConversation()
             is VoiceIntent.ToggleFullscreenScene -> _state.update {
                 it.copy(isSceneFullscreen = !it.isSceneFullscreen)
             }
