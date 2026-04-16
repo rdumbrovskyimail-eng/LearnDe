@@ -273,10 +273,12 @@ class VoiceViewModel @Inject constructor(
             return
         }
 
-        try {
-            appContext.startForegroundService(GeminiLiveForegroundService.startIntent(appContext))
-        } catch (e: Exception) {
-            logger.w("ForegroundService start failed: ${e.message}")
+        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                appContext.startForegroundService(GeminiLiveForegroundService.startIntent(appContext))
+            } catch (e: Exception) {
+                logger.w("ForegroundService start failed: ${e.message}")
+            }
         }
 
         viewModelScope.launch {
