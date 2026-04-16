@@ -36,19 +36,10 @@ class FunctionsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            // ═══ FIX: skip replay'нутое событие (если оно устарело > 3 сек) ═══
-            val subscribedAt = System.currentTimeMillis()
-            bus.executed.collect { fn ->
-                val ageMs = System.currentTimeMillis() - subscribedAt
-                // Событие не должно воспроизводиться повторно при перевходе
-                // на экран. Replay от SharedFlow — только для case'а
-                // «функция вызвана буквально только что, экран открывается».
-                if (ageMs < 1500) {
-                    // Этот первый collect — замороженный replay из прошлого,
-                    // НЕ анимируем повторно.
-                    return@collect
+            bus.lastExecuted.collect { fn ->
+                if (fn != null) {
+                    onFunctionExecuted(fn)
                 }
-                onFunctionExecuted(fn)
             }
         }
     }
