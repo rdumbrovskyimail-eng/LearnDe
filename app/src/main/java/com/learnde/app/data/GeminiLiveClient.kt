@@ -287,7 +287,7 @@ class GeminiLiveClient @Inject constructor(
                                             put("description", decl.description)
                                             if (decl.parameters.isNotEmpty()) {
                                                 put("parameters", buildJsonObject {
-                                                    put("type", "OBJECT")
+                                                    put("type", "object")
                                                     put("properties", buildJsonObject {
                                                         for ((pName, pConfig) in decl.parameters) {
                                                             put(pName, buildJsonObject {
