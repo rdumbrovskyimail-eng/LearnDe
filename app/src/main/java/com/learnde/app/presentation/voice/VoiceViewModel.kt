@@ -46,7 +46,6 @@ import com.learnde.app.domain.tools.ToolRegistry
 import com.learnde.app.learn.core.ActiveClientArbiter
 import com.learnde.app.learn.core.ClientOwner
 import com.learnde.app.learn.core.LearnSession
-import com.learnde.app.learn.core.LearnSessionController
 import com.learnde.app.presentation.voice.haptics.HapticEngine
 import com.learnde.app.util.AppLogger
 import com.learnde.app.util.UiText
@@ -84,8 +83,7 @@ class VoiceViewModel @Inject constructor(
     private val networkMonitor: NetworkMonitor,
     val avatarAnimator: AvatarAnimator,
     private val backgroundStore: BackgroundImageStore,
-    private val arbiter: ActiveClientArbiter,
-    private val learnController: LearnSessionController
+    private val arbiter: ActiveClientArbiter
 ) : ViewModel() {
 
     val audioPlaybackFlow get() = audioEngine.playbackSync
@@ -661,13 +659,11 @@ class VoiceViewModel @Inject constructor(
         for (call in event.calls) pendingToolCalls.add(call.id)
 
         val responses = mutableListOf<ToolResponse>()
-        val session = activeLearnSession
 
         for (call in event.calls) {
             if (call.id !in pendingToolCalls) continue
 
-            val sessionResult = session?.let { runCatching { it.handleToolCall(call) }.getOrNull() }
-            val result = sessionResult ?: toolRegistry.dispatch(call)
+            val result = toolRegistry.dispatch(call)
 
             pendingToolCalls.remove(call.id)
             responses.add(ToolResponse(call.name, call.id, result))
