@@ -82,6 +82,12 @@ class LearnCoreViewModel @Inject constructor(
     private val _effects = MutableSharedFlow<LearnCoreEffect>(extraBufferCapacity = 8)
     val effects: SharedFlow<LearnCoreEffect> = _effects.asSharedFlow()
 
+    /**
+     * Live-статус выполняемой функции Gemini — проксируется из LearnFunctionStatusBus.
+     * Используется UI (CurrentFunctionBar) на всех экранах Learn-блока.
+     */
+    val functionStatus: StateFlow<FunctionStatus> = statusBus.status
+
     @Volatile private var cachedSettings: AppSettings = AppSettings()
     @Volatile private var activeApiKey: String = ""
     @Volatile private var activeSession: LearnSession? = null
