@@ -22,7 +22,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          cache-disabled: false
+          cache-enabled: true
           cache-read-only: false
           gradle-home-cache-includes: |
             caches
@@ -31,19 +31,9 @@ jobs:
           gradle-home-cache-excludes: |
             caches/build-cache-1
 
-      - name: Regenerate Gradle wrapper
-        run: |
-          # Скачиваем Gradle 8.13 напрямую с официального сайта
-          curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.13-bin.zip
-          unzip -q /tmp/gradle.zip -d /tmp/
-          # Используем его для генерации wrapper с правильным jar
-          /tmp/gradle-8.13/bin/gradle wrapper --gradle-version 8.13 --distribution-type bin
-          chmod +x gradlew
-          ls -la gradle/wrapper/
-
       - name: Build Debug APK
         run: |
-          ./gradlew assembleDebug \
+          gradle assembleDebug \
             --no-build-cache \
             --no-configuration-cache \
             --parallel \
