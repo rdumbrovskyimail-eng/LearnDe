@@ -252,7 +252,10 @@ class VoiceViewModel @Inject constructor(
     private fun buildA0a1SessionConfig(): SessionConfig {
         val base = buildSessionConfig()
         val testDecls = toolRegistry.getFunctionDeclarationConfigs().filter { decl ->
-            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD ||
+            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD_0 ||
+            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD_1 ||
+            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD_2 ||
+            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD_3 ||
             decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_FINISH
         }
         return base.copy(
