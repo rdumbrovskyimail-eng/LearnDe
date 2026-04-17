@@ -12,6 +12,11 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
+/**
+ * Learn-специфичные инстансы LiveClient и AudioEngine.
+ * Используются в LearnCoreViewModel через @LearnScope.
+ * Полностью изолированы от Voice-инстансов (@VoiceScope).
+ */
 @Module
 @InstallIn(SingletonComponent::class)
 object LearnModule {
