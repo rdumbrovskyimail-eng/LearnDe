@@ -62,7 +62,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -188,10 +187,8 @@ class VoiceViewModel @Inject constructor(
     private fun observeLearnSessions() {
         // [5.2] Простая distinctUntilChanged-подписка.
         viewModelScope.launch {
-            learnController.active
-                .distinctUntilChanged()
-                .collect { session ->
-                    logger.d("observeLearnSessions: active → ${session?.id ?: "null"}")
+            learnController.active.collect { session ->
+                logger.d("observeLearnSessions: active → ${session?.id ?: "null"}")
                     modeSwitchMutex.withLock {
                         activeLearnSession = session
                         if (session != null) {
