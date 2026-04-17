@@ -31,8 +31,15 @@ jobs:
           gradle-home-cache-excludes: |
             caches/build-cache-1
 
-      - name: Make gradlew executable
-        run: chmod +x gradlew
+      - name: Setup Gradle wrapper
+        run: |
+          mkdir -p gradle/wrapper
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "gradle-wrapper.jar missing — downloading…"
+            curl -sSL -o gradle/wrapper/gradle-wrapper.jar \
+              https://raw.githubusercontent.com/gradle/gradle/v8.13.0/gradle/wrapper/gradle-wrapper.jar
+          fi
+          chmod +x gradlew
 
       - name: Build Debug APK
         run: |
