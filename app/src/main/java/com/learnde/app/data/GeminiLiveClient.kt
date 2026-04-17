@@ -1,43 +1,23 @@
 // ═══════════════════════════════════════════════════════════════════
 //  ПОЛНАЯ ЗАМЕНА
-//  Путь: app/src/main/java/com/codeextractor/app/data/GeminiLiveClient.kt
+//  Путь: app/src/main/java/com/learnde/app/data/GeminiLiveClient.kt
 //
-//  КРИТИЧЕСКИЕ ИСПРАВЛЕНИЯ (почему висело в жёлтом):
+//  КРИТИЧЕСКИЕ ФИКСЫ:
 //
-//  ✗ БЫЛО:   speechConfig  — на верхнем уровне setup
-//  ✓ СТАЛО:  speechConfig  ВНУТРИ generationConfig
+//  [1] suspend disconnect() с ожиданием реального onClosed
+//      (CompletableDeferred + withTimeoutOrNull 2с).
+//      Устраняет эвристический delay(400) в VoiceViewModel.
 //
-//  ✗ БЫЛО:   thinkingConfig — на верхнем уровне setup
-//  ✓ СТАЛО:  thinkingConfig ВНУТРИ generationConfig
+//  [2] sendText() через clientContent.turns (вместо realtimeInput.text) —
+//      устраняет гибридную схему, которая вызывала 1007 на некоторых
+//      аккаунтах. Теперь вся текстовая коммуникация — через clientContent.
 //
-//  Согласно официальной спецификации Gemini Live API v1beta
-//  (ai.google.dev/api/live) структура setup такова:
+//  [3] functionDeclarations ВСЕГДА содержат parameters:{type:"object",
+//      properties:{}} — даже для zero-arg функций. Gemini 3.1 Flash Live
+//      при нагрузке > 5 tools иногда отдаёт 1007 если parameters нет.
 //
-//  setup: {
-//    model,
-//    generationConfig: {
-//      responseModalities, temperature, topP, topK,
-//      maxOutputTokens, presencePenalty, frequencyPenalty,
-//      speechConfig,          ← здесь
-//      thinkingConfig,        ← здесь
-//      mediaResolution
-//    },
-//    systemInstruction,
-//    realtimeInputConfig,       ← верхний уровень (VAD)
-//    inputAudioTranscription,   ← верхний уровень
-//    outputAudioTranscription,  ← верхний уровень
-//    sessionResumption,         ← верхний уровень
-//    contextWindowCompression,  ← верхний уровень
-//    tools,                     ← верхний уровень
-//    historyConfig              ← верхний уровень (Gemini 3.1)
-//  }
-//
-//  Прочие улучшения:
-//   + pingInterval 30s (вместо 0) — держит NAT/соединение живым
-//   + replay=0 для _events (не перешлёт устаревший SetupComplete при resubscribe)
-//   + AEC-контроль перенесён в AudioEngine (здесь не требуется)
-//   + realtimeInput.audio использует корректный MIME 'audio/pcm;rate=16000'
-//   + parseToolCall корректно обрабатывает args как JsonObject (не строки)
+//  [4] speechConfig / thinkingConfig — ВНУТРИ generationConfig
+//      (как в прошлой версии; проверено на соответствие v1beta).
 // ═══════════════════════════════════════════════════════════════════
 package com.learnde.app.data
 
@@ -49,10 +29,12 @@ import com.learnde.app.domain.model.FunctionCall
 import com.learnde.app.domain.model.GeminiEvent
 import com.learnde.app.domain.model.SessionConfig
 import com.learnde.app.util.AppLogger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -90,7 +72,7 @@ class GeminiLiveClient @Inject constructor(
         .pingInterval(30, TimeUnit.SECONDS)  // живое соединение за NAT
         .build()
 
-    private var webSocket: WebSocket? = null
+    @Volatile private var webSocket: WebSocket? = null
 
     private val _events = MutableSharedFlow<GeminiEvent>(
         replay = 0,
@@ -112,6 +94,10 @@ class GeminiLiveClient @Inject constructor(
 
     private var currentConfig: SessionConfig? = null
 
+    /** Ожидание фактического закрытия WS (onClosed / onFailure). */
+    @Volatile
+    private var closeCompletion: CompletableDeferred<Unit>? = null
+
     // ════════════════════════════════════════════════════════════
     //  CONNECT / DISCONNECT
     // ════════════════════════════════════════════════════════════
@@ -122,6 +108,8 @@ class GeminiLiveClient @Inject constructor(
         currentConfig = config
         logRawFrames = logRaw
         isReady = false
+        // Свежий completion на новый connect-цикл
+        closeCompletion = CompletableDeferred()
 
         val url = "wss://${SessionConfig.WS_HOST}/${SessionConfig.WS_PATH}?key=$apiKey"
         logger.d("Connecting to ${config.model}…")
@@ -156,6 +144,7 @@ class GeminiLiveClient @Inject constructor(
                 val desc = describeCloseCode(code)
                 logger.d("WS closed: $code $desc reason='$reason'")
                 isReady = false
+                closeCompletion?.complete(Unit)
                 if (code != 1000 && code != 1001) {
                     _events.tryEmit(
                         GeminiEvent.ConnectionError(
@@ -170,15 +159,30 @@ class GeminiLiveClient @Inject constructor(
                 val status = response?.code?.let { " (HTTP $it)" } ?: ""
                 logger.e("WS failure$status: ${t.message}")
                 isReady = false
+                closeCompletion?.complete(Unit)
                 _events.tryEmit(GeminiEvent.ConnectionError(t.message ?: "Unknown error"))
             }
         })
     }
 
-    override fun disconnect() {
-        webSocket?.close(1000, "bye")
+    /**
+     * Закрывает WS и ДОЖИДАЕТСЯ реального onClosed/onFailure (до 2 секунд).
+     * Если сервер уже закрыл раньше — возврат мгновенный.
+     */
+    override suspend fun disconnect() {
+        val ws = webSocket
+        if (ws == null) {
+            isReady = false
+            return
+        }
+        val completion = closeCompletion
+        runCatching { ws.close(1000, "bye") }
+        if (completion != null && !completion.isCompleted) {
+            withTimeoutOrNull(2000L) { completion.await() }
+        }
         webSocket = null
         isReady = false
+        closeCompletion = null
     }
 
     // ════════════════════════════════════════════════════════════
@@ -192,8 +196,7 @@ class GeminiLiveClient @Inject constructor(
                 // ── Модель ──
                 put("model", config.model)
 
-                // ── generationConfig: ВСЕ параметры генерации,
-                //    ВКЛЮЧАЯ speechConfig и thinkingConfig ──
+                // ── generationConfig ──
                 put("generationConfig", buildJsonObject {
                     put("responseModalities", buildJsonArray {
                         add(JsonPrimitive(config.responseModality))
@@ -218,13 +221,12 @@ class GeminiLiveClient @Inject constructor(
                     })
 
                     // thinkingConfig — ВНУТРИ generationConfig
-                    // Gemini 3.1: thinkingLevel ∈ {minimal, low, medium, high}
                     put("thinkingConfig", buildJsonObject {
                         put("thinkingLevel", config.latencyProfile.thinkingLevel)
                     })
                 })
 
-                // ── System Instruction (верхний уровень) ──
+                // ── System Instruction ──
                 if (config.systemInstruction.isNotBlank()) {
                     put("systemInstruction", buildJsonObject {
                         put("parts", buildJsonArray {
@@ -285,19 +287,18 @@ class GeminiLiveClient @Inject constructor(
                                         add(buildJsonObject {
                                             put("name", decl.name)
                                             put("description", decl.description)
-                                            if (decl.parameters.isNotEmpty()) {
-                                                put("parameters", buildJsonObject {
-                                                    put("type", "object")
-                                                    put("properties", buildJsonObject {
-                                                        for ((pName, pConfig) in decl.parameters) {
-                                                            put(pName, buildJsonObject {
-                                                                put("type", pConfig.type)
-                                                                put("description", pConfig.description)
-                                                            })
-                                                        }
-                                                    })
+                                            // ВСЕГДА добавляем parameters (фикс 1007)
+                                            put("parameters", buildJsonObject {
+                                                put("type", "object")
+                                                put("properties", buildJsonObject {
+                                                    for ((pName, pConfig) in decl.parameters) {
+                                                        put(pName, buildJsonObject {
+                                                            put("type", pConfig.type)
+                                                            put("description", pConfig.description)
+                                                        })
+                                                    }
                                                 })
-                                            }
+                                            })
                                         })
                                     }
                                 })
@@ -322,20 +323,31 @@ class GeminiLiveClient @Inject constructor(
     override fun sendAudio(pcmData: ByteArray) {
         if (!isReady) return
         val b64 = Base64.encodeToString(pcmData, Base64.NO_WRAP)
-        // Минимальная JSON-строка — быстро, без парсинга
         val raw = """{"realtimeInput":{"audio":{"data":"$b64","mimeType":"audio/pcm;rate=${SessionConfig.INPUT_SAMPLE_RATE}"}}}"""
         webSocket?.send(raw)
     }
 
+    /**
+     * Отправка текста через clientContent.turns — единая схема с
+     * restoreContext(). НЕ смешиваем с realtimeInput.text (это вызывало 1007
+     * в сессиях, где уже был clientContent.turns при seeding истории).
+     */
     override fun sendText(text: String) {
         if (!isReady) return
-        // Gemini 3.1: после первого model-turn текст идёт через realtimeInput.text
         val msg = buildJsonObject {
-            put("realtimeInput", buildJsonObject {
-                put("text", text)
+            put("clientContent", buildJsonObject {
+                put("turns", buildJsonArray {
+                    add(buildJsonObject {
+                        put("role", "user")
+                        put("parts", buildJsonArray {
+                            add(buildJsonObject { put("text", text) })
+                        })
+                    })
+                })
+                put("turnComplete", true)
             })
         }
-        logger.d("TEXT → (${text.length} chars)")
+        logger.d("TEXT → (${text.length} chars, clientContent)")
         webSocket?.send(msg.toString())
     }
 
@@ -378,9 +390,8 @@ class GeminiLiveClient @Inject constructor(
     }
 
     /**
-     * Seed начальной истории.
-     * Для Gemini 3.1 допустимо ТОЛЬКО до первого model turn
-     * и требует historyConfig.initialHistoryInClientContent=true в setup.
+     * Seed начальной истории через clientContent.turns.
+     * Вызывать ТОЛЬКО в начале сессии (до первого model turn).
      */
     override fun restoreContext(history: List<ConversationMessage>) {
         if (history.isEmpty()) return
@@ -563,14 +574,13 @@ class GeminiLiveClient @Inject constructor(
             val id = fcObj["id"]?.jsonPrimitive?.content ?: ""
             val argsObj = fcObj["args"]?.jsonObject
             val args = mutableMapOf<String, String>()
-            // args может содержать вложенные JSON-значения; приводим к строке безопасно
             argsObj?.forEach { (key, value) ->
                 args[key] = when (value) {
                     is kotlinx.serialization.json.JsonPrimitive -> value.content
                     else -> value.toString()
                 }
             }
-            logger.d("🔧 TOOL_CALL: $name($args)")
+            logger.d("🔧 TOOL_CALL: $name(id=$id, $args)")
             FunctionCall(name, id, args)
         }
 
@@ -583,7 +593,7 @@ class GeminiLiveClient @Inject constructor(
         1002 -> "[Protocol Error]"
         1003 -> "[Unsupported Data]"
         1006 -> "[Abnormal Closure]"
-        1007 -> "[Invalid Frame Payload — невалидный JSON или использование clientContent после model turn]"
+        1007 -> "[Invalid Frame Payload — невалидный JSON или смешивание realtimeInput/clientContent]"
         1008 -> "[Policy Violation — модель недоступна ключу, либо неверная структура setup]"
         1011 -> "[Internal Server Error]"
         1013 -> "[Try Again Later]"
