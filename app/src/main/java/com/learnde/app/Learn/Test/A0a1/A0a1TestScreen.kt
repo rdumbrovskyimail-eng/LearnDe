@@ -1,29 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/Learn/Test/A0a1/A0a1TestScreen.kt
 //
-// Экран теста A0-A1 по немецкому языку.
-//
-// СТРУКТУРА:
-//   ┌──────────────────────────────────────────────┐
-//   │  ← Тест A0-A1 · Deutsch                      │  TopBar
-//   ├──────────────────────────────────────────────┤
-//   │                                              │
-//   │            ╭───────────╮                     │
-//   │        ╱                 ╲                   │
-//   │       │   СТРЕЛКА + 24   │                   │  Полукруглый
-//   │        ╲                 ╱                   │  циферблат 0..60
-//   │            ╰───────────╯                     │
-//   │         0                   60               │
-//   │                                              │
-//   │   Вопрос 7 / 20              [▮▮▮▮▮──]       │
-//   │   Проходной балл для A1 — 45                 │
-//   │                                              │
-//   │   [+3] Вопрос 7 оценён · уверенный ответ      │  fly-in
-//   │                                              │
-//   └──────────────────────────────────────────────┘
-//
-//   По finish_test (или фолбэк-таймеру) — модалка с вердиктом A0 / A1.
+// Обновлено под упрощённый state:
+//   • lastPoints + lastQuestionIndex вместо PointsAwarded
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.Learn.Test.A0a1
 
@@ -103,7 +83,6 @@ fun A0a1TestScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // Единая функция выхода: сигналим шине и возвращаемся назад.
     val exitAndBack: () -> Unit = {
         viewModel.signalExit()
         onBack()
@@ -175,7 +154,10 @@ fun A0a1TestScreen(
 
             Spacer(Modifier.weight(1f))
 
-            LastAwardCard(award = state.lastAward)
+            LastAwardCard(
+                points = state.lastPoints,
+                questionIndex = state.lastQuestionIndex
+            )
 
             Spacer(Modifier.height(24.dp))
         }
@@ -211,7 +193,6 @@ private fun ScoreGauge(
     val progress = (animated / maxScore).coerceIn(0f, 1f)
     val displayInt = animated.toInt().coerceIn(0, maxScore)
 
-    // Пульс на крупном числе при росте
     val numberPulse = remember { Animatable(1f) }
     var lastScore by remember { mutableIntStateOf(score) }
     LaunchedEffect(score) {
@@ -248,7 +229,6 @@ private fun ScoreGauge(
             val arcSize = Size(w - pad * 2f, (h - pad) * 2f)
             val arcTopLeft = Offset(pad, pad)
 
-            // 1. Фон-трек
             drawArc(
                 color = trackCol,
                 startAngle = 180f,
@@ -259,15 +239,14 @@ private fun ScoreGauge(
                 style = Stroke(width = strokePx, cap = StrokeCap.Round)
             )
 
-            // 2. Заполненный сегмент с градиентом
             val sweep = 180f * progress
             if (sweep > 0.5f) {
                 drawArc(
                     brush = Brush.sweepGradient(
                         colors = listOf(
-                            Color(0xFFE53935), // красный
-                            Color(0xFFFFB300), // янтарный
-                            Color(0xFF43A047)  // зелёный
+                            Color(0xFFE53935),
+                            Color(0xFFFFB300),
+                            Color(0xFF43A047)
                         ),
                         center = Offset(w / 2f, h)
                     ),
@@ -280,7 +259,6 @@ private fun ScoreGauge(
                 )
             }
 
-            // 3. Деления: 0, 15, 30, 45, 60
             val centerX = w / 2f
             val centerY = h
             val outerR = (w - pad * 2f) / 2f
@@ -302,7 +280,6 @@ private fun ScoreGauge(
                 )
             }
 
-            // 4. Стрелка
             val needleAng = Math.toRadians((180f + 180f * progress).toDouble())
             val needleLen = outerR - strokePx / 2f - 12f
             val nx = centerX + needleLen * cos(needleAng).toFloat()
@@ -318,7 +295,6 @@ private fun ScoreGauge(
             drawCircle(bgCol, radius = 5f, center = Offset(centerX, centerY))
         }
 
-        // Крупное число
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(bottom = 12.dp)
@@ -336,7 +312,6 @@ private fun ScoreGauge(
             )
         }
 
-        // Подписи 0 / 60
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -396,14 +371,14 @@ private fun QuestionsProgress(answered: Int, total: Int) {
 // ════════════════════════════════════════════════════════════
 
 @Composable
-private fun LastAwardCard(award: PointsAwarded?) {
+private fun LastAwardCard(points: Int?, questionIndex: Int) {
     AnimatedVisibility(
-        visible = award != null,
+        visible = points != null,
         enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 2 },
         exit = fadeOut(tween(300)) + slideOutVertically(tween(300)) { it / 2 }
     ) {
-        if (award != null) {
-            val accent = when (award.points) {
+        if (points != null) {
+            val accent = when (points) {
                 3 -> Color(0xFF43A047)
                 2 -> Color(0xFF7CB342)
                 1 -> Color(0xFFFFB300)
@@ -426,7 +401,7 @@ private fun LastAwardCard(award: PointsAwarded?) {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "+${award.points}",
+                        "+$points",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -435,19 +410,22 @@ private fun LastAwardCard(award: PointsAwarded?) {
                 Spacer(Modifier.size(12.dp))
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        "Вопрос ${award.questionNumber} оценён",
+                        "Вопрос $questionIndex оценён",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    if (award.reason.isNotBlank()) {
-                        Text(
-                            award.reason,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 16.sp
-                        )
-                    }
+                    Text(
+                        when (points) {
+                            3 -> "Отличный ответ!"
+                            2 -> "Хорошо, с небольшими ошибками"
+                            1 -> "Понятно, но неполно"
+                            else -> "Попробуйте следующий вопрос"
+                        },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 16.sp
+                    )
                 }
             }
         }
@@ -475,7 +453,7 @@ private fun VerdictDialog(
         "Ваш уровень пока — A0 (начинающий). Это отличная точка старта: продолжайте учиться, и A1 будет близко."
 
     AlertDialog(
-        onDismissRequest = { /* игнор клика вне диалога */ },
+        onDismissRequest = { },
         containerColor = MaterialTheme.colorScheme.surface,
         title = null,
         text = {
