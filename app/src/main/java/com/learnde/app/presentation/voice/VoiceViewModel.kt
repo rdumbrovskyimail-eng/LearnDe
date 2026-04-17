@@ -495,32 +495,16 @@ class VoiceViewModel @Inject constructor(
                         reconnectAttempt = 0
                         _state.update { it.copy(connectionStatus = ConnectionStatus.Ready) }
 
-                        val learn = activeLearnSession
-                        if (learn != null) {
-                            contextSeeded = true
-                            logger.d("SetupComplete (Learn=${learn.id})")
-                            // [5.4] Без delay(300): SetupComplete уже означает,
-                            // что сервер готов принимать.
-                            if (learn.initialUserMessage.isNotBlank()) {
-                                logger.d("Learn: sending initialUserMessage via clientContent")
-                                liveClient.sendText(learn.initialUserMessage)
+                        if (!contextSeeded && liveClient.sessionHandle == null) {
+                            val history = conversationRepository.getAll()
+                            if (history.isNotEmpty()) {
+                                logger.d("Seeding initial context (${history.size} msgs)")
+                                liveClient.restoreContext(history)
                             }
-                            if (!_state.value.isMicActive) {
-                                logger.d("Learn: auto-starting mic after SetupComplete")
-                                startMic()
-                            }
-                        } else {
-                            if (!contextSeeded && liveClient.sessionHandle == null) {
-                                val history = conversationRepository.getAll()
-                                if (history.isNotEmpty()) {
-                                    logger.d("Seeding initial context (${history.size} msgs)")
-                                    liveClient.restoreContext(history)
-                                }
-                            } else if (liveClient.sessionHandle != null) {
-                                logger.d("Resumed via sessionHandle — skip manual context seed")
-                            }
-                            contextSeeded = true
+                        } else if (liveClient.sessionHandle != null) {
+                            logger.d("Resumed via sessionHandle — skip manual context seed")
                         }
+                        contextSeeded = true
                     }
 
                     is GeminiEvent.AudioChunk -> {
