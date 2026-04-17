@@ -134,7 +134,12 @@ class VoiceViewModel @Inject constructor(
     fun onIntent(intent: VoiceIntent) {
         when (intent) {
             is VoiceIntent.SubmitApiKey          -> handleSubmitApiKey(intent.key)
-            is VoiceIntent.Connect               -> handleConnect()
+            is VoiceIntent.Connect               -> {
+                viewModelScope.launch {
+                    arbiter.acquire(ClientOwner.VOICE)
+                    handleConnectInner()
+                }
+            }
             is VoiceIntent.Disconnect            -> handleDisconnect()
             is VoiceIntent.ToggleMic             -> handleToggleMic()
             is VoiceIntent.SendText              -> handleSendText(intent.text)
@@ -457,7 +462,7 @@ class VoiceViewModel @Inject constructor(
         viewModelScope.launch { settingsStore.updateData { it.copy(apiKey = key) } }
     }
 
-    private fun handleConnect() {
+    private fun handleConnectInner() {
         if (activeApiKey.isEmpty()) return
         val status = _state.value.connectionStatus
         if (status == ConnectionStatus.Connecting || status == ConnectionStatus.Ready) return
