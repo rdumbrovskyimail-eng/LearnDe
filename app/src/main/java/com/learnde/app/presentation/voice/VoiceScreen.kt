@@ -1,19 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // ПОЛНАЯ ЗАМЕНА
-// Путь: app/src/main/java/com/codeextractor/app/presentation/voice/VoiceScreen.kt
+// Путь: app/src/main/java/com/learnde/app/presentation/voice/VoiceScreen.kt
+//
 // Изменения:
-//   + Новый Gemini-минималистичный дизайн через MaterialTheme
-//   + 3 режима сцены (AVATAR / VISUALIZER / CUSTOM_IMAGE)
-//   + Кнопка «Функции» → переход на FunctionsTestScreen
-//   + Кнопка fullscreen для сцены
-//   + Чат с настройками из state (font scale, role labels, timestamps, bg alpha)
-//   + Удалены все неиспользуемые intent'ы
+//   • Добавлен DisposableEffect(Unit) с resume()/pause() аватар-
+//     аниматора — экономит CPU, когда экран в back-stack.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.voice
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,7 +43,6 @@ import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -65,6 +60,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -88,7 +84,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.learnde.app.data.BackgroundImageStore
 import com.learnde.app.domain.model.ConversationMessage
 import com.learnde.app.domain.scene.SceneMode
 import com.learnde.app.presentation.avatar.AudioVisualizerScene
@@ -110,6 +105,12 @@ fun VoiceScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val avatarIndex = VoiceGender.avatarIndexForVoice(state.currentVoiceId)
+
+    // ═══ Пауза аватар-аниматора, когда экран в back-stack ═══
+    DisposableEffect(Unit) {
+        viewModel.avatarAnimator.resume()
+        onDispose { viewModel.avatarAnimator.pause() }
+    }
 
     var showMicRationale by remember { mutableStateOf(false) }
 
@@ -192,7 +193,6 @@ fun VoiceScreen(
                     modifier = Modifier.align(Alignment.TopStart).padding(10.dp)
                 )
 
-                // Верхний правый: ⛶ fullscreen
                 IconButton(
                     onClick = { viewModel.onIntent(VoiceIntent.ToggleFullscreenScene) },
                     modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
@@ -208,7 +208,6 @@ fun VoiceScreen(
                     )
                 }
 
-                // Нижний правый: ⚙ + 🧪 + Edit
                 if (!state.isSceneFullscreen) {
                     Row(
                         modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
@@ -235,7 +234,6 @@ fun VoiceScreen(
             }
 
             if (!state.isSceneFullscreen) {
-                // ═══ CHAT + CONTROLS ═══
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -296,11 +294,7 @@ fun VoiceScreen(
 // ════════════════════════════════════════════════════════════
 //  SCENE SWITCHER
 // ════════════════════════════════════════════════════════════
-/**
- * Единый контейнер сцены — принимает BoxScope из родительского Box
- * и корректно переключается между compact (правый верхний угол)
- * и fullscreen (на весь экран) режимами.
- */
+
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.SceneContainer(
     state: VoiceState,
@@ -366,6 +360,7 @@ private fun CustomImageScene(viewModel: VoiceViewModel) {
 // ════════════════════════════════════════════════════════════
 //  COMPONENTS
 // ════════════════════════════════════════════════════════════
+
 @Composable
 private fun SceneIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, onClick: () -> Unit) {
     FilledIconButton(
