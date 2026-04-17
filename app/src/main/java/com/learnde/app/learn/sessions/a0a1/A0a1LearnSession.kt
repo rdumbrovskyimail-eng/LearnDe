@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ФАЙЛ
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a0a1/A0a1LearnSession.kt
 //
 // Реализация LearnSession для теста A0-A1.
@@ -32,7 +32,9 @@ class A0a1LearnSession @Inject constructor(
     override val functionDeclarations: List<FunctionDeclarationConfig> =
         A0a1TestRegistry.ALL_DECLARATIONS
 
-    override val initialUserMessage: String = "Начни тест."
+    // 6.1 — пустая строка: модель начинает сама по system instruction,
+    // VAD/silence сигнализируют серверу о готовности без лишнего клиентского текста.
+    override val initialUserMessage: String = ""
 
     override suspend fun onEnter() {
         logger.d("▶ A0a1LearnSession.onEnter")
@@ -68,7 +70,10 @@ class A0a1LearnSession @Inject constructor(
             return """{"status":"ok"}"""
         }
 
-        // Не наша функция — пусть обрабатывает ToolRegistry upstream
-        return null
+        // 6.3 — неизвестная функция в Learn-контексте (hallucination guard).
+        // Возвращаем structured error вместо null, чтобы VoiceViewModel
+        // не делегировал вызов в глобальный ToolRegistry — Learn-сессия изолирована.
+        logger.w("A0a1: unknown function call: ${call.name}")
+        return """{"error":"function '${call.name}' is not available in a0a1_test mode"}"""
     }
 }
