@@ -1,10 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // ПОЛНАЯ ЗАМЕНА
-// Путь: app/src/main/java/com/codeextractor/app/domain/tools/ToolRegistry.kt
+// Путь: app/src/main/java/com/learnde/app/domain/tools/ToolRegistry.kt
+//
 // Изменения:
-//   + 10 тестовых функций test_function_1..10
-//   + Публикация в FunctionsEventBus при выполнении
-//   + getFunctionDeclarationConfigs() возвращает ВСЕ инструменты
+//   • Убраны зависимости от A0a1TestBus и FinishTestTool — теперь это
+//     часть LearnSession (см. learn.sessions.a0a1.A0a1LearnSession).
+//   • Остались только «обычные» инструменты: time, device_status +
+//     10 test_function_N (демо).
+//   • VoiceViewModel сначала даёт шанс активной LearnSession, и только
+//     потом делегирует в этот Registry.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.domain.tools
 
@@ -83,25 +87,29 @@ class ToolRegistry @Inject constructor(
     private val timeTool: GetCurrentTimeTool,
     private val deviceTool: DeviceStatusTool,
     private val bus: FunctionsEventBus,
-    private val a0a1Bus: com.learnde.app.Learn.Test.A0a1.A0a1TestBus,
-    private val finishTool: com.learnde.app.Learn.Test.A0a1.FinishTestTool,
     private val logger: AppLogger
 ) {
     private val executors: Map<String, ToolExecutor> by lazy {
         val base = listOf<ToolExecutor>(timeTool, deviceTool)
         val tests = FunctionsRegistry.ALL.map { TestFunctionTool(it, bus, logger) }
-        val awards = (0..3).map {
-            com.learnde.app.Learn.Test.A0a1.AwardPointsTool(it, a0a1Bus, logger)
-        }
-        (base + tests + awards + finishTool).associateBy { it.name }
+        (base + tests).associateBy { it.name }
     }
 
-    /** Для передачи в SessionConfig (setup.tools.functionDeclarations). */
+    /**
+     * Для передачи в SessionConfig.functionDeclarations.
+     * Content: только «обычные» tools. Функции LearnSession добавляются
+     * отдельно в VoiceViewModel.buildLearnSessionConfig().
+     */
     fun getFunctionDeclarationConfigs(): List<FunctionDeclarationConfig> =
         executors.values.map {
             FunctionDeclarationConfig(name = it.name, description = it.description)
         }
 
+    /**
+     * Диспетчер tool calls. Возвращает result-строку или JSON-ошибку.
+     * Если функция неизвестна — возвращает `{"error":"..."}` (не null),
+     * чтобы VoiceViewModel всегда имел что послать в toolResponse.
+     */
     suspend fun dispatch(call: FunctionCall): String {
         val executor = executors[call.name]
         if (executor == null) {
