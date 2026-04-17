@@ -1,21 +1,22 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА — HOTFIX для бага "тест молчит"
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/presentation/voice/VoiceViewModel.kt
 //
-// КРИТИЧЕСКИЙ ФИКС:
-//  [HF] observeLearnSessions: убран drop(1) + collectLatest. Race-condition:
-//       A0a1TestViewModel.init.launch успевал выставить _active.value = a0a1
-//       ДО того как наш collector подписался (Main занят навигацией).
-//       StateFlow через replay=1 отдавал collector'у a0a1 как первое
-//       наблюдение, drop(1) его глотал, enterLearnMode НИКОГДА не вызывался.
-//       Юзер сидел в тишине без SETUP, без Ready, без startMic.
-//       Теперь: явный tracking lastSession + сравнение с пришедшим значением.
+// Изменения v2 (этап 1 рефакторинга):
+//  [5.1] VAD-sensitivity мапится в enum-строки, удалён vadSilenceTimeoutMs
+//  [5.2] observeLearnSessions — distinctUntilChanged вместо firstEmission
+//  [5.3] restartTick → restartSignal (SharedFlow<Unit>)
+//  [5.4] SetupComplete: без delay(300) между sendText и startMic
+//  [5.5] stopMic: убран двойной сигнал (audioStreamEnd ИЛИ turnComplete)
+//  [5.6] handleSendText: sendText(initial) vs sendRealtimeText(in-dialog)
+//  [5.7] pendingToolCalls.clear() в disconnect/enter/exit/Disconnected/Error
+//  [5.8] dedup транскрипций на reconnect (in/out, окно 5 сек)
+//  [5.9] exitLearnMode: без handleConnect(), мягкий выход в Disconnected
+//  [5.10] scheduleReconnect: skip если активна Learn-сессия
 //
-//  [HF] Добавлено много логов в enterLearnMode / observeLearnSessions —
-//       для быстрой диагностики следующего раза.
-//
-// Остальные фиксы (pendingSelfCloseEvents, modeSwitchMutex,
-// GlobalScope+NonCancellable в onCleared, suspend disconnect) — сохранены.
+// ⚠️ После Этапа 2 часть логики (observeLearnSessions, exitLearnMode,
+// часть scheduleReconnect) уедет в отдельный координатор. Пока —
+// переходный мягкий вариант.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.voice
 
@@ -61,6 +62,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -105,6 +107,12 @@ class VoiceViewModel @Inject constructor(
     private val modeSwitchMutex = Mutex()
 
     @Volatile private var activeLearnSession: LearnSession? = null
+
+    // Dedup guards для транскрипций — защита от дублей при reconnect.
+    @Volatile private var lastInputTranscript: String = ""
+    @Volatile private var lastInputTranscriptTime: Long = 0L
+    @Volatile private var lastOutputTranscript: String = ""
+    @Volatile private var lastOutputTranscriptTime: Long = 0L
 
     init {
         observeSettings()
@@ -174,59 +182,36 @@ class VoiceViewModel @Inject constructor(
     }
 
     // ════════════════════════════════════════════════════════════
-    //  LEARN SESSION — HOTFIX
+    //  LEARN SESSION
     // ════════════════════════════════════════════════════════════
 
     private fun observeLearnSessions() {
+        // [5.2] Простая distinctUntilChanged-подписка.
         viewModelScope.launch {
-            var lastSession: LearnSession? = null
-            var firstEmission = true
-            learnController.active.collect { session ->
-                val prev = lastSession
-                val isFirst = firstEmission
-                firstEmission = false
-
-                // Первое наблюдение: если null — просто запомним и идём дальше;
-                // если non-null — значит сессия активирована ДО нашей подписки
-                // (race с A0a1TestViewModel.init), надо зайти в Learn-режим.
-                if (isFirst && session == null) {
-                    lastSession = null
-                    logger.d("observeLearnSessions: first emission=null (idle)")
-                    return@collect
-                }
-                if (!isFirst && session === prev) return@collect
-
-                lastSession = session
-                logger.d("observeLearnSessions: ${prev?.id ?: "null"} → ${session?.id ?: "null"} (first=$isFirst)")
-
-                modeSwitchMutex.withLock {
-                    activeLearnSession = session
-                    if (session != null) {
-                        _state.update { it.copy(learnActive = true, learnId = session.id) }
-                        try { enterLearnMode(session) }
-                        catch (e: Exception) { logger.e("enterLearnMode threw: ${e.message}", e) }
-                    } else {
-                        _state.update { it.copy(learnActive = false, learnId = null) }
-                        try { exitLearnMode() }
-                        catch (e: Exception) { logger.e("exitLearnMode threw: ${e.message}", e) }
+            learnController.active
+                .distinctUntilChanged()
+                .collect { session ->
+                    logger.d("observeLearnSessions: active → ${session?.id ?: "null"}")
+                    modeSwitchMutex.withLock {
+                        activeLearnSession = session
+                        if (session != null) {
+                            _state.update { it.copy(learnActive = true, learnId = session.id) }
+                            try { enterLearnMode(session) }
+                            catch (e: Exception) { logger.e("enterLearnMode threw: ${e.message}", e) }
+                        } else {
+                            _state.update { it.copy(learnActive = false, learnId = null) }
+                            try { exitLearnMode() }
+                            catch (e: Exception) { logger.e("exitLearnMode threw: ${e.message}", e) }
+                        }
                     }
                 }
-            }
         }
 
-        // restartTick: пропускаем первое observation (initial value StateFlow=0)
+        // [5.3] SharedFlow<Unit> — без firstTick-костыля.
         viewModelScope.launch {
-            var lastTick = -1
-            var firstTick = true
-            learnController.restartTick.collect { tick ->
-                val isFirst = firstTick
-                firstTick = false
-                if (isFirst) { lastTick = tick; return@collect }
-                if (tick == lastTick) return@collect
-                lastTick = tick
-
+            learnController.restartSignal.collect {
                 val s = activeLearnSession ?: return@collect
-                logger.d("observeLearnSessions: restartTick=$tick → re-enter ${s.id}")
+                logger.d("observeLearnSessions: restart signal → re-enter ${s.id}")
                 modeSwitchMutex.withLock {
                     try { enterLearnMode(s) }
                     catch (e: Exception) { logger.e("re-enter threw: ${e.message}", e) }
@@ -240,6 +225,7 @@ class VoiceViewModel @Inject constructor(
         reconnectJob?.cancel()
         micJob?.cancel()
         audioEngine.stopCapture()
+        pendingToolCalls.clear()                 // [5.7]
 
         logger.d("enterLearnMode: disconnect previous WS")
         pendingSelfCloseEvents.incrementAndGet()
@@ -283,17 +269,26 @@ class VoiceViewModel @Inject constructor(
         logger.d("◀ enterLearnMode(${session.id}) — WS connect initiated, awaiting SetupComplete")
     }
 
+    // [5.9] Мягкий выход: не зовём handleConnect() автоматически.
     private suspend fun exitLearnMode() {
         logger.d("▶ exitLearnMode — start")
         reconnectJob?.cancel()
         micJob?.cancel()
         audioEngine.stopCapture()
-
+        pendingToolCalls.clear()                 // [5.7]
         pendingSelfCloseEvents.incrementAndGet()
-        liveClient.disconnect()
+        liveClient.disconnect()                  // suspend, ждёт onClosed
         contextSeeded = false
-        handleConnect()
-        logger.d("◀ exitLearnMode — reconnecting in normal mode")
+        // Не звоним handleConnect() — пусть пользователь сам нажмёт "Говорить"
+        // либо observeSettings подымет автореконнект, если ключ есть и режим позволяет.
+        _state.update {
+            it.copy(
+                connectionStatus = ConnectionStatus.Disconnected,
+                isMicActive = false,
+                isAiSpeaking = false
+            )
+        }
+        logger.d("◀ exitLearnMode — ready for normal connect")
     }
 
     private fun buildLearnSessionConfig(session: LearnSession): SessionConfig {
@@ -388,9 +383,14 @@ class VoiceViewModel @Inject constructor(
             languageCode = cachedSettings.languageCode,
             latencyProfile = profile,
             autoActivityDetection = cachedSettings.enableServerVad,
-            vadStartSensitivity = cachedSettings.vadStartOfSpeechSensitivity,
-            vadEndSensitivity = cachedSettings.vadEndOfSpeechSensitivity,
-            vadSilenceTimeoutMs = cachedSettings.vadSilenceTimeoutMs,
+            // [5.1] VAD sensitivity — enum-строки v1beta API
+            vadStartSensitivity = if (cachedSettings.vadStartOfSpeechSensitivity > 0.5f)
+                "START_SENSITIVITY_HIGH" else "START_SENSITIVITY_LOW",
+            vadEndSensitivity = if (cachedSettings.vadEndOfSpeechSensitivity > 0.5f)
+                "END_SENSITIVITY_HIGH" else "END_SENSITIVITY_LOW",
+            vadSilenceDurationMs = if (cachedSettings.vadSilenceTimeoutMs > 0)
+                cachedSettings.vadSilenceTimeoutMs else 100,
+            vadPrefixPaddingMs = 20,
             systemInstruction = cachedSettings.systemInstruction,
             inputTranscription = cachedSettings.inputTranscription,
             outputTranscription = cachedSettings.outputTranscription,
@@ -465,6 +465,7 @@ class VoiceViewModel @Inject constructor(
         reconnectJob?.cancel(); micJob?.cancel()
         viewModelScope.launch {
             audioEngine.stopCapture()
+            pendingToolCalls.clear()             // [5.7]
             pendingSelfCloseEvents.incrementAndGet()
             liveClient.disconnect()
             _state.update {
@@ -487,7 +488,7 @@ class VoiceViewModel @Inject constructor(
         val hasMic = ContextCompat.checkSelfPermission(
             appContext, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
-        
+
         if (!hasMic) {
             logger.w("startMic called but RECORD_AUDIO permission is missing!")
             return
@@ -517,8 +518,16 @@ class VoiceViewModel @Inject constructor(
         micJob?.cancel(); micJob = null
         viewModelScope.launch {
             audioEngine.stopCapture()
-            if (cachedSettings.sendAudioStreamEnd) liveClient.sendAudioStreamEnd()
-            liveClient.sendTurnComplete()
+            // [5.5] Один сигнал на конец хода — не оба.
+            //   • sendAudioStreamEnd: сервер сам выдаст turnComplete
+            //   • иначе при ручном VAD: явный turnComplete
+            //   • при серверном VAD без audioStreamEnd: ничего не шлём,
+            //     VAD сам определит конец речи.
+            if (cachedSettings.sendAudioStreamEnd) {
+                liveClient.sendAudioStreamEnd()
+            } else if (!cachedSettings.enableServerVad) {
+                liveClient.sendTurnComplete()
+            }
             _state.update {
                 it.copy(
                     isMicActive = false,
@@ -531,7 +540,13 @@ class VoiceViewModel @Inject constructor(
 
     private fun handleSendText(text: String) {
         if (text.isBlank()) return
-        liveClient.sendText(text)
+        // [5.6] Первое сообщение (до первого model turn) → clientContent.turns.
+        // Любое последующее → realtimeInput.text (отдельный канал live-ввода).
+        if (contextSeeded && _state.value.transcript.isNotEmpty()) {
+            liveClient.sendRealtimeText(text)
+        } else {
+            liveClient.sendText(text)
+        }
         viewModelScope.launch { conversationRepository.add(ConversationMessage.user(text)) }
     }
 
@@ -562,13 +577,14 @@ class VoiceViewModel @Inject constructor(
                         if (learn != null) {
                             contextSeeded = true
                             logger.d("SetupComplete (Learn=${learn.id})")
+                            // [5.4] Без delay(300): SetupComplete уже означает,
+                            // что сервер готов принимать.
                             if (learn.initialUserMessage.isNotBlank()) {
-                                logger.d("Learn: sending initialUserMessage")
+                                logger.d("Learn: sending initialUserMessage via clientContent")
                                 liveClient.sendText(learn.initialUserMessage)
                             }
-                            delay(300)
-                            if (liveClient.isReady && !_state.value.isMicActive) {
-                                logger.d("Learn: auto-starting mic")
+                            if (!_state.value.isMicActive) {
+                                logger.d("Learn: auto-starting mic after SetupComplete")
                                 startMic()
                             }
                         } else {
@@ -609,11 +625,28 @@ class VoiceViewModel @Inject constructor(
                         _state.update { it.copy(isAiSpeaking = false) }
                     }
 
-                    is GeminiEvent.InputTranscript ->
-                        conversationRepository.add(ConversationMessage.user(event.text))
+                    is GeminiEvent.InputTranscript -> {
+                        // [5.8] Защита от дублей при reconnect
+                        val now = System.currentTimeMillis()
+                        if (event.text != lastInputTranscript ||
+                            now - lastInputTranscriptTime > 5_000
+                        ) {
+                            lastInputTranscript = event.text
+                            lastInputTranscriptTime = now
+                            conversationRepository.add(ConversationMessage.user(event.text))
+                        }
+                    }
 
                     is GeminiEvent.OutputTranscript -> {
-                        conversationRepository.appendOrAdd(ConversationMessage.ROLE_MODEL, event.text)
+                        // [5.8] Аналогично для output-транскрипции
+                        val now = System.currentTimeMillis()
+                        if (event.text != lastOutputTranscript ||
+                            now - lastOutputTranscriptTime > 5_000
+                        ) {
+                            lastOutputTranscript = event.text
+                            lastOutputTranscriptTime = now
+                            conversationRepository.appendOrAdd(ConversationMessage.ROLE_MODEL, event.text)
+                        }
                         avatarAnimator.feedModelText(event.text)
                     }
 
@@ -656,6 +689,7 @@ class VoiceViewModel @Inject constructor(
                                 isMicActive = false
                             )
                         }
+                        pendingToolCalls.clear()         // [5.7]
                         audioEngine.stopCapture()
                         if (consumeSelfCloseIfAny()) {
                             logger.d("WS closed by self — no reconnect")
@@ -685,6 +719,7 @@ class VoiceViewModel @Inject constructor(
                                 isMicActive = false, error = UiText.Plain(event.message)
                             )
                         }
+                        pendingToolCalls.clear()         // [5.7]
                         audioEngine.stopCapture()
                         if (consumeSelfCloseIfAny()) {
                             logger.d("WS error during self-disconnect — ignored")
@@ -741,6 +776,14 @@ class VoiceViewModel @Inject constructor(
     // ════════════════════════════════════════════════════════════
 
     private fun scheduleReconnect(proactive: Boolean = false) {
+        // [5.10] Если сейчас активна Learn-сессия — реконнектом будет
+        // заниматься сам LearnSessionController через restartSignal
+        // (либо пользователь нажатием "Начать заново"). Здесь выходим.
+        if (activeLearnSession != null) {
+            logger.d("scheduleReconnect: skipped — Learn session active, will reconnect via enterLearnMode")
+            return
+        }
+
         val maxAttempts = cachedSettings.maxReconnectAttempts
         if (reconnectAttempt >= maxAttempts && !proactive) {
             _effects.tryEmit(
@@ -765,12 +808,7 @@ class VoiceViewModel @Inject constructor(
         reconnectJob = viewModelScope.launch {
             delay(delayMs)
             contextSeeded = false
-            val learn = activeLearnSession
-            if (learn != null) {
-                modeSwitchMutex.withLock { enterLearnMode(learn) }
-            } else {
-                handleConnect()
-            }
+            handleConnect()
         }
     }
 
