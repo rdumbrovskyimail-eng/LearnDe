@@ -1,5 +1,6 @@
 package com.learnde.app.data.settings
 
+import android.util.Log
 import androidx.datastore.core.Serializer
 import com.learnde.app.data.security.CryptoManager
 import kotlinx.serialization.SerializationException
@@ -10,15 +11,16 @@ import javax.inject.Inject
 
 /**
  * DataStore Serializer с прозрачным AES-256-GCM шифрованием.
- *
- * Запись: AppSettings → JSON → ByteArray → encrypt(Keystore) → диск
- * Чтение: диск → decrypt(Keystore) → ByteArray → JSON → AppSettings
- *
- * При повреждении файла или сбросе Keystore → defaultValue.
+ * При любых сбоях (повреждённый ключ, corrupt файл) — возвращает defaultValue
+ * вместо падения.
  */
 class AppSettingsSerializer @Inject constructor(
     private val cryptoManager: CryptoManager
 ) : Serializer<AppSettings> {
+
+    companion object {
+        private const val TAG = "AppSettingsSerializer"
+    }
 
     override val defaultValue: AppSettings = AppSettings()
 
@@ -33,16 +35,24 @@ class AppSettingsSerializer @Inject constructor(
             if (encryptedBytes.isEmpty()) return defaultValue
             val decrypted = cryptoManager.decrypt(encryptedBytes).decodeToString()
             json.decodeFromString(AppSettings.serializer(), decrypted)
-        } catch (_: SerializationException) {
+        } catch (e: SerializationException) {
+            Log.w(TAG, "readFrom: serialization failed — using defaults (${e.message})")
             defaultValue
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w(TAG, "readFrom: crypto/IO failed — using defaults (${e.message})")
             defaultValue
         }
     }
 
     override suspend fun writeTo(t: AppSettings, output: OutputStream) {
-        val jsonString     = json.encodeToString(AppSettings.serializer(), t)
-        val encryptedBytes = cryptoManager.encrypt(jsonString.encodeToByteArray())
-        output.write(encryptedBytes)
+        try {
+            val jsonString = json.encodeToString(AppSettings.serializer(), t)
+            val encryptedBytes = cryptoManager.encrypt(jsonString.encodeToByteArray())
+            output.write(encryptedBytes)
+        } catch (e: Exception) {
+            Log.e(TAG, "writeTo: encrypt/write failed (${e.message}) — data not persisted", e)
+            // НЕ пробрасываем исключение — приложение не должно крашиться,
+            // пользователь продолжит работу в памяти, настройки просто не сохранятся.
+        }
     }
 }
