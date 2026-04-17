@@ -380,7 +380,7 @@ fun SettingsScreen(
                     subtitle = "Сжимать старые сообщения — экономит токены.",
                     onCheckedChange = { viewModel.update { copy(enableContextCompression = it) } }
                 )
-                GeminiIntSlider("Порог сжатия (токенов)", s.compressionTriggerTokens, 0..128000, step = 1024) {
+                GeminiLongSlider("Порог сжатия (токенов)", s.compressionTriggerTokens, 0L..128000L, step = 1024L) {
                     viewModel.update { copy(compressionTriggerTokens = it) }
                 }
             }
