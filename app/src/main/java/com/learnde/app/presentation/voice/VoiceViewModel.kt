@@ -124,7 +124,6 @@ class VoiceViewModel @Inject constructor(
         initAudioPlayback()
         observeNetwork()
         avatarAnimator.start()
-        observeLearnSessions()
     }
 
     // ════════════════════════════════════════════════════════════
@@ -223,124 +222,7 @@ class VoiceViewModel @Inject constructor(
         }
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  LEARN SESSION
-    // ════════════════════════════════════════════════════════════
 
-    private fun observeLearnSessions() {
-        // [5.2] Простая distinctUntilChanged-подписка.
-        viewModelScope.launch {
-            learnController.active.collect { session ->
-                logger.d("observeLearnSessions: active → ${session?.id ?: "null"}")
-                    modeSwitchMutex.withLock {
-                        activeLearnSession = session
-                        if (session != null) {
-                            _state.update { it.copy(learnActive = true, learnId = session.id) }
-                            try { enterLearnMode(session) }
-                            catch (e: Exception) { logger.e("enterLearnMode threw: ${e.message}", e) }
-                        } else {
-                            _state.update { it.copy(learnActive = false, learnId = null) }
-                            try { exitLearnMode() }
-                            catch (e: Exception) { logger.e("exitLearnMode threw: ${e.message}", e) }
-                        }
-                    }
-                }
-        }
-
-        // [5.3] SharedFlow<Unit> — без firstTick-костыля.
-        viewModelScope.launch {
-            learnController.restartSignal.collect {
-                val s = activeLearnSession ?: return@collect
-                logger.d("observeLearnSessions: restart signal → re-enter ${s.id}")
-                modeSwitchMutex.withLock {
-                    try { enterLearnMode(s) }
-                    catch (e: Exception) { logger.e("re-enter threw: ${e.message}", e) }
-                }
-            }
-        }
-    }
-
-    private suspend fun enterLearnMode(session: LearnSession) {
-        logger.d("▶ enterLearnMode(${session.id}) — start")
-        reconnectJob?.cancel()
-        micJob?.cancel()
-        audioEngine.stopCapture()
-        pendingToolCalls.clear()                 // [5.7]
-
-        logger.d("enterLearnMode: disconnect previous WS")
-        pendingSelfCloseEvents.incrementAndGet()
-        liveClient.disconnect()
-        _state.update {
-            it.copy(
-                connectionStatus = ConnectionStatus.Disconnected,
-                isMicActive = false,
-                isAiSpeaking = false
-            )
-        }
-
-        if (activeApiKey.isEmpty()) {
-            logger.w("enterLearnMode: API key EMPTY — abort")
-            _state.update {
-                it.copy(error = UiText.Plain("API ключ не задан. Введите его в Настройках."))
-            }
-            return
-        }
-        contextSeeded = true
-        _state.update { it.copy(connectionStatus = ConnectionStatus.Connecting) }
-
-        (conversationRepository as? PersistentConversationRepository)?.startNewSession()
-
-        logger.d("enterLearnMode: connecting with Learn config (${session.functionDeclarations.size} fns)")
-        runCatching {
-            liveClient.connect(
-                apiKey = activeApiKey,
-                config = buildLearnSessionConfig(session),
-                logRaw = cachedSettings.logRawWebSocketFrames
-            )
-        }.onFailure { e ->
-            logger.e("enterLearnMode: connect failed: ${e.message}", e)
-            _state.update {
-                it.copy(
-                    connectionStatus = ConnectionStatus.Disconnected,
-                    error = UiText.Plain("Не удалось подключиться: ${e.message}")
-                )
-            }
-        }
-        logger.d("◀ enterLearnMode(${session.id}) — WS connect initiated, awaiting SetupComplete")
-    }
-
-    // [5.9] Мягкий выход: не зовём handleConnect() автоматически.
-    private suspend fun exitLearnMode() {
-        logger.d("▶ exitLearnMode — start")
-        reconnectJob?.cancel()
-        micJob?.cancel()
-        audioEngine.stopCapture()
-        pendingToolCalls.clear()                 // [5.7]
-        pendingSelfCloseEvents.incrementAndGet()
-        liveClient.disconnect()                  // suspend, ждёт onClosed
-        contextSeeded = false
-        // Не звоним handleConnect() — пусть пользователь сам нажмёт "Говорить"
-        // либо observeSettings подымет автореконнект, если ключ есть и режим позволяет.
-        _state.update {
-            it.copy(
-                connectionStatus = ConnectionStatus.Disconnected,
-                isMicActive = false,
-                isAiSpeaking = false
-            )
-        }
-        logger.d("◀ exitLearnMode — ready for normal connect")
-    }
-
-    private fun buildLearnSessionConfig(session: LearnSession): SessionConfig {
-        val base = buildSessionConfig()
-        return base.copy(
-            systemInstruction = session.systemInstruction,
-            functionDeclarations = session.functionDeclarations,
-            enableGoogleSearch = false,
-            sessionHandle = null,
-            enableSessionResumption = false
-        )
-    }
 
     // ════════════════════════════════════════════════════════════
     //  SETTINGS
