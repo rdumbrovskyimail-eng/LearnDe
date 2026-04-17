@@ -54,11 +54,6 @@ class A0a1TestViewModel @Inject constructor(
     private var autoFinishJob: Job? = null
 
     init {
-        // Переключаем Gemini-сессию в режим теста (обрабатывается VoiceViewModel).
-        viewModelScope.launch {
-            registry.get("a0a1_test")?.let { learnController.enter(it) }
-        }
-
         // Слушаем оценки.
         viewModelScope.launch {
             bus.awards.collect { points -> onAward(points) }
@@ -67,6 +62,13 @@ class A0a1TestViewModel @Inject constructor(
         // Слушаем завершение.
         viewModelScope.launch {
             bus.finished.collect { finalizeVerdict() }
+        }
+    }
+
+    // НОВОЕ: Явный запуск теста (вызывается из UI после проверки микрофона)
+    fun startTest() {
+        viewModelScope.launch {
+            registry.get("a0a1_test")?.let { learnController.enter(it) }
         }
     }
 
@@ -117,9 +119,7 @@ class A0a1TestViewModel @Inject constructor(
         autoFinishJob = null
         bus.reset()
         _state.value = A0a1TestUiState()
-        viewModelScope.launch {
-            registry.get("a0a1_test")?.let { learnController.enter(it) }
-        }
+        startTest() // Перезапуск тоже использует явный метод
     }
 
     /** Выход из теста (нажатие «Назад» в UI). */
