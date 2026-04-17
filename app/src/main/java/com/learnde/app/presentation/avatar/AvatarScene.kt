@@ -129,66 +129,72 @@ fun AvatarScene(
         if (whiteTex == null) whiteTex = buildWhiteTexture(engine)
         val defaultSampler = buildDefaultSampler()
 
-        withContext(Dispatchers.IO) {
-            var headMat: MaterialInstance? = null
-            var teethMat: MaterialInstance? = null
-            var eyeLMat: MaterialInstance? = null
-            var eyeRMat: MaterialInstance? = null
-            var eyeCount = 0
+        val headTexPath = headTex()
+        val teethTexPath = teethTex()
+        val eyesTexPath = eyesTex()
 
-            for (entity in mi.entities) {
-                if (!rm.hasComponent(entity)) continue
-                val ri = rm.getInstance(entity)
-                val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
-                val primCount = rm.getPrimitiveCount(ri)
-                if (primCount <= 0 || morphCount <= 0) continue
-                val mat = try { rm.getMaterialInstanceAt(ri, 0) } catch (_: Exception) { null } ?: continue
+        val headBmp = withContext(Dispatchers.IO) { loadBitmap(ctx, headTexPath) }
+        val teethBmp = withContext(Dispatchers.IO) { loadBitmap(ctx, teethTexPath) }
+        val eyesBmp = withContext(Dispatchers.IO) { loadBitmap(ctx, eyesTexPath) }
 
-                when (identifyMeshType(mi, entity, morphCount, eyeCount)) {
-                    ARKit.MeshType.HEAD -> headMat = mat
-                    ARKit.MeshType.TEETH -> teethMat = mat
-                    ARKit.MeshType.EYE_LEFT, ARKit.MeshType.EYE_RIGHT -> {
-                        if (eyeCount == 0) eyeLMat = mat else eyeRMat = mat
-                        eyeCount++
-                    }
-                    ARKit.MeshType.OTHER -> { }
+        var headMat: MaterialInstance? = null
+        var teethMat: MaterialInstance? = null
+        var eyeLMat: MaterialInstance? = null
+        var eyeRMat: MaterialInstance? = null
+        var eyeCount = 0
+
+        for (entity in mi.entities) {
+            if (!rm.hasComponent(entity)) continue
+            val ri = rm.getInstance(entity)
+            val morphCount = try { rm.getMorphTargetCount(ri) } catch (_: Exception) { 0 }
+            val primCount = rm.getPrimitiveCount(ri)
+            if (primCount <= 0 || morphCount <= 0) continue
+            val mat = try { rm.getMaterialInstanceAt(ri, 0) } catch (_: Exception) { null } ?: continue
+
+            when (identifyMeshType(mi, entity, morphCount, eyeCount)) {
+                ARKit.MeshType.HEAD -> headMat = mat
+                ARKit.MeshType.TEETH -> teethMat = mat
+                ARKit.MeshType.EYE_LEFT, ARKit.MeshType.EYE_RIGHT -> {
+                    if (eyeCount == 0) eyeLMat = mat else eyeRMat = mat
+                    eyeCount++
                 }
+                ARKit.MeshType.OTHER -> { }
             }
+        }
 
-            headMat?.let { mat ->
-                val key = "head_$avatarIndex"
-                val tex = textureCache[key] ?: buildHeadCompositeTexture(ctx, engine, headTex())?.also { textureCache[key] = it }
-                if (tex != null) setParam(mat, "baseColorMap", tex, buildMipmapSampler(anisotropy = 8f))
+        headMat?.let { mat ->
+            val key = "head_$avatarIndex"
+            val tex = textureCache[key] ?: buildHeadCompositeTexture(engine, headBmp)?.also { textureCache[key] = it }
+            if (tex != null) setParam(mat, "baseColorMap", tex, buildMipmapSampler(anisotropy = 8f))
+            setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
+            setParam(mat, "roughnessFactor", 0.48f)
+            setParam(mat, "metallicFactor", 0.00f)
+        }
+
+        teethMat?.let { mat ->
+            val key = "teeth_$avatarIndex"
+            val tex = textureCache[key] ?: (teethBmp?.let { createTexture(engine, it) })?.also { textureCache[key] = it }
+            if (tex != null) {
+                setParam(mat, "baseColorMap", tex, buildMipmapSampler())
+                setParam(mat, "baseColorFactor", 0.97f, 0.97f, 0.95f, 1f)
+                setParam(mat, "roughnessFactor", 0.35f)
+            } else {
+                setParam(mat, "baseColorMap", whiteTex!!, defaultSampler)
+                setParam(mat, "baseColorFactor", 0.55f, 0.22f, 0.20f, 1f)
+                setParam(mat, "roughnessFactor", 0.85f)
+            }
+            setParam(mat, "metallicFactor", 0.00f)
+        }
+
+        val key = "eyes_$avatarIndex"
+        val eyeTex = textureCache[key] ?: (eyesBmp?.let { createTexture(engine, it) })?.also { textureCache[key] = it }
+        eyeTex?.let { tex ->
+            val sampler = buildMipmapSampler(wrap = TextureSampler.WrapMode.REPEAT)
+            listOf(eyeLMat, eyeRMat).filterNotNull().forEach { mat ->
+                setParam(mat, "baseColorMap", tex, sampler)
                 setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
-                setParam(mat, "roughnessFactor", 0.48f)
+                setParam(mat, "roughnessFactor", 0.02f)
                 setParam(mat, "metallicFactor", 0.00f)
-            }
-
-            teethMat?.let { mat ->
-                val key = "teeth_$avatarIndex"
-                val tex = textureCache[key] ?: loadTexture(ctx, engine, teethTex())?.also { textureCache[key] = it }
-                if (tex != null) {
-                    setParam(mat, "baseColorMap", tex, buildMipmapSampler())
-                    setParam(mat, "baseColorFactor", 0.97f, 0.97f, 0.95f, 1f)
-                    setParam(mat, "roughnessFactor", 0.35f)
-                } else {
-                    setParam(mat, "baseColorMap", whiteTex!!, defaultSampler)
-                    setParam(mat, "baseColorFactor", 0.55f, 0.22f, 0.20f, 1f)
-                    setParam(mat, "roughnessFactor", 0.85f)
-                }
-                setParam(mat, "metallicFactor", 0.00f)
-            }
-
-            val key = "eyes_$avatarIndex"
-            val eyeTex = textureCache[key] ?: loadTexture(ctx, engine, eyesTex())?.also { textureCache[key] = it }
-            eyeTex?.let { tex ->
-                val sampler = buildMipmapSampler(wrap = TextureSampler.WrapMode.REPEAT)
-                listOf(eyeLMat, eyeRMat).filterNotNull().forEach { mat ->
-                    setParam(mat, "baseColorMap", tex, sampler)
-                    setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
-                    setParam(mat, "roughnessFactor", 0.02f)
-                    setParam(mat, "metallicFactor", 0.00f)
-                }
             }
         }
         engine.flushAndWait()
@@ -293,46 +299,39 @@ private fun identifyMeshType(instance: ModelInstance, entity: Int, morphCount: I
     }
 }
 
-private fun loadTexture(ctx: android.content.Context, engine: com.google.android.filament.Engine, path: String, mipmap: Boolean = true): Texture? = try {
-    val bmp = ctx.assets.open(path).use { BitmapFactory.decodeStream(it) }
-    if (bmp == null) null else {
-        val mipLevels = if (mipmap) (kotlin.math.log2(bmp.width.toFloat())).toInt().coerceAtLeast(1) + 1 else 1
-        val tex = Texture.Builder().width(bmp.width).height(bmp.height).levels(mipLevels)
-            .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8)
-            .usage(Texture.Usage.SAMPLEABLE or Texture.Usage.UPLOADABLE or if (mipmap) Texture.Usage.GEN_MIPMAPPABLE else 0)
-            .build(engine)
-        TextureHelper.setBitmap(engine, tex, 0, bmp)
-        if (mipmap) tex.generateMipmaps(engine)
-        bmp.recycle(); tex
-    }
-} catch (_: java.io.FileNotFoundException) { null } catch (e: Exception) { Log.e(TAG, "Texture load failed: $path", e); null }
+private fun loadBitmap(ctx: android.content.Context, path: String): Bitmap? = try {
+    ctx.assets.open(path).use { BitmapFactory.decodeStream(it) }
+} catch (e: Exception) { null }
+
+private fun createTexture(engine: com.google.android.filament.Engine, bmp: Bitmap, mipmap: Boolean = true): Texture {
+    val mipLevels = if (mipmap) (kotlin.math.log2(bmp.width.toFloat())).toInt().coerceAtLeast(1) + 1 else 1
+    val tex = Texture.Builder().width(bmp.width).height(bmp.height).levels(mipLevels)
+        .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8)
+        .usage(Texture.Usage.SAMPLEABLE or Texture.Usage.UPLOADABLE or if (mipmap) Texture.Usage.GEN_MIPMAPPABLE else 0)
+        .build(engine)
+    TextureHelper.setBitmap(engine, tex, 0, bmp)
+    if (mipmap) tex.generateMipmaps(engine)
+    bmp.recycle()
+    return tex
+}
 
 private fun buildWhiteTexture(engine: com.google.android.filament.Engine): Texture {
     val bmp = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888).also { Canvas(it).drawColor(android.graphics.Color.WHITE) }
-    val tex = Texture.Builder().width(4).height(4).levels(1).sampler(Texture.Sampler.SAMPLER_2D)
-        .format(Texture.InternalFormat.SRGB8_A8).usage(Texture.Usage.SAMPLEABLE or Texture.Usage.UPLOADABLE).build(engine)
-    TextureHelper.setBitmap(engine, tex, 0, bmp); bmp.recycle(); return tex
+    return createTexture(engine, bmp, false)
 }
 
-private fun buildHeadCompositeTexture(ctx: android.content.Context, engine: com.google.android.filament.Engine, texPath: String): Texture? = try {
+private fun buildHeadCompositeTexture(engine: com.google.android.filament.Engine, headBmp: Bitmap?): Texture? = try {
     val composite = Bitmap.createBitmap(COMPOSITE_SIZE, COMPOSITE_SIZE, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(composite)
     canvas.drawColor(android.graphics.Color.rgb(185, 142, 96))
-    try {
-        val headBmp = ctx.assets.open(texPath).use { BitmapFactory.decodeStream(it) }
-        if (headBmp != null) {
-            val scaled = if (headBmp.width != COMPOSITE_SIZE || headBmp.height != COMPOSITE_SIZE)
-                Bitmap.createScaledBitmap(headBmp, COMPOSITE_SIZE, COMPOSITE_SIZE, true).also { if (it !== headBmp) headBmp.recycle() }
-            else headBmp
-            canvas.drawBitmap(scaled, 0f, 0f, android.graphics.Paint())
-            if (scaled !== headBmp) scaled.recycle()
-        }
-    } catch (e: Exception) { Log.w(TAG, "Head texture overlay failed: $texPath", e) }
-    val mipLevels = (kotlin.math.log2(COMPOSITE_SIZE.toFloat())).toInt().coerceAtLeast(1) + 1
-    val tex = Texture.Builder().width(COMPOSITE_SIZE).height(COMPOSITE_SIZE).levels(mipLevels)
-        .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8)
-        .usage(Texture.Usage.SAMPLEABLE or Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE).build(engine)
-    TextureHelper.setBitmap(engine, tex, 0, composite); tex.generateMipmaps(engine); composite.recycle(); tex
+    if (headBmp != null) {
+        val scaled = if (headBmp.width != COMPOSITE_SIZE || headBmp.height != COMPOSITE_SIZE)
+            Bitmap.createScaledBitmap(headBmp, COMPOSITE_SIZE, COMPOSITE_SIZE, true).also { if (it !== headBmp) headBmp.recycle() }
+        else headBmp
+        canvas.drawBitmap(scaled, 0f, 0f, android.graphics.Paint())
+        if (scaled !== headBmp) scaled.recycle()
+    }
+    createTexture(engine, composite, true)
 } catch (e: Exception) { Log.e(TAG, "Head composite failed", e); null }
 
 private fun buildDefaultSampler() = TextureSampler().apply {
