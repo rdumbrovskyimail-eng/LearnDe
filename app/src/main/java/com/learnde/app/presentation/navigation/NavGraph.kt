@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // ПОЛНАЯ ЗАМЕНА
-// Путь: app/src/main/java/com/codeextractor/app/presentation/navigation/NavGraph.kt
+// Путь: app/src/main/java/com/learnde/app/presentation/navigation/NavGraph.kt
+//
 // Изменения:
-//   + Routes.FUNCTIONS (экран тестирования 10 функций)
-//   + FIX: launchSingleTop + saveState/restoreState в навигацию к SETTINGS
-//   + FIX: VOICE тоже singleTop — не пересоздаётся при возврате
+//   • Импорт A0a1TestScreen теперь из lowercase-пакета
+//     com.learnde.app.learn.test.a0a1.A0a1TestScreen
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.navigation
 
@@ -18,7 +18,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.learnde.app.Learn.Test.A0a1.A0a1TestScreen
+import com.learnde.app.learn.test.a0a1.A0a1TestScreen
 import com.learnde.app.presentation.editor.ModelEditorScreen
 import com.learnde.app.presentation.functions.FunctionsTestScreen
 import com.learnde.app.presentation.settings.SettingsScreen
@@ -33,7 +33,17 @@ object Routes {
 }
 
 object VoiceGender {
-    private val MALE_VOICES = setOf("Puck", "Charon", "Fenrir", "Orus")
+    /**
+     * Полный список мужских Gemini Live voices. Источник: ai.google.dev/gemini-api/docs
+     * (на момент релиза). Если выбран голос не из списка — считаем женским.
+     */
+    private val MALE_VOICES = setOf(
+        "Puck", "Charon", "Fenrir", "Orus",
+        "Algenib", "Rasalgethi", "Alnilam", "Schedar",
+        "Achird", "Iapetus", "Zubenelgenubi", "Sadachbia",
+        "Sadaltager", "Enceladus", "Umbriel", "Algieba"
+    )
+
     fun avatarIndexForVoice(voiceId: String): Int =
         if (voiceId in MALE_VOICES) 1 else 2
 }
@@ -72,9 +82,6 @@ fun AppNavGraph(
                     navController.navigate(Routes.EDITOR) { launchSingleTop = true }
                 },
                 onOpenSettings = {
-                    // ═══ FIX КРАША ПРИ ПЕРЕХОДЕ В НАСТРОЙКИ ═══
-                    // singleTop + popUpTo с сохранением состояния —
-                    // гарантирует единственный инстанс Settings в back stack.
                     navController.navigate(Routes.SETTINGS) {
                         launchSingleTop = true
                         popUpTo(Routes.SETTINGS) {
