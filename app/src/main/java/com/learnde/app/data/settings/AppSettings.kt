@@ -35,7 +35,7 @@ data class AppSettings(
     /** Generation defaults взяты из официальных референсов Gemini 3.1 Live. */
     val temperature: Float = 1.0f,
     val topP: Float = 0.95f,
-    val topK: Int = 40,
+    val topK: Int = 0,                    // 0 = не слать
     val maxOutputTokens: Int = 8192,
     val presencePenalty: Float = 0.0f,
     val frequencyPenalty: Float = 0.0f,
@@ -65,7 +65,8 @@ data class AppSettings(
     val enableSessionResumption: Boolean = true,
     val transparentResumption: Boolean = true,
     val enableContextCompression: Boolean = true,
-    val compressionTriggerTokens: Int = 0,
+    val compressionTriggerTokens: Long = 0L,
+    val compressionTargetTokens: Long = 0L,
     val maxReconnectAttempts: Int = 5,
     val reconnectBaseDelayMs: Long = 2000L,
     val reconnectMaxDelayMs: Long = 30000L,
