@@ -6,32 +6,56 @@ import com.learnde.app.data.PersistentConversationRepository
 import com.learnde.app.domain.AudioEngine
 import com.learnde.app.domain.ConversationRepository
 import com.learnde.app.domain.LiveClient
+import com.learnde.app.learn.core.LearnScope
+import com.learnde.app.util.AppLogger
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
-/**
- * Hilt модуль: привязка интерфейсов к реализациям.
- * Singleton scope — один экземпляр на всё приложение.
- */
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AppModule {
 
+    // ConversationRepository — оставляем @Binds, класс по-прежнему помечен @Inject constructor
     @Binds
     @Singleton
-    abstract fun bindLiveClient(impl: GeminiLiveClient): LiveClient
+    abstract fun bindConversationRepository(
+        impl: PersistentConversationRepository
+    ): ConversationRepository
 
-    @Binds
-    @Singleton
-    abstract fun bindAudioEngine(impl: AndroidAudioEngine): AudioEngine
+    companion object {
 
-    @Binds
-    @Singleton
-    abstract fun bindConversationRepository(impl: PersistentConversationRepository): ConversationRepository
+        // ─── LiveClient: Voice (дефолтный, без квалификатора) ───
+        @Provides
+        @Singleton
+        fun provideVoiceLiveClient(
+            logger: AppLogger
+        ): LiveClient = GeminiLiveClient(logger)
 
-    // BackgroundImageStore и FunctionsEventBus используют @Singleton + @Inject constructor,
-    // поэтому Hilt сам их регистрирует без @Provides. Дополнительная конфигурация не нужна.
+        // ─── LiveClient: Learn ───
+        @Provides
+        @Singleton
+        @LearnScope
+        fun provideLearnLiveClient(
+            logger: AppLogger
+        ): LiveClient = GeminiLiveClient(logger)
+
+        // ─── AudioEngine: Voice ───
+        @Provides
+        @Singleton
+        fun provideVoiceAudioEngine(
+            logger: AppLogger
+        ): AudioEngine = AndroidAudioEngine(logger)
+
+        // ─── AudioEngine: Learn ───
+        @Provides
+        @Singleton
+        @LearnScope
+        fun provideLearnAudioEngine(
+            logger: AppLogger
+        ): AudioEngine = AndroidAudioEngine(logger)
+    }
 }
