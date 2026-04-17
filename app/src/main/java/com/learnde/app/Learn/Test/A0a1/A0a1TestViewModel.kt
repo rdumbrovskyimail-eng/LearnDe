@@ -1,19 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/Learn/Test/A0a1/A0a1TestViewModel.kt
 //
-// ViewModel экрана теста A0-A1.
-// Единственный источник правды по счёту и вердикту.
-//
-// Логика:
-//   • При init публикуем startSignal — VoiceViewModel переведёт сессию в режим теста
-//     и отправит модели "Начни тест.".
-//   • Слушаем bus.awards — складываем баллы, защищаемся от дублей
-//     (один вопрос = одна запись, берём максимум если модель переоценила).
-//   • Слушаем bus.finished — ставим вердикт A0/A1.
-//   • Если модель забудет вызвать finish_test, но уже ответила на 20 вопросов,
-//     через 6 сек сами подводим итог (фолбэк).
-//   • При выходе с экрана — публикуем exitSignal, VoiceViewModel вернёт обычный режим.
+// Упрощено:
+//   • bus.awards теперь даёт просто Int (балл);
+//   • номер вопроса = answeredCount + 1 (считаем сами);
+//   • lastPoints + lastQuestionIndex — для fly-in карточки.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.Learn.Test.A0a1
 
@@ -34,8 +26,9 @@ enum class TestVerdict { NONE, A0, A1 }
 data class A0a1TestUiState(
     val totalPoints: Int = 0,
     val answeredCount: Int = 0,
-    val currentQuestion: Int = 1,          // 1..20, показываем «Вопрос N / 20»
-    val lastAward: PointsAwarded? = null,  // для короткой fly-in карточки
+    val currentQuestion: Int = 1,          // 1..20
+    val lastPoints: Int? = null,           // последний выставленный балл (для карточки)
+    val lastQuestionIndex: Int = 0,        // к какому вопросу относится последний балл
     val verdict: TestVerdict = TestVerdict.NONE,
     val finished: Boolean = false
 ) {
@@ -52,47 +45,45 @@ class A0a1TestViewModel @Inject constructor(
     private val _state = MutableStateFlow(A0a1TestUiState())
     val state: StateFlow<A0a1TestUiState> = _state.asStateFlow()
 
-    /** Баллы по вопросам — чтобы не считать один вопрос дважды. */
-    private val perQuestion = mutableMapOf<Int, Int>()
-
     private var autoFinishJob: Job? = null
 
     init {
-        // 1) Сигналим VoiceViewModel: «открылся экран теста — переключайся в тест-режим».
+        // Сигналим VoiceViewModel: «открылся экран теста — переключайся в тест-режим».
         viewModelScope.launch { bus.publishStart() }
 
-        // 2) Слушаем оценки.
+        // Слушаем оценки.
         viewModelScope.launch {
-            bus.awards.collect { award -> onAward(award) }
+            bus.awards.collect { points -> onAward(points) }
         }
 
-        // 3) Слушаем завершение от модели.
+        // Слушаем завершение.
         viewModelScope.launch {
             bus.finished.collect { finalizeVerdict() }
         }
     }
 
-    private fun onAward(award: PointsAwarded) {
-        // Защита от дублей/перезаписи: берём МАКСИМУМ между старым и новым.
-        val prev = perQuestion[award.questionNumber] ?: -1
-        val best = maxOf(prev, award.points)
-        perQuestion[award.questionNumber] = best
-
-        val total = perQuestion.values.sum()
-        val answered = perQuestion.size
-        val nextQ = (answered + 1).coerceAtMost(A0a1TestRegistry.TOTAL_QUESTIONS)
+    private fun onAward(points: Int) {
+        val cur = _state.value
+        if (cur.answeredCount >= A0a1TestRegistry.TOTAL_QUESTIONS) {
+            // Защита от лишних вызовов после финала
+            return
+        }
+        val newAnswered = cur.answeredCount + 1
+        val newTotal = cur.totalPoints + points
+        val nextQ = (newAnswered + 1).coerceAtMost(A0a1TestRegistry.TOTAL_QUESTIONS)
 
         _state.update {
             it.copy(
-                totalPoints = total,
-                answeredCount = answered,
+                totalPoints = newTotal,
+                answeredCount = newAnswered,
                 currentQuestion = nextQ,
-                lastAward = award
+                lastPoints = points,
+                lastQuestionIndex = newAnswered
             )
         }
 
-        // Фолбэк: модель забыла вызвать finish_test — ждём 6 сек и сами подводим итог.
-        if (answered >= A0a1TestRegistry.TOTAL_QUESTIONS && _state.value.verdict == TestVerdict.NONE) {
+        // Фолбэк: модель не вызвала finish_test — подводим итог сами через 6 сек.
+        if (newAnswered >= A0a1TestRegistry.TOTAL_QUESTIONS && _state.value.verdict == TestVerdict.NONE) {
             autoFinishJob?.cancel()
             autoFinishJob = viewModelScope.launch {
                 delay(6_000)
@@ -109,15 +100,12 @@ class A0a1TestViewModel @Inject constructor(
         _state.update { it.copy(verdict = verdict, finished = true) }
     }
 
-    /** Сброс прогресса — пользователь хочет пройти тест заново. */
     fun restart() {
         autoFinishJob?.cancel()
-        perQuestion.clear()
         _state.value = A0a1TestUiState()
         viewModelScope.launch { bus.publishStart() }
     }
 
-    /** Явный выход — например, при нажатии «Готово» или кнопки назад. */
     fun signalExit() {
         viewModelScope.launch { bus.publishExit() }
     }
