@@ -1,3 +1,29 @@
+// ═══════════════════════════════════════════════════════════
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/presentation/voice/VoiceViewModel.kt
+//
+// КРИТИЧЕСКИЕ ФИКСЫ:
+//
+//  [1] LearnSession integration — вместо прямой работы с A0a1TestBus
+//      слушаем LearnSessionController.active + restartTick. Один активный
+//      учебный сеанс за раз, вход/выход сериализованы через Mutex.
+//
+//  [2] handleToolCalls сначала спрашивает активный LearnSession, и только
+//      затем — toolRegistry.dispatch(). Активная сессия может вернуть null,
+//      если функция не "её" — тогда идём в ToolRegistry.
+//
+//  [3] pendingSelfCloseEvents: AtomicInteger — счётчик self-close событий.
+//      Исправляет баг, когда после одного «чистого» disconnect прилетали
+//      и onClosed, и onFailure → старый AtomicBoolean терялся → ложный
+//      reconnect + toast.
+//
+//  [4] onCleared: cleanup через GlobalScope + NonCancellable, т.к.
+//      viewModelScope к моменту onCleared УЖЕ отменён (launch на нём
+//      молча не запускается → AudioRecord/AudioTrack утекают).
+//
+//  [5] Больше нет delay(400) — LiveClient.disconnect() теперь suspend
+//      и сам ждёт onClosed.
+// ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.voice
 
 import android.Manifest
@@ -23,12 +49,18 @@ import com.learnde.app.domain.model.LatencyProfile
 import com.learnde.app.domain.model.SessionConfig
 import com.learnde.app.domain.scene.SceneMode
 import com.learnde.app.domain.tools.ToolRegistry
+import com.learnde.app.learn.core.LearnSession
+import com.learnde.app.learn.core.LearnSessionController
 import com.learnde.app.presentation.voice.haptics.HapticEngine
 import com.learnde.app.util.AppLogger
 import com.learnde.app.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,22 +68,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 
-/**
- * MVI ViewModel для голосового экрана.
- *
- * ФИКСЫ vs прошлая версия:
- *   [1] transcript обновляется ТОЛЬКО через conversationRepository.getAllFlow() —
- *       устранены race condition'ы и рассинхрон UI.
- *   [2] connectInFlight (AtomicBoolean) защищает от повторного connect, пока
- *       предыдущий в процессе (например, settings watcher + network restore + reconnect).
- *   [3] observeSettings не вызывает handleConnect если уже connectInFlight.
- *   [4] onCleared корректно останавливает сервис.
- */
 @HiltViewModel
 class VoiceViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
@@ -65,7 +90,7 @@ class VoiceViewModel @Inject constructor(
     private val networkMonitor: NetworkMonitor,
     val avatarAnimator: AvatarAnimator,
     private val backgroundStore: BackgroundImageStore,
-    private val a0a1TestBus: com.learnde.app.Learn.Test.A0a1.A0a1TestBus
+    private val learnController: LearnSessionController
 ) : ViewModel() {
 
     val audioPlaybackFlow get() = audioEngine.playbackSync
@@ -83,12 +108,22 @@ class VoiceViewModel @Inject constructor(
     private var micJob: Job? = null
     @Volatile private var contextSeeded = false
     @Volatile private var activeApiKey: String = ""
-    private val pendingToolCalls = mutableSetOf<String>()
+    private val pendingToolCalls = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
-    /** Защита от параллельных connect()-ов. */
-    private val connectInFlight = AtomicBoolean(false)
-    /** Счётчик ожидаемых событий закрытия, инициированных нами. */
-    private val pendingSelfCloseEvents = java.util.concurrent.atomic.AtomicInteger(0)
+    /**
+     * Счётчик ожидаемых self-close событий. Инкрементируется ПЕРЕД каждым
+     * "нашим" liveClient.disconnect(). onClosed/onFailure декрементируют
+     * и не триггерят reconnect. Это исправляет баг, когда одно self-close
+     * порождало и onClosed, и onFailure — старый AtomicBoolean съедался
+     * первым из них, а второй неожиданно триггерил reconnect.
+     */
+    private val pendingSelfCloseEvents = AtomicInteger(0)
+
+    /** Сериализация enter/exit Learn-сессии (чтобы не было двух reconnect одновременно). */
+    private val modeSwitchMutex = Mutex()
+
+    /** Снимок текущей активной LearnSession — обновляется в observeLearnSessions. */
+    @Volatile private var activeLearnSession: LearnSession? = null
 
     init {
         observeSettings()
@@ -97,7 +132,7 @@ class VoiceViewModel @Inject constructor(
         initAudioPlayback()
         observeNetwork()
         avatarAnimator.start()
-        observeA0a1TestSignals()
+        observeLearnSessions()
     }
 
     // ════════════════════════════════════════════════════════════
@@ -158,109 +193,98 @@ class VoiceViewModel @Inject constructor(
     }
 
     // ════════════════════════════════════════════════════════════
-    //  A0-A1 TEST MODE
+    //  LEARN SESSION CONTROLLER
     // ════════════════════════════════════════════════════════════
 
-    private fun observeA0a1TestSignals() {
+    private fun observeLearnSessions() {
+        // Активная сессия: null → exit режима, non-null → enter режима
         viewModelScope.launch {
-            a0a1TestBus.startSignal.collect {
-                logger.d("▶ A0a1 START signal")
-                enterA0a1TestMode()
-            }
+            learnController.active
+                .drop(1)  // пропускаем начальный null
+                .collectLatest { session ->
+                    modeSwitchMutex.withLock {
+                        activeLearnSession = session
+                        if (session != null) {
+                            _state.update { it.copy(learnActive = true, learnId = session.id) }
+                            enterLearnMode(session)
+                        } else {
+                            _state.update { it.copy(learnActive = false, learnId = null) }
+                            exitLearnMode()
+                        }
+                    }
+                }
         }
+        // Re-enter (restart): та же сессия, но просим перезагрузиться
         viewModelScope.launch {
-            a0a1TestBus.exitSignal.collect {
-                logger.d("◀ A0a1 EXIT signal")
-                exitA0a1TestMode()
-            }
+            learnController.restartTick
+                .drop(1)
+                .collectLatest {
+                    val s = activeLearnSession ?: return@collectLatest
+                    modeSwitchMutex.withLock {
+                        enterLearnMode(s)
+                    }
+                }
         }
     }
 
-    /**
-     * Переподключает сессию с systemInstruction для теста A0-A1.
-     * После SetupComplete модели автоматически отправится "Начни тест.".
-     */
-    private fun enterA0a1TestMode() {
-        _state.update { it.copy(a0a1TestActive = true) }
-        viewModelScope.launch {
-            reconnectJob?.cancel()
-            micJob?.cancel()
-            audioEngine.stopCapture()
+    /** Переподключает сессию с systemInstruction и functionDeclarations учебного сеанса. */
+    private suspend fun enterLearnMode(session: LearnSession) {
+        logger.d("▶ enterLearnMode(${session.id})")
+        reconnectJob?.cancel()
+        micJob?.cancel()
+        audioEngine.stopCapture()
 
-            // ВАЖНО: помечаем, что закрытие — инициировано нами
-            pendingSelfCloseEvents.incrementAndGet()
-            liveClient.disconnect()
-            _state.update {
-                it.copy(
-                    connectionStatus = ConnectionStatus.Disconnected,
-                    isMicActive = false,
-                    isAiSpeaking = false
-                )
-            }
-            connectInFlight.set(false)
+        // Чистое закрытие (ждёт onClosed).
+        pendingSelfCloseEvents.incrementAndGet()
+        liveClient.disconnect()
+        _state.update {
+            it.copy(
+                connectionStatus = ConnectionStatus.Disconnected,
+                isMicActive = false,
+                isAiSpeaking = false
+            )
+        }
 
-            delay(400)  // даём WS корректно закрыться
+        if (activeApiKey.isEmpty()) {
+            logger.w("Learn: cannot start — API key empty")
+            return
+        }
+        contextSeeded = true  // в учебном режиме НЕ подмешиваем старую историю
+        _state.update { it.copy(connectionStatus = ConnectionStatus.Connecting) }
 
-            if (activeApiKey.isEmpty()) {
-                logger.w("A0a1: cannot start — API key empty")
-                return@launch
-            }
-            if (!connectInFlight.compareAndSet(false, true)) return@launch
-            contextSeeded = true  // в тест-режиме НЕ подмешиваем старую историю
-            _state.update { it.copy(connectionStatus = ConnectionStatus.Connecting) }
+        (conversationRepository as? PersistentConversationRepository)?.startNewSession()
 
-            runCatching {
-                liveClient.connect(
-                    apiKey = activeApiKey,
-                    config = buildA0a1SessionConfig(),
-                    logRaw = cachedSettings.logRawWebSocketFrames
-                )
-            }.onFailure { e ->
-                logger.e("A0a1 connect error: ${e.message}", e)
-                connectInFlight.set(false)
-                _state.update { it.copy(connectionStatus = ConnectionStatus.Disconnected) }
-            }
+        runCatching {
+            liveClient.connect(
+                apiKey = activeApiKey,
+                config = buildLearnSessionConfig(session),
+                logRaw = cachedSettings.logRawWebSocketFrames
+            )
+        }.onFailure { e ->
+            logger.e("Learn connect error: ${e.message}", e)
+            _state.update { it.copy(connectionStatus = ConnectionStatus.Disconnected) }
         }
     }
 
     /** Возвращает сессию в обычный режим. */
-    private fun exitA0a1TestMode() {
-        if (!_state.value.a0a1TestActive) return
-        _state.update { it.copy(a0a1TestActive = false) }
-        viewModelScope.launch {
-            reconnectJob?.cancel()
-            micJob?.cancel()
-            audioEngine.stopCapture()
+    private suspend fun exitLearnMode() {
+        logger.d("◀ exitLearnMode")
+        reconnectJob?.cancel()
+        micJob?.cancel()
+        audioEngine.stopCapture()
 
-            // ВАЖНО
-            pendingSelfCloseEvents.incrementAndGet()
-            liveClient.disconnect()
-            connectInFlight.set(false)
-            delay(400)
-            contextSeeded = false
-            handleConnect()
-        }
+        pendingSelfCloseEvents.incrementAndGet()
+        liveClient.disconnect()
+        contextSeeded = false
+        handleConnect()
     }
 
-    /**
-     * SessionConfig для режима теста:
-     *   • подменяем systemInstruction,
-     *   • в tools оставляем ТОЛЬКО award_points и finish_test
-     *     (чтобы модель случайно не вызвала test_function_N),
-     *   • отключаем googleSearch и resumption — сессия свежая.
-     */
-    private fun buildA0a1SessionConfig(): SessionConfig {
+    /** SessionConfig для учебного режима. */
+    private fun buildLearnSessionConfig(session: LearnSession): SessionConfig {
         val base = buildSessionConfig()
-        val testDecls = toolRegistry.getFunctionDeclarationConfigs().filter { decl ->
-            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD_0 ||
-            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD_1 ||
-            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD_2 ||
-            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_AWARD_3 ||
-            decl.name == com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.FN_FINISH
-        }
         return base.copy(
-            systemInstruction = com.learnde.app.Learn.Test.A0a1.A0a1TestRegistry.SYSTEM_INSTRUCTION,
-            functionDeclarations = testDecls,
+            systemInstruction = session.systemInstruction,
+            functionDeclarations = session.functionDeclarations,
             enableGoogleSearch = false,
             sessionHandle = null,
             enableSessionResumption = false
@@ -321,10 +345,10 @@ class VoiceViewModel @Inject constructor(
                     audioEngine.setMicGain(settings.micGain / 100f)
                     audioEngine.setSpeakerRouting(settings.forceSpeakerOutput)
 
-                    // Автоконнект ТОЛЬКО при первом появлении ключа и если нет уже летающего connect
+                    // Автоконнект ТОЛЬКО при первом появлении ключа и если мы не в учебном режиме
                     if (hasKey && wasKeyEmpty &&
                         _state.value.connectionStatus == ConnectionStatus.Disconnected &&
-                        !connectInFlight.get()
+                        activeLearnSession == null
                     ) {
                         handleConnect()
                     }
@@ -333,7 +357,7 @@ class VoiceViewModel @Inject constructor(
     }
 
     // ════════════════════════════════════════════════════════════
-    //  SESSION CONFIG
+    //  SESSION CONFIG (обычный режим)
     // ════════════════════════════════════════════════════════════
 
     private fun buildSessionConfig(): SessionConfig {
@@ -394,12 +418,6 @@ class VoiceViewModel @Inject constructor(
         val status = _state.value.connectionStatus
         if (status == ConnectionStatus.Connecting || status == ConnectionStatus.Ready) return
 
-        // ═══ КРИТИЧЕСКАЯ ЗАЩИТА ОТ ПОВТОРНОГО CONNECT ═══
-        if (!connectInFlight.compareAndSet(false, true)) {
-            logger.d("Connect skipped — already in flight")
-            return
-        }
-
         contextSeeded = false
         _state.update { it.copy(connectionStatus = ConnectionStatus.Connecting) }
 
@@ -429,7 +447,6 @@ class VoiceViewModel @Inject constructor(
                 )
             } catch (e: Exception) {
                 logger.e("liveClient.connect error: ${e.message}", e)
-                connectInFlight.set(false)
                 _state.update { it.copy(connectionStatus = ConnectionStatus.Disconnected) }
             }
         }
@@ -438,9 +455,9 @@ class VoiceViewModel @Inject constructor(
     private fun handleDisconnect() {
         reconnectJob?.cancel()
         micJob?.cancel()
-        connectInFlight.set(false)
         viewModelScope.launch {
             audioEngine.stopCapture()
+            pendingSelfCloseEvents.incrementAndGet()
             liveClient.disconnect()
             _state.update {
                 it.copy(
@@ -512,30 +529,32 @@ class VoiceViewModel @Inject constructor(
 
                     is GeminiEvent.SetupComplete -> {
                         reconnectAttempt = 0
-                        connectInFlight.set(false)
                         _state.update { it.copy(connectionStatus = ConnectionStatus.Ready) }
 
-                        if (!contextSeeded && liveClient.sessionHandle == null) {
-                            val history = conversationRepository.getAll()
-                            if (history.isNotEmpty()) {
-                                logger.d("Seeding initial context (${history.size} msgs)")
-                                liveClient.restoreContext(history)
+                        val learn = activeLearnSession
+                        if (learn != null) {
+                            // Учебный режим: не сеем старую историю, шлём начальную фразу
+                            contextSeeded = true
+                            if (learn.initialUserMessage.isNotBlank()) {
+                                logger.d("Learn: sending initialUserMessage")
+                                liveClient.sendText(learn.initialUserMessage)
                             }
-                        } else if (liveClient.sessionHandle != null) {
-                            logger.d("Resumed via sessionHandle — skip manual context seed")
-                        }
-                        contextSeeded = true
-                        // В режиме теста A0-A1 — отправляем стартовую команду модели
-                        if (_state.value.a0a1TestActive) {
-                            logger.d("A0a1: sending start message to model")
-                            liveClient.sendText("Начни тест.")
-                            liveClient.sendTurnComplete()
-                            // Авто-старт микрофона: юзер сразу может отвечать голосом
                             delay(300)
                             if (liveClient.isReady && !_state.value.isMicActive) {
-                                logger.d("A0a1: auto-starting mic")
+                                logger.d("Learn: auto-starting mic")
                                 startMic()
                             }
+                        } else {
+                            if (!contextSeeded && liveClient.sessionHandle == null) {
+                                val history = conversationRepository.getAll()
+                                if (history.isNotEmpty()) {
+                                    logger.d("Seeding initial context (${history.size} msgs)")
+                                    liveClient.restoreContext(history)
+                                }
+                            } else if (liveClient.sessionHandle != null) {
+                                logger.d("Resumed via sessionHandle — skip manual context seed")
+                            }
+                            contextSeeded = true
                         }
                     }
 
@@ -605,7 +624,6 @@ class VoiceViewModel @Inject constructor(
                     is GeminiEvent.GroundingMetadata -> { }
 
                     is GeminiEvent.Disconnected -> {
-                        connectInFlight.set(false)
                         _state.update {
                             it.copy(
                                 connectionStatus = ConnectionStatus.Disconnected,
@@ -613,8 +631,7 @@ class VoiceViewModel @Inject constructor(
                             )
                         }
                         audioEngine.stopCapture()
-                        // Мы сами закрыли сокет (например, при смене режима) — не реконнектим и не спамим toast
-                        if (pendingSelfCloseEvents.getAndUpdate { (it - 1).coerceAtLeast(0) } > 0) {
+                        if (consumeSelfCloseIfAny()) {
                             logger.d("WS closed by self — no reconnect")
                         } else {
                             _effects.tryEmit(
@@ -627,7 +644,6 @@ class VoiceViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.ConnectionError -> {
-                        connectInFlight.set(false)
                         val isRateLimit = event.message.contains("429") ||
                                 event.message.contains("rate", ignoreCase = true)
                         if (isRateLimit && cachedSettings.autoRotateKeys &&
@@ -644,7 +660,7 @@ class VoiceViewModel @Inject constructor(
                             )
                         }
                         audioEngine.stopCapture()
-                        if (pendingSelfCloseEvents.getAndUpdate { (it - 1).coerceAtLeast(0) } > 0) {
+                        if (consumeSelfCloseIfAny()) {
                             logger.d("WS error during self-disconnect — ignored")
                         } else {
                             _effects.tryEmit(
@@ -664,6 +680,19 @@ class VoiceViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Атомарно попытаться потребить один "self-close" маркер.
+     * @return true если текущее событие — результат нашего disconnect
+     *         (reconnect не нужен). false если это внешнее закрытие/ошибка.
+     */
+    private fun consumeSelfCloseIfAny(): Boolean {
+        while (true) {
+            val n = pendingSelfCloseEvents.get()
+            if (n <= 0) return false
+            if (pendingSelfCloseEvents.compareAndSet(n, n - 1)) return true
+        }
+    }
+
     // ════════════════════════════════════════════════════════════
     //  TOOL CALLING
     // ════════════════════════════════════════════════════════════
@@ -672,9 +701,15 @@ class VoiceViewModel @Inject constructor(
         for (call in event.calls) pendingToolCalls.add(call.id)
 
         val responses = mutableListOf<ToolResponse>()
+        val session = activeLearnSession
+
         for (call in event.calls) {
             if (call.id !in pendingToolCalls) continue
-            val result = toolRegistry.dispatch(call)
+
+            // Сначала даём шанс активной учебной сессии
+            val sessionResult = session?.let { runCatching { it.handleToolCall(call) }.getOrNull() }
+            val result = sessionResult ?: toolRegistry.dispatch(call)
+
             pendingToolCalls.remove(call.id)
             responses.add(ToolResponse(call.name, call.id, result))
         }
@@ -710,7 +745,13 @@ class VoiceViewModel @Inject constructor(
         reconnectJob = viewModelScope.launch {
             delay(delayMs)
             contextSeeded = false
-            handleConnect()
+            // В учебном режиме reconnect должен идти по учебному конфигу
+            val learn = activeLearnSession
+            if (learn != null) {
+                modeSwitchMutex.withLock { enterLearnMode(learn) }
+            } else {
+                handleConnect()
+            }
         }
     }
 
@@ -730,17 +771,24 @@ class VoiceViewModel @Inject constructor(
         }
     }
 
+    /**
+     * ВАЖНО: viewModelScope в момент onCleared УЖЕ отменён. Нельзя
+     * делать viewModelScope.launch — корутина не стартует, ресурсы
+     * утекают (AudioRecord/AudioTrack в нативной куче). Используем
+     * GlobalScope + NonCancellable.
+     */
+    @OptIn(DelicateCoroutinesApi::class)
     override fun onCleared() {
         super.onCleared()
         reconnectJob?.cancel(); micJob?.cancel()
-        connectInFlight.set(false)
         avatarAnimator.stop()
         try {
             appContext.startService(GeminiLiveForegroundService.stopIntent(appContext))
         } catch (_: Exception) { }
-        viewModelScope.launch {
-            audioEngine.releaseAll()
-            liveClient.disconnect()
+        GlobalScope.launch(Dispatchers.IO + NonCancellable) {
+            runCatching { audioEngine.releaseAll() }
+            runCatching { liveClient.disconnect() }
+            logger.d("VoiceViewModel cleanup complete")
         }
     }
 }
