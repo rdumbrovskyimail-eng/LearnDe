@@ -74,6 +74,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import java.util.concurrent.TimeUnit
+
 class GeminiLiveClient(
     private val logger: AppLogger
 ) : LiveClient {
