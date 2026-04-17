@@ -1,3 +1,11 @@
+// ═══════════════════════════════════════════════════════════
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/data/db/ConversationDao.kt
+//
+// ФИКС: appendOrAdd теперь проверяет совпадение sessionId. Без этого
+// первое сообщение новой сессии дописывалось к последнему сообщению
+// предыдущей сессии (склеивались в простыню через reconnect).
+// ═══════════════════════════════════════════════════════════
 package com.learnde.app.data.db
 
 import androidx.room.Dao
@@ -47,14 +55,13 @@ interface ConversationDao {
     suspend fun deleteOldest(count: Int)
 
     /**
-     * Если последнее сообщение от той же роли — дописать текст (стриминг).
-     * Иначе — создать новое.
-     * Ограничиваем общее количество сообщений.
+     * Если последнее сообщение ОТ ТОЙ ЖЕ СЕССИИ И той же роли — дописать текст
+     * (стриминг). Иначе — создать новое. Ограничиваем общее количество сообщений.
      */
     @Transaction
     suspend fun appendOrAdd(role: String, text: String, sessionId: String = "", maxMessages: Int = 200) {
         val last = getLastMessage()
-        if (last != null && last.role == role) {
+        if (last != null && last.role == role && last.sessionId == sessionId) {
             update(last.copy(text = last.text + text))
         } else {
             insert(ConversationEntity(role = role, text = text, sessionId = sessionId))
