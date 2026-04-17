@@ -11,6 +11,7 @@
 //           chatShowRoleLabels, chatFontScale
 //   + Только модель 3.1 — остальные удалены из defaults
 //   + Удалено поле autoRotateKeys из обязательных, логика осталась
+//   + learnConfirmSwitch (Этап 3)
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.data.settings
 
@@ -110,7 +111,12 @@ data class AppSettings(
     /** Прозрачность фона списка (0..100, проценты). */
     val chatBackgroundAlpha: Int = 30,
 
-    // ═══════════════════ 13. DEBUG ═══════════════════
+    // ═══════════════════ 13. LEARN ═══════════════════
+    /** Включён ли автоматический вход в Learn Hub при тапе на иконку школы.
+     *  False = показывать промпт "Это закроет текущий диалог". */
+    val learnConfirmSwitch: Boolean = true,
+
+    // ═══════════════════ 14. DEBUG ═══════════════════
     val showDebugLog: Boolean = false,
     val logRawWebSocketFrames: Boolean = false,
     val showUsageMetadata: Boolean = false
