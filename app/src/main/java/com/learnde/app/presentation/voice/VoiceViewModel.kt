@@ -87,8 +87,8 @@ class VoiceViewModel @Inject constructor(
 
     /** Защита от параллельных connect()-ов. */
     private val connectInFlight = AtomicBoolean(false)
-    /** Флаг «мы сами закрываем сокет», чтобы не триггерить auto-reconnect. */
-    private val selfDisconnecting = java.util.concurrent.atomic.AtomicBoolean(false)
+    /** Счётчик ожидаемых событий закрытия, инициированных нами. */
+    private val pendingSelfCloseEvents = java.util.concurrent.atomic.AtomicInteger(0)
 
     init {
         observeSettings()
@@ -188,7 +188,7 @@ class VoiceViewModel @Inject constructor(
             audioEngine.stopCapture()
 
             // ВАЖНО: помечаем, что закрытие — инициировано нами
-            selfDisconnecting.set(true)
+            pendingSelfCloseEvents.incrementAndGet()
             liveClient.disconnect()
             _state.update {
                 it.copy(
@@ -233,7 +233,7 @@ class VoiceViewModel @Inject constructor(
             audioEngine.stopCapture()
 
             // ВАЖНО
-            selfDisconnecting.set(true)
+            pendingSelfCloseEvents.incrementAndGet()
             liveClient.disconnect()
             connectInFlight.set(false)
             delay(400)
@@ -614,7 +614,7 @@ class VoiceViewModel @Inject constructor(
                         }
                         audioEngine.stopCapture()
                         // Мы сами закрыли сокет (например, при смене режима) — не реконнектим и не спамим toast
-                        if (selfDisconnecting.getAndSet(false)) {
+                        if (pendingSelfCloseEvents.getAndUpdate { (it - 1).coerceAtLeast(0) } > 0) {
                             logger.d("WS closed by self — no reconnect")
                         } else {
                             _effects.tryEmit(
@@ -644,7 +644,7 @@ class VoiceViewModel @Inject constructor(
                             )
                         }
                         audioEngine.stopCapture()
-                        if (selfDisconnecting.getAndSet(false)) {
+                        if (pendingSelfCloseEvents.getAndUpdate { (it - 1).coerceAtLeast(0) } > 0) {
                             logger.d("WS error during self-disconnect — ignored")
                         } else {
                             _effects.tryEmit(
