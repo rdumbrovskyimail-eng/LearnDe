@@ -72,8 +72,8 @@ import javax.inject.Inject
 @HiltViewModel
 class VoiceViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
-    private val liveClient: LiveClient,
-    private val audioEngine: AudioEngine,
+    @com.learnde.app.learn.core.VoiceScope private val liveClient: LiveClient,
+    @com.learnde.app.learn.core.VoiceScope private val audioEngine: AudioEngine,
     private val conversationRepository: ConversationRepository,
     private val logger: AppLogger,
     private val settingsStore: DataStore<AppSettings>,
@@ -315,6 +315,7 @@ class VoiceViewModel @Inject constructor(
             sessionHandle = liveClient.sessionHandle,
             enableContextCompression = cachedSettings.enableContextCompression,
             compressionTriggerTokens = cachedSettings.compressionTriggerTokens,
+            compressionTargetTokens = cachedSettings.compressionTargetTokens,
             enableGoogleSearch = cachedSettings.enableGoogleSearch,
             sendAudioStreamEnd = cachedSettings.sendAudioStreamEnd,
             functionDeclarations = if (cachedSettings.enableTestFunctions)
@@ -336,6 +337,18 @@ class VoiceViewModel @Inject constructor(
             return
         }
         viewModelScope.launch { settingsStore.updateData { it.copy(apiKey = key) } }
+    }
+
+    /**
+     * Точка входа для всех внутренних вызовов connect (reconnect, network restore,
+     * settings change). Захватывает Arbiter как VOICE и делегирует
+     * в handleConnectInner(). Безопасен для вызова из любой корутины.
+     */
+    private fun handleConnect() {
+        viewModelScope.launch {
+            arbiter.acquire(ClientOwner.VOICE)
+            handleConnectInner()
+        }
     }
 
     private fun handleConnectInner() {
