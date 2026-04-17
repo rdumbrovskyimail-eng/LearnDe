@@ -117,6 +117,7 @@ class VoiceViewModel @Inject constructor(
     @Volatile private var lastOutputTranscriptTime: Long = 0L
 
     init {
+        observeArbiter()
         observeSettings()
         observeGeminiEvents()
         observeTranscript()
@@ -177,6 +178,40 @@ class VoiceViewModel @Inject constructor(
                         logger.d("Network restored → reconnecting")
                         reconnectAttempt = 0
                         handleConnect()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeArbiter() {
+        viewModelScope.launch {
+            arbiter.active.collect { owner ->
+                when (owner) {
+                    ClientOwner.LEARN -> {
+                        // Learn забрал клиент — мы должны немедленно закрыть WS
+                        if (_state.value.connectionStatus != ConnectionStatus.Disconnected) {
+                            logger.d("Voice: arbiter=LEARN → disconnecting Voice client")
+                            reconnectJob?.cancel()
+                            micJob?.cancel()
+                            audioEngine.stopCapture()
+                            pendingToolCalls.clear()
+                            pendingSelfCloseEvents.incrementAndGet()
+                            liveClient.disconnect()
+                            _state.update {
+                                it.copy(
+                                    connectionStatus = ConnectionStatus.Disconnected,
+                                    isMicActive = false,
+                                    isAiSpeaking = false,
+                                )
+                            }
+                        }
+                    }
+                    ClientOwner.VOICE, ClientOwner.NONE -> {
+                        // Мы активные (или никто не активный) — можно подключаться,
+                        // но автоподключение только при наличии ключа и если пользователь
+                        // явно открыл VoiceScreen (там уже есть startConnection логика)
+                        logger.d("Voice: arbiter=$owner — ok")
                     }
                 }
             }
