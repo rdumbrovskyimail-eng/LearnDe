@@ -31,6 +31,9 @@ jobs:
           gradle-home-cache-excludes: |
             caches/build-cache-1
 
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
       - name: Build Debug APK
         run: |
           ./gradlew assembleDebug \
