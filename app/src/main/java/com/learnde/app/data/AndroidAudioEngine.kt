@@ -20,6 +20,8 @@ import android.media.audiofx.AcousticEchoCanceler
 import com.learnde.app.domain.AudioEngine
 import com.learnde.app.domain.model.SessionConfig
 import com.learnde.app.util.AppLogger
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
