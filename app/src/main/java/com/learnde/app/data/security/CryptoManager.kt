@@ -129,7 +129,26 @@ class CryptoManager @Inject constructor() {
         val iv            = cipherBytes.copyOfRange(0, GCM_IV_SIZE)
         val encryptedData = cipherBytes.copyOfRange(GCM_IV_SIZE, cipherBytes.size)
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_LEN, iv))
-        return cipher.doFinal(encryptedData)
+
+        // Попытка с существующим ключом
+        val firstAttempt = runCatching {
+            cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_LEN, iv))
+            cipher.doFinal(encryptedData)
+        }
+        if (firstAttempt.isSuccess) return firstAttempt.getOrThrow()
+
+        val cause = firstAttempt.exceptionOrNull()
+        Log.w(TAG, "decrypt failed on first attempt: ${cause?.message}")
+
+        // Если это проблема с ключом (а не с данными), регенерируем и пробрасываем,
+        // чтобы сериализатор вернул defaultValue
+        if (cause is android.security.keystore.KeyPermanentlyInvalidatedException ||
+            cause is java.security.UnrecoverableKeyException
+        ) {
+            Log.w(TAG, "Key invalidated — regenerating")
+            regenerateKey()
+        }
+        // В любом случае пробрасываем — сериализатор поймает и вернёт defaultValue
+        throw cause ?: IllegalStateException("decrypt failed")
     }
 }
