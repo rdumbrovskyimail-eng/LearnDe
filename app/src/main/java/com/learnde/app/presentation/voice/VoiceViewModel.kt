@@ -108,8 +108,6 @@ class VoiceViewModel @Inject constructor(
     private val pendingSelfCloseEvents = AtomicInteger(0)
     private val modeSwitchMutex = Mutex()
 
-    @Volatile private var activeLearnSession: LearnSession? = null
-
     // Dedup guards для транскрипций — защита от дублей при reconnect.
     @Volatile private var lastInputTranscript: String = ""
     @Volatile private var lastInputTranscriptTime: Long = 0L
@@ -682,14 +680,6 @@ class VoiceViewModel @Inject constructor(
     // ════════════════════════════════════════════════════════════
 
     private fun scheduleReconnect(proactive: Boolean = false) {
-        // [5.10] Если сейчас активна Learn-сессия — реконнектом будет
-        // заниматься сам LearnSessionController через restartSignal
-        // (либо пользователь нажатием "Начать заново"). Здесь выходим.
-        if (activeLearnSession != null) {
-            logger.d("scheduleReconnect: skipped — Learn session active, will reconnect via enterLearnMode")
-            return
-        }
-
         val maxAttempts = cachedSettings.maxReconnectAttempts
         if (reconnectAttempt >= maxAttempts && !proactive) {
             _effects.tryEmit(
