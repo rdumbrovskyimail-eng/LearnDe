@@ -311,11 +311,6 @@ class GeminiLiveClient @Inject constructor(
                     })
                 }
 
-                // ── historyConfig: обязателен для gemini-3.1-flash-live
-                //    если собираемся seed-ить историю через clientContent ──
-                put("historyConfig", buildJsonObject {
-                    put("initialHistoryInClientContent", true)
-                })
             })
         }
 
