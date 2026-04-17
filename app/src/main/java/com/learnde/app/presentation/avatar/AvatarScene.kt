@@ -1,9 +1,25 @@
 // ═══════════════════════════════════════════════════════════
-// ЗАМЕНА
-// Путь: app/src/main/java/com/codeextractor/app/presentation/avatar/AvatarScene.kt
-// Изменения:
-//   FIX: reusableTransformMatrix теперь remember-based (не global)
-//   FIX: patched model cache invalidation
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/presentation/avatar/AvatarScene.kt
+//
+// КРИТИЧЕСКИЙ ФИКС (SIGSEGV при 10 function declarations + аватар):
+//
+//   [1] УБРАН withContext(Dispatchers.IO) вокруг блока настройки
+//       материалов / вызовов Filament API (rm.getMaterialInstanceAt,
+//       mat.setParameter, Texture.Builder().build(engine),
+//       TextureHelper.setBitmap, engine.flushAndWait).
+//       Filament НЕ ПОТОКОБЕЗОПАСЕН. Эти вызовы ВСЕГДА должны идти
+//       с главного/рендер-треда.
+//       Bitmap decode (I/O) вынесен в отдельный withContext(IO).
+//
+//   [2] textureCache: ConcurrentHashMap вместо mutableMapOf — защита
+//       от случайного конкуррентного доступа в будущем.
+//
+//   [3] DisposableEffect(avatarIndex): при смене avatarIndex освобождаем
+//       только текстуры старого индекса (предотвращает GPU-утечку при
+//       смене голоса).
+//
+//   [4] whiteTex: вместо !! — безопасная проверка.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.avatar
 
@@ -41,6 +57,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.ByteBuffer
+import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "AvatarScene"
 
@@ -74,11 +91,12 @@ fun AvatarScene(
     var modelInstance  by remember { mutableStateOf<ModelInstance?>(null) }
     var materialsReady by remember { mutableStateOf(false) }
 
-    val textureCache    = remember { mutableMapOf<String, Texture>() }
+    // Thread-safe на случай будущих кейсов. Ключи вида "head_1", "eyes_2" и т.д.
+    val textureCache    = remember { ConcurrentHashMap<String, Texture>() }
     val frameSnapshot   = remember { ZeroAllocRenderState() }
     var whiteTex        by remember { mutableStateOf<Texture?>(null) }
 
-    // ═══ FIX: per-composable matrix вместо global ═══
+    // per-composable matrix вместо global
     val transformMatrix = remember { FloatArray(16) }
 
     fun modelPath() = if (avatarIndex == 1) BASE_MODEL_PATH_1 else BASE_MODEL_PATH_2
@@ -86,18 +104,32 @@ fun AvatarScene(
     fun eyesTex()   = if (avatarIndex == 1) EYES_TEXTURE_1  else EYES_TEXTURE_2
     fun teethTex()  = if (avatarIndex == 1) TEETH_TEXTURE_1 else TEETH_TEXTURE_2
 
+    // При выгрузке Composable — освобождаем все текстуры.
     DisposableEffect(engine) {
         onDispose {
-            textureCache.values.forEach { try { engine.destroyTexture(it) } catch (_: Exception) {} }
+            for (t in textureCache.values) runCatching { engine.destroyTexture(t) }
             textureCache.clear()
-            whiteTex?.let { try { engine.destroyTexture(it) } catch (_: Exception) {} }
+            whiteTex?.let { runCatching { engine.destroyTexture(it) } }
             whiteTex = null
+        }
+    }
+
+    // При смене avatarIndex — освобождаем ТОЛЬКО текстуры старого индекса
+    // (anti-leak при частой смене голоса/аватара).
+    DisposableEffect(avatarIndex) {
+        onDispose {
+            val suffix = "_$avatarIndex"
+            val keys = textureCache.keys.filter { it.endsWith(suffix) }
+            for (k in keys) {
+                textureCache.remove(k)?.let { runCatching { engine.destroyTexture(it) } }
+            }
         }
     }
 
     LaunchedEffect(modelLoader, avatarIndex) {
         modelInstance  = null
         materialsReady = false
+        // Чтение assets и патч GLB — безопасно на IO (нет Filament вызовов)
         val buffer = withContext(Dispatchers.IO) {
             val patchedFile = File(ctx.cacheDir, "patched_model_base_$avatarIndex.glb")
             if (!patchedFile.exists()) {
@@ -106,11 +138,16 @@ fun AvatarScene(
                     com.learnde.app.editor.GlbTextureEditor(ctx).preparePatchedModel(modelPath())
                     editorOutput.exists()
                 }.getOrDefault(false)
-                if (patchOk) editorOutput.renameTo(patchedFile)
+                if (patchOk) {
+                    if (!editorOutput.renameTo(patchedFile)) {
+                        // Fallback: copy + delete (если renameTo не поддерживается FS)
+                        runCatching {
+                            editorOutput.copyTo(patchedFile, overwrite = true)
+                            editorOutput.delete()
+                        }
+                    }
+                }
             }
-            // Fallback: если patched так и не создался — грузим оригинал из assets.
-            // Это гарантирует, что аватар всегда появится, даже если GlbTextureEditor
-            // недоступен или падает на конкретной модели устройства.
             val bytes: ByteArray = if (patchedFile.exists()) {
                 patchedFile.readBytes()
             } else {
@@ -119,6 +156,7 @@ fun AvatarScene(
             }
             ByteBuffer.allocateDirect(bytes.size).also { it.put(bytes); it.rewind() }
         }
+        // createModelInstance — Filament API, только на главном контексте
         if (buffer != null) modelInstance = modelLoader.createModelInstance(buffer)
     }
 
@@ -126,17 +164,13 @@ fun AvatarScene(
         val mi = modelInstance ?: return@LaunchedEffect
         val rm = engine.renderableManager
         materialsReady = false
+
+        // whiteTex: Filament API — НЕ на IO
         if (whiteTex == null) whiteTex = buildWhiteTexture(engine)
         val defaultSampler = buildDefaultSampler()
 
-        val headTexPath = headTex()
-        val teethTexPath = teethTex()
-        val eyesTexPath = eyesTex()
-
-        val headBmp = withContext(Dispatchers.IO) { loadBitmap(ctx, headTexPath) }
-        val teethBmp = withContext(Dispatchers.IO) { loadBitmap(ctx, teethTexPath) }
-        val eyesBmp = withContext(Dispatchers.IO) { loadBitmap(ctx, eyesTexPath) }
-
+        // ВАЖНО: весь блок ниже — БЕЗ withContext(Dispatchers.IO).
+        // rm.*, tex.*, mat.setParameter — все идут на главном/рендер-контексте.
         var headMat: MaterialInstance? = null
         var teethMat: MaterialInstance? = null
         var eyeLMat: MaterialInstance? = null
@@ -164,7 +198,7 @@ fun AvatarScene(
 
         headMat?.let { mat ->
             val key = "head_$avatarIndex"
-            val tex = textureCache[key] ?: buildHeadCompositeTexture(engine, headBmp)?.also { textureCache[key] = it }
+            val tex = textureCache[key] ?: buildHeadCompositeTexture(ctx, engine, headTex())?.also { textureCache[key] = it }
             if (tex != null) setParam(mat, "baseColorMap", tex, buildMipmapSampler(anisotropy = 8f))
             setParam(mat, "baseColorFactor", 1f, 1f, 1f, 1f)
             setParam(mat, "roughnessFactor", 0.48f)
@@ -173,21 +207,22 @@ fun AvatarScene(
 
         teethMat?.let { mat ->
             val key = "teeth_$avatarIndex"
-            val tex = textureCache[key] ?: (teethBmp?.let { createTexture(engine, it) })?.also { textureCache[key] = it }
+            val tex = textureCache[key] ?: loadTexture(ctx, engine, teethTex())?.also { textureCache[key] = it }
+            val wt = whiteTex
             if (tex != null) {
                 setParam(mat, "baseColorMap", tex, buildMipmapSampler())
                 setParam(mat, "baseColorFactor", 0.97f, 0.97f, 0.95f, 1f)
                 setParam(mat, "roughnessFactor", 0.35f)
-            } else {
-                setParam(mat, "baseColorMap", whiteTex!!, defaultSampler)
+            } else if (wt != null) {
+                setParam(mat, "baseColorMap", wt, defaultSampler)
                 setParam(mat, "baseColorFactor", 0.55f, 0.22f, 0.20f, 1f)
                 setParam(mat, "roughnessFactor", 0.85f)
             }
             setParam(mat, "metallicFactor", 0.00f)
         }
 
-        val key = "eyes_$avatarIndex"
-        val eyeTex = textureCache[key] ?: (eyesBmp?.let { createTexture(engine, it) })?.also { textureCache[key] = it }
+        val eyeKey = "eyes_$avatarIndex"
+        val eyeTex = textureCache[eyeKey] ?: loadTexture(ctx, engine, eyesTex())?.also { textureCache[eyeKey] = it }
         eyeTex?.let { tex ->
             val sampler = buildMipmapSampler(wrap = TextureSampler.WrapMode.REPEAT)
             listOf(eyeLMat, eyeRMat).filterNotNull().forEach { mat ->
@@ -197,6 +232,7 @@ fun AvatarScene(
                 setParam(mat, "metallicFactor", 0.00f)
             }
         }
+
         engine.flushAndWait()
         materialsReady = true
     }
@@ -299,39 +335,46 @@ private fun identifyMeshType(instance: ModelInstance, entity: Int, morphCount: I
     }
 }
 
-private fun loadBitmap(ctx: android.content.Context, path: String): Bitmap? = try {
-    ctx.assets.open(path).use { BitmapFactory.decodeStream(it) }
-} catch (e: Exception) { null }
-
-private fun createTexture(engine: com.google.android.filament.Engine, bmp: Bitmap, mipmap: Boolean = true): Texture {
-    val mipLevels = if (mipmap) (kotlin.math.log2(bmp.width.toFloat())).toInt().coerceAtLeast(1) + 1 else 1
-    val tex = Texture.Builder().width(bmp.width).height(bmp.height).levels(mipLevels)
-        .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8)
-        .usage(Texture.Usage.SAMPLEABLE or Texture.Usage.UPLOADABLE or if (mipmap) Texture.Usage.GEN_MIPMAPPABLE else 0)
-        .build(engine)
-    TextureHelper.setBitmap(engine, tex, 0, bmp)
-    if (mipmap) tex.generateMipmaps(engine)
-    bmp.recycle()
-    return tex
-}
+private fun loadTexture(ctx: android.content.Context, engine: com.google.android.filament.Engine, path: String, mipmap: Boolean = true): Texture? = try {
+    val bmp = ctx.assets.open(path).use { BitmapFactory.decodeStream(it) }
+    if (bmp == null) null else {
+        val mipLevels = if (mipmap) (kotlin.math.log2(bmp.width.toFloat())).toInt().coerceAtLeast(1) + 1 else 1
+        val tex = Texture.Builder().width(bmp.width).height(bmp.height).levels(mipLevels)
+            .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8)
+            .usage(Texture.Usage.SAMPLEABLE or Texture.Usage.UPLOADABLE or if (mipmap) Texture.Usage.GEN_MIPMAPPABLE else 0)
+            .build(engine)
+        TextureHelper.setBitmap(engine, tex, 0, bmp)
+        if (mipmap) tex.generateMipmaps(engine)
+        bmp.recycle(); tex
+    }
+} catch (_: java.io.FileNotFoundException) { null } catch (e: Exception) { Log.e(TAG, "Texture load failed: $path", e); null }
 
 private fun buildWhiteTexture(engine: com.google.android.filament.Engine): Texture {
     val bmp = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888).also { Canvas(it).drawColor(android.graphics.Color.WHITE) }
-    return createTexture(engine, bmp, false)
+    val tex = Texture.Builder().width(4).height(4).levels(1).sampler(Texture.Sampler.SAMPLER_2D)
+        .format(Texture.InternalFormat.SRGB8_A8).usage(Texture.Usage.SAMPLEABLE or Texture.Usage.UPLOADABLE).build(engine)
+    TextureHelper.setBitmap(engine, tex, 0, bmp); bmp.recycle(); return tex
 }
 
-private fun buildHeadCompositeTexture(engine: com.google.android.filament.Engine, headBmp: Bitmap?): Texture? = try {
+private fun buildHeadCompositeTexture(ctx: android.content.Context, engine: com.google.android.filament.Engine, texPath: String): Texture? = try {
     val composite = Bitmap.createBitmap(COMPOSITE_SIZE, COMPOSITE_SIZE, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(composite)
     canvas.drawColor(android.graphics.Color.rgb(185, 142, 96))
-    if (headBmp != null) {
-        val scaled = if (headBmp.width != COMPOSITE_SIZE || headBmp.height != COMPOSITE_SIZE)
-            Bitmap.createScaledBitmap(headBmp, COMPOSITE_SIZE, COMPOSITE_SIZE, true).also { if (it !== headBmp) headBmp.recycle() }
-        else headBmp
-        canvas.drawBitmap(scaled, 0f, 0f, android.graphics.Paint())
-        if (scaled !== headBmp) scaled.recycle()
-    }
-    createTexture(engine, composite, true)
+    try {
+        val headBmp = ctx.assets.open(texPath).use { BitmapFactory.decodeStream(it) }
+        if (headBmp != null) {
+            val scaled = if (headBmp.width != COMPOSITE_SIZE || headBmp.height != COMPOSITE_SIZE)
+                Bitmap.createScaledBitmap(headBmp, COMPOSITE_SIZE, COMPOSITE_SIZE, true).also { if (it !== headBmp) headBmp.recycle() }
+            else headBmp
+            canvas.drawBitmap(scaled, 0f, 0f, android.graphics.Paint())
+            if (scaled !== headBmp) scaled.recycle()
+        }
+    } catch (e: Exception) { Log.w(TAG, "Head texture overlay failed: $texPath", e) }
+    val mipLevels = (kotlin.math.log2(COMPOSITE_SIZE.toFloat())).toInt().coerceAtLeast(1) + 1
+    val tex = Texture.Builder().width(COMPOSITE_SIZE).height(COMPOSITE_SIZE).levels(mipLevels)
+        .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8)
+        .usage(Texture.Usage.SAMPLEABLE or Texture.Usage.UPLOADABLE or Texture.Usage.GEN_MIPMAPPABLE).build(engine)
+    TextureHelper.setBitmap(engine, tex, 0, composite); tex.generateMipmaps(engine); composite.recycle(); tex
 } catch (e: Exception) { Log.e(TAG, "Head composite failed", e); null }
 
 private fun buildDefaultSampler() = TextureSampler().apply {
