@@ -1,3 +1,12 @@
+// ═══════════════════════════════════════════════════════════
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/domain/LiveClient.kt
+//
+// Изменения:
+//   • disconnect() стал suspend — ждёт реального onClosed от сервера
+//     (с таймаутом ~2с). Это устраняет необходимость эвристического
+//     delay(400) в VoiceViewModel.
+// ═══════════════════════════════════════════════════════════
 package com.learnde.app.domain
 
 import com.learnde.app.domain.model.ConversationMessage
@@ -11,12 +20,12 @@ import kotlinx.coroutines.flow.Flow
  * Полный набор операций:
  *  1. connect()           — WS + setup с полной конфигурацией
  *  2. sendAudio()         — стрим PCM (realtimeInput.audio)
- *  3. sendText()          — текст (realtimeInput.text)
+ *  3. sendText()          — текст (clientContent — единая схема)
  *  4. sendAudioStreamEnd()— flush серверного audio кеша при паузе mic
  *  5. sendTurnComplete()  — сигнал окончания хода
  *  6. sendToolResponse()  — ответ на tool call
  *  7. restoreContext()    — seeding истории (только в начале сессии!)
- *  8. disconnect()        — штатное закрытие
+ *  8. disconnect()        — штатное закрытие С ОЖИДАНИЕМ onClosed
  */
 interface LiveClient {
 
@@ -51,7 +60,11 @@ interface LiveClient {
      */
     fun restoreContext(history: List<ConversationMessage>)
 
-    fun disconnect()
+    /**
+     * Закрыть WS и ДОЖДАТЬСЯ фактического закрытия
+     * (onClosed / onFailure) с таймаутом ~2с.
+     */
+    suspend fun disconnect()
 }
 
 data class ToolResponse(
