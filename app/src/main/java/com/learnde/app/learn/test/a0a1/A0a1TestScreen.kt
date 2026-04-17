@@ -6,6 +6,11 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.layout.height
+import com.learnde.app.learn.core.LearnConnectionStatus
+import com.learnde.app.learn.core.LearnCoreIntent
+import com.learnde.app.learn.core.LearnCoreViewModel
+import com.learnde.app.presentation.learn.components.CurrentFunctionBar
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -43,13 +48,16 @@ import kotlin.math.sin
 @Composable
 fun A0a1TestScreen(
     onBack: () -> Unit,
-    viewModel: A0a1TestViewModel = hiltViewModel()
+    learnCoreViewModel: LearnCoreViewModel,
+    viewModel: A0a1TestViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val learnState by learnCoreViewModel.state.collectAsStateWithLifecycle()
+    val fnStatus by learnCoreViewModel.functionStatus.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val exitAndBack: () -> Unit = {
-        viewModel.signalExit()
+        learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
         onBack()
     }
 
@@ -58,7 +66,7 @@ fun A0a1TestScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            viewModel.startTest()
+            learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0a1_test"))
         } else {
             Toast.makeText(context, "Для теста необходим микрофон", Toast.LENGTH_SHORT).show()
             exitAndBack()
@@ -72,7 +80,7 @@ fun A0a1TestScreen(
         ) == PackageManager.PERMISSION_GRANTED
         
         if (hasMic) {
-            viewModel.startTest()
+            learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0a1_test"))
         } else {
             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
@@ -103,6 +111,11 @@ fun A0a1TestScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
+        },
+        bottomBar = {
+            Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                CurrentFunctionBar(status = fnStatus)
+            }
         }
     ) { pad ->
         Column(
@@ -141,6 +154,19 @@ fun A0a1TestScreen(
                 modifier = Modifier.padding(horizontal = 12.dp),
                 lineHeight = 18.sp
             )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = when (learnState.connectionStatus) {
+                    LearnConnectionStatus.Disconnected -> "⚪ Не подключено"
+                    LearnConnectionStatus.Connecting   -> "🟡 Подключение…"
+                    LearnConnectionStatus.Negotiating  -> "🟡 Настройка сессии…"
+                    LearnConnectionStatus.Ready        -> "🟢 Готово · говорите"
+                    LearnConnectionStatus.Recording    -> "🔴 Запись"
+                    LearnConnectionStatus.Reconnecting -> "🟠 Переподключение…"
+                },
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             Spacer(Modifier.weight(1f))
 
@@ -158,7 +184,10 @@ fun A0a1TestScreen(
             verdict = state.verdict,
             score = state.totalPoints,
             maxScore = state.maxPoints,
-            onRestart = { viewModel.restart() },
+            onRestart = {
+                viewModel.resetUiState()
+                learnCoreViewModel.onIntent(LearnCoreIntent.Restart)
+            },
             onClose = exitAndBack
         )
     }
