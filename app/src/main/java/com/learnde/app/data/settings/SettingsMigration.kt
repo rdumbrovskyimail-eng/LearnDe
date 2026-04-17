@@ -1,24 +1,20 @@
-// ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
-// Путь: app/src/main/java/com/codeextractor/app/data/settings/SettingsMigration.kt
-//
-// Одноразовая миграция для существующих пользователей.
-// Гарантирует, что после обновления приложения:
-//  - system instruction содержит блок про функции;
-//  - model сброшен на 3.1 (если был 2.5);
-//  - enableTestFunctions=true (если поля не было).
-// ═══════════════════════════════════════════════════════════
 package com.learnde.app.data.settings
 
 import androidx.datastore.core.DataStore
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 object SettingsMigration {
 
     private const val FUNCTIONS_MARKER = "test_function_"
 
     suspend fun runIfNeeded(store: DataStore<AppSettings>) {
-        val current = store.data.first()
+        // Таймаут 3 секунды — если не успели прочитать, пропускаем миграцию
+        val current = withTimeoutOrNull(3_000L) {
+            store.data.catch { /* игнорируем ошибки чтения */ }.first()
+        } ?: return
+
         var changed = false
         var next = current
 
@@ -42,7 +38,12 @@ object SettingsMigration {
         }
 
         if (changed) {
-            runCatching { store.updateData { next } }
+            val finalNext = next
+            runCatching {
+                withTimeoutOrNull(3_000L) {
+                    store.updateData { finalNext }
+                }
+            }
         }
     }
 }
