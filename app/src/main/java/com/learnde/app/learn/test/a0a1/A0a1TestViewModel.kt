@@ -102,8 +102,12 @@ class A0a1TestViewModel @Inject constructor(
         _state.update { it.copy(verdict = verdict, finished = true) }
     }
 
-    /** «Пройти заново»: сбрасываем state, dedup, autoFinish. */
-    fun restart() {
+    /**
+     * Сброс UI-состояния теста (баллы, прогресс, verdict).
+     * Реальный restart Gemini-сессии делает LearnCoreViewModel.onIntent(Restart)
+     * — эту обязанность берёт на себя вызывающий экран.
+     */
+    fun resetUiState() {
         autoFinishJob?.cancel()
         autoFinishJob = null
         bus.reset()
