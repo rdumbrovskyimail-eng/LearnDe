@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -25,9 +26,17 @@ class GeminiLiveApplication : Application() {
         appLogger.init()
         appLogger.d("=== APP STARTED (Gemini 3.1 Flash Live — MVI/Compose) ===")
 
-        // Одноразовая миграция старых настроек
+        // Миграция настроек — с таймаутом, чтобы повреждённый Keystore
+        // не повесил запуск приложения навсегда.
         appScope.launch {
-            SettingsMigration.runIfNeeded(settingsStore)
+            try {
+                withTimeoutOrNull(5_000L) {
+                    SettingsMigration.runIfNeeded(settingsStore)
+                } ?: appLogger.w("SettingsMigration timeout — continuing with defaults")
+            } catch (e: Exception) {
+                appLogger.e("SettingsMigration crashed: ${e.message}", e)
+                // Не крашим приложение — продолжаем с defaults.
+            }
         }
     }
 }
