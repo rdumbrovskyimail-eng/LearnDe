@@ -13,8 +13,6 @@ package com.learnde.app.learn.test.a0a1
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.learnde.app.learn.core.LearnSessionController
-import com.learnde.app.learn.core.LearnSessionRegistry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -44,8 +42,6 @@ data class A0a1TestUiState(
 @HiltViewModel
 class A0a1TestViewModel @Inject constructor(
     private val bus: A0a1TestBus,
-    private val learnController: LearnSessionController,
-    private val registry: LearnSessionRegistry
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(A0a1TestUiState())
@@ -62,13 +58,6 @@ class A0a1TestViewModel @Inject constructor(
         // Слушаем завершение.
         viewModelScope.launch {
             bus.finished.collect { finalizeVerdict() }
-        }
-    }
-
-    // НОВОЕ: Явный запуск теста (вызывается из UI после проверки микрофона)
-    fun startTest() {
-        viewModelScope.launch {
-            registry.get("a0a1_test")?.let { learnController.enter(it) }
         }
     }
 
@@ -113,18 +102,12 @@ class A0a1TestViewModel @Inject constructor(
         _state.update { it.copy(verdict = verdict, finished = true) }
     }
 
-    /** «Пройти заново»: сбрасываем state, dedup, autoFinish, и re-enter сессию. */
+    /** «Пройти заново»: сбрасываем state, dedup, autoFinish. */
     fun restart() {
         autoFinishJob?.cancel()
         autoFinishJob = null
         bus.reset()
         _state.value = A0a1TestUiState()
-        startTest() // Перезапуск тоже использует явный метод
-    }
-
-    /** Выход из теста (нажатие «Назад» в UI). */
-    fun signalExit() {
-        viewModelScope.launch { learnController.exit() }
     }
 
     override fun onCleared() {
