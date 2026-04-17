@@ -43,6 +43,8 @@ import com.learnde.app.domain.model.LatencyProfile
 import com.learnde.app.domain.model.SessionConfig
 import com.learnde.app.domain.scene.SceneMode
 import com.learnde.app.domain.tools.ToolRegistry
+import com.learnde.app.learn.core.ActiveClientArbiter
+import com.learnde.app.learn.core.ClientOwner
 import com.learnde.app.learn.core.LearnSession
 import com.learnde.app.learn.core.LearnSessionController
 import com.learnde.app.presentation.voice.haptics.HapticEngine
@@ -82,6 +84,7 @@ class VoiceViewModel @Inject constructor(
     private val networkMonitor: NetworkMonitor,
     val avatarAnimator: AvatarAnimator,
     private val backgroundStore: BackgroundImageStore,
+    private val arbiter: ActiveClientArbiter,
     private val learnController: LearnSessionController
 ) : ViewModel() {
 
