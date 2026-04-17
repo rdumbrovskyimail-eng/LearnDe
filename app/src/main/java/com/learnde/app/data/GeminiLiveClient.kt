@@ -296,11 +296,6 @@ class GeminiLiveClient @Inject constructor(
                                                             })
                                                         }
                                                     })
-                                                    put("required", buildJsonArray {
-                                                        for ((pName, _) in decl.parameters) {
-                                                            add(JsonPrimitive(pName))
-                                                        }
-                                                    })
                                                 })
                                             }
                                         })
