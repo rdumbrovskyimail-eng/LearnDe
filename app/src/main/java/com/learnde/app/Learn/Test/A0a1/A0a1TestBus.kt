@@ -53,4 +53,8 @@ class A0a1TestBus @Inject constructor() {
     fun publishFinish()            { _finished.tryEmit(Unit) }
     fun publishStart()             { _startSignal.tryEmit(Unit) }
     fun publishExit()              { _exitSignal.tryEmit(Unit) }
+
+    fun clearAwards() {
+        _awards.resetReplayCache()
+    }
 }
