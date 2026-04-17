@@ -1,3 +1,14 @@
+// ═══════════════════════════════════════════════════════════
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/data/AndroidAudioEngine.kt
+//
+// ФИКСЫ:
+//   [1] stopCapture: сначала recorder.stop() (будит блокирующий read),
+//       потом captureJob.cancelAndJoin(), потом release(). Устраняет
+//       зависание UI при переключении режима (enter/exit Learn session).
+//   [2] capture-loop: при read == 0 делает небольшой yield, чтобы
+//       не уходить в busy-loop в редких граничных случаях.
+// ═══════════════════════════════════════════════════════════
 package com.learnde.app.data
 
 import android.media.AudioAttributes
@@ -24,27 +35,12 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.yield
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Реальная реализация AudioEngine.
- *
- * Архитектура:
- *  - engineScope: SupervisorJob на IO — живёт от initPlayback до releaseAll.
- *  - captureJob: одиночная корутина чтения AudioRecord.
- *  - playbackJob: одиночная корутина чтения playbackChannel → AudioTrack.
- *  - startCapture/initPlayback возвращаются мгновенно (не блокируют).
- *
- * Фиксы vs прошлая версия:
- *   [1] startCapture не висит в coroutineScope{} — запуск через engineScope.launch.
- *   [2] initPlayback не теряет launch внутри withContext — использует engineScope.
- *   [3] playbackChannel пересоздаётся при releaseAll → повторный initPlayback работает.
- *   [4] playbackChannel capacity следует playbackQueueCapacity (не хардкод 256).
- *   [5] Отдельный SupervisorJob — падение одной корутины не валит другие.
- */
 @Singleton
 class AndroidAudioEngine @Inject constructor(
     private val logger: AppLogger
@@ -80,9 +76,9 @@ class AndroidAudioEngine @Inject constructor(
     private var captureJob: Job? = null
     private var playbackJob: Job? = null
 
-    private var audioRecord: AudioRecord? = null
-    private var echoCanceler: AcousticEchoCanceler? = null
-    private var audioTrack: AudioTrack? = null
+    @Volatile private var audioRecord: AudioRecord? = null
+    @Volatile private var echoCanceler: AcousticEchoCanceler? = null
+    @Volatile private var audioTrack: AudioTrack? = null
 
     @Volatile private var playbackChannel: Channel<ByteArray> =
         Channel(playbackQueueCapacity, BufferOverflow.DROP_OLDEST)
@@ -184,21 +180,30 @@ class AndroidAudioEngine @Inject constructor(
             try {
                 while (isActive && isCapturing) {
                     val read = recorder.read(buffer, 0, buffer.size)
-                    if (read > 0) {
-                        val g = micGain
-                        if (g != 1.0f) {
-                            for (i in 0 until read) {
-                                val amplified = (buffer[i] * g).toInt()
-                                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-                                buffer[i] = amplified.toShort()
+                    when {
+                        read > 0 -> {
+                            val g = micGain
+                            if (g != 1.0f) {
+                                for (i in 0 until read) {
+                                    val amplified = (buffer[i] * g).toInt()
+                                        .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                                    buffer[i] = amplified.toShort()
+                                }
                             }
+                            byteBuffer.clear()
+                            byteBuffer.asShortBuffer().put(buffer, 0, read)
+                            _micOutput.tryEmit(rawBytes.copyOf(read * 2))
                         }
-                        byteBuffer.clear()
-                        byteBuffer.asShortBuffer().put(buffer, 0, read)
-                        _micOutput.tryEmit(rawBytes.copyOf(read * 2))
-                    } else if (read < 0) {
-                        logger.e("AudioRecord.read err=$read — stop loop")
-                        break
+                        read == 0 -> {
+                            // Нет данных — yield чтобы не busy-loop в граничных случаях
+                            yield()
+                        }
+                        else -> {
+                            // read < 0 — ERROR_INVALID_OPERATION / ERROR_DEAD_OBJECT и т.п.
+                            // Также приходит сюда после recorder.stop() — это нормально, выходим.
+                            logger.d("AudioRecord.read returned $read — exiting loop")
+                            break
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -209,16 +214,36 @@ class AndroidAudioEngine @Inject constructor(
         }
     }
 
+    /**
+     * Порядок: stop() → cancelAndJoin() → release().
+     * stop() будит блокирующий recorder.read() и возвращает ERROR_INVALID_OPERATION,
+     * что позволяет капчур-корутине увидеть cancel и выйти быстро (< 50мс).
+     */
     override suspend fun stopCapture() {
         if (!isCapturing && audioRecord == null) return
         isCapturing = false
-        runCatching { captureJob?.cancelAndJoin() }
+
+        // Snapshot — чтобы другие потоки не вырвали ссылку между строками
+        val rec = audioRecord
+        val aec = echoCanceler
+
+        // 1. Будим блокирующий read() — после stop() он вернёт ERROR_INVALID_OPERATION,
+        //    и наш цикл увидит read < 0 → break.
+        runCatching { rec?.stop() }
+
+        // 2. Теперь безопасно ждём выхода из цикла (быстро).
+        //    Таймаут 800мс на случай зависших устройств — не даёт блочить UI навечно.
+        runCatching {
+            withTimeoutOrNull(800L) { captureJob?.cancelAndJoin() }
+        }
         captureJob = null
 
+        // 3. Освобождаем ресурсы на IO.
         withContext(Dispatchers.IO) {
-            echoCanceler?.let { runCatching { it.enabled = false; it.release() } }
+            runCatching { aec?.enabled = false }
+            runCatching { aec?.release() }
             echoCanceler = null
-            audioRecord?.let { runCatching { it.stop(); it.release() } }
+            runCatching { rec?.release() }
             audioRecord = null
         }
         logger.d("Capture stopped")
@@ -290,12 +315,12 @@ class AndroidAudioEngine @Inject constructor(
                         }
                         for (buffered in preBuffer) {
                             _playbackSync.tryEmit(buffered)
-                            track.write(buffered, 0, buffered.size)
+                            runCatching { track.write(buffered, 0, buffered.size) }
                         }
                         isFirstBatch = false
                     } else {
                         _playbackSync.tryEmit(chunk)
-                        track.write(chunk, 0, chunk.size)
+                        runCatching { track.write(chunk, 0, chunk.size) }
                     }
                     if (awaitingDrain && playbackChannel.isEmpty) {
                         awaitingDrain = false
@@ -337,11 +362,17 @@ class AndroidAudioEngine @Inject constructor(
         stopCapture()
         isPlaying = false
         runCatching { playbackChannel.close() }
-        runCatching { playbackJob?.cancelAndJoin() }
+        runCatching {
+            withTimeoutOrNull(800L) { playbackJob?.cancelAndJoin() }
+        }
         playbackJob = null
-        audioTrack?.let { runCatching { it.pause(); it.flush(); it.stop(); it.release() } }
+        audioTrack?.let {
+            runCatching { it.pause(); it.flush(); it.stop(); it.release() }
+        }
         audioTrack = null
-        runCatching { engineScope.coroutineContext[Job]?.cancelAndJoin() }
+        runCatching {
+            withTimeoutOrNull(800L) { engineScope.coroutineContext[Job]?.cancelAndJoin() }
+        }
         logger.d("Engine released")
     }
 }
