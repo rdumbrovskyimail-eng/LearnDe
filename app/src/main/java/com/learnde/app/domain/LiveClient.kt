@@ -2,7 +2,16 @@
 // ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/domain/LiveClient.kt
 //
-// Изменения:
+// Изменения v2:
+//   • Добавлен sendRealtimeText(text) — для текста в ходе уже
+//     идущего диалога (через realtimeInput.text). Семантически
+//     разделён с sendText(), который идёт через clientContent
+//     и предназначен только для initial user message после
+//     SetupComplete.
+//   • Добавлен sendVideoFrame(jpegBytes) — заготовка для
+//     видео-контекста (карточки в немецких уроках, ≤1 FPS).
+//
+// Ранее:
 //   • disconnect() стал suspend — ждёт реального onClosed от сервера
 //     (с таймаутом ~2с). Это устраняет необходимость эвристического
 //     delay(400) в VoiceViewModel.
@@ -18,14 +27,16 @@ import kotlinx.coroutines.flow.Flow
  * Абстракция WebSocket-клиента Gemini Live API — контракт 2026.
  *
  * Полный набор операций:
- *  1. connect()           — WS + setup с полной конфигурацией
- *  2. sendAudio()         — стрим PCM (realtimeInput.audio)
- *  3. sendText()          — текст (clientContent — единая схема)
- *  4. sendAudioStreamEnd()— flush серверного audio кеша при паузе mic
- *  5. sendTurnComplete()  — сигнал окончания хода
- *  6. sendToolResponse()  — ответ на tool call
- *  7. restoreContext()    — seeding истории (только в начале сессии!)
- *  8. disconnect()        — штатное закрытие С ОЖИДАНИЕМ onClosed
+ *  1. connect()            — WS + setup с полной конфигурацией
+ *  2. sendAudio()          — стрим PCM (realtimeInput.audio)
+ *  3. sendText()           — initial user text (clientContent.turns)
+ *  4. sendRealtimeText()   — текст в ходе диалога (realtimeInput.text)
+ *  5. sendVideoFrame()     — JPEG-кадр (realtimeInput.video, ≤1 FPS)
+ *  6. sendAudioStreamEnd() — flush серверного audio кеша при паузе mic
+ *  7. sendTurnComplete()   — сигнал окончания хода
+ *  8. sendToolResponse()   — ответ на tool call
+ *  9. restoreContext()     — seeding истории (только в начале сессии!)
+ * 10. disconnect()         — штатное закрытие С ОЖИДАНИЕМ onClosed
  */
 interface LiveClient {
 
@@ -42,7 +53,26 @@ interface LiveClient {
     suspend fun connect(apiKey: String, config: SessionConfig, logRaw: Boolean = false)
 
     fun sendAudio(pcmData: ByteArray)
+
+    /**
+     * Отправить initial user message после SetupComplete.
+     * Идёт через clientContent.turns — зарезервировано за
+     * начальным контекстом сессии (до первого model turn).
+     */
     fun sendText(text: String)
+
+    /**
+     * Отправить текст в процессе уже идущего диалога (после первого model turn).
+     * В Gemini 3.1 Flash Live такой текст шлётся через realtimeInput.text,
+     * а НЕ через clientContent (последнее зарезервировано за initial history).
+     */
+    fun sendRealtimeText(text: String)
+
+    /**
+     * Отправить кадр JPEG (для видео-контекста, ≤1 FPS).
+     * Заготовка для будущих немецких уроков с карточками.
+     */
+    fun sendVideoFrame(jpegBytes: ByteArray)
 
     /**
      * Отправить audioStreamEnd для flush кеша на сервере.
