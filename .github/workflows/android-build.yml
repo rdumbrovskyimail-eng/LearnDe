@@ -33,7 +33,7 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          gradle assembleDebug \
+          ./gradlew assembleDebug \
             --no-build-cache \
             --no-configuration-cache \
             --parallel \
