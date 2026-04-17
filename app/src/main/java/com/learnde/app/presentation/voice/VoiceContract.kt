@@ -1,12 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // ПОЛНАЯ ЗАМЕНА
-// Путь: app/src/main/java/com/codeextractor/app/presentation/voice/VoiceContract.kt
+// Путь: app/src/main/java/com/learnde/app/presentation/voice/VoiceContract.kt
+//
 // Изменения:
-//   + playbackVolume, sceneMode, sceneBgHasImage, chatFontScale,
-//     chatShowRoleLabels, chatShowTimestamps, chatAutoScroll,
-//     chatBackgroundAlpha, forceSpeakerOutput
-//   + ToggleFullscreenScene intent
-//   + isSceneFullscreen в state
+//   • a0a1TestActive → learnActive: Boolean + learnId: String? (generic).
+//     VoiceViewModel теперь не знает про A0a1, только про LearnSession.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.voice
 
@@ -73,7 +71,10 @@ data class VoiceState(
     val chatShowTimestamps: Boolean           = false,
     val chatAutoScroll: Boolean               = true,
     val chatBackgroundAlpha: Int              = 30,
-    val a0a1TestActive: Boolean               = false
+
+    // ── Learn ──
+    val learnActive: Boolean                  = false,
+    val learnId: String?                      = null
 )
 
 enum class ConnectionStatus(val label: String) {
