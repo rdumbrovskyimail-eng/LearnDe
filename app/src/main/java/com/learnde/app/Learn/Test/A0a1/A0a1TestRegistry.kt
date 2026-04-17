@@ -1,18 +1,18 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/Learn/Test/A0a1/A0a1TestRegistry.kt
 //
-// Единственный источник правды для теста A0-A1:
-//   • константы (20 вопросов × 3 балла = 60, порог A1 = 45)
-//   • имена функций, их описания и схемы параметров
-//   • системная инструкция (полный сценарий для Gemini)
+// ПЕРЕПИСАНО по паттерну FunctionsRegistry (который реально работает):
+//   • 5 функций БЕЗ параметров — только name и description
+//   • Балл зашит в имени функции: award_0_points..award_3_points
+//   • Номер вопроса Android считает сам (счётчик вызовов)
+//   • finish_test — явное завершение
 //
-// Больше нигде этих чисел/строк не должно быть — только тут.
+// Никаких parameters/required/types — ничего, на чём мог бы упасть 1007.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.Learn.Test.A0a1
 
 import com.learnde.app.domain.model.FunctionDeclarationConfig
-import com.learnde.app.domain.model.ParameterConfig
 
 object A0a1TestRegistry {
 
@@ -22,49 +22,55 @@ object A0a1TestRegistry {
     const val MAX_TOTAL_POINTS = TOTAL_QUESTIONS * MAX_POINTS_PER_QUESTION   // 60
     const val A1_THRESHOLD = 45
 
-    // ───── Имена функций (точно как в function calling) ─────
-    const val FN_AWARD  = "award_points"
-    const val FN_FINISH = "finish_test"
+    // ───── Имена функций ─────
+    const val FN_AWARD_0 = "award_0_points"
+    const val FN_AWARD_1 = "award_1_point"
+    const val FN_AWARD_2 = "award_2_points"
+    const val FN_AWARD_3 = "award_3_points"
+    const val FN_FINISH  = "finish_test"
 
-    // ───── Описания функций ─────
-    val AWARD_DESCRIPTION = """
-        Оценить ответ пользователя на очередной вопрос теста A0-A1 по немецкому языку.
-        Вызывать ОДИН раз после каждого ответа пользователя, перед тем как перейти к следующему вопросу.
-        Аргументы:
-          question_number — номер вопроса от 1 до 20 (целое),
-          points          — балл от 0 до 3 (целое),
-          reason          — краткое обоснование на русском (1-2 предложения).
-        После вызова этой функции обязательно задать следующий вопрос, либо (если номер=20)
-        вызвать finish_test.
-    """.trimIndent()
+    /** Все «баллы» функции — для удобства регистрации в ToolRegistry. */
+    val AWARD_FUNCTIONS = listOf(FN_AWARD_0, FN_AWARD_1, FN_AWARD_2, FN_AWARD_3)
 
-    val FINISH_DESCRIPTION = """
-        Завершить тест после 20-го вопроса. Не принимает аргументов.
-        Вызывать ровно один раз, сразу после того как пользователь ответил на 20-й вопрос
-        и ты уже вызвал award_points(20, ...).
-        После этого вызова коротко попрощайся и пожелай удачи.
-    """.trimIndent()
+    /** Возвращает балл (0..3) по имени функции, или null если это не award-функция. */
+    fun pointsForFunction(name: String): Int? = when (name) {
+        FN_AWARD_0 -> 0
+        FN_AWARD_1 -> 1
+        FN_AWARD_2 -> 2
+        FN_AWARD_3 -> 3
+        else -> null
+    }
 
-    // ───── Готовые декларации для SessionConfig.functionDeclarations ─────
-    val AWARD_DECLARATION = FunctionDeclarationConfig(
-        name = FN_AWARD,
-        description = AWARD_DESCRIPTION,
-        parameters = mapOf(
-            "question_number" to ParameterConfig("integer", "Номер вопроса от 1 до 20"),
-            "points"          to ParameterConfig("integer", "Балл от 0 до 3"),
-            "reason"          to ParameterConfig("string",  "Краткое обоснование оценки на русском")
-        )
+    // ───── Декларации (для setup.tools.functionDeclarations) ─────
+    val AWARD_0_DECLARATION = FunctionDeclarationConfig(
+        name = FN_AWARD_0,
+        description = "Вызови эту функцию если ответ пользователя пустой или не по теме. Балл: 0."
     )
-
+    val AWARD_1_DECLARATION = FunctionDeclarationConfig(
+        name = FN_AWARD_1,
+        description = "Вызови эту функцию если пользователь назвал только отдельные слова без структуры предложения. Балл: 1."
+    )
+    val AWARD_2_DECLARATION = FunctionDeclarationConfig(
+        name = FN_AWARD_2,
+        description = "Вызови эту функцию если ответ понятен, но есть 1-2 ошибки в грамматике или произношении. Балл: 2."
+    )
+    val AWARD_3_DECLARATION = FunctionDeclarationConfig(
+        name = FN_AWARD_3,
+        description = "Вызови эту функцию если ответ полный, грамматически верный, с уверенным произношением. Балл: 3."
+    )
     val FINISH_DECLARATION = FunctionDeclarationConfig(
         name = FN_FINISH,
-        description = FINISH_DESCRIPTION,
-        parameters = emptyMap()
+        description = "Вызови эту функцию ТОЛЬКО после того, как пользователь ответил на 20-й (последний) вопрос и ты уже оценил его через award_*_points."
     )
 
-    /** Обе декларации для включения в сессию в режиме теста. */
-    val ALL_DECLARATIONS: List<FunctionDeclarationConfig> =
-        listOf(AWARD_DECLARATION, FINISH_DECLARATION)
+    /** Все 5 деклараций для включения в тест-сессию. */
+    val ALL_DECLARATIONS: List<FunctionDeclarationConfig> = listOf(
+        AWARD_0_DECLARATION,
+        AWARD_1_DECLARATION,
+        AWARD_2_DECLARATION,
+        AWARD_3_DECLARATION,
+        FINISH_DECLARATION
+    )
 
     // ───── Системная инструкция — полный сценарий для Gemini ─────
     val SYSTEM_INSTRUCTION = """
@@ -72,19 +78,17 @@ object A0a1TestRegistry {
         
         СЦЕНАРИЙ:
         1. В САМОМ НАЧАЛЕ скажи по-русски: "Отлично, давай проведём тест!" и СРАЗУ задай первый вопрос.
-        2. Всего 20 вопросов. Список вопросов и критериев оценки — ниже в разделе "ВОПРОСЫ".
-        3. После КАЖДОГО ответа пользователя:
-           (а) дай короткий устный фидбек (1 предложение, по-русски),
-           (б) ОБЯЗАТЕЛЬНО вызови функцию award_points(question_number, points, reason),
-           (в) задай следующий вопрос.
-        4. После ответа на 20-й вопрос: вызови award_points(20, ...), затем вызови finish_test(),
+        2. Всего 20 вопросов. Задавай их по порядку из раздела "ВОПРОСЫ" ниже.
+        3. После КАЖДОГО ответа пользователя ты ОБЯЗАН:
+           (а) дать короткий устный фидбек (1 предложение, по-русски),
+           (б) ВЫЗВАТЬ ОДНУ из функций оценки:
+               • award_3_points — ответ полный, грамматически верный, уверенное произношение;
+               • award_2_points — ответ понятен, но 1-2 ошибки в грамматике/произношении;
+               • award_1_point  — отдельные слова без структуры предложения;
+               • award_0_points — нет ответа или не по теме;
+           (в) задать следующий вопрос.
+        4. После 20-го ответа: оцени его через award_*_points, затем вызови finish_test,
            затем коротко попрощайся.
-        
-        ПРАВИЛА ОЦЕНКИ (едины для всех вопросов):
-          3 балла — ответ полный, грамматически верный, уверенное произношение;
-          2 балла — ответ понятен, но 1-2 ошибки в грамматике/произношении;
-          1 балл  — отдельные слова без структуры предложения;
-          0 баллов — нет ответа или ответ не по теме.
         
         ВОПРОСЫ:
         ЧАСТЬ 1 — ОСНОВЫ
@@ -121,9 +125,9 @@ object A0a1TestRegistry {
         
         ВАЖНО:
         • Говори тёплым, ободряющим тоном — пользователь может волноваться.
-        • Не пропускай вызов award_points. Это обязательное техническое действие.
-        • Не суммируй баллы сам — это сделает приложение.
-        • Никогда не объявляй итоговый уровень A0/A1 голосом — это тоже сделает приложение.
-        • После finish_test просто попрощайся.
+        • На каждый ответ — ровно ОДИН вызов award_*_points. Без пропусков.
+        • Не суммируй баллы вслух — это сделает приложение.
+        • Никогда не объявляй итоговый уровень A0/A1 голосом.
+        • После finish_test просто попрощайся в одну фразу.
     """.trimIndent()
 }
