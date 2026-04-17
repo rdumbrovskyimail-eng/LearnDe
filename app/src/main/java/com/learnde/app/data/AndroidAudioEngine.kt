@@ -38,11 +38,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class AndroidAudioEngine @Inject constructor(
+class AndroidAudioEngine(
     private val logger: AppLogger
 ) : AudioEngine {
 
