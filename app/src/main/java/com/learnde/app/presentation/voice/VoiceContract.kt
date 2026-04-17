@@ -70,11 +70,7 @@ data class VoiceState(
     val chatShowRoleLabels: Boolean           = true,
     val chatShowTimestamps: Boolean           = false,
     val chatAutoScroll: Boolean               = true,
-    val chatBackgroundAlpha: Int              = 30,
-
-    // ── Learn ──
-    val learnActive: Boolean                  = false,
-    val learnId: String?                      = null
+    val chatBackgroundAlpha: Int              = 30
 )
 
 enum class ConnectionStatus(val label: String) {
