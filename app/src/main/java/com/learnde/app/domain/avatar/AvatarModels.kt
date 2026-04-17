@@ -1,3 +1,14 @@
+// ═══════════════════════════════════════════════════════════
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/domain/avatar/AvatarModels.kt
+//
+// Изменения:
+//   • В интерфейс AvatarAnimator добавлены pause()/resume().
+//     Используются в VoiceScreen через DisposableEffect, чтобы
+//     останавливать 60fps анимацию, когда экран не виден (юзер
+//     ушёл в Настройки или в другой таб).
+//   • Остальное без изменений.
+// ═══════════════════════════════════════════════════════════
 package com.learnde.app.domain.avatar
 
 import kotlinx.coroutines.flow.StateFlow
@@ -73,11 +84,10 @@ data class EmotionalProsodySnapshot(
 )
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  AUDIO FEATURES (обновлённый — с лингвистическими полями)
+//  AUDIO FEATURES
 // ═══════════════════════════════════════════════════════════════════════════
 
 class AudioFeatures {
-    // ── Базовые (из DSP) ─────────────────────────────────────────────────
     var rms: Float          = 0f
     var energyLow: Float    = 0f
     var energyMid: Float    = 0f
@@ -85,12 +95,10 @@ class AudioFeatures {
     var pitch: Float        = 0f
     var hasVoice: Boolean   = false
 
-    // ── Временны́е характеристики ─────────────────────────────────────────
     var zcr: Float          = 0f
     var spectralFlux: Float = 0f
     var isPlosive: Boolean  = false
 
-    // ── Pitch dynamics ────────────────────────────────────────────────────
     var pitchVariance: Float = 0f
 
     fun reset() {
@@ -102,7 +110,7 @@ class AudioFeatures {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  PUBLIC INTERFACE (обновлённый — с текстовым каналом)
+//  PUBLIC INTERFACE
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface AvatarAnimator {
@@ -123,4 +131,10 @@ interface AvatarAnimator {
 
     fun start()
     fun stop()
+
+    /** Приостановить 60fps тик (экран не виден). renderBuffer не обновляется. */
+    fun pause()
+
+    /** Возобновить 60fps тик. */
+    fun resume()
 }
