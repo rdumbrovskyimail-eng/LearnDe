@@ -1,14 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/Learn/Test/A0a1/A0a1TestBus.kt
 //
-// Шина событий теста A0-A1. Связывает три компонента:
-//   • ToolRegistry        — публикует awards и finish при function calls от Gemini.
-//   • VoiceViewModel      — слушает startSignal и exitSignal, переключает режим сессии.
-//   • A0a1TestViewModel   — слушает awards и finished, рисует UI.
-//
-// Вся логика суммирования баллов и определения A0/A1 живёт в A0a1TestViewModel.
-// Bus — только транспорт.
+// Упрощено: вместо PointsAwarded — просто Int (балл 0..3).
+// Номер вопроса считает ViewModel сам (счётчик вызовов).
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.Learn.Test.A0a1
 
@@ -19,23 +14,16 @@ import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Одна оценка, прилетевшая от модели через award_points. */
-data class PointsAwarded(
-    val questionNumber: Int,   // 1..20
-    val points: Int,           // 0..3
-    val reason: String
-)
-
 @Singleton
 class A0a1TestBus @Inject constructor() {
 
-    // ───── Оценки ─────
-    private val _awards = MutableSharedFlow<PointsAwarded>(
+    // ───── Оценки: просто балл 0..3 ─────
+    private val _awards = MutableSharedFlow<Int>(
         replay = 0,
         extraBufferCapacity = 8,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val awards: SharedFlow<PointsAwarded> = _awards.asSharedFlow()
+    val awards: SharedFlow<Int> = _awards.asSharedFlow()
 
     // ───── Финал ─────
     private val _finished = MutableSharedFlow<Unit>(
@@ -61,8 +49,8 @@ class A0a1TestBus @Inject constructor() {
     )
     val exitSignal: SharedFlow<Unit> = _exitSignal.asSharedFlow()
 
-    fun publishAward(award: PointsAwarded) { _awards.tryEmit(award) }
-    fun publishFinish()                    { _finished.tryEmit(Unit) }
-    fun publishStart()                     { _startSignal.tryEmit(Unit) }
-    fun publishExit()                      { _exitSignal.tryEmit(Unit) }
+    fun publishAward(points: Int) { _awards.tryEmit(points) }
+    fun publishFinish()            { _finished.tryEmit(Unit) }
+    fun publishStart()             { _startSignal.tryEmit(Unit) }
+    fun publishExit()              { _exitSignal.tryEmit(Unit) }
 }
