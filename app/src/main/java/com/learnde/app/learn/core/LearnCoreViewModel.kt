@@ -182,7 +182,6 @@ class LearnCoreViewModel @Inject constructor(
             enableGoogleSearch = false,         // В Learn отключено — чтобы не шумело
             functionDeclarations = session.functionDeclarations,
             sendAudioStreamEnd = cachedSettings.sendAudioStreamEnd,
-            initialHistoryInClientContent = true,
         )
     }
 
