@@ -100,7 +100,7 @@ fun VoiceScreen(
     onOpenEditor: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenFunctions: () -> Unit = {},
-    onOpenA0a1Test: () -> Unit = {},
+    onOpenLearnHub: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -213,7 +213,7 @@ fun VoiceScreen(
                         modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        SceneIconButton(Icons.Filled.School, "Тест A0-A1", onOpenA0a1Test)
+                        SceneIconButton(Icons.Filled.School, "Изучение", onOpenLearnHub)
                         SceneIconButton(Icons.Filled.Tune, "Функции", onOpenFunctions)
                         SceneIconButton(Icons.Filled.Settings, "Настройки", onOpenSettings)
                     }
