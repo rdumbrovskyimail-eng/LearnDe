@@ -45,7 +45,6 @@ import com.learnde.app.domain.scene.SceneMode
 import com.learnde.app.domain.tools.ToolRegistry
 import com.learnde.app.learn.core.ActiveClientArbiter
 import com.learnde.app.learn.core.ClientOwner
-import com.learnde.app.learn.core.LearnSession
 import com.learnde.app.presentation.voice.haptics.HapticEngine
 import com.learnde.app.util.AppLogger
 import com.learnde.app.util.UiText
@@ -275,8 +274,7 @@ class VoiceViewModel @Inject constructor(
                     audioEngine.setSpeakerRouting(settings.forceSpeakerOutput)
 
                     if (hasKey && wasKeyEmpty &&
-                        _state.value.connectionStatus == ConnectionStatus.Disconnected &&
-                        activeLearnSession == null
+                        _state.value.connectionStatus == ConnectionStatus.Disconnected
                     ) {
                         handleConnect()
                     }
