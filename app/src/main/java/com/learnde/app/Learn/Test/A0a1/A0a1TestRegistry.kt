@@ -50,9 +50,9 @@ object A0a1TestRegistry {
         name = FN_AWARD,
         description = AWARD_DESCRIPTION,
         parameters = mapOf(
-            "question_number" to ParameterConfig("NUMBER", "Номер вопроса от 1 до 20 (целое число)"),
-            "points"          to ParameterConfig("NUMBER", "Балл от 0 до 3 (целое число)"),
-            "reason"          to ParameterConfig("STRING", "Краткое обоснование оценки на русском")
+            "question_number" to ParameterConfig("integer", "Номер вопроса от 1 до 20"),
+            "points"          to ParameterConfig("integer", "Балл от 0 до 3"),
+            "reason"          to ParameterConfig("string",  "Краткое обоснование оценки на русском")
         )
     )
 
