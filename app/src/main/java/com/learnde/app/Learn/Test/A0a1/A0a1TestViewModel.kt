@@ -49,7 +49,7 @@ class A0a1TestViewModel @Inject constructor(
 
     init {
         // Сигналим VoiceViewModel: «открылся экран теста — переключайся в тест-режим».
-        viewModelScope.launch { bus.publishStart() }
+        bus.publishStart()
 
         // Слушаем оценки.
         viewModelScope.launch {
@@ -103,10 +103,10 @@ class A0a1TestViewModel @Inject constructor(
     fun restart() {
         autoFinishJob?.cancel()
         _state.value = A0a1TestUiState()
-        viewModelScope.launch { bus.publishStart() }
+        bus.publishStart()
     }
 
     fun signalExit() {
-        viewModelScope.launch { bus.publishExit() }
+        bus.publishExit()
     }
 }
