@@ -483,6 +483,29 @@ class VoiceViewModel @Inject constructor(
     }
 
     private fun startMic() {
+        // 1. Защита: проверяем разрешение на уровне ядра
+        val hasMic = ContextCompat.checkSelfPermission(
+            appContext, Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        
+        if (!hasMic) {
+            logger.w("startMic called but RECORD_AUDIO permission is missing!")
+            return
+        }
+
+        // 2. Защита: гарантируем, что Foreground Service запущен.
+        // Если он уже работает, Android просто проигнорирует этот вызов.
+        // Без FGS система убьет запись аудио через пару секунд.
+        try {
+            appContext.startForegroundService(
+                GeminiLiveForegroundService.startIntent(
+                    appContext, cachedSettings.forceSpeakerOutput
+                )
+            )
+        } catch (e: Exception) {
+            logger.w("ForegroundService start failed in startMic: ${e.message}")
+        }
+
         _state.update { it.copy(isMicActive = true, connectionStatus = ConnectionStatus.Recording) }
         micJob = viewModelScope.launch {
             launch { audioEngine.micOutput.collect { chunk -> liveClient.sendAudio(chunk) } }
