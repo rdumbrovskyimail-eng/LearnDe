@@ -46,7 +46,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun update(transform: AppSettings.() -> AppSettings) {
-        _uiState.update(transform)
+        _uiState.update {
+            val updated = it.transform()
+            updated.copy(compressionTriggerTokens = updated.compressionTriggerTokens.toLong())
+        }
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(300)
