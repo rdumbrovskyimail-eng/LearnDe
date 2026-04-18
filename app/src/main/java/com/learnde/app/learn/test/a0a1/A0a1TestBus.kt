@@ -22,13 +22,13 @@ import javax.inject.Singleton
 @Singleton
 class A0a1TestBus @Inject constructor() {
 
-    // ───── Оценки: просто балл 0..3 ─────
-    private val _awards = MutableSharedFlow<Int>(
+    // ───── Оценки: балл и текстовый фидбек от ИИ ─────
+    private val _awards = MutableSharedFlow<Pair<Int, String>>(
         replay = 0,
         extraBufferCapacity = 8,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val awards: SharedFlow<Int> = _awards.asSharedFlow()
+    val awards: SharedFlow<Pair<Int, String>> = _awards.asSharedFlow()
 
     // ───── Финал ─────
     private val _finished = MutableSharedFlow<Unit>(
@@ -67,6 +67,6 @@ class A0a1TestBus @Inject constructor() {
         processedIds.clear()
     }
 
-    fun publishAward(points: Int) { _awards.tryEmit(points) }
+    fun publishAward(points: Int, feedback: String) { _awards.tryEmit(points to feedback) }
     fun publishFinish()            { _finished.tryEmit(Unit) }
 }
