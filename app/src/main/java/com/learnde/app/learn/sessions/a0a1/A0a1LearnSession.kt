@@ -32,9 +32,8 @@ class A0a1LearnSession @Inject constructor(
     override val functionDeclarations: List<FunctionDeclarationConfig> =
         A0a1TestRegistry.ALL_DECLARATIONS
 
-    // 6.1 — пустая строка: модель начинает сама по system instruction,
-    // VAD/silence сигнализируют серверу о готовности без лишнего клиентского текста.
-    override val initialUserMessage: String = ""
+    // Скрытый системный пинг, чтобы ИИ начал тест сам (Требование Gemini 3.1)
+    override val initialUserMessage: String = "[СИСТЕМА]: Ученик готов. Поздоровайся и задай первый вопрос из списка."
 
     override suspend fun onEnter() {
         logger.d("▶ A0a1LearnSession.onEnter")
