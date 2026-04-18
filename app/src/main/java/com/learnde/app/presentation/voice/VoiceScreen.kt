@@ -3,8 +3,11 @@
 // Путь: app/src/main/java/com/learnde/app/presentation/voice/VoiceScreen.kt
 //
 // Изменения:
-//   • Добавлен DisposableEffect(Unit) с resume()/pause() аватар-
-//     аниматора — экономит CPU, когда экран в back-stack.
+//   • DiagnosticPanel — 5 кнопок для поиска источника 1007:
+//     Baseline / -Thinking / -VAD / -Session / -Transcription + FULL
+//   • DiagnosticLogPanel — история последних 10 тестов с результатами
+//   • StatusBadge показывает какой профиль сейчас тестируется
+//   • DisposableEffect с resume/pause аватар-аниматора (сохранено)
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.voice
 
@@ -21,6 +24,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,12 +34,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -106,7 +112,6 @@ fun VoiceScreen(
     val context = LocalContext.current
     val avatarIndex = VoiceGender.avatarIndexForVoice(state.currentVoiceId)
 
-    // ═══ Пауза аватар-аниматора, когда экран в back-stack ═══
     DisposableEffect(Unit) {
         viewModel.avatarAnimator.resume()
         onDispose { viewModel.avatarAnimator.pause() }
@@ -179,7 +184,7 @@ fun VoiceScreen(
                     .fillMaxWidth()
                     .then(
                         if (state.isSceneFullscreen) Modifier.weight(1f, fill = true)
-                        else Modifier.weight(0.55f, fill = true)
+                        else Modifier.weight(0.45f, fill = true)
                     )
             ) {
                 SceneContainer(
@@ -218,19 +223,6 @@ fun VoiceScreen(
                         SceneIconButton(Icons.Filled.Settings, "Настройки", onOpenSettings)
                     }
                 }
-
-                if (state.showUsageMetadata && state.totalTokens > 0 && !state.isSceneFullscreen) {
-                    Text(
-                        text = "Tokens: ${state.totalTokens}",
-                        color = Color.White.copy(alpha = 0.75f),
-                        fontSize = 10.sp,
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(8.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
             }
 
             if (!state.isSceneFullscreen) {
@@ -238,26 +230,41 @@ fun VoiceScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     if (state.showApiKeyInput) {
                         ApiKeyInput { viewModel.onIntent(VoiceIntent.SubmitApiKey(it)) }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
 
+                    // ═══ ДИАГНОСТИЧЕСКАЯ ПАНЕЛЬ ═══
+                    DiagnosticPanel(
+                        state = state,
+                        onIntent = viewModel::onIntent
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // ═══ ЛОГ РЕЗУЛЬТАТОВ ТЕСТОВ ═══
+                    if (state.diagnosticLog.isNotEmpty()) {
+                        DiagnosticLogPanel(log = state.diagnosticLog)
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
+                    // ═══ ЧАТ ═══
                     val chatBgAlpha = (state.chatBackgroundAlpha / 100f).coerceIn(0f, 1f)
                     LazyColumn(
                         state = listState,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = chatBgAlpha))
-                            .padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(state.transcript, key = { "${it.timestamp}_${it.role}" }) { msg ->
                             ChatBubble(
@@ -269,7 +276,7 @@ fun VoiceScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     ControlButtons(
                         state = state,
@@ -284,8 +291,154 @@ fun VoiceScreen(
                         onSaveLog = { viewModel.onIntent(VoiceIntent.SaveLog) }
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
+            }
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════
+//  DIAGNOSTIC PANEL — 5 кнопок для поиска 1007
+// ════════════════════════════════════════════════════════════
+
+@Composable
+private fun DiagnosticPanel(
+    state: VoiceState,
+    onIntent: (VoiceIntent) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "🔬 Диагностика setup 1007",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "Текущий: ${state.lastTestedProfile.shortLabel}",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+
+        // Ряд кнопок с горизонтальным скроллом
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            DiagnosticButton(
+                profile = DiagnosticProfile.BASELINE,
+                isActive = state.lastTestedProfile == DiagnosticProfile.BASELINE,
+                color = Color(0xFF1976D2),  // синий
+                onClick = { onIntent(VoiceIntent.ConnectBaseline) }
+            )
+            DiagnosticButton(
+                profile = DiagnosticProfile.WITHOUT_THINKING,
+                isActive = state.lastTestedProfile == DiagnosticProfile.WITHOUT_THINKING,
+                color = Color(0xFF7B1FA2),  // фиолетовый
+                onClick = { onIntent(VoiceIntent.ConnectWithoutThinking) }
+            )
+            DiagnosticButton(
+                profile = DiagnosticProfile.WITHOUT_VAD,
+                isActive = state.lastTestedProfile == DiagnosticProfile.WITHOUT_VAD,
+                color = Color(0xFFE64A19),  // оранжевый
+                onClick = { onIntent(VoiceIntent.ConnectWithoutVad) }
+            )
+            DiagnosticButton(
+                profile = DiagnosticProfile.WITHOUT_SESSION_MGMT,
+                isActive = state.lastTestedProfile == DiagnosticProfile.WITHOUT_SESSION_MGMT,
+                color = Color(0xFF00796B),  // бирюзовый
+                onClick = { onIntent(VoiceIntent.ConnectWithoutSessionMgmt) }
+            )
+            DiagnosticButton(
+                profile = DiagnosticProfile.WITHOUT_TRANSCRIPTION,
+                isActive = state.lastTestedProfile == DiagnosticProfile.WITHOUT_TRANSCRIPTION,
+                color = Color(0xFFC2185B),  // малиновый
+                onClick = { onIntent(VoiceIntent.ConnectWithoutTranscription) }
+            )
+            DiagnosticButton(
+                profile = DiagnosticProfile.FULL,
+                isActive = state.lastTestedProfile == DiagnosticProfile.FULL,
+                color = Color(0xFF1E8E3E),  // зелёный
+                onClick = { onIntent(VoiceIntent.ConnectFull) }
+            )
+        }
+
+        Text(
+            text = state.lastTestedProfile.description,
+            fontSize = 9.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            modifier = Modifier.padding(horizontal = 2.dp)
+        )
+    }
+}
+
+@Composable
+private fun DiagnosticButton(
+    profile: DiagnosticProfile,
+    isActive: Boolean,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.height(34.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isActive) color else color.copy(alpha = 0.55f),
+            contentColor = Color.White
+        ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = profile.shortLabel,
+            fontSize = 10.sp,
+            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun DiagnosticLogPanel(log: List<DiagnosticResult>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.Black.copy(alpha = 0.35f))
+            .padding(8.dp)
+            .heightIn(max = 120.dp)
+    ) {
+        Text(
+            "📋 История тестов",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.8f)
+        )
+        Spacer(Modifier.height(4.dp))
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            items(log.reversed()) { entry ->
+                val timeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                    .format(Date(entry.timestamp))
+                Text(
+                    text = "$timeStr · ${entry.profile.shortLabel} · ${entry.result}",
+                    fontSize = 10.sp,
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     }
@@ -309,7 +462,7 @@ private fun androidx.compose.foundation.layout.BoxScope.SceneContainer(
     } else {
         Modifier
             .fillMaxWidth(0.55f)
-            .fillMaxHeight(0.58f)
+            .fillMaxHeight(0.68f)
             .align(Alignment.TopEnd)
     }
 
@@ -391,10 +544,20 @@ private fun StatusBadge(state: VoiceState, modifier: Modifier = Modifier) {
         if (state.connectionStatus == ConnectionStatus.Recording) PulsingDot(color = color)
         else Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
         Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = state.connectionStatus.label,
-            color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium
-        )
+        Column {
+            Text(
+                text = state.connectionStatus.label,
+                color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium
+            )
+            if (state.lastTestedProfile != DiagnosticProfile.FULL) {
+                Text(
+                    text = state.lastTestedProfile.shortLabel,
+                    color = Color.Yellow.copy(alpha = 0.85f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
         if (state.isAiSpeaking) {
             Spacer(Modifier.width(6.dp))
             Text("🔊", fontSize = 11.sp)
@@ -519,29 +682,29 @@ private fun ControlButtons(
     ) {
         Button(
             onClick = onToggleMic, enabled = isReady,
-            modifier = Modifier.weight(1f).height(48.dp),
-            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.weight(1f).height(44.dp),
+            shape = RoundedCornerShape(22.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF1E8E3E),
                 disabledContainerColor = Color(0xFF1E8E3E).copy(alpha = 0.25f)
             )
         ) {
-            Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
-            Text("Говорить", color = Color.White, fontSize = 14.sp)
+            Text("Говорить", color = Color.White, fontSize = 13.sp)
         }
         Button(
             onClick = onStop, enabled = isRecording,
-            modifier = Modifier.weight(1f).height(48.dp),
-            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.weight(1f).height(44.dp),
+            shape = RoundedCornerShape(22.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFFD93025),
                 disabledContainerColor = Color(0xFFD93025).copy(alpha = 0.25f)
             )
         ) {
-            Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
-            Text("Стоп", color = Color.White, fontSize = 14.sp)
+            Text("Стоп", color = Color.White, fontSize = 13.sp)
         }
     }
 }
