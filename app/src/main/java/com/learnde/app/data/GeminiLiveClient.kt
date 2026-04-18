@@ -405,9 +405,6 @@ class GeminiLiveClient(
                 if (config.sendSessionResumptionConfig && config.enableSessionResumption) {
                     put("sessionResumption", buildJsonObject {
                         config.sessionHandle?.let { put("handle", it) }
-                        if (config.transparentResumption) {
-                            put("transparent", true)
-                        }
                     })
                 }
 
