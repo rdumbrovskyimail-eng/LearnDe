@@ -1,20 +1,21 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/domain/LiveClient.kt
 //
-// Изменения v2:
-//   • Добавлен sendRealtimeText(text) — для текста в ходе уже
-//     идущего диалога (через realtimeInput.text). Семантически
-//     разделён с sendText(), который идёт через clientContent
-//     и предназначен только для initial user message после
-//     SetupComplete.
-//   • Добавлен sendVideoFrame(jpegBytes) — заготовка для
-//     видео-контекста (карточки в немецких уроках, ≤1 FPS).
+// Контракт WebSocket-клиента Gemini Live API v1beta (2026).
 //
-// Ранее:
-//   • disconnect() стал suspend — ждёт реального onClosed от сервера
-//     (с таймаутом ~2с). Это устраняет необходимость эвристического
-//     delay(400) в VoiceViewModel.
+// Жизненный цикл подключения:
+//   1. connect() устанавливает WS и отправляет setup
+//   2. При onOpen эмитится GeminiEvent.Connected (жёлтый статус UI)
+//   3. При получении setupComplete от сервера эмитится
+//      GeminiEvent.SetupComplete и isReady=true (зелёный статус UI)
+//   4. Если setupComplete не пришёл за setupTimeoutMs —
+//      эмитится ConnectionError и WS закрывается
+//
+// Изменения v2:
+//   • sendRealtimeText(text) — текст в ходе уже идущего диалога
+//     (через realtimeInput.text). Семантически разделён с sendText().
+//   • sendVideoFrame(jpegBytes) — видео-контекст (≤1 FPS).
+//   • disconnect() suspend — ждёт onClosed с таймаутом 2с.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.domain
 
@@ -42,10 +43,23 @@ interface LiveClient {
 
     val events: Flow<GeminiEvent>
     val sessionHandle: String?
+
+    /**
+     * true только после получения setupComplete от сервера.
+     * До этого — false (даже если WS уже open на транспортном уровне).
+     */
     val isReady: Boolean
 
     /**
      * Подключение к Gemini Live API.
+     *
+     * Последовательность:
+     *   1. Открывает WS → эмитит GeminiEvent.Connected
+     *   2. Отправляет setup
+     *   3. Ждёт setupComplete (с таймаутом config.setupTimeoutMs)
+     *   4. При успехе → GeminiEvent.SetupComplete, isReady=true
+     *   5. При таймауте/ошибке → GeminiEvent.ConnectionError
+     *
      * @param apiKey  API ключ
      * @param config  полная конфигурация сессии
      * @param logRaw  логировать сырые WS-фреймы
