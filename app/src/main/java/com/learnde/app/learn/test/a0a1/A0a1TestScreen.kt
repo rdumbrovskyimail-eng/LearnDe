@@ -172,6 +172,7 @@ fun A0a1TestScreen(
 
             LastAwardCard(
                 points = state.lastPoints,
+                feedback = state.lastFeedback,
                 questionIndex = state.lastQuestionIndex
             )
 
@@ -358,7 +359,7 @@ private fun QuestionsProgress(answered: Int, total: Int) {
 // ════════════════════════════════════════════════════════════
 
 @Composable
-private fun LastAwardCard(points: Int?, questionIndex: Int) {
+private fun LastAwardCard(points: Int?, feedback: String?, questionIndex: Int) {
     AnimatedVisibility(
         visible = points != null,
         enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 2 },
@@ -403,7 +404,7 @@ private fun LastAwardCard(points: Int?, questionIndex: Int) {
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        when (points) {
+                        feedback ?: when (points) {
                             3 -> "Отличный ответ!"
                             2 -> "Хорошо, с небольшими ошибками"
                             1 -> "Понятно, но неполно"
