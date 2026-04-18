@@ -29,8 +29,9 @@ data class A0a1TestUiState(
     val totalPoints: Int = 0,
     val answeredCount: Int = 0,
     val currentQuestion: Int = 1,          // 1..20
-    val lastPoints: Int? = null,           // последний выставленный балл (для карточки)
-    val lastQuestionIndex: Int = 0,        // к какому вопросу относится последний балл
+    val lastPoints: Int? = null,
+    val lastFeedback: String? = null,      // фидбек от ИИ
+    val lastQuestionIndex: Int = 0,
     val verdict: TestVerdict = TestVerdict.NONE,
     val finished: Boolean = false
 ) {
