@@ -34,6 +34,24 @@ data class ParameterConfig(
 
 /**
  * Конфигурация сессии Gemini Live API (v1beta, 2026).
+ *
+ * Структура setup по официальной спецификации Gemini 3.1 Flash Live:
+ *
+ *   setup:
+ *     model                          ← ЧИСТЫЙ ID без "models/" префикса
+ *     generationConfig:
+ *       temperature, topP, topK, maxOutputTokens, responseModalities,
+ *       presencePenalty, frequencyPenalty,
+ *       speechConfig,
+ *       thinkingConfig
+ *     systemInstruction
+ *     tools
+ *     realtimeInputConfig
+ *     inputAudioTranscription
+ *     outputAudioTranscription
+ *     sessionResumption
+ *     contextWindowCompression
+ *     mediaResolution                ← НА КОРНЕВОМ УРОВНЕ setup, не в generationConfig
  */
 data class SessionConfig(
 
@@ -57,7 +75,7 @@ data class SessionConfig(
     val latencyProfile: LatencyProfile = LatencyProfile.UltraLow,
     val thinkingIncludeThoughts: Boolean = false,
 
-    // ── Media Resolution (внутри generationConfig) ──
+    // ── Media Resolution (КОРНЕВОЙ уровень setup, не generationConfig!) ──
     val mediaResolution: String = "",    // "" | "MEDIA_RESOLUTION_LOW|MEDIUM|HIGH"
 
     // ── VAD (realtimeInputConfig верхнего уровня) ──
@@ -87,10 +105,22 @@ data class SessionConfig(
     val functionDeclarations: List<FunctionDeclarationConfig> = emptyList(),
 
     // ── Audio behaviour ──
-    val sendAudioStreamEnd: Boolean = true
+    val sendAudioStreamEnd: Boolean = true,
+
+    // ── Connection timeout ──
+    /** Сколько миллисекунд ждать setupComplete после onOpen. */
+    val setupTimeoutMs: Long = 10_000L
 ) {
     companion object {
-        const val DEFAULT_MODEL = "models/gemini-3.1-flash-live-preview"
+
+        /**
+         * Model ID для WebSocket BidiGenerateContent.
+         *
+         * ВАЖНО: в WebSocket Live API используется ЧИСТЫЙ ID модели,
+         * БЕЗ префикса "models/" (в отличие от REST API).
+         * Префикс "models/" вызывает close code 1008 (Policy Violation).
+         */
+        const val DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
 
         const val DEFAULT_SYSTEM_INSTRUCTION =
             "Ты русскоязычный голосовой ассистент. " +
@@ -109,11 +139,19 @@ data class SessionConfig(
 
 /**
  * Профиль латентности → Gemini 3.1 thinkingLevel.
- * Допустимые уровни: none | low | medium | high
+ *
+ * ОФИЦИАЛЬНЫЕ значения thinkingLevel в Gemini 3.1 (lowercase):
+ *   - "minimal"  (default, lowest latency, для voice agents)
+ *   - "low"
+ *   - "medium"
+ *   - "high"     (deep reasoning, highest latency)
+ *
+ * Значение "none" НЕ СУЩЕСТВУЕТ и приведёт к close code 1007.
+ * Для минимального thinking используй "minimal".
  */
 enum class LatencyProfile(val thinkingLevel: String, val displayName: String) {
-    UltraLow("none",   "Ultra Low (no thinking)"),
-    Low     ("low",    "Low (light thinking)"),
-    Balanced("medium", "Balanced (medium thinking)"),
-    Reasoning("high",  "Reasoning (deep thinking)")
+    UltraLow ("minimal", "Ultra Low (minimal thinking)"),
+    Low      ("low",     "Low (light thinking)"),
+    Balanced ("medium",  "Balanced (medium thinking)"),
+    Reasoning("high",    "Reasoning (deep thinking)")
 }
