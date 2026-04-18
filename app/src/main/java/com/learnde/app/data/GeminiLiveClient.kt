@@ -10,10 +10,16 @@ import com.learnde.app.domain.model.ParameterConfig
 import com.learnde.app.domain.model.SessionConfig
 import com.learnde.app.util.AppLogger
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -36,17 +42,18 @@ import okio.ByteString
 import java.util.concurrent.TimeUnit
 
 /**
- * Клиент Gemini Live API v1beta.
+ * Клиент Gemini Live API v1beta (Gemini 3.1 Flash Live, 2026).
  *
- * Структура setup строго по спецификации:
+ * ═══════════════════════════════════════════════════════════
+ *  СТРУКТУРА SETUP (официальная спецификация)
+ * ═══════════════════════════════════════════════════════════
  *   setup:
- *     model
+ *     model                          ← ЧИСТЫЙ ID без "models/" префикса
  *     generationConfig:
  *       temperature, topP, topK, maxOutputTokens, responseModalities,
  *       presencePenalty, frequencyPenalty,
- *       speechConfig (здесь!),
- *       thinkingConfig (здесь!),
- *       mediaResolution (здесь!)
+ *       speechConfig,
+ *       thinkingConfig
  *     systemInstruction
  *     tools
  *     realtimeInputConfig
@@ -54,6 +61,19 @@ import java.util.concurrent.TimeUnit
  *     outputAudioTranscription
  *     sessionResumption
  *     contextWindowCompression
+ *     mediaResolution               ← НА КОРНЕВОМ УРОВНЕ setup
+ *
+ * ═══════════════════════════════════════════════════════════
+ *  ЖИЗНЕННЫЙ ЦИКЛ ПОДКЛЮЧЕНИЯ
+ * ═══════════════════════════════════════════════════════════
+ *   1. onOpen (TLS handshake OK)     → emit Connected      (UI: жёлтый)
+ *   2. sendSetup()                    → ждём setupComplete
+ *   3. setupComplete получен          → emit SetupComplete, isReady=true
+ *                                       (UI: зелёный)
+ *   4. Таймаут setupTimeoutMs         → emit ConnectionError, close WS
+ *
+ *  isReady становится true ТОЛЬКО после setupComplete,
+ *  не после onOpen!
  */
 class GeminiLiveClient(
     private val logger: AppLogger
@@ -69,6 +89,9 @@ class GeminiLiveClient(
         .pingInterval(30, TimeUnit.SECONDS)
         .build()
 
+    /** Внутренний scope для setup timeout watchdog. */
+    private val internalScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     @Volatile private var webSocket: WebSocket? = null
 
     private val _events = MutableSharedFlow<GeminiEvent>(
@@ -82,6 +105,10 @@ class GeminiLiveClient(
     override var sessionHandle: String? = null
         private set
 
+    /**
+     * true ТОЛЬКО после получения setupComplete от сервера.
+     * До этого — false, даже если WS уже open на транспортном уровне.
+     */
     @Volatile
     override var isReady: Boolean = false
         private set
@@ -93,6 +120,10 @@ class GeminiLiveClient(
 
     @Volatile
     private var closeCompletion: CompletableDeferred<Unit>? = null
+
+    /** Watchdog-джоб, который закрывает WS если setupComplete не пришёл вовремя. */
+    @Volatile
+    private var setupWatchdog: Job? = null
 
     private val lastSentFrames = java.util.ArrayDeque<String>(3)
 
@@ -125,9 +156,15 @@ class GeminiLiveClient(
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
 
             override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
-                logger.d("WS opened (${response.code})")
+                logger.d("WS opened (${response.code}) — sending setup, waiting for setupComplete…")
+
+                // ВАЖНО: эмитим Connected = WS открыт на транспортном уровне.
+                // UI показывает жёлтый статус "connecting".
+                // isReady НЕ ставим true — это случится только при setupComplete.
                 _events.tryEmit(GeminiEvent.Connected)
+
                 sendSetup(config)
+                startSetupWatchdog(config.setupTimeoutMs)
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
@@ -163,6 +200,7 @@ class GeminiLiveClient(
                     }
                 }
 
+                cancelSetupWatchdog()
                 isReady = false
                 closeCompletion?.complete(Unit)
                 if (code != 1000 && code != 1001) {
@@ -178,6 +216,7 @@ class GeminiLiveClient(
             override fun onFailure(ws: WebSocket, t: Throwable, response: okhttp3.Response?) {
                 val status = response?.code?.let { " (HTTP $it)" } ?: ""
                 logger.e("WS failure$status: ${t.message}")
+                cancelSetupWatchdog()
                 isReady = false
                 closeCompletion?.complete(Unit)
                 _events.tryEmit(GeminiEvent.ConnectionError(t.message ?: "Unknown error"))
@@ -185,7 +224,35 @@ class GeminiLiveClient(
         })
     }
 
+    /**
+     * Запускает watchdog на setup timeout.
+     * Если setupComplete не пришёл за timeoutMs — закрывает WS
+     * и эмитит ConnectionError, чтобы UI не висел в жёлтом.
+     */
+    private fun startSetupWatchdog(timeoutMs: Long) {
+        cancelSetupWatchdog()
+        setupWatchdog = internalScope.launch {
+            delay(timeoutMs)
+            if (!isReady && webSocket != null) {
+                logger.e("⚠ SETUP TIMEOUT — no setupComplete in ${timeoutMs}ms")
+                _events.tryEmit(
+                    GeminiEvent.ConnectionError(
+                        "Setup timeout: no setupComplete in ${timeoutMs}ms. " +
+                        "Проверьте API key, модель и структуру setup."
+                    )
+                )
+                runCatching { webSocket?.close(1000, "setup_timeout") }
+            }
+        }
+    }
+
+    private fun cancelSetupWatchdog() {
+        setupWatchdog?.cancel()
+        setupWatchdog = null
+    }
+
     override suspend fun disconnect() {
+        cancelSetupWatchdog()
         val ws = webSocket
         if (ws == null) {
             isReady = false
@@ -210,9 +277,11 @@ class GeminiLiveClient(
             put("setup", buildJsonObject {
 
                 // ─── Модель ───
+                // ВАЖНО: чистый ID без "models/" префикса!
+                // Префикс валиден для REST API, но НЕ для WebSocket BidiGenerateContent.
                 put("model", config.model)
 
-                // ─── generationConfig (всё здесь!) ───
+                // ─── generationConfig ───
                 put("generationConfig", buildJsonObject {
                     put("responseModalities", buildJsonArray {
                         add(JsonPrimitive(config.responseModality))
@@ -237,17 +306,14 @@ class GeminiLiveClient(
                     })
 
                     // thinkingConfig — ВНУТРИ generationConfig
+                    // Значения thinkingLevel: "minimal" | "low" | "medium" | "high"
+                    // (lowercase, без "none"!)
                     put("thinkingConfig", buildJsonObject {
                         put("thinkingLevel", config.latencyProfile.thinkingLevel)
                         if (config.thinkingIncludeThoughts) {
                             put("includeThoughts", true)
                         }
                     })
-
-                    // mediaResolution — ВНУТРИ generationConfig
-                    if (config.mediaResolution.isNotBlank()) {
-                        put("mediaResolution", config.mediaResolution)
-                    }
                 })
 
                 // ─── systemInstruction ───
@@ -258,6 +324,28 @@ class GeminiLiveClient(
                                 put("text", config.systemInstruction)
                             })
                         })
+                    })
+                }
+
+                // ─── Tools ───
+                val hasTools = config.enableGoogleSearch ||
+                        config.functionDeclarations.isNotEmpty()
+                if (hasTools) {
+                    put("tools", buildJsonArray {
+                        if (config.enableGoogleSearch) {
+                            add(buildJsonObject {
+                                put("googleSearch", buildJsonObject {})
+                            })
+                        }
+                        if (config.functionDeclarations.isNotEmpty()) {
+                            add(buildJsonObject {
+                                put("functionDeclarations", buildJsonArray {
+                                    for (decl in config.functionDeclarations) {
+                                        add(buildFunctionDeclaration(decl))
+                                    }
+                                })
+                            })
+                        }
                     })
                 }
 
@@ -283,6 +371,9 @@ class GeminiLiveClient(
                 }
 
                 // ─── Session Resumption ───
+                // Если включено — всегда отправляем, даже без handle.
+                // Пустой объект означает "начать новую resumable-сессию"
+                // — сервер будет слать sessionResumptionUpdate.
                 if (config.enableSessionResumption) {
                     put("sessionResumption", buildJsonObject {
                         config.sessionHandle?.let { put("handle", it) }
@@ -306,26 +397,11 @@ class GeminiLiveClient(
                     })
                 }
 
-                // ─── Tools ───
-                val hasTools = config.enableGoogleSearch ||
-                        config.functionDeclarations.isNotEmpty()
-                if (hasTools) {
-                    put("tools", buildJsonArray {
-                        if (config.enableGoogleSearch) {
-                            add(buildJsonObject {
-                                put("googleSearch", buildJsonObject {})
-                            })
-                        }
-                        if (config.functionDeclarations.isNotEmpty()) {
-                            add(buildJsonObject {
-                                put("functionDeclarations", buildJsonArray {
-                                    for (decl in config.functionDeclarations) {
-                                        add(buildFunctionDeclaration(decl))
-                                    }
-                                })
-                            })
-                        }
-                    })
+                // ─── mediaResolution (КОРНЕВОЙ уровень setup!) ───
+                // НЕ внутри generationConfig! Это распространённая ошибка,
+                // которая приводит к close code 1007.
+                if (config.mediaResolution.isNotBlank()) {
+                    put("mediaResolution", config.mediaResolution)
                 }
 
             })
@@ -522,6 +598,7 @@ class GeminiLiveClient(
 
             if (root.containsKey("setupComplete")) {
                 logger.d("✓ SETUP COMPLETE")
+                cancelSetupWatchdog()
                 isReady = true
                 _events.tryEmit(GeminiEvent.SetupComplete)
                 return
@@ -684,8 +761,8 @@ class GeminiLiveClient(
         1002 -> "[Protocol Error]"
         1003 -> "[Unsupported Data]"
         1006 -> "[Abnormal Closure]"
-        1007 -> "[Invalid Frame Payload — невалидный JSON / неизвестное поле в setup]"
-        1008 -> "[Policy Violation — модель недоступна ключу либо неверная структура setup]"
+        1007 -> "[Invalid Frame Payload — невалидный JSON / неизвестное поле в setup / неверный enum]"
+        1008 -> "[Policy Violation — модель недоступна ключу / неверный model ID (возможно префикс 'models/')]"
         1011 -> "[Internal Server Error]"
         1013 -> "[Try Again Later]"
         4000 -> "[Gemini: Session expired — enable contextWindowCompression]"
