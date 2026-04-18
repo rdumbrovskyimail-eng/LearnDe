@@ -78,6 +78,7 @@ class A0a1TestViewModel @Inject constructor(
                 answeredCount = newAnswered,
                 currentQuestion = nextQ,
                 lastPoints = points,
+                lastFeedback = feedback,
                 lastQuestionIndex = newAnswered
             )
         }
