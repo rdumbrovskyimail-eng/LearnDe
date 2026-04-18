@@ -1,7 +1,13 @@
 package com.learnde.app.domain.model
 
 /**
- * Все события от Gemini WebSocket сервера — полная спецификация 2026.
+ * Все события от Gemini WebSocket сервера — полная спецификация Gemini 3.1 Flash Live (2026).
+ *
+ * Жизненный цикл подключения:
+ *   1. onOpen (TLS handshake OK)      → Connected         (UI: жёлтый "connecting")
+ *   2. setupComplete пришёл от сервера → SetupComplete     (UI: зелёный "ready")
+ *   3. Закрытие сессии                 → Disconnected
+ *   4. Ошибка                         → ConnectionError
  *
  * Новое в Gemini 3.1 Flash Live:
  *  - ToolCallCancellation  — отмена tool call при barge-in
@@ -12,10 +18,29 @@ package com.learnde.app.domain.model
  */
 sealed interface GeminiEvent {
 
-    /** Сервер подтвердил setup — можно записывать аудио */
+    // ── Жизненный цикл соединения ───────────────────────────────────────────
+
+    /**
+     * WebSocket подключён (TLS handshake прошёл, setup отправлен, но ещё не подтверждён).
+     * UI должен показывать "connecting" (жёлтый статус).
+     */
+    data object Connected : GeminiEvent
+
+    /**
+     * Сервер подтвердил setup — можно записывать аудио.
+     * UI должен показывать "ready" (зелёный статус).
+     */
     data object SetupComplete : GeminiEvent
 
-    /** PCM-аудио от модели для воспроизведения */
+    /** WebSocket закрыт штатно или по таймауту */
+    data class Disconnected(val code: Int, val reason: String) : GeminiEvent
+
+    /** Ошибка соединения */
+    data class ConnectionError(val message: String) : GeminiEvent
+
+    // ── Аудио и текст ───────────────────────────────────────────────────────
+
+    /** PCM-аудио от модели для воспроизведения (24 kHz, 16-bit, mono, little-endian) */
     data class AudioChunk(val pcmData: ByteArray) : GeminiEvent {
         override fun equals(other: Any?): Boolean =
             other is AudioChunk && pcmData.contentEquals(other.pcmData)
@@ -25,13 +50,15 @@ sealed interface GeminiEvent {
     /** Текстовый ответ модели */
     data class ModelText(val text: String) : GeminiEvent
 
-    /** Транскрипция речи пользователя */
+    /** Транскрипция речи пользователя (inputAudioTranscription) */
     data class InputTranscript(val text: String) : GeminiEvent
 
-    /** Транскрипция ответа модели */
+    /** Транскрипция ответа модели (outputAudioTranscription) */
     data class OutputTranscript(val text: String) : GeminiEvent
 
-    /** Пользователь перебил модель — flush playback */
+    // ── Control events ──────────────────────────────────────────────────────
+
+    /** Пользователь перебил модель — flush playback buffer */
     data object Interrupted : GeminiEvent
 
     /** Модель закончила текущий ход */
@@ -40,7 +67,9 @@ sealed interface GeminiEvent {
     /** Генерация полностью завершена */
     data object GenerationComplete : GeminiEvent
 
-    /** Сервер вызывает функцию (синхронный tool calling) */
+    // ── Tool calling ────────────────────────────────────────────────────────
+
+    /** Сервер вызывает функцию (в 3.1 — только синхронный tool calling) */
     data class ToolCall(val calls: List<FunctionCall>) : GeminiEvent
 
     /**
@@ -49,11 +78,13 @@ sealed interface GeminiEvent {
      */
     data class ToolCallCancellation(val ids: List<String>) : GeminiEvent
 
+    // ── Session management ──────────────────────────────────────────────────
+
     /**
      * Обновление session handle для reconnect.
-     * @param handle     новый handle для возобновления
-     * @param resumable  true если сессия может быть возобновлена
-     * @param lastConsumedIndex индекс последнего обработанного сообщения (transparent mode)
+     * @param handle             новый handle для возобновления
+     * @param resumable          true если сессия может быть возобновлена
+     * @param lastConsumedIndex  индекс последнего обработанного сообщения (transparent mode)
      */
     data class SessionHandleUpdate(
         val handle: String,
@@ -66,6 +97,8 @@ sealed interface GeminiEvent {
      * @param timeLeft оставшееся время (строка, e.g. "30s")
      */
     data class GoAway(val timeLeft: String? = null) : GeminiEvent
+
+    // ── Metadata ────────────────────────────────────────────────────────────
 
     /**
      * Статистика использования токенов.
@@ -82,15 +115,6 @@ sealed interface GeminiEvent {
      * @param rawJson сырой JSON для отображения/обработки
      */
     data class GroundingMetadata(val rawJson: String) : GeminiEvent
-
-    /** WebSocket подключён (до setup) */
-    data object Connected : GeminiEvent
-
-    /** WebSocket закрыт штатно или по таймауту */
-    data class Disconnected(val code: Int, val reason: String) : GeminiEvent
-
-    /** Ошибка соединения */
-    data class ConnectionError(val message: String) : GeminiEvent
 }
 
 /** Один вызов функции из toolCall.functionCalls[] */
