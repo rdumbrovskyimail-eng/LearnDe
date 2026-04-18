@@ -46,33 +46,34 @@ class A0a1LearnSession @Inject constructor(
     }
 
     override suspend fun handleToolCall(call: FunctionCall): String? {
-        // Award-функции: award_0/1/2/3_points
-        val points = A0a1TestRegistry.pointsForFunction(call.name)
-        if (points != null) {
-            if (bus.tryConsume(call.id)) {
-                logger.d("▶ ${call.name} (id=${call.id}, points=$points)")
-                bus.publishAward(points)
-            } else {
-                logger.d("⚠ Duplicate award id=${call.id} — ignored")
+        return when (call.name) {
+            A0a1TestRegistry.FN_EVALUATE -> {
+                val points = call.args["points"]?.toIntOrNull() ?: 0
+                val feedback = call.args["feedback"] ?: "Оценено ИИ"
+                
+                if (bus.tryConsume(call.id)) {
+                    logger.d("▶ Оценка: $points баллов. Фидбек: $feedback")
+                    bus.publishAward(points, feedback)
+                } else {
+                    logger.d("⚠ Duplicate evaluate id=${call.id} — ignored")
+                }
+                """{"status":"ok", "recorded_points":$points}"""
             }
-            return """{"status":"ok","points":$points}"""
-        }
 
-        // Явное завершение теста
-        if (call.name == A0a1TestRegistry.FN_FINISH) {
-            if (bus.tryConsume(call.id)) {
-                logger.d("▶ finish_test (id=${call.id})")
-                bus.publishFinish()
-            } else {
-                logger.d("⚠ Duplicate finish id=${call.id} — ignored")
+            A0a1TestRegistry.FN_FINISH -> {
+                if (bus.tryConsume(call.id)) {
+                    logger.d("▶ finish_test (id=${call.id})")
+                    bus.publishFinish()
+                } else {
+                    logger.d("⚠ Duplicate finish id=${call.id} — ignored")
+                }
+                """{"status":"ok"}"""
             }
-            return """{"status":"ok"}"""
-        }
 
-        // 6.3 — неизвестная функция в Learn-контексте (hallucination guard).
-        // Возвращаем structured error вместо null, чтобы VoiceViewModel
-        // не делегировал вызов в глобальный ToolRegistry — Learn-сессия изолирована.
-        logger.w("A0a1: unknown function call: ${call.name}")
-        return """{"error":"function '${call.name}' is not available in a0a1_test mode"}"""
+            else -> {
+                logger.w("A0a1: unknown function call: ${call.name}")
+                """{"error":"function '${call.name}' is not available in a0a1_test mode"}"""
+            }
+        }
     }
 }
