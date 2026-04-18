@@ -3,8 +3,11 @@
 // Путь: app/src/main/java/com/learnde/app/presentation/voice/VoiceContract.kt
 //
 // Изменения:
-//   • a0a1TestActive → learnActive: Boolean + learnId: String? (generic).
-//     VoiceViewModel теперь не знает про A0a1, только про LearnSession.
+//   • 5 диагностических VoiceIntent для поиска источника 1007:
+//     ConnectBaseline, ConnectWithoutThinking, ConnectWithoutVad,
+//     ConnectWithoutSessionMgmt, ConnectWithoutTranscription
+//   • VoiceState.lastTestedProfile — показывает какой профиль сейчас
+//     тестируется (для StatusBadge)
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.voice
 
@@ -13,6 +16,43 @@ import com.learnde.app.domain.model.ConversationMessage
 import com.learnde.app.domain.model.LatencyProfile
 import com.learnde.app.domain.scene.SceneMode
 import com.learnde.app.util.UiText
+
+/**
+ * Диагностический профиль setup — используется для поиска источника
+ * close code 1007. Каждый профиль отключает определённый блок setup.
+ */
+enum class DiagnosticProfile(val label: String, val shortLabel: String, val description: String) {
+    FULL(
+        label = "Full (production)",
+        shortLabel = "FULL",
+        description = "Полный setup со всеми блоками"
+    ),
+    BASELINE(
+        label = "1. Baseline",
+        shortLabel = "BASE",
+        description = "Минимум: model + responseModalities + speechConfig + systemInstruction"
+    ),
+    WITHOUT_THINKING(
+        label = "2. No Thinking",
+        shortLabel = "-THINK",
+        description = "Без thinkingConfig (подозрение на thinkingLevel)"
+    ),
+    WITHOUT_VAD(
+        label = "3. No VAD",
+        shortLabel = "-VAD",
+        description = "Без realtimeInputConfig (подозрение на sensitivity enum)"
+    ),
+    WITHOUT_SESSION_MGMT(
+        label = "4. No Session Mgmt",
+        shortLabel = "-SESS",
+        description = "Без sessionResumption + contextWindowCompression"
+    ),
+    WITHOUT_TRANSCRIPTION(
+        label = "5. No Transcription",
+        shortLabel = "-TRANS",
+        description = "Без inputAudioTranscription + outputAudioTranscription"
+    )
+}
 
 @Immutable
 data class VoiceState(
@@ -28,7 +68,7 @@ data class VoiceState(
     // ── Voice & Model ──
     val currentVoiceId: String                = "Aoede",
     val currentLatencyProfile: LatencyProfile = LatencyProfile.UltraLow,
-    val model: String                         = "models/gemini-3.1-flash-live-preview",
+    val model: String                         = "gemini-3.1-flash-live-preview",
     val languageCode: String                  = "",
 
     // ── Generation ──
@@ -70,7 +110,20 @@ data class VoiceState(
     val chatShowRoleLabels: Boolean           = true,
     val chatShowTimestamps: Boolean           = false,
     val chatAutoScroll: Boolean               = true,
-    val chatBackgroundAlpha: Int              = 30
+    val chatBackgroundAlpha: Int              = 30,
+
+    // ── ДИАГНОСТИКА ──
+    /** Какой профиль сейчас тестируется (показывается в StatusBadge) */
+    val lastTestedProfile: DiagnosticProfile  = DiagnosticProfile.FULL,
+    /** Результат последнего теста (для истории) */
+    val diagnosticLog: List<DiagnosticResult> = emptyList()
+)
+
+/** Результат одного теста для истории на экране */
+data class DiagnosticResult(
+    val profile: DiagnosticProfile,
+    val result: String,
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 enum class ConnectionStatus(val label: String) {
@@ -91,6 +144,20 @@ sealed interface VoiceIntent {
     data object SaveLog                                      : VoiceIntent
     data object ClearConversation                            : VoiceIntent
     data object ToggleFullscreenScene                        : VoiceIntent
+
+    // ── ДИАГНОСТИЧЕСКИЕ INTENT (для поиска 1007) ──
+    /** Полный setup (как было раньше) */
+    data object ConnectFull                                  : VoiceIntent
+    /** Baseline: минимальный setup */
+    data object ConnectBaseline                              : VoiceIntent
+    /** Без thinkingConfig */
+    data object ConnectWithoutThinking                       : VoiceIntent
+    /** Без realtimeInputConfig/VAD */
+    data object ConnectWithoutVad                            : VoiceIntent
+    /** Без sessionResumption + contextWindowCompression */
+    data object ConnectWithoutSessionMgmt                    : VoiceIntent
+    /** Без transcription-блоков */
+    data object ConnectWithoutTranscription                  : VoiceIntent
 }
 
 sealed interface VoiceEffect {
