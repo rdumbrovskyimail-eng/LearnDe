@@ -62,7 +62,7 @@ class A0a1TestViewModel @Inject constructor(
         }
     }
 
-    private fun onAward(points: Int) {
+    private fun onAward(points: Int, feedback: String) {
         val cur = _state.value
         if (cur.answeredCount >= A0a1TestRegistry.TOTAL_QUESTIONS) {
             // Защита от лишних вызовов после финала
