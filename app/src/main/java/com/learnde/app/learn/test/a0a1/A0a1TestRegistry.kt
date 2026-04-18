@@ -18,23 +18,8 @@ object A0a1TestRegistry {
     const val A1_THRESHOLD = 45
 
     // ───── Имена функций ─────
-    const val FN_AWARD_0 = "award_0_points"
-    const val FN_AWARD_1 = "award_1_point"
-    const val FN_AWARD_2 = "award_2_points"
-    const val FN_AWARD_3 = "award_3_points"
-    const val FN_FINISH  = "finish_test"
-
-    /** Все «баллы» функции — для удобства регистрации. */
-    val AWARD_FUNCTIONS = listOf(FN_AWARD_0, FN_AWARD_1, FN_AWARD_2, FN_AWARD_3)
-
-    /** Возвращает балл (0..3) по имени функции, или null если это не award-функция. */
-    fun pointsForFunction(name: String): Int? = when (name) {
-        FN_AWARD_0 -> 0
-        FN_AWARD_1 -> 1
-        FN_AWARD_2 -> 2
-        FN_AWARD_3 -> 3
-        else -> null
-    }
+    const val FN_EVALUATE = "evaluate_answer"
+    const val FN_FINISH   = "finish_test"
 
     // ───── Декларации ─────
     val AWARD_0_DECLARATION = FunctionDeclarationConfig(
