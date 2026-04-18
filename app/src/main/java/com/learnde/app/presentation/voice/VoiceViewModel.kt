@@ -356,6 +356,14 @@ class VoiceViewModel @Inject constructor(
         val status = _state.value.connectionStatus
         if (status == ConnectionStatus.Connecting || status == ConnectionStatus.Ready) return
 
+        // VM мог быть пересоздан (возврат на VoiceScreen) — liveClient singleton
+        // уже может быть Ready. Не рвём рабочее соединение ради жёлтого мигания.
+        if (liveClient.isReady) {
+            contextSeeded = true
+            _state.update { it.copy(connectionStatus = ConnectionStatus.Ready) }
+            return
+        }
+
         contextSeeded = false
         _state.update { it.copy(connectionStatus = ConnectionStatus.Connecting) }
 
