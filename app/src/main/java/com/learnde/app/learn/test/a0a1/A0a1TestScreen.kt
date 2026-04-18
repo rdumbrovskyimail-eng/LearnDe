@@ -101,7 +101,7 @@ fun A0a1TestScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "Тест A0-A1 · Deutsch",
+                        "Тест A0-A1 · English",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -157,7 +157,7 @@ fun A0a1TestScreen(
             Spacer(Modifier.height(16.dp))
 
             Text(
-                "Вопросы генерируются на лету. Чередуется русский и немецкий язык вопросов. Отвечайте всегда по-немецки!",
+                "Вопросы генерируются на лету. Чередуется русский и английский язык вопросов. Отвечайте всегда по-английски!",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -217,7 +217,7 @@ fun A0a1TestScreen(
 }
 
 // ════════════════════════════════════════════════════════════
-//  TRANSCRIPT HISTORY PANEL (НОВОЕ ОКНО)
+//  TRANSCRIPT HISTORY PANEL
 // ════════════════════════════════════════════════════════════
 
 @Composable
@@ -305,8 +305,7 @@ private fun MessageBubble(isUser: Boolean, text: String) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  НИЖЕ ИДУТ GAUGE И ПРОЧИЕ КОМПОНЕНТЫ БЕЗ ИЗМЕНЕНИЙ 
-//  (чтобы код компилировался, оставляем их как есть)
+//  ОСТАЛЬНЫЕ КОМПОНЕНТЫ
 // ════════════════════════════════════════════════════════════
 
 @Composable
@@ -530,7 +529,7 @@ private fun VerdictDialog(
     val accent = if (isA1) Color(0xFF43A047) else Color(0xFFFB8C00)
     val headline = if (isA1) "A1" else "A0"
     val subtitle = if (isA1)
-        "Поздравляем! Ваш уровень немецкого — A1 (базовый). Вы понимаете и используете повседневные фразы."
+        "Поздравляем! Ваш уровень английского — A1 (базовый). Вы понимаете и используете повседневные фразы."
     else
         "Ваш уровень пока — A0 (начинающий). Это отличная точка старта: продолжайте учиться, и A1 будет близко."
 
