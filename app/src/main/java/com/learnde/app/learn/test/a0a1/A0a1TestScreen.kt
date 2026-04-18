@@ -404,12 +404,7 @@ private fun LastAwardCard(points: Int?, feedback: String?, questionIndex: Int) {
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        feedback ?: when (points) {
-                            3 -> "Отличный ответ!"
-                            2 -> "Хорошо, с небольшими ошибками"
-                            1 -> "Понятно, но неполно"
-                            else -> "Попробуйте следующий вопрос"
-                        },
+                        text = feedback ?: "Оценено ИИ",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 16.sp
