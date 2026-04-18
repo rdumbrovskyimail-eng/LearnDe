@@ -53,7 +53,7 @@ class A0a1TestViewModel @Inject constructor(
     init {
         // Слушаем оценки.
         viewModelScope.launch {
-            bus.awards.collect { points -> onAward(points) }
+            bus.awards.collect { (points, feedback) -> onAward(points, feedback) }
         }
 
         // Слушаем завершение.
