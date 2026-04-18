@@ -24,6 +24,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
@@ -42,38 +43,15 @@ import okio.ByteString
 import java.util.concurrent.TimeUnit
 
 /**
- * Клиент Gemini Live API v1beta (Gemini 3.1 Flash Live, 2026).
+ * Клиент Gemini Live API v1beta с ДИАГНОСТИЧЕСКИМ sendSetup.
  *
- * ═══════════════════════════════════════════════════════════
- *  СТРУКТУРА SETUP (официальная спецификация)
- * ═══════════════════════════════════════════════════════════
- *   setup:
- *     model                          ← ЧИСТЫЙ ID без "models/" префикса
- *     generationConfig:
- *       temperature, topP, topK, maxOutputTokens, responseModalities,
- *       presencePenalty, frequencyPenalty,
- *       speechConfig,
- *       thinkingConfig
- *     systemInstruction
- *     tools
- *     realtimeInputConfig
- *     inputAudioTranscription
- *     outputAudioTranscription
- *     sessionResumption
- *     contextWindowCompression
- *     mediaResolution               ← НА КОРНЕВОМ УРОВНЕ setup
+ * Каждый блок setup может быть выключен флагом в SessionConfig для
+ * поиска источника close code 1007 "Invalid JSON payload".
  *
- * ═══════════════════════════════════════════════════════════
- *  ЖИЗНЕННЫЙ ЦИКЛ ПОДКЛЮЧЕНИЯ
- * ═══════════════════════════════════════════════════════════
- *   1. onOpen (TLS handshake OK)     → emit Connected      (UI: жёлтый)
- *   2. sendSetup()                    → ждём setupComplete
- *   3. setupComplete получен          → emit SetupComplete, isReady=true
- *                                       (UI: зелёный)
- *   4. Таймаут setupTimeoutMs         → emit ConnectionError, close WS
- *
- *  isReady становится true ТОЛЬКО после setupComplete,
- *  не после onOpen!
+ * Алгоритм поиска:
+ *   1. Запусти с SessionConfig.baselineProfile() — должно работать
+ *   2. Если baseline OK — используй withoutXxx-профили по одному
+ *   3. Тот профиль, с которым setup проходит — указывает на виновника
  */
 class GeminiLiveClient(
     private val logger: AppLogger
@@ -89,7 +67,6 @@ class GeminiLiveClient(
         .pingInterval(30, TimeUnit.SECONDS)
         .build()
 
-    /** Внутренний scope для setup timeout watchdog. */
     private val internalScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Volatile private var webSocket: WebSocket? = null
@@ -105,10 +82,6 @@ class GeminiLiveClient(
     override var sessionHandle: String? = null
         private set
 
-    /**
-     * true ТОЛЬКО после получения setupComplete от сервера.
-     * До этого — false, даже если WS уже open на транспортном уровне.
-     */
     @Volatile
     override var isReady: Boolean = false
         private set
@@ -121,7 +94,6 @@ class GeminiLiveClient(
     @Volatile
     private var closeCompletion: CompletableDeferred<Unit>? = null
 
-    /** Watchdog-джоб, который закрывает WS если setupComplete не пришёл вовремя. */
     @Volatile
     private var setupWatchdog: Job? = null
 
@@ -131,7 +103,7 @@ class GeminiLiveClient(
         if (!logRawFrames) return
         synchronized(lastSentFrames) {
             if (lastSentFrames.size >= 3) lastSentFrames.pollFirst()
-            lastSentFrames.offerLast(raw.take(500))
+            lastSentFrames.offerLast(raw.take(2000))
         }
     }
 
@@ -150,6 +122,13 @@ class GeminiLiveClient(
 
         val url = "wss://${SessionConfig.WS_HOST}/${SessionConfig.WS_PATH}?key=$apiKey"
         logger.d("Connecting to ${config.model}…")
+        logger.d("Diagnostic flags: minimal=${config.diagnosticMinimalSetup} " +
+                "thinking=${config.sendThinkingConfig} " +
+                "vad=${config.sendVadConfig} " +
+                "transcr=${config.sendTranscriptionConfig} " +
+                "resumption=${config.sendSessionResumptionConfig} " +
+                "compression=${config.sendContextCompressionConfig} " +
+                "genParams=${config.sendGenerationParams}")
 
         val request = Request.Builder().url(url).build()
 
@@ -157,19 +136,14 @@ class GeminiLiveClient(
 
             override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
                 logger.d("WS opened (${response.code}) — sending setup, waiting for setupComplete…")
-
-                // ВАЖНО: эмитим Connected = WS открыт на транспортном уровне.
-                // UI показывает жёлтый статус "connecting".
-                // isReady НЕ ставим true — это случится только при setupComplete.
                 _events.tryEmit(GeminiEvent.Connected)
-
                 sendSetup(config)
                 startSetupWatchdog(config.setupTimeoutMs)
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
                 if (logRawFrames) {
-                    val preview = if (text.length > 300) text.take(300) + "…" else text
+                    val preview = if (text.length > 500) text.take(500) + "…" else text
                     logger.d("RAW ← $preview")
                 }
                 parseServerMessage(text)
@@ -195,7 +169,7 @@ class GeminiLiveClient(
                                 logger.e("  [$i] $frame")
                             }
                         } else {
-                            logger.e("⚠ No frames tracked (enable logRawFrames to capture)")
+                            logger.e("⚠ No frames tracked (enable logRaw to capture)")
                         }
                     }
                 }
@@ -224,11 +198,6 @@ class GeminiLiveClient(
         })
     }
 
-    /**
-     * Запускает watchdog на setup timeout.
-     * Если setupComplete не пришёл за timeoutMs — закрывает WS
-     * и эмитит ConnectionError, чтобы UI не висел в жёлтом.
-     */
     private fun startSetupWatchdog(timeoutMs: Long) {
         cancelSetupWatchdog()
         setupWatchdog = internalScope.launch {
@@ -237,8 +206,7 @@ class GeminiLiveClient(
                 logger.e("⚠ SETUP TIMEOUT — no setupComplete in ${timeoutMs}ms")
                 _events.tryEmit(
                     GeminiEvent.ConnectionError(
-                        "Setup timeout: no setupComplete in ${timeoutMs}ms. " +
-                        "Проверьте API key, модель и структуру setup."
+                        "Setup timeout: no setupComplete in ${timeoutMs}ms."
                     )
                 )
                 runCatching { webSocket?.close(1000, "setup_timeout") }
@@ -269,16 +237,74 @@ class GeminiLiveClient(
     }
 
     // ════════════════════════════════════════════════════════════
-    //  SETUP — официальная структура v1beta
+    //  SETUP — с диагностическими флагами
     // ════════════════════════════════════════════════════════════
 
     private fun sendSetup(config: SessionConfig) {
-        val msg = buildJsonObject {
-            put("setup", buildJsonObject {
+        val msg = if (config.diagnosticMinimalSetup) {
+            buildMinimalSetup(config)
+        } else {
+            buildFullSetup(config)
+        }
 
-                // ─── Модель ───
-                // ВАЖНО: чистый ID без "models/" префикса!
-                // Префикс валиден для REST API, но НЕ для WebSocket BidiGenerateContent.
+        val raw = msg.toString()
+        logger.d("SETUP → ${config.model} (${raw.length} chars)" +
+                if (config.diagnosticMinimalSetup) " [MINIMAL PROFILE]" else "")
+
+        if (config.logFullSetupJson || logRawFrames) {
+            // Принтим полный JSON построчно чтобы не обрезался в logcat
+            logger.d("SETUP_RAW BEGIN ─────────────────")
+            raw.chunked(500).forEachIndexed { i, chunk ->
+                logger.d("  [$i] $chunk")
+            }
+            logger.d("SETUP_RAW END ───────────────────")
+        }
+
+        trackSentFrame(raw)
+        webSocket?.send(raw)
+    }
+
+    /**
+     * Минимальный setup — только абсолютно необходимые поля.
+     * Если с ним 1007 — значит проблема в model, responseModalities,
+     * speechConfig или systemInstruction (или в самом transport-е).
+     */
+    private fun buildMinimalSetup(config: SessionConfig): JsonObject =
+        buildJsonObject {
+            put("setup", buildJsonObject {
+                put("model", config.model)
+
+                put("generationConfig", buildJsonObject {
+                    put("responseModalities", buildJsonArray {
+                        add(JsonPrimitive(config.responseModality))
+                    })
+                    put("speechConfig", buildJsonObject {
+                        put("voiceConfig", buildJsonObject {
+                            put("prebuiltVoiceConfig", buildJsonObject {
+                                put("voiceName", config.voiceId)
+                            })
+                        })
+                    })
+                })
+
+                if (config.systemInstruction.isNotBlank()) {
+                    put("systemInstruction", buildJsonObject {
+                        put("parts", buildJsonArray {
+                            add(buildJsonObject {
+                                put("text", config.systemInstruction)
+                            })
+                        })
+                    })
+                }
+            })
+        }
+
+    /**
+     * Полный setup с возможностью отключения отдельных блоков через флаги.
+     */
+    private fun buildFullSetup(config: SessionConfig): JsonObject =
+        buildJsonObject {
+            put("setup", buildJsonObject {
                 put("model", config.model)
 
                 // ─── generationConfig ───
@@ -286,14 +312,16 @@ class GeminiLiveClient(
                     put("responseModalities", buildJsonArray {
                         add(JsonPrimitive(config.responseModality))
                     })
-                    put("temperature", config.temperature)
-                    put("topP", config.topP)
-                    if (config.topK > 0) put("topK", config.topK)
-                    put("maxOutputTokens", config.maxOutputTokens)
-                    if (config.presencePenalty != 0f) put("presencePenalty", config.presencePenalty)
-                    if (config.frequencyPenalty != 0f) put("frequencyPenalty", config.frequencyPenalty)
 
-                    // speechConfig — ВНУТРИ generationConfig
+                    if (config.sendGenerationParams) {
+                        put("temperature", config.temperature)
+                        put("topP", config.topP)
+                        if (config.topK > 0) put("topK", config.topK)
+                        put("maxOutputTokens", config.maxOutputTokens)
+                        if (config.presencePenalty != 0f) put("presencePenalty", config.presencePenalty)
+                        if (config.frequencyPenalty != 0f) put("frequencyPenalty", config.frequencyPenalty)
+                    }
+
                     put("speechConfig", buildJsonObject {
                         put("voiceConfig", buildJsonObject {
                             put("prebuiltVoiceConfig", buildJsonObject {
@@ -305,15 +333,14 @@ class GeminiLiveClient(
                         }
                     })
 
-                    // thinkingConfig — ВНУТРИ generationConfig
-                    // Значения thinkingLevel: "minimal" | "low" | "medium" | "high"
-                    // (lowercase, без "none"!)
-                    put("thinkingConfig", buildJsonObject {
-                        put("thinkingLevel", config.latencyProfile.thinkingLevel)
-                        if (config.thinkingIncludeThoughts) {
-                            put("includeThoughts", true)
-                        }
-                    })
+                    if (config.sendThinkingConfig) {
+                        put("thinkingConfig", buildJsonObject {
+                            put("thinkingLevel", config.latencyProfile.thinkingLevel)
+                            if (config.thinkingIncludeThoughts) {
+                                put("includeThoughts", true)
+                            }
+                        })
+                    }
                 })
 
                 // ─── systemInstruction ───
@@ -350,31 +377,32 @@ class GeminiLiveClient(
                 }
 
                 // ─── realtimeInputConfig ───
-                put("realtimeInputConfig", buildJsonObject {
-                    put("automaticActivityDetection", buildJsonObject {
-                        put("disabled", !config.autoActivityDetection)
-                        if (config.autoActivityDetection) {
-                            put("startOfSpeechSensitivity", config.vadStartSensitivity)
-                            put("endOfSpeechSensitivity", config.vadEndSensitivity)
-                            put("prefixPaddingMs", config.vadPrefixPaddingMs)
-                            put("silenceDurationMs", config.vadSilenceDurationMs)
-                        }
+                if (config.sendVadConfig) {
+                    put("realtimeInputConfig", buildJsonObject {
+                        put("automaticActivityDetection", buildJsonObject {
+                            put("disabled", !config.autoActivityDetection)
+                            if (config.autoActivityDetection) {
+                                put("startOfSpeechSensitivity", config.vadStartSensitivity)
+                                put("endOfSpeechSensitivity", config.vadEndSensitivity)
+                                put("prefixPaddingMs", config.vadPrefixPaddingMs)
+                                put("silenceDurationMs", config.vadSilenceDurationMs)
+                            }
+                        })
                     })
-                })
-
-                // ─── Транскрипция (корневой уровень setup) ───
-                if (config.inputTranscription) {
-                    put("inputAudioTranscription", buildJsonObject {})
                 }
-                if (config.outputTranscription) {
-                    put("outputAudioTranscription", buildJsonObject {})
+
+                // ─── Транскрипция ───
+                if (config.sendTranscriptionConfig) {
+                    if (config.inputTranscription) {
+                        put("inputAudioTranscription", buildJsonObject {})
+                    }
+                    if (config.outputTranscription) {
+                        put("outputAudioTranscription", buildJsonObject {})
+                    }
                 }
 
                 // ─── Session Resumption ───
-                // Если включено — всегда отправляем, даже без handle.
-                // Пустой объект означает "начать новую resumable-сессию"
-                // — сервер будет слать sessionResumptionUpdate.
-                if (config.enableSessionResumption) {
+                if (config.sendSessionResumptionConfig && config.enableSessionResumption) {
                     put("sessionResumption", buildJsonObject {
                         config.sessionHandle?.let { put("handle", it) }
                         if (config.transparentResumption) {
@@ -384,7 +412,7 @@ class GeminiLiveClient(
                 }
 
                 // ─── Context Window Compression ───
-                if (config.enableContextCompression) {
+                if (config.sendContextCompressionConfig && config.enableContextCompression) {
                     put("contextWindowCompression", buildJsonObject {
                         if (config.compressionTriggerTokens > 0L) {
                             put("triggerTokens", config.compressionTriggerTokens)
@@ -397,29 +425,13 @@ class GeminiLiveClient(
                     })
                 }
 
-                // ─── mediaResolution (КОРНЕВОЙ уровень setup!) ───
-                // НЕ внутри generationConfig! Это распространённая ошибка,
-                // которая приводит к close code 1007.
+                // ─── mediaResolution (корневой уровень) ───
                 if (config.mediaResolution.isNotBlank()) {
                     put("mediaResolution", config.mediaResolution)
                 }
-
             })
         }
 
-        val raw = msg.toString()
-        logger.d("SETUP → ${config.model} (${raw.length} chars)")
-        if (logRawFrames) logger.d("SETUP_RAW → ${raw.take(1500)}")
-        trackSentFrame(raw)
-        webSocket?.send(raw)
-    }
-
-    /**
-     * Строит одно function declaration.
-     * ВАЖНО: даже для функций без параметров — всегда отправляем
-     *   parameters: {type: "object", properties: {}}
-     * Это требование Gemini 3.1 при >5 функциях (иначе 1007).
-     */
     private fun buildFunctionDeclaration(decl: com.learnde.app.domain.model.FunctionDeclarationConfig): JsonObject =
         buildJsonObject {
             put("name", decl.name)
@@ -439,10 +451,6 @@ class GeminiLiveClient(
             })
         }
 
-    /**
-     * Рекурсивно строит JSON Schema для одного параметра.
-     * JSON Schema требует lowercase тип: "string", "array", "object".
-     */
     private fun buildParameterSchema(param: ParameterConfig): JsonObject =
         buildJsonObject {
             val lowerType = param.type.lowercase()
@@ -762,11 +770,11 @@ class GeminiLiveClient(
         1003 -> "[Unsupported Data]"
         1006 -> "[Abnormal Closure]"
         1007 -> "[Invalid Frame Payload — невалидный JSON / неизвестное поле в setup / неверный enum]"
-        1008 -> "[Policy Violation — модель недоступна ключу / неверный model ID (возможно префикс 'models/')]"
+        1008 -> "[Policy Violation — модель недоступна ключу / неверный model ID]"
         1011 -> "[Internal Server Error]"
         1013 -> "[Try Again Later]"
-        4000 -> "[Gemini: Session expired — enable contextWindowCompression]"
-        4001 -> "[Gemini: Invalid setup — проверьте структуру setup]"
+        4000 -> "[Gemini: Session expired]"
+        4001 -> "[Gemini: Invalid setup]"
         4002 -> "[Gemini: Rate limited (429)]"
         4003 -> "[Gemini: Auth failed — неверный API ключ]"
         else -> "[Code $code]"
