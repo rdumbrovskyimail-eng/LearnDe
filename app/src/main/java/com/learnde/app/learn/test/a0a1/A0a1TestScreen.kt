@@ -1,3 +1,4 @@
+// Путь: app/src/main/java/com/learnde/app/learn/test/a0a1/A0a1TestScreen.kt
 package com.learnde.app.learn.test.a0a1
 
 import android.Manifest
@@ -6,19 +7,18 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
-import androidx.compose.foundation.layout.height
-import com.learnde.app.learn.core.LearnConnectionStatus
-import com.learnde.app.learn.core.LearnCoreIntent
-import com.learnde.app.learn.core.LearnCoreViewModel
-import com.learnde.app.presentation.learn.components.CurrentFunctionBar
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,6 +40,12 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.learnde.app.domain.model.ConversationMessage
+import com.learnde.app.learn.core.LearnConnectionStatus
+import com.learnde.app.learn.core.LearnCoreIntent
+import com.learnde.app.learn.core.LearnCoreViewModel
+import com.learnde.app.presentation.learn.components.CurrentFunctionBar
+import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -56,12 +62,16 @@ fun A0a1TestScreen(
     val fnStatus by learnCoreViewModel.functionStatus.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    // Состояния для шторки истории
+    var showHistorySheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val coroutineScope = rememberCoroutineScope()
+
     val exitAndBack: () -> Unit = {
         learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
         onBack()
     }
 
-    // 1. Лаунчер для запроса микрофона
     val micPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -73,7 +83,6 @@ fun A0a1TestScreen(
         }
     }
 
-    // 2. При старте экрана проверяем разрешение
     LaunchedEffect(Unit) {
         val hasMic = ContextCompat.checkSelfPermission(
             context, Manifest.permission.RECORD_AUDIO
@@ -100,11 +109,13 @@ fun A0a1TestScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = exitAndBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Назад",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                },
+                actions = {
+                    // Кнопка для открытия окна с историей диалога
+                    IconButton(onClick = { showHistorySheet = true }) {
+                        Icon(Icons.Default.List, contentDescription = "История вопросов")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -146,8 +157,7 @@ fun A0a1TestScreen(
             Spacer(Modifier.height(16.dp))
 
             Text(
-                "Проходной балл для уровня A1 — ${state.threshold} из ${state.maxPoints}.\n" +
-                        "Микрофон включается автоматически — говорите, когда преподаватель задаст вопрос.",
+                "Вопросы генерируются на лету. Чередуется русский и немецкий язык вопросов. Отвечайте всегда по-немецки!",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -180,6 +190,18 @@ fun A0a1TestScreen(
         }
     }
 
+    // Окно с историей (Transcript)
+    if (showHistorySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showHistorySheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            TranscriptHistoryPanel(transcript = learnState.transcript)
+        }
+    }
+
+    // Итоговый диалог
     if (state.finished && state.verdict != TestVerdict.NONE) {
         VerdictDialog(
             verdict = state.verdict,
@@ -195,7 +217,96 @@ fun A0a1TestScreen(
 }
 
 // ════════════════════════════════════════════════════════════
-//  GAUGE
+//  TRANSCRIPT HISTORY PANEL (НОВОЕ ОКНО)
+// ════════════════════════════════════════════════════════════
+
+@Composable
+private fun TranscriptHistoryPanel(transcript: List<ConversationMessage>) {
+    val listState = rememberLazyListState()
+    
+    // Автоскролл вниз при добавлении новых сообщений
+    LaunchedEffect(transcript.size) {
+        if (transcript.isNotEmpty()) {
+            listState.animateScrollToItem(transcript.size - 1)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.7f) // Занимает 70% экрана
+            .padding(horizontal = 16.dp)
+    ) {
+        Text(
+            text = "История ответов",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        if (transcript.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("История пока пуста", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                items(transcript) { msg ->
+                    val isUser = msg.role == ConversationMessage.ROLE_USER
+                    MessageBubble(isUser = isUser, text = msg.text)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MessageBubble(isUser: Boolean, text: String) {
+    val bg = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
+    val shape = if (isUser) {
+        RoundedCornerShape(16.dp, 16.dp, 2.dp, 16.dp)
+    } else {
+        RoundedCornerShape(16.dp, 16.dp, 16.dp, 2.dp)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        contentAlignment = alignment
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .clip(shape)
+                .background(bg)
+                .padding(12.dp)
+        ) {
+            Text(
+                text = if (isUser) "Ваш ответ:" else "Экзаменатор:",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = textColor.copy(alpha = 0.7f),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            Text(
+                text = text,
+                fontSize = 14.sp,
+                color = textColor
+            )
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════
+//  НИЖЕ ИДУТ GAUGE И ПРОЧИЕ КОМПОНЕНТЫ БЕЗ ИЗМЕНЕНИЙ 
+//  (чтобы код компилировался, оставляем их как есть)
 // ════════════════════════════════════════════════════════════
 
 @Composable
@@ -313,10 +424,6 @@ private fun ScoreGauge(
     }
 }
 
-// ════════════════════════════════════════════════════════════
-//  QUESTIONS PROGRESS
-// ════════════════════════════════════════════════════════════
-
 @Composable
 private fun QuestionsProgress(answered: Int, total: Int) {
     val frac by animateFloatAsState(
@@ -353,10 +460,6 @@ private fun QuestionsProgress(answered: Int, total: Int) {
         )
     }
 }
-
-// ════════════════════════════════════════════════════════════
-//  LAST AWARD
-// ════════════════════════════════════════════════════════════
 
 @Composable
 private fun LastAwardCard(points: Int?, feedback: String?, questionIndex: Int) {
@@ -414,10 +517,6 @@ private fun LastAwardCard(points: Int?, feedback: String?, questionIndex: Int) {
         }
     }
 }
-
-// ════════════════════════════════════════════════════════════
-//  VERDICT DIALOG
-// ════════════════════════════════════════════════════════════
 
 @Composable
 private fun VerdictDialog(
