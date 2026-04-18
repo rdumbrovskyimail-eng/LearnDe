@@ -8,6 +8,7 @@
 package com.learnde.app.learn.test.a0a1
 
 import com.learnde.app.domain.model.FunctionDeclarationConfig
+import com.learnde.app.domain.model.ParameterConfig
 
 object A0a1TestRegistry {
 
@@ -22,35 +23,30 @@ object A0a1TestRegistry {
     const val FN_FINISH   = "finish_test"
 
     // ───── Декларации ─────
-    val AWARD_0_DECLARATION = FunctionDeclarationConfig(
-        name = FN_AWARD_0,
-        description = "Вызови эту функцию если ответ пользователя пустой или не по теме. Балл: 0."
-    )
-    val AWARD_1_DECLARATION = FunctionDeclarationConfig(
-        name = FN_AWARD_1,
-        description = "Вызови эту функцию если пользователь назвал только отдельные слова без структуры предложения. Балл: 1."
-    )
-    val AWARD_2_DECLARATION = FunctionDeclarationConfig(
-        name = FN_AWARD_2,
-        description = "Вызови эту функцию если ответ понятен, но есть 1-2 ошибки в грамматике или произношении. Балл: 2."
-    )
-    val AWARD_3_DECLARATION = FunctionDeclarationConfig(
-        name = FN_AWARD_3,
-        description = "Вызови эту функцию если ответ полный, грамматически верный, с уверенным произношением. Балл: 3."
-    )
-    val FINISH_DECLARATION = FunctionDeclarationConfig(
-        name = FN_FINISH,
-        description = "Вызови эту функцию ТОЛЬКО после того, как пользователь ответил на 20-й (последний) вопрос и ты уже оценил его через award_*_points."
+    val EVALUATE_DECLARATION = FunctionDeclarationConfig(
+        name = FN_EVALUATE,
+        description = "Вызови эту функцию после каждого ответа пользователя, чтобы оценить его.",
+        parameters = mapOf(
+            "points" to ParameterConfig(
+                type = "INTEGER",
+                description = "Балл от 0 до 3 (3 - отлично, 2 - с ошибками, 1 - слабо, 0 - неверно)."
+            ),
+            "feedback" to ParameterConfig(
+                type = "STRING",
+                description = "Краткий комментарий на русском: за что снижен балл или за что похвала."
+            )
+        ),
+        required = listOf("points", "feedback")
     )
 
-    /** Все 5 деклараций для включения в тест-сессию. */
-    val ALL_DECLARATIONS: List<FunctionDeclarationConfig> = listOf(
-        AWARD_0_DECLARATION,
-        AWARD_1_DECLARATION,
-        AWARD_2_DECLARATION,
-        AWARD_3_DECLARATION,
-        FINISH_DECLARATION
+    val FINISH_DECLARATION = FunctionDeclarationConfig(
+        name = FN_FINISH,
+        description = "Вызови эту функцию ТОЛЬКО когда задал все 20 вопросов и оценил последний.",
+        parameters = emptyMap(),
+        required = emptyList()
     )
+
+    val ALL_DECLARATIONS = listOf(EVALUATE_DECLARATION, FINISH_DECLARATION)
 
     // ───── Системная инструкция — полный сценарий для Gemini ─────
     val SYSTEM_INSTRUCTION = """
@@ -66,13 +62,9 @@ object A0a1TestRegistry {
         2. Всего 20 вопросов. Задавай их по порядку из раздела "ВОПРОСЫ" ниже.
         3. После КАЖДОГО ответа пользователя ты ОБЯЗАН:
            (а) дать короткий устный фидбек (1 предложение, по-русски),
-           (б) ВЫЗВАТЬ ОДНУ из функций оценки:
-               • award_3_points — ответ полный, грамматически верный, уверенное произношение;
-               • award_2_points — ответ понятен, но 1-2 ошибки в грамматике/произношении;
-               • award_1_point  — отдельные слова без структуры предложения;
-               • award_0_points — нет ответа или не по теме;
+           (б) ВЫЗВАТЬ функцию evaluate_answer с параметрами points (0-3) и feedback (твой комментарий),
            (в) задать следующий вопрос.
-        4. После 20-го ответа: оцени его через award_*_points, затем вызови finish_test,
+        4. После 20-го ответа: оцени его через evaluate_answer, затем вызови finish_test,
            затем коротко попрощайся.
         
         ВОПРОСЫ:
@@ -110,7 +102,7 @@ object A0a1TestRegistry {
         
         ВАЖНО:
         • Говори тёплым, ободряющим тоном — пользователь может волноваться.
-        • На каждый ответ — ровно ОДИН вызов award_*_points. Без пропусков.
+        • На каждый ответ — ровно ОДИН вызов evaluate_answer. Без пропусков.
         • Не суммируй баллы вслух — это сделает приложение.
         • Никогда не объявляй итоговый уровень A0/A1 голосом.
         • После finish_test просто попрощайся в одну фразу.
