@@ -3,11 +3,6 @@ package com.learnde.app.domain.model
 /**
  * Декларация function calling для Gemini tool use.
  * Передаётся в setup.tools[].functionDeclarations[].
- *
- * ВАЖНО: даже если функция без аргументов — API требует parameters:
- * {type:"object", properties:{}} (фикс code 1007 при >5 функций).
- *
- * @param required имена параметров верхнего уровня, обязательные для вызова.
  */
 data class FunctionDeclarationConfig(
     val name: String,
@@ -18,10 +13,7 @@ data class FunctionDeclarationConfig(
 
 /**
  * Описание параметра function declaration.
- * Совместимо с OpenAPI Schema subset, который принимает Gemini Live API.
- *
  * Типы: STRING | NUMBER | INTEGER | BOOLEAN | ARRAY | OBJECT
- * (клиент переводит в lowercase при сериализации — это требование JSON Schema).
  */
 data class ParameterConfig(
     val type: String = "STRING",
@@ -33,25 +25,13 @@ data class ParameterConfig(
 )
 
 /**
- * Конфигурация сессии Gemini Live API (v1beta, 2026).
+ * Конфигурация сессии Gemini Live API v1beta.
  *
- * Структура setup по официальной спецификации Gemini 3.1 Flash Live:
+ * ДИАГНОСТИЧЕСКИЕ ФЛАГИ (sendXxx) позволяют выключать отдельные блоки
+ * setup для поиска источника close code 1007 "Invalid JSON payload".
  *
- *   setup:
- *     model                          ← ЧИСТЫЙ ID без "models/" префикса
- *     generationConfig:
- *       temperature, topP, topK, maxOutputTokens, responseModalities,
- *       presencePenalty, frequencyPenalty,
- *       speechConfig,
- *       thinkingConfig
- *     systemInstruction
- *     tools
- *     realtimeInputConfig
- *     inputAudioTranscription
- *     outputAudioTranscription
- *     sessionResumption
- *     contextWindowCompression
- *     mediaResolution                ← НА КОРНЕВОМ УРОВНЕ setup, не в generationConfig
+ * По умолчанию все блоки включены — если 1007, используй готовые
+ * профили: baselineProfile(), withoutThinkingProfile(), и т.д.
  */
 data class SessionConfig(
 
@@ -62,23 +42,23 @@ data class SessionConfig(
     val responseModality: String = "AUDIO",
     val temperature: Float = 1.0f,
     val topP: Float = 0.95f,
-    val topK: Int = 0,                   // 0 = не слать
+    val topK: Int = 0,
     val maxOutputTokens: Int = 8192,
     val presencePenalty: Float = 0.0f,
     val frequencyPenalty: Float = 0.0f,
 
-    // ── Speech Config (внутри generationConfig) ──
+    // ── Speech Config ──
     val voiceId: String = "Aoede",
     val languageCode: String = "",
 
-    // ── Thinking Config (внутри generationConfig) ──
+    // ── Thinking Config ──
     val latencyProfile: LatencyProfile = LatencyProfile.UltraLow,
     val thinkingIncludeThoughts: Boolean = false,
 
-    // ── Media Resolution (КОРНЕВОЙ уровень setup, не generationConfig!) ──
-    val mediaResolution: String = "",    // "" | "MEDIA_RESOLUTION_LOW|MEDIUM|HIGH"
+    // ── Media Resolution ──
+    val mediaResolution: String = "",
 
-    // ── VAD (realtimeInputConfig верхнего уровня) ──
+    // ── VAD ──
     val autoActivityDetection: Boolean = true,
     val vadStartSensitivity: String = "START_SENSITIVITY_LOW",
     val vadEndSensitivity: String = "END_SENSITIVITY_LOW",
@@ -88,7 +68,7 @@ data class SessionConfig(
     // ── System Instruction ──
     val systemInstruction: String = DEFAULT_SYSTEM_INSTRUCTION,
 
-    // ── Transcription (корневой уровень setup) ──
+    // ── Transcription ──
     val inputTranscription: Boolean = true,
     val outputTranscription: Boolean = true,
 
@@ -108,17 +88,47 @@ data class SessionConfig(
     val sendAudioStreamEnd: Boolean = true,
 
     // ── Connection timeout ──
-    /** Сколько миллисекунд ждать setupComplete после onOpen. */
-    val setupTimeoutMs: Long = 10_000L
+    val setupTimeoutMs: Long = 10_000L,
+
+    // ═══════════════════════════════════════════════════════════
+    //  ДИАГНОСТИЧЕСКИЕ ФЛАГИ для поиска источника 1007
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Если true — отправляется ТОЛЬКО минимальный setup:
+     *   model + responseModalities + speechConfig + systemInstruction.
+     * Все остальные блоки игнорируются, даже если их флаги true.
+     *
+     * Используй для baseline-теста.
+     */
+    val diagnosticMinimalSetup: Boolean = false,
+
+    /** Отправлять ли generationConfig.thinkingConfig */
+    val sendThinkingConfig: Boolean = true,
+
+    /** Отправлять ли temperature/topP/topK/maxTokens в generationConfig */
+    val sendGenerationParams: Boolean = true,
+
+    /** Отправлять ли realtimeInputConfig с VAD */
+    val sendVadConfig: Boolean = true,
+
+    /** Отправлять ли transcription блоки */
+    val sendTranscriptionConfig: Boolean = true,
+
+    /** Отправлять ли sessionResumption */
+    val sendSessionResumptionConfig: Boolean = true,
+
+    /** Отправлять ли contextWindowCompression */
+    val sendContextCompressionConfig: Boolean = true,
+
+    /** Логировать ПОЛНЫЙ JSON setup (длинный!) */
+    val logFullSetupJson: Boolean = true
 ) {
     companion object {
 
         /**
          * Model ID для WebSocket BidiGenerateContent.
-         *
-         * ВАЖНО: в WebSocket Live API используется ЧИСТЫЙ ID модели,
-         * БЕЗ префикса "models/" (в отличие от REST API).
-         * Префикс "models/" вызывает close code 1008 (Policy Violation).
+         * БЕЗ префикса "models/"!
          */
         const val DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
 
@@ -134,20 +144,62 @@ data class SessionConfig(
 
         const val WS_HOST = "generativelanguage.googleapis.com"
         const val WS_PATH = "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+
+        // ═════════════════════════════════════════════════════
+        //  ДИАГНОСТИЧЕСКИЕ ПРОФИЛИ — используй для поиска 1007
+        // ═════════════════════════════════════════════════════
+
+        /**
+         * 🟢 BASELINE — минимальный setup.
+         * Только model + responseModalities + speechConfig + systemInstruction.
+         *
+         * Если С ЭТИМ ПРОФИЛЕМ setup проходит и статус зелёный —
+         * значит 1007 ломает один из опциональных блоков.
+         * Далее используй withoutXxx-профили для точной локализации.
+         */
+        fun baselineProfile() = SessionConfig(
+            diagnosticMinimalSetup = true,
+            enableSessionResumption = false,
+            enableContextCompression = false,
+            inputTranscription = false,
+            outputTranscription = false,
+            logFullSetupJson = true
+        )
+
+        /** Убираем только thinking — если работает, проблема в thinkingConfig */
+        fun withoutThinkingProfile() = SessionConfig(
+            sendThinkingConfig = false,
+            logFullSetupJson = true
+        )
+
+        /** Убираем только VAD config — если работает, проблема в sensitivity-enum */
+        fun withoutVadProfile() = SessionConfig(
+            sendVadConfig = false,
+            logFullSetupJson = true
+        )
+
+        /** Убираем session mgmt — если работает, проблема в resumption/compression */
+        fun withoutSessionMgmtProfile() = SessionConfig(
+            sendSessionResumptionConfig = false,
+            sendContextCompressionConfig = false,
+            enableSessionResumption = false,
+            enableContextCompression = false,
+            logFullSetupJson = true
+        )
+
+        /** Убираем транскрипцию — если работает, проблема в transcription-блоках */
+        fun withoutTranscriptionProfile() = SessionConfig(
+            sendTranscriptionConfig = false,
+            inputTranscription = false,
+            outputTranscription = false,
+            logFullSetupJson = true
+        )
     }
 }
 
 /**
  * Профиль латентности → Gemini 3.1 thinkingLevel.
- *
- * ОФИЦИАЛЬНЫЕ значения thinkingLevel в Gemini 3.1 (lowercase):
- *   - "minimal"  (default, lowest latency, для voice agents)
- *   - "low"
- *   - "medium"
- *   - "high"     (deep reasoning, highest latency)
- *
- * Значение "none" НЕ СУЩЕСТВУЕТ и приведёт к close code 1007.
- * Для минимального thinking используй "minimal".
+ * Значения: "minimal" | "low" | "medium" | "high"
  */
 enum class LatencyProfile(val thinkingLevel: String, val displayName: String) {
     UltraLow ("minimal", "Ultra Low (minimal thinking)"),
