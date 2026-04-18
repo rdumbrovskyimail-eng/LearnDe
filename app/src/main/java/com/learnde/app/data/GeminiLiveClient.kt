@@ -401,6 +401,11 @@ class GeminiLiveClient(
                     }
                 }
 
+                // ─── History Config (Обязательно для Gemini 3.1) ───
+                put("historyConfig", buildJsonObject {
+                    put("initialHistoryInClientContent", true)
+                })
+
                 // ─── Session Resumption ───
                 if (config.sendSessionResumptionConfig && config.enableSessionResumption) {
                     put("sessionResumption", buildJsonObject {
