@@ -2,21 +2,24 @@
 // ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/presentation/voice/VoiceViewModel.kt
 //
-// Изменения v2 (этап 1 рефакторинга):
-//  [5.1] VAD-sensitivity мапится в enum-строки, удалён vadSilenceTimeoutMs
-//  [5.2] observeLearnSessions — distinctUntilChanged вместо firstEmission
-//  [5.3] restartTick → restartSignal (SharedFlow<Unit>)
-//  [5.4] SetupComplete: без delay(300) между sendText и startMic
-//  [5.5] stopMic: убран двойной сигнал (audioStreamEnd ИЛИ turnComplete)
-//  [5.6] handleSendText: sendText(initial) vs sendRealtimeText(in-dialog)
-//  [5.7] pendingToolCalls.clear() в disconnect/enter/exit/Disconnected/Error
-//  [5.8] dedup транскрипций на reconnect (in/out, окно 5 сек)
-//  [5.9] exitLearnMode: без handleConnect(), мягкий выход в Disconnected
-//  [5.10] scheduleReconnect: skip если активна Learn-сессия
+// Изменения v3 (диагностика 1007):
+//  [D1] 5 handler'ов для диагностических профилей setup:
+//       handleConnectFull, handleConnectBaseline,
+//       handleConnectWithoutThinking, handleConnectWithoutVad,
+//       handleConnectWithoutSessionMgmt, handleConnectWithoutTranscription
+//  [D2] connectWithProfile() — общий метод, сначала disconnect старого
+//       соединения, потом connect с нужным профилем
+//  [D3] DiagnosticResult логируется в state.diagnosticLog при каждом
+//       Disconnected/SetupComplete/ConnectionError
+//  [D4] Убран auto-reconnect во время диагностики (scheduleReconnect
+//       не вызывается если profile != FULL)
 //
-// ⚠️ После Этапа 2 часть логики (observeLearnSessions, exitLearnMode,
-// часть scheduleReconnect) уедет в отдельный координатор. Пока —
-// переходный мягкий вариант.
+// Предыдущие фичи (v2) сохранены:
+//  • pendingToolCalls.clear() в disconnect/enter/exit/Disconnected/Error
+//  • dedup транскрипций на reconnect (in/out, окно 5 сек)
+//  • [5.1] VAD-sensitivity мапится в enum-строки
+//  • [5.5] stopMic: один сигнал (audioStreamEnd ИЛИ turnComplete)
+//  • [5.6] handleSendText: sendText(initial) vs sendRealtimeText(in-dialog)
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.voice
 
@@ -65,7 +68,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 
@@ -105,7 +107,6 @@ class VoiceViewModel @Inject constructor(
     private val pendingSelfCloseEvents = AtomicInteger(0)
     private val modeSwitchMutex = Mutex()
 
-    // Dedup guards для транскрипций — защита от дублей при reconnect.
     @Volatile private var lastInputTranscript: String = ""
     @Volatile private var lastInputTranscriptTime: Long = 0L
     @Volatile private var lastOutputTranscript: String = ""
@@ -128,12 +129,7 @@ class VoiceViewModel @Inject constructor(
     fun onIntent(intent: VoiceIntent) {
         when (intent) {
             is VoiceIntent.SubmitApiKey          -> handleSubmitApiKey(intent.key)
-            is VoiceIntent.Connect               -> {
-                viewModelScope.launch {
-                    arbiter.acquire(ClientOwner.VOICE)
-                    handleConnectInner()
-                }
-            }
+            is VoiceIntent.Connect               -> handleConnect()
             is VoiceIntent.Disconnect            -> handleDisconnect()
             is VoiceIntent.ToggleMic             -> handleToggleMic()
             is VoiceIntent.SendText              -> handleSendText(intent.text)
@@ -142,6 +138,167 @@ class VoiceViewModel @Inject constructor(
             is VoiceIntent.ToggleFullscreenScene -> _state.update {
                 it.copy(isSceneFullscreen = !it.isSceneFullscreen)
             }
+
+            // ── Диагностические интенты ──
+            is VoiceIntent.ConnectFull ->
+                connectWithProfile(DiagnosticProfile.FULL)
+            is VoiceIntent.ConnectBaseline ->
+                connectWithProfile(DiagnosticProfile.BASELINE)
+            is VoiceIntent.ConnectWithoutThinking ->
+                connectWithProfile(DiagnosticProfile.WITHOUT_THINKING)
+            is VoiceIntent.ConnectWithoutVad ->
+                connectWithProfile(DiagnosticProfile.WITHOUT_VAD)
+            is VoiceIntent.ConnectWithoutSessionMgmt ->
+                connectWithProfile(DiagnosticProfile.WITHOUT_SESSION_MGMT)
+            is VoiceIntent.ConnectWithoutTranscription ->
+                connectWithProfile(DiagnosticProfile.WITHOUT_TRANSCRIPTION)
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  DIAGNOSTIC CONNECT [D1][D2]
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * Общая точка входа для диагностических тестов.
+     * 1. Отменяет автоматический reconnect
+     * 2. Полностью закрывает текущее WS-соединение
+     * 3. Обновляет lastTestedProfile в state
+     * 4. Открывает новое соединение с нужным профилем setup
+     */
+    private fun connectWithProfile(profile: DiagnosticProfile) {
+        if (activeApiKey.isEmpty()) {
+            _effects.tryEmit(VoiceEffect.ShowToast(UiText.Plain("Сначала введи API key")))
+            return
+        }
+
+        logger.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        logger.d("🔬 DIAGNOSTIC TEST: ${profile.label}")
+        logger.d("   ${profile.description}")
+        logger.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+        viewModelScope.launch {
+            // 1. Отменить reconnect и закрыть предыдущее соединение
+            reconnectJob?.cancel()
+            micJob?.cancel()
+            audioEngine.stopCapture()
+            pendingToolCalls.clear()
+
+            if (_state.value.connectionStatus != ConnectionStatus.Disconnected) {
+                pendingSelfCloseEvents.incrementAndGet()
+                liveClient.disconnect()
+            }
+
+            // 2. Обновить state — показать какой профиль тестируется
+            _state.update {
+                it.copy(
+                    connectionStatus = ConnectionStatus.Connecting,
+                    lastTestedProfile = profile,
+                    isMicActive = false,
+                    isAiSpeaking = false,
+                    error = null
+                )
+            }
+
+            contextSeeded = false
+            reconnectAttempt = 0
+
+            // 3. Захватить арбитра
+            arbiter.acquire(ClientOwner.VOICE)
+
+            (conversationRepository as? PersistentConversationRepository)?.startNewSession()
+
+            // 4. Запустить ForegroundService (для микрофона)
+            if (ContextCompat.checkSelfPermission(
+                    appContext, Manifest.permission.RECORD_AUDIO
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                try {
+                    appContext.startForegroundService(
+                        GeminiLiveForegroundService.startIntent(
+                            appContext, cachedSettings.forceSpeakerOutput
+                        )
+                    )
+                } catch (e: Exception) {
+                    logger.w("ForegroundService start failed: ${e.message}")
+                }
+            }
+
+            // 5. Connect с нужным профилем
+            try {
+                val config = buildConfigForProfile(profile)
+                logger.d("Using config: minimalSetup=${config.diagnosticMinimalSetup} " +
+                        "thinking=${config.sendThinkingConfig} vad=${config.sendVadConfig} " +
+                        "transcr=${config.sendTranscriptionConfig} " +
+                        "resumption=${config.sendSessionResumptionConfig} " +
+                        "compression=${config.sendContextCompressionConfig}")
+
+                liveClient.connect(
+                    apiKey = activeApiKey,
+                    config = config,
+                    logRaw = true  // ВСЕГДА логируем raw во время диагностики
+                )
+            } catch (e: Exception) {
+                logger.e("liveClient.connect error: ${e.message}", e)
+                addDiagnosticResult(profile, "ERROR: ${e.message}")
+                _state.update { it.copy(connectionStatus = ConnectionStatus.Disconnected) }
+            }
+        }
+    }
+
+    /**
+     * Строит SessionConfig для диагностического профиля, используя
+     * пользовательские настройки (API key, voice, system instruction и т.д.)
+     * но с выключенными блоками согласно профилю.
+     */
+    private fun buildConfigForProfile(profile: DiagnosticProfile): SessionConfig {
+        val base = buildSessionConfig()  // пользовательские настройки
+
+        return when (profile) {
+            DiagnosticProfile.FULL -> base
+
+            DiagnosticProfile.BASELINE -> base.copy(
+                diagnosticMinimalSetup = true,
+                enableSessionResumption = false,
+                enableContextCompression = false,
+                inputTranscription = false,
+                outputTranscription = false,
+                logFullSetupJson = true
+            )
+
+            DiagnosticProfile.WITHOUT_THINKING -> base.copy(
+                sendThinkingConfig = false,
+                logFullSetupJson = true
+            )
+
+            DiagnosticProfile.WITHOUT_VAD -> base.copy(
+                sendVadConfig = false,
+                logFullSetupJson = true
+            )
+
+            DiagnosticProfile.WITHOUT_SESSION_MGMT -> base.copy(
+                sendSessionResumptionConfig = false,
+                sendContextCompressionConfig = false,
+                enableSessionResumption = false,
+                enableContextCompression = false,
+                logFullSetupJson = true
+            )
+
+            DiagnosticProfile.WITHOUT_TRANSCRIPTION -> base.copy(
+                sendTranscriptionConfig = false,
+                inputTranscription = false,
+                outputTranscription = false,
+                logFullSetupJson = true
+            )
+        }
+    }
+
+    /** [D3] Добавить результат теста в лог на экране. */
+    private fun addDiagnosticResult(profile: DiagnosticProfile, result: String) {
+        _state.update {
+            val newLog = (it.diagnosticLog + DiagnosticResult(profile, result))
+                .takeLast(10)  // храним последние 10
+            it.copy(diagnosticLog = newLog)
         }
     }
 
@@ -171,7 +328,9 @@ class VoiceViewModel @Inject constructor(
                     wasDisconnected = true
                 } else if (wasDisconnected) {
                     wasDisconnected = false
-                    if (_state.value.connectionStatus == ConnectionStatus.Disconnected &&
+                    // [D4] Во время диагностики не переподключаемся автоматически
+                    if (_state.value.lastTestedProfile == DiagnosticProfile.FULL &&
+                        _state.value.connectionStatus == ConnectionStatus.Disconnected &&
                         activeApiKey.isNotEmpty()
                     ) {
                         logger.d("Network restored → reconnecting")
@@ -188,7 +347,6 @@ class VoiceViewModel @Inject constructor(
             arbiter.active.collect { owner ->
                 when (owner) {
                     ClientOwner.LEARN -> {
-                        // Learn забрал клиент — мы должны немедленно закрыть WS
                         if (_state.value.connectionStatus != ConnectionStatus.Disconnected) {
                             logger.d("Voice: arbiter=LEARN → disconnecting Voice client")
                             reconnectJob?.cancel()
@@ -207,17 +365,12 @@ class VoiceViewModel @Inject constructor(
                         }
                     }
                     ClientOwner.VOICE, ClientOwner.NONE -> {
-                        // Мы активные (или никто не активный) — можно подключаться,
-                        // но автоподключение только при наличии ключа и если пользователь
-                        // явно открыл VoiceScreen (там уже есть startConnection логика)
                         logger.d("Voice: arbiter=$owner — ok")
                     }
                 }
             }
         }
     }
-
-
 
     // ════════════════════════════════════════════════════════════
     //  SETTINGS
@@ -273,10 +426,12 @@ class VoiceViewModel @Inject constructor(
                     audioEngine.setMicGain(settings.micGain / 100f)
                     audioEngine.setSpeakerRouting(settings.forceSpeakerOutput)
 
+                    // [D4] Не автоконнектимся при изменении ключа — пусть пользователь
+                    // сам нажмёт нужную диагностическую кнопку
                     if (hasKey && wasKeyEmpty &&
                         _state.value.connectionStatus == ConnectionStatus.Disconnected
                     ) {
-                        handleConnect()
+                        logger.d("Key received — жди, нажми диагностическую кнопку")
                     }
                 }
         }
@@ -328,7 +483,7 @@ class VoiceViewModel @Inject constructor(
     }
 
     // ════════════════════════════════════════════════════════════
-    //  HANDLERS
+    //  LEGACY HANDLERS
     // ════════════════════════════════════════════════════════════
 
     private fun handleSubmitApiKey(key: String) {
@@ -340,69 +495,19 @@ class VoiceViewModel @Inject constructor(
     }
 
     /**
-     * Точка входа для всех внутренних вызовов connect (reconnect, network restore,
-     * settings change). Захватывает Arbiter как VOICE и делегирует
-     * в handleConnectInner(). Безопасен для вызова из любой корутины.
+     * Старый handleConnect — теперь делегирует в FULL-профиль.
+     * Оставлен для обратной совместимости (network auto-reconnect,
+     * arbiter callback).
      */
     private fun handleConnect() {
-        viewModelScope.launch {
-            arbiter.acquire(ClientOwner.VOICE)
-            handleConnectInner()
-        }
-    }
-
-    private fun handleConnectInner() {
-        if (activeApiKey.isEmpty()) return
-        val status = _state.value.connectionStatus
-        if (status == ConnectionStatus.Connecting || status == ConnectionStatus.Ready) return
-
-        // VM мог быть пересоздан (возврат на VoiceScreen) — liveClient singleton
-        // уже может быть Ready. Не рвём рабочее соединение ради жёлтого мигания.
-        if (liveClient.isReady) {
-            contextSeeded = true
-            _state.update { it.copy(connectionStatus = ConnectionStatus.Ready) }
-            return
-        }
-
-        contextSeeded = false
-        _state.update { it.copy(connectionStatus = ConnectionStatus.Connecting) }
-
-        (conversationRepository as? PersistentConversationRepository)?.startNewSession()
-
-        if (ContextCompat.checkSelfPermission(
-                appContext, Manifest.permission.RECORD_AUDIO
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            try {
-                appContext.startForegroundService(
-                    GeminiLiveForegroundService.startIntent(
-                        appContext, cachedSettings.forceSpeakerOutput
-                    )
-                )
-            } catch (e: Exception) {
-                logger.w("ForegroundService start failed: ${e.message}")
-            }
-        }
-
-        viewModelScope.launch {
-            try {
-                liveClient.connect(
-                    apiKey = activeApiKey,
-                    config = buildSessionConfig(),
-                    logRaw = cachedSettings.logRawWebSocketFrames
-                )
-            } catch (e: Exception) {
-                logger.e("liveClient.connect error: ${e.message}", e)
-                _state.update { it.copy(connectionStatus = ConnectionStatus.Disconnected) }
-            }
-        }
+        connectWithProfile(DiagnosticProfile.FULL)
     }
 
     private fun handleDisconnect() {
         reconnectJob?.cancel(); micJob?.cancel()
         viewModelScope.launch {
             audioEngine.stopCapture()
-            pendingToolCalls.clear()             // [5.7]
+            pendingToolCalls.clear()
             pendingSelfCloseEvents.incrementAndGet()
             liveClient.disconnect()
             _state.update {
@@ -421,7 +526,6 @@ class VoiceViewModel @Inject constructor(
     }
 
     private fun startMic() {
-        // 1. Защита: проверяем разрешение на уровне ядра
         val hasMic = ContextCompat.checkSelfPermission(
             appContext, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
@@ -431,9 +535,6 @@ class VoiceViewModel @Inject constructor(
             return
         }
 
-        // 2. Защита: гарантируем, что Foreground Service запущен.
-        // Если он уже работает, Android просто проигнорирует этот вызов.
-        // Без FGS система убьет запись аудио через пару секунд.
         try {
             appContext.startForegroundService(
                 GeminiLiveForegroundService.startIntent(
@@ -455,11 +556,6 @@ class VoiceViewModel @Inject constructor(
         micJob?.cancel(); micJob = null
         viewModelScope.launch {
             audioEngine.stopCapture()
-            // [5.5] Один сигнал на конец хода — не оба.
-            //   • sendAudioStreamEnd: сервер сам выдаст turnComplete
-            //   • иначе при ручном VAD: явный turnComplete
-            //   • при серверном VAD без audioStreamEnd: ничего не шлём,
-            //     VAD сам определит конец речи.
             if (cachedSettings.sendAudioStreamEnd) {
                 liveClient.sendAudioStreamEnd()
             } else if (!cachedSettings.enableServerVad) {
@@ -477,8 +573,6 @@ class VoiceViewModel @Inject constructor(
 
     private fun handleSendText(text: String) {
         if (text.isBlank()) return
-        // [5.6] Первое сообщение (до первого model turn) → clientContent.turns.
-        // Любое последующее → realtimeInput.text (отдельный канал live-ввода).
         if (contextSeeded && _state.value.transcript.isNotEmpty()) {
             liveClient.sendRealtimeText(text)
         } else {
@@ -509,6 +603,11 @@ class VoiceViewModel @Inject constructor(
                     is GeminiEvent.SetupComplete -> {
                         reconnectAttempt = 0
                         _state.update { it.copy(connectionStatus = ConnectionStatus.Ready) }
+
+                        // [D3] Логируем успех в диагностический лог
+                        val profile = _state.value.lastTestedProfile
+                        addDiagnosticResult(profile, "✅ SetupComplete — зелёный статус")
+                        logger.d("🟢 ✅ TEST PASSED: ${profile.label}")
 
                         if (!contextSeeded && liveClient.sessionHandle == null) {
                             val history = conversationRepository.getAll()
@@ -547,7 +646,6 @@ class VoiceViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.InputTranscript -> {
-                        // [5.8] Защита от дублей при reconnect
                         val now = System.currentTimeMillis()
                         if (event.text != lastInputTranscript ||
                             now - lastInputTranscriptTime > 5_000
@@ -559,7 +657,6 @@ class VoiceViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.OutputTranscript -> {
-                        // [5.8] Аналогично для output-транскрипции
                         val now = System.currentTimeMillis()
                         if (event.text != lastOutputTranscript ||
                             now - lastOutputTranscriptTime > 5_000
@@ -586,7 +683,10 @@ class VoiceViewModel @Inject constructor(
 
                     is GeminiEvent.GoAway -> {
                         reconnectAttempt = 0
-                        scheduleReconnect(proactive = true)
+                        // [D4] Во время диагностики не переподключаемся
+                        if (_state.value.lastTestedProfile == DiagnosticProfile.FULL) {
+                            scheduleReconnect(proactive = true)
+                        }
                     }
 
                     is GeminiEvent.UsageMetadata -> {
@@ -610,17 +710,29 @@ class VoiceViewModel @Inject constructor(
                                 isMicActive = false
                             )
                         }
-                        pendingToolCalls.clear()         // [5.7]
+                        pendingToolCalls.clear()
                         audioEngine.stopCapture()
-                        if (consumeSelfCloseIfAny()) {
+
+                        val selfClose = consumeSelfCloseIfAny()
+                        val profile = _state.value.lastTestedProfile
+
+                        if (selfClose) {
                             logger.d("WS closed by self — no reconnect")
                         } else {
+                            // [D3] Логируем закрытие
+                            val msg = "WS closed ${event.code}: ${event.reason.take(80)}"
+                            addDiagnosticResult(profile, "❌ $msg")
+                            logger.d("🔴 TEST FAILED: ${profile.label} — $msg")
+
                             _effects.tryEmit(
                                 VoiceEffect.ShowToast(
-                                    UiText.Plain("WS closed: code=${event.code} reason='${event.reason}'")
+                                    UiText.Plain(msg)
                                 )
                             )
-                            scheduleReconnect()
+                            // [D4] Во время диагностики не переподключаемся
+                            if (profile == DiagnosticProfile.FULL) {
+                                scheduleReconnect()
+                            }
                         }
                     }
 
@@ -640,17 +752,26 @@ class VoiceViewModel @Inject constructor(
                                 isMicActive = false, error = UiText.Plain(event.message)
                             )
                         }
-                        pendingToolCalls.clear()         // [5.7]
+                        pendingToolCalls.clear()
                         audioEngine.stopCapture()
-                        if (consumeSelfCloseIfAny()) {
+
+                        val selfClose = consumeSelfCloseIfAny()
+                        val profile = _state.value.lastTestedProfile
+
+                        if (selfClose) {
                             logger.d("WS error during self-disconnect — ignored")
                         } else {
+                            addDiagnosticResult(profile, "❌ ERROR: ${event.message.take(80)}")
+                            logger.d("🔴 TEST FAILED: ${profile.label} — ${event.message}")
+
                             _effects.tryEmit(
                                 VoiceEffect.ShowToast(
                                     UiText.Plain("Ошибка: ${event.message.take(160)}")
                                 )
                             )
-                            scheduleReconnect()
+                            if (profile == DiagnosticProfile.FULL) {
+                                scheduleReconnect()
+                            }
                         }
                     }
                 }
