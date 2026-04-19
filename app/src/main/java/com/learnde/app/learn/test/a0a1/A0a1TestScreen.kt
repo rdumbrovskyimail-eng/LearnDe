@@ -75,7 +75,7 @@ fun A0a1TestScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0a1_test"))
+            learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0_test"))
         } else {
             Toast.makeText(context, "Для теста необходим микрофон", Toast.LENGTH_SHORT).show()
             exitAndBack()
@@ -88,7 +88,7 @@ fun A0a1TestScreen(
         ) == PackageManager.PERMISSION_GRANTED
         
         if (hasMic) {
-            learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0a1_test"))
+            learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0_test"))
         } else {
             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
@@ -150,7 +150,7 @@ fun A0a1TestScreen(
 
             QuestionsProgress(
                 answered = state.answeredCount,
-                total = A0a1TestRegistry.TOTAL_QUESTIONS
+                total = state.totalQuestions
             )
 
             Spacer(Modifier.height(16.dp))
@@ -200,12 +200,14 @@ fun A0a1TestScreen(
         }
     }
 
-    // Итоговый диалог
+    // Итоговый диалог (А0 или А1)
     if (state.finished && state.verdict != TestVerdict.NONE) {
-        VerdictDialog(
-            verdict = state.verdict,
-            score = state.totalPoints,
-            maxScore = state.maxPoints,
+        DynamicVerdictDialog(
+            state = state,
+            onStartA1 = {
+                viewModel.advanceToA1()
+                learnCoreViewModel.onIntent(LearnCoreIntent.Start("a1_test"))
+            },
             onRestart = {
                 viewModel.resetUiState()
                 learnCoreViewModel.onIntent(LearnCoreIntent.Restart)
@@ -213,6 +215,103 @@ fun A0a1TestScreen(
             onClose = exitAndBack
         )
     }
+}
+
+@Composable
+private fun DynamicVerdictDialog(
+    state: A0a1TestUiState,
+    onStartA1: () -> Unit,
+    onRestart: () -> Unit,
+    onClose: () -> Unit
+) {
+    val isPassed = state.verdict == TestVerdict.PASSED
+    val isA0 = state.phase == TestPhase.A0
+
+    val accent = if (isPassed) Color(0xFF43A047) else Color(0xFFE53935)
+    
+    val headline = when {
+        isA0 && isPassed -> "A0 Пройден!"
+        isA0 && !isPassed -> "Уровень не подтвержден"
+        !isA0 && isPassed -> "A1 Подтвержден!"
+        else -> "A0 Подтвержден"
+    }
+
+    val subtitle = when {
+        isA0 && isPassed -> "Отличное начало! Вы знаете основы. Готовы проверить себя на уровень A1?"
+        isA0 && !isPassed -> "Вам стоит еще немного попрактиковать самые основы (цвета, цифры, простые фразы), прежде чем идти дальше."
+        !isA0 && isPassed -> "Поздравляем! Вы уверенно владеете базовым немецким на уровне A1."
+        else -> "Вы отлично знаете основы, но для уровня A1 нужно еще немного практики. Продолжайте обучение!"
+    }
+
+    AlertDialog(
+        onDismissRequest = { },
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = null,
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .shadow(4.dp, CircleShape)
+                        .clip(CircleShape)
+                        .background(accent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (isA0) "A0" else "A1",
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    headline,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Ваш результат: ${state.totalPoints} из ${state.maxPoints}",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    subtitle,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+            }
+        },
+        confirmButton = {
+            if (isA0 && isPassed) {
+                Button(onClick = onStartA1, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8))) {
+                    Text("Начать тест A1", color = Color.White)
+                }
+            } else {
+                Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = accent)) {
+                    Text("Завершить", color = Color.White)
+                }
+            }
+        },
+        dismissButton = {
+            if (!isPassed) {
+                TextButton(onClick = onRestart) {
+                    Text("Пройти заново", color = MaterialTheme.colorScheme.primary)
+                }
+            } else if (isA0 && isPassed) {
+                TextButton(onClick = onClose) {
+                    Text("Не сейчас", color = Color.Gray)
+                }
+            }
+        }
+    )
 }
 
 // ════════════════════════════════════════════════════════════
