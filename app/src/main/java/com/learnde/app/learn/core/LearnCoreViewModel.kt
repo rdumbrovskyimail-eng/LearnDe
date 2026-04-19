@@ -154,6 +154,18 @@ class LearnCoreViewModel @Inject constructor(
             enumValueOf<LatencyProfile>(cachedSettings.latencyProfile)
         }.getOrDefault(LatencyProfile.UltraLow)
 
+        val userInfo = buildString {
+            if (cachedSettings.userName.isNotBlank()) append("Имя ученика: ${cachedSettings.userName}. ")
+            if (cachedSettings.learningGoals.isNotBlank()) append("Цель изучения: ${cachedSettings.learningGoals}. ")
+            if (cachedSettings.learningTopics.isNotBlank()) append("Интересные темы: ${cachedSettings.learningTopics}. ")
+        }
+
+        val finalSystemInstruction = if (userInfo.isNotBlank()) {
+            "${session.systemInstruction}\n\n[ДАННЫЕ ПОЛЬЗОВАТЕЛЯ]:\nОбращайся к ученику по имени. Учитывай эти данные: $userInfo"
+        } else {
+            session.systemInstruction
+        }
+
         return SessionConfig(
             model = cachedSettings.model,
             temperature = cachedSettings.temperature,
@@ -173,7 +185,7 @@ class LearnCoreViewModel @Inject constructor(
             vadSilenceDurationMs = if (cachedSettings.vadSilenceTimeoutMs > 0)
                 cachedSettings.vadSilenceTimeoutMs else 100,
             vadPrefixPaddingMs = 20,
-            systemInstruction = session.systemInstruction,
+            systemInstruction = finalSystemInstruction,
             inputTranscription = cachedSettings.inputTranscription,
             outputTranscription = cachedSettings.outputTranscription,
             enableSessionResumption = false,    // Learn-сессии короткие, резюмирование не нужно
