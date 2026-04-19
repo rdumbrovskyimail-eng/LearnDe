@@ -61,6 +61,7 @@ import com.learnde.app.presentation.learn.components.CurrentFunctionBar
 fun LearnHubScreen(
     onBack: () -> Unit,
     onOpenA0a1Test: () -> Unit,
+    onOpenVoiceClient: () -> Unit,
     // LearnCoreViewModel — shared для всего Learn-графа; здесь нужен только
     // для доступа к statusBus (через его state). Передаётся извне из NavGraph.
     learnCoreViewModel: LearnCoreViewModel,
@@ -111,6 +112,17 @@ fun LearnHubScreen(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Назад",
                             tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                },
+                actions = {
+                    androidx.compose.material3.TextButton(onClick = onOpenVoiceClient) {
+                        Text(
+                            text = "Gl",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.Serif,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 },
