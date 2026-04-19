@@ -1,17 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // ПОЛНАЯ ЗАМЕНА
-// Путь: app/src/main/java/com/codeextractor/app/data/settings/AppSettings.kt
-// Изменения:
-//   + themeMode (AUTO / LIGHT / DARK)
-//   + playbackVolume (0..100) — программный gain в AudioTrack
-//   + micGain (0..200%) — усиление захвата
-//   + sceneMode (AVATAR / VISUALIZER / CUSTOM_IMAGE)
-//   + sceneBgHasImage (для быстрой проверки без чтения файла)
-//   + Chat: chatBubbleSize, chatShowTimestamps, chatAutoScroll,
-//           chatShowRoleLabels, chatFontScale
-//   + Только модель 3.1 — остальные удалены из defaults
-//   + Удалено поле autoRotateKeys из обязательных, логика осталась
-//   + learnConfirmSwitch (Этап 3)
+// Путь: app/src/main/java/com/learnde/app/data/settings/AppSettings.kt
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.data.settings
 
@@ -23,19 +12,21 @@ enum class ThemeMode { AUTO, LIGHT, DARK }
 @Serializable
 data class AppSettings(
 
+    // ═══════════════════ 0. ОНБОРДИНГ (НОВОЕ) ═══════════════════
+    val userName: String = "",
+    val learningGoals: String = "",
+    val learningTopics: String = "",
+
     // ═══════════════════ 1. AUTH ═══════════════════
     val apiKey: String = "",
     val apiKeyBackup: String = "",
     val autoRotateKeys: Boolean = false,
 
     // ═══════════════════ 2. MODEL (только 3.1) ═══════════════════
-    /** Единственная поддерживаемая модель. */
     val model: String = "models/gemini-3.1-flash-live-preview",
-
-    /** Generation defaults взяты из официальных референсов Gemini 3.1 Live. */
     val temperature: Float = 1.0f,
     val topP: Float = 0.95f,
-    val topK: Int = 0,                    // 0 = не слать
+    val topK: Int = 0,
     val maxOutputTokens: Int = 8192,
     val presencePenalty: Float = 0.0f,
     val frequencyPenalty: Float = 0.0f,
@@ -51,14 +42,8 @@ data class AppSettings(
     val jitterTimeoutMs: Long = 150L,
     val playbackQueueCapacity: Int = 256,
     val sendAudioStreamEnd: Boolean = true,
-
-    /** Громкость воспроизведения (0..100 %). Программный gain. */
     val playbackVolume: Int = 90,
-
-    /** Усиление захвата (50..200 %). */
     val micGain: Int = 100,
-
-    /** Принудительно использовать громкоговоритель (SPEAKER), а не earpiece. */
     val forceSpeakerOutput: Boolean = true,
 
     // ═══════════════════ 5. SESSION ═══════════════════
@@ -83,8 +68,6 @@ data class AppSettings(
 
     // ═══════════════════ 8. TOOLS ═══════════════════
     val enableGoogleSearch: Boolean = false,
-
-    /** Передавать декларации 10 тестовых функций в сессию. */
     val enableTestFunctions: Boolean = true,
 
     // ═══════════════════ 9. THINKING ═══════════════════
@@ -94,27 +77,18 @@ data class AppSettings(
     val systemInstruction: String = DEFAULT_SYSTEM_INSTRUCTION,
 
     // ═══════════════════ 11. UI / THEME ═══════════════════
-    /** Тема оформления. */
     val themeMode: ThemeMode = ThemeMode.AUTO,
-
-    /** Режим сцены: 3D-аватар, визуализатор или своё изображение. */
     val sceneMode: String = "avatar",
-
-    /** true, если пользователь загрузил PNG-фон в BackgroundImageStore. */
     val sceneBgHasImage: Boolean = false,
 
     // ═══════════════════ 12. CHAT ═══════════════════
-    /** Размер пузырька: SMALL / MEDIUM / LARGE — мап в font scale. */
     val chatFontScale: Float = 1.0f,
     val chatShowTimestamps: Boolean = false,
     val chatShowRoleLabels: Boolean = true,
     val chatAutoScroll: Boolean = true,
-    /** Прозрачность фона списка (0..100, проценты). */
     val chatBackgroundAlpha: Int = 30,
 
     // ═══════════════════ 13. LEARN ═══════════════════
-    /** Включён ли автоматический вход в Learn Hub при тапе на иконку школы.
-     *  False = показывать промпт "Это закроет текущий диалог". */
     val learnConfirmSwitch: Boolean = true,
 
     // ═══════════════════ 14. DEBUG ═══════════════════
