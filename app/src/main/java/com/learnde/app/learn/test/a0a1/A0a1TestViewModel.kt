@@ -1,13 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА + ПЕРЕИМЕНОВАНИЕ ПАКЕТА
-// Старый путь: app/src/main/java/com/learnde/app/Learn/Test/A0a1/A0a1TestViewModel.kt
-// Новый путь:  app/src/main/java/com/learnde/app/learn/test/a0a1/A0a1TestViewModel.kt
-//
-// Изменения:
-//   • Пакет lowercase.
-//   • Вместо прямого вызова bus.publishStart()/publishExit() —
-//     используется LearnSessionController.enter/exit.
-//   • restart() корректно сбрасывает autoFinishJob и dedup через bus.reset().
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/learn/test/a0a1/A0a1TestViewModel.kt
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.test.a0a1
 
@@ -23,21 +16,24 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class TestVerdict { NONE, A0, A1 }
+enum class TestPhase { A0, A1 }
+enum class TestVerdict { NONE, PASSED, FAILED }
 
 data class A0a1TestUiState(
+    val phase: TestPhase = TestPhase.A0,
     val totalPoints: Int = 0,
     val answeredCount: Int = 0,
-    val currentQuestion: Int = 1,          // 1..20
+    val currentQuestion: Int = 1,
     val lastPoints: Int? = null,
-    val lastFeedback: String? = null,      // фидбек от ИИ
+    val lastFeedback: String? = null,
     val lastQuestionIndex: Int = 0,
     val verdict: TestVerdict = TestVerdict.NONE,
     val finished: Boolean = false
 ) {
-    val maxPoints: Int get() = A0a1TestRegistry.MAX_TOTAL_POINTS
-    val threshold: Int get() = A0a1TestRegistry.A1_THRESHOLD
-    val progress: Float get() = totalPoints.toFloat() / maxPoints.toFloat()
+    val totalQuestions: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_QUESTIONS else A0a1TestRegistry.A1_QUESTIONS
+    val maxPoints: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_MAX_POINTS else A0a1TestRegistry.A1_MAX_POINTS
+    val threshold: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_THRESHOLD else A0a1TestRegistry.A1_THRESHOLD
+    val isPassed: Boolean get() = totalPoints >= threshold
 }
 
 @HiltViewModel
@@ -51,12 +47,9 @@ class A0a1TestViewModel @Inject constructor(
     private var autoFinishJob: Job? = null
 
     init {
-        // Слушаем оценки.
         viewModelScope.launch {
             bus.awards.collect { (points, feedback) -> onAward(points, feedback) }
         }
-
-        // Слушаем завершение.
         viewModelScope.launch {
             bus.finished.collect { finalizeVerdict() }
         }
@@ -64,13 +57,11 @@ class A0a1TestViewModel @Inject constructor(
 
     private fun onAward(points: Int, feedback: String) {
         val cur = _state.value
-        if (cur.answeredCount >= A0a1TestRegistry.TOTAL_QUESTIONS) {
-            // Защита от лишних вызовов после финала
-            return
-        }
+        if (cur.answeredCount >= cur.totalQuestions) return
+
         val newAnswered = cur.answeredCount + 1
         val newTotal = cur.totalPoints + points
-        val nextQ = (newAnswered + 1).coerceAtMost(A0a1TestRegistry.TOTAL_QUESTIONS)
+        val nextQ = (newAnswered + 1).coerceAtMost(cur.totalQuestions)
 
         _state.update {
             it.copy(
@@ -83,13 +74,10 @@ class A0a1TestViewModel @Inject constructor(
             )
         }
 
-        // Фолбэк: модель не вызвала finish_test — подводим итог сами через 6 сек.
-        if (newAnswered >= A0a1TestRegistry.TOTAL_QUESTIONS &&
-            _state.value.verdict == TestVerdict.NONE
-        ) {
+        if (newAnswered >= cur.totalQuestions && _state.value.verdict == TestVerdict.NONE) {
             autoFinishJob?.cancel()
             autoFinishJob = viewModelScope.launch {
-                delay(6_000)
+                delay(5_000)
                 if (_state.value.verdict == TestVerdict.NONE) finalizeVerdict()
             }
         }
@@ -99,26 +87,26 @@ class A0a1TestViewModel @Inject constructor(
         if (_state.value.finished) return
         autoFinishJob?.cancel()
         autoFinishJob = null
-        val total = _state.value.totalPoints
-        val verdict = if (total >= A0a1TestRegistry.A1_THRESHOLD) TestVerdict.A1 else TestVerdict.A0
+        
+        val passed = _state.value.isPassed
+        val verdict = if (passed) TestVerdict.PASSED else TestVerdict.FAILED
         _state.update { it.copy(verdict = verdict, finished = true) }
     }
 
-    /**
-     * Сброс UI-состояния теста (баллы, прогресс, verdict).
-     * Реальный restart Gemini-сессии делает LearnCoreViewModel.onIntent(Restart)
-     * — эту обязанность берёт на себя вызывающий экран.
-     */
+    fun advanceToA1() {
+        autoFinishJob?.cancel()
+        bus.reset()
+        _state.value = A0a1TestUiState(phase = TestPhase.A1)
+    }
+
     fun resetUiState() {
         autoFinishJob?.cancel()
-        autoFinishJob = null
         bus.reset()
-        _state.value = A0a1TestUiState()
+        _state.value = A0a1TestUiState(phase = TestPhase.A0) // Всегда начинаем с А0 при сбросе
     }
 
     override fun onCleared() {
         super.onCleared()
         autoFinishJob?.cancel()
-        autoFinishJob = null
     }
 }
