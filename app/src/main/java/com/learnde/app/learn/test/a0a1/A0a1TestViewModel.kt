@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class TestPhase { A0, A1 }
+enum class TestPhase { A0, A1, A2, B1, B2 }
 enum class TestVerdict { NONE, PASSED, FAILED }
 
 data class A0a1TestUiState(
@@ -30,9 +30,9 @@ data class A0a1TestUiState(
     val verdict: TestVerdict = TestVerdict.NONE,
     val finished: Boolean = false
 ) {
-    val totalQuestions: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_QUESTIONS else A0a1TestRegistry.A1_QUESTIONS
-    val maxPoints: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_MAX_POINTS else A0a1TestRegistry.A1_MAX_POINTS
-    val threshold: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_THRESHOLD else A0a1TestRegistry.A1_THRESHOLD
+    val totalQuestions: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_QUESTIONS else A0a1TestRegistry.STANDARD_QUESTIONS
+    val maxPoints: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_MAX_POINTS else A0a1TestRegistry.STANDARD_MAX_POINTS
+    val threshold: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_THRESHOLD else A0a1TestRegistry.STANDARD_THRESHOLD
     val isPassed: Boolean get() = totalPoints >= threshold
 }
 
@@ -47,12 +47,8 @@ class A0a1TestViewModel @Inject constructor(
     private var autoFinishJob: Job? = null
 
     init {
-        viewModelScope.launch {
-            bus.awards.collect { (points, feedback) -> onAward(points, feedback) }
-        }
-        viewModelScope.launch {
-            bus.finished.collect { finalizeVerdict() }
-        }
+        viewModelScope.launch { bus.awards.collect { (points, feedback) -> onAward(points, feedback) } }
+        viewModelScope.launch { bus.finished.collect { finalizeVerdict() } }
     }
 
     private fun onAward(points: Int, feedback: String) {
@@ -93,16 +89,33 @@ class A0a1TestViewModel @Inject constructor(
         _state.update { it.copy(verdict = verdict, finished = true) }
     }
 
-    fun advanceToA1() {
+    /** 
+     * Продвигает фазу на шаг вперед. 
+     * Возвращает ID сессии для запуска, или null если это был конец. 
+     */
+    fun advanceToNextPhase(): String? {
         autoFinishJob?.cancel()
         bus.reset()
-        _state.value = A0a1TestUiState(phase = TestPhase.A1)
+        
+        val nextPhase = when (_state.value.phase) {
+            TestPhase.A0 -> TestPhase.A1
+            TestPhase.A1 -> TestPhase.A2
+            TestPhase.A2 -> TestPhase.B1
+            TestPhase.B1 -> TestPhase.B2
+            TestPhase.B2 -> null
+        }
+        
+        if (nextPhase != null) {
+            _state.value = A0a1TestUiState(phase = nextPhase)
+            return "${nextPhase.name.lowercase()}_test" // "a1_test", "a2_test" и т.д.
+        }
+        return null
     }
 
     fun resetUiState() {
         autoFinishJob?.cancel()
         bus.reset()
-        _state.value = A0a1TestUiState(phase = TestPhase.A0) // Всегда начинаем с А0 при сбросе
+        _state.value = A0a1TestUiState(phase = TestPhase.A0) // Всегда начинаем с А0 при полном сбросе
     }
 
     override fun onCleared() {
