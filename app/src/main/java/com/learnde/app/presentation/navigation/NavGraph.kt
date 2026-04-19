@@ -1,10 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА
+// ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/presentation/navigation/NavGraph.kt
-//
-// Изменения:
-//   • Импорт A0a1TestScreen теперь из lowercase-пакета
-//     com.learnde.app.learn.test.a0a1.A0a1TestScreen
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.navigation
 
@@ -27,10 +23,12 @@ import com.learnde.app.learn.core.LearnCoreViewModel
 import com.learnde.app.presentation.editor.ModelEditorScreen
 import com.learnde.app.presentation.functions.FunctionsTestScreen
 import com.learnde.app.presentation.learn.LearnHubScreen
+import com.learnde.app.presentation.onboarding.OnboardingScreen
 import com.learnde.app.presentation.settings.SettingsScreen
 import com.learnde.app.presentation.voice.VoiceScreen
 
 object Routes {
+    const val ONBOARDING = "onboarding"
     const val SETTINGS   = "settings"
     const val VOICE      = "voice"
     const val EDITOR     = "editor"
@@ -43,10 +41,6 @@ object Routes {
 }
 
 object VoiceGender {
-    /**
-     * Полный список мужских Gemini Live voices. Источник: ai.google.dev/gemini-api/docs
-     * (на момент релиза). Если выбран голос не из списка — считаем женским.
-     */
     private val MALE_VOICES = setOf(
         "Puck", "Charon", "Fenrir", "Orus",
         "Algenib", "Rasalgethi", "Alnilam", "Schedar",
@@ -64,8 +58,23 @@ fun AppNavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Routes.SETTINGS,
+        startDestination = Routes.ONBOARDING, // 👈 Изменен стартовый экран
     ) {
+        composable(
+            route = Routes.ONBOARDING,
+            enterTransition = { fadeIn(tween(250)) },
+            exitTransition  = { fadeOut(tween(200)) },
+        ) {
+            OnboardingScreen(
+                onNavigateToSettings = {
+                    navController.navigate(Routes.SETTINGS) {
+                        launchSingleTop = true
+                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable(
             route = Routes.SETTINGS,
             enterTransition = { fadeIn(tween(250)) },
@@ -73,7 +82,8 @@ fun AppNavGraph(
         ) {
             SettingsScreen(
                 onStartSession = {
-                    navController.navigate(Routes.VOICE) {
+                    // 👈 При нажатии на кнопку внизу открывается Обучение (Hub), а не Voice
+                    navController.navigate(Routes.LEARN_GRAPH) {
                         launchSingleTop = true
                         popUpTo(Routes.SETTINGS) { saveState = true }
                         restoreState = true
@@ -105,6 +115,7 @@ fun AppNavGraph(
                     navController.navigate(Routes.FUNCTIONS) { launchSingleTop = true }
                 },
                 onOpenLearnHub = {
+                    // Возвращаемся в хаб (или открываем его, если пришли из настроек)
                     navController.navigate(Routes.LEARN_GRAPH) { launchSingleTop = true }
                 },
             )
@@ -126,9 +137,6 @@ fun AppNavGraph(
             FunctionsTestScreen(onBack = { navController.popBackStack() })
         }
 
-        // ═══ Learn graph — общий NavBackStackEntry scope ═══
-        // Все экраны Learn-блока разделяют один LearnCoreViewModel через
-        // NavBackStackEntry родительского графа (LEARN_GRAPH).
         navigation(
             route = Routes.LEARN_GRAPH,
             startDestination = Routes.LEARN_HUB,
@@ -138,9 +146,13 @@ fun AppNavGraph(
             composable(Routes.LEARN_HUB) { entry ->
                 val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
                 LearnHubScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.navigate(Routes.SETTINGS) { popUpTo(Routes.SETTINGS) { inclusive = true } } },
                     onOpenA0a1Test = {
                         navController.navigate(Routes.LEARN_A0A1) { launchSingleTop = true }
+                    },
+                    onOpenVoiceClient = {
+                        // 👈 Открытие чистого Gemini-клиента из правого верхнего угла Hub
+                        navController.navigate(Routes.VOICE) { launchSingleTop = true }
                     },
                     learnCoreViewModel = learnCoreVm,
                 )
@@ -157,15 +169,6 @@ fun AppNavGraph(
     }
 }
 
-/**
- * Возвращает LearnCoreViewModel, scoped к родительскому navigation graph
- * (Routes.LEARN_GRAPH). Таким образом все экраны внутри этого графа
- * разделяют ОДИН инстанс LearnCoreViewModel — это даёт единый источник
- * состояния Gemini-сессии, инфо-табло и т.д.
- *
- * При выходе из графа (pop back past LEARN_GRAPH) — VM уничтожается,
- * что триггерит onCleared → disconnect, release(Arbiter), release(audio).
- */
 @Composable
 private fun NavBackStackEntry.sharedLearnCoreViewModel(
     navController: androidx.navigation.NavHostController
