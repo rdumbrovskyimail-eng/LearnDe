@@ -200,17 +200,22 @@ fun A0a1TestScreen(
         }
     }
 
-    // Итоговый диалог (А0 или А1)
+    // Итоговый диалог (динамический)
     if (state.finished && state.verdict != TestVerdict.NONE) {
         DynamicVerdictDialog(
             state = state,
-            onStartA1 = {
-                viewModel.advanceToA1()
-                learnCoreViewModel.onIntent(LearnCoreIntent.Start("a1_test"))
+            onAdvance = {
+                val nextSessionId = viewModel.advanceToNextPhase()
+                if (nextSessionId != null) {
+                    learnCoreViewModel.onIntent(LearnCoreIntent.Start(nextSessionId))
+                } else {
+                    // Конец тестов (прошел B2)
+                    exitAndBack()
+                }
             },
             onRestart = {
                 viewModel.resetUiState()
-                learnCoreViewModel.onIntent(LearnCoreIntent.Restart)
+                learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0_test"))
             },
             onClose = exitAndBack
         )
@@ -220,7 +225,7 @@ fun A0a1TestScreen(
 @Composable
 private fun DynamicVerdictDialog(
     state: A0a1TestUiState,
-    onStartA1: () -> Unit,
+    onAdvance: () -> Unit,
     onRestart: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -290,9 +295,9 @@ private fun DynamicVerdictDialog(
             }
         },
         confirmButton = {
-            if (isA0 && isPassed) {
-                Button(onClick = onStartA1, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8))) {
-                    Text("Начать тест A1", color = Color.White)
+            if (isPassed) {
+                Button(onClick = onAdvance, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8))) {
+                    Text(if (isA0) "Начать тест A1" else "Завершить", color = Color.White)
                 }
             } else {
                 Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = accent)) {
