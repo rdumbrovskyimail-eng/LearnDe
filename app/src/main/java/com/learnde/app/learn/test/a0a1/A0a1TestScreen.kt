@@ -468,10 +468,15 @@ private fun LastAwardCard(points: Int?, feedback: String?, questionIndex: Int) {
         exit = fadeOut(tween(300)) + slideOutVertically(tween(300)) { it / 2 }
     ) {
         if (points != null) {
+            // Градация цветов от 1 (Красный) до 7 (Глубокий зеленый)
             val accent = when (points) {
-                3 -> Color(0xFF43A047)
-                2 -> Color(0xFF7CB342)
-                1 -> Color(0xFFFFB300)
+                7 -> Color(0xFF2E7D32) // Тёмно-зелёный (Идеально)
+                6 -> Color(0xFF43A047) // Зелёный (Отлично, но мелкие помарки)
+                5 -> Color(0xFF7CB342) // Светло-зелёный (Верно, но неполно)
+                4 -> Color(0xFFFDD835) // Желтый (Неверно на немецком)
+                3 -> Color(0xFFFB8C00) // Оранжевый (Верно, но на русском)
+                2 -> Color(0xFFF4511E) // Тёмно-оранжевый (Сдался на немецком)
+                1 -> Color(0xFFE53935) // Красный (Сдался на русском)
                 else -> Color(0xFFE53935)
             }
             Row(
