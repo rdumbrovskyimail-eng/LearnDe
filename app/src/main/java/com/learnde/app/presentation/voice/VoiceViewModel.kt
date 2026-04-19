@@ -442,6 +442,18 @@ class VoiceViewModel @Inject constructor(
             enumValueOf<LatencyProfile>(cachedSettings.latencyProfile)
         }.getOrDefault(LatencyProfile.UltraLow)
 
+        val userInfo = buildString {
+            if (cachedSettings.userName.isNotBlank()) append("Имя ученика: ${cachedSettings.userName}. ")
+            if (cachedSettings.learningGoals.isNotBlank()) append("Цель изучения: ${cachedSettings.learningGoals}. ")
+            if (cachedSettings.learningTopics.isNotBlank()) append("Интересные темы для обсуждения: ${cachedSettings.learningTopics}. ")
+        }
+
+        val finalSystemInstruction = if (userInfo.isNotBlank()) {
+            "${cachedSettings.systemInstruction}\n\n[ДАННЫЕ ПОЛЬЗОВАТЕЛЯ]:\nУчитывай эту информацию в диалоге: $userInfo"
+        } else {
+            cachedSettings.systemInstruction
+        }
+
         return SessionConfig(
             model = cachedSettings.model,
             temperature = cachedSettings.temperature,
@@ -462,7 +474,7 @@ class VoiceViewModel @Inject constructor(
             vadSilenceDurationMs = if (cachedSettings.vadSilenceTimeoutMs > 0)
                 cachedSettings.vadSilenceTimeoutMs else 100,
             vadPrefixPaddingMs = 20,
-            systemInstruction = cachedSettings.systemInstruction,
+            systemInstruction = finalSystemInstruction,
             inputTranscription = cachedSettings.inputTranscription,
             outputTranscription = cachedSettings.outputTranscription,
             enableSessionResumption = cachedSettings.enableSessionResumption,
