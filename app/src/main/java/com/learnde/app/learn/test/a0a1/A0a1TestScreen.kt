@@ -230,22 +230,28 @@ private fun DynamicVerdictDialog(
     onClose: () -> Unit
 ) {
     val isPassed = state.verdict == TestVerdict.PASSED
-    val isA0 = state.phase == TestPhase.A0
+    val currentLevel = state.phase.name // "A0", "A1", "A2", "B1", "B2"
+    
+    val nextLevel = when (state.phase) {
+        TestPhase.A0 -> "A1"
+        TestPhase.A1 -> "A2"
+        TestPhase.A2 -> "B1"
+        TestPhase.B1 -> "B2"
+        TestPhase.B2 -> null
+    }
 
     val accent = if (isPassed) Color(0xFF43A047) else Color(0xFFE53935)
     
     val headline = when {
-        isA0 && isPassed -> "A0 Пройден!"
-        isA0 && !isPassed -> "Уровень не подтвержден"
-        !isA0 && isPassed -> "A1 Подтвержден!"
-        else -> "A0 Подтвержден"
+        isPassed && nextLevel != null -> "$currentLevel Пройден!"
+        isPassed && nextLevel == null -> "Поздравляем! B2 Подтвержден!"
+        else -> "Уровень $currentLevel не подтвержден"
     }
 
     val subtitle = when {
-        isA0 && isPassed -> "Отличное начало! Вы знаете основы. Готовы проверить себя на уровень A1?"
-        isA0 && !isPassed -> "Вам стоит еще немного попрактиковать самые основы (цвета, цифры, простые фразы), прежде чем идти дальше."
-        !isA0 && isPassed -> "Поздравляем! Вы уверенно владеете базовым немецким на уровне A1."
-        else -> "Вы отлично знаете основы, но для уровня A1 нужно еще немного практики. Продолжайте обучение!"
+        isPassed && nextLevel != null -> "Отличный результат! Вы подтвердили уровень $currentLevel. Готовы начать тест на уровень $nextLevel?"
+        isPassed && nextLevel == null -> "Вы прошли все уровни до B2 включительно! У вас превосходные знания немецкого языка."
+        else -> "Для уровня $currentLevel нужно набрать минимум ${state.threshold} баллов. Повторите материал и попробуйте снова!"
     }
 
     AlertDialog(
@@ -263,7 +269,7 @@ private fun DynamicVerdictDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        if (isA0) "A0" else "A1",
+                        currentLevel,
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -295,9 +301,9 @@ private fun DynamicVerdictDialog(
             }
         },
         confirmButton = {
-            if (isPassed) {
+            if (isPassed && nextLevel != null) {
                 Button(onClick = onAdvance, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8))) {
-                    Text(if (isA0) "Начать тест A1" else "Завершить", color = Color.White)
+                    Text("Начать тест $nextLevel", color = Color.White)
                 }
             } else {
                 Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = accent)) {
@@ -310,7 +316,7 @@ private fun DynamicVerdictDialog(
                 TextButton(onClick = onRestart) {
                     Text("Пройти заново", color = MaterialTheme.colorScheme.primary)
                 }
-            } else if (isA0 && isPassed) {
+            } else if (isPassed && nextLevel != null) {
                 TextButton(onClick = onClose) {
                     Text("Не сейчас", color = Color.Gray)
                 }
