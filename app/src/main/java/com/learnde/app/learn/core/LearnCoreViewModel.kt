@@ -294,6 +294,14 @@ class LearnCoreViewModel @Inject constructor(
                 val session = activeSession
                 micJob?.cancel()
                 audioEngine.stopCapture()
+
+                // 👇 ДОБАВЛЕНО: Остановка сервиса при выходе
+                try {
+                    appContext.startService(
+                        com.learnde.app.GeminiLiveForegroundService.stopIntent(appContext)
+                    )
+                } catch (_: Exception) {}
+
                 runCatching { liveClient.disconnect() }
                 runCatching { session?.onExit() }
 
@@ -374,6 +382,18 @@ class LearnCoreViewModel @Inject constructor(
             logger.w("Learn.startMic: no RECORD_AUDIO permission")
             return
         }
+
+        // 👇 ДОБАВЛЕНО: Запуск сервиса, который переключает звук на громкоговоритель
+        try {
+            appContext.startForegroundService(
+                com.learnde.app.GeminiLiveForegroundService.startIntent(
+                    appContext, cachedSettings.forceSpeakerOutput
+                )
+            )
+        } catch (e: Exception) {
+            logger.w("ForegroundService start failed in Learn: ${e.message}")
+        }
+
         _state.update {
             it.copy(isMicActive = true, connectionStatus = LearnConnectionStatus.Recording)
         }
@@ -584,6 +604,14 @@ class LearnCoreViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         micJob?.cancel()
+
+        // 👇 ДОБАВЛЕНО: Защитная остановка сервиса при уничтожении ViewModel
+        try {
+            appContext.startService(
+                com.learnde.app.GeminiLiveForegroundService.stopIntent(appContext)
+            )
+        } catch (_: Exception) {}
+
         // НЕ освобождаем audio/liveClient синхронно — дадим завершиться
         // в background (как в VoiceViewModel).
         GlobalScope.launch(Dispatchers.IO + NonCancellable) {
