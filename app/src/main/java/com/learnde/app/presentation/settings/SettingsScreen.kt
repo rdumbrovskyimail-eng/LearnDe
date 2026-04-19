@@ -535,7 +535,7 @@ fun SettingsScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = accent),
                 enabled = s.apiKey.length >= 20
             ) {
-                Text("Перейти к общению", fontSize = 16.sp, color = MaterialTheme.colorScheme.onPrimary)
+                Text("Перейти к обучению", fontSize = 16.sp, color = MaterialTheme.colorScheme.onPrimary)
             }
 
             TextButton(
