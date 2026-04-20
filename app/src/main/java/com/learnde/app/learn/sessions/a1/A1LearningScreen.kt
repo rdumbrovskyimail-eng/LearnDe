@@ -226,7 +226,12 @@ fun A1LearningScreen(
                 enter = fadeIn() + slideInVertically { it/2 },
                 exit = fadeOut()
             ) {
-                state.lastEvaluation?.let { ev -> LemmaEvaluationCard(ev) }
+                state.lastEvaluation?.let { ev -> 
+                    LemmaEvaluationCard(
+                        ev = ev,
+                        onDispute = { vm.onIntent(A1LearningIntent.DisputeEvaluation(ev.lemma)) }
+                    ) 
+                }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -251,7 +256,46 @@ fun A1LearningScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
-            Spacer(Modifier.weight(1f))
+            // ═══ Транскрипт (Субтитры) ═══
+            if (state.sessionActive && learnState.transcript.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("Субтитры:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .padding(8.dp)
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        reverseLayout = true
+                    ) {
+                        val messages = learnState.transcript.reversed()
+                        items(messages) { msg ->
+                            val isAi = msg.role == com.learnde.app.domain.model.ConversationMessage.ROLE_MODEL
+                            val align = if (isAi) Alignment.CenterStart else Alignment.CenterEnd
+                            val bgColor = if (isAi) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) 
+                                          else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.1f)
+                            
+                            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = align) {
+                                Text(
+                                    text = msg.text,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(bgColor)
+                                        .padding(8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
 
             // ═══ Нижняя кнопка ═══
             BottomActionButton(state, vm, learnState.connectionStatus)
@@ -446,36 +490,47 @@ private fun PhaseIndicator(phase: A1Phase) {
 }
 
 @Composable
-private fun LemmaEvaluationCard(ev: LastEvaluation) {
+private fun LemmaEvaluationCard(ev: LastEvaluation, onDispute: () -> Unit) {
     val color = when (ev.quality) {
         7 -> Color(0xFF2E7D32); 6 -> Color(0xFF43A047); 5 -> Color(0xFF7CB342)
         4 -> Color(0xFFFDD835); 3 -> Color(0xFFFB8C00); 2 -> Color(0xFFF4511E)
         else -> Color(0xFFE53935)
     }
-    Row(
+    Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(color.copy(alpha = 0.12f))
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(10.dp)
     ) {
-        Box(Modifier.size(34.dp).clip(CircleShape).background(color),
-            contentAlignment = Alignment.Center) {
-            Text("${ev.quality}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(ev.lemma, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            if (ev.feedback.isNotBlank()) {
-                Text(ev.feedback, fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 14.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).clip(CircleShape).background(color),
+                contentAlignment = Alignment.Center) {
+                Text("${ev.quality}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(ev.lemma, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                if (ev.feedback.isNotBlank()) {
+                    Text(ev.feedback, fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 14.sp)
+                }
+            }
+            if (ev.wasCorrect) {
+                Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFF43A047), modifier = Modifier.size(22.dp))
             }
         }
-        if (ev.wasCorrect) {
-            Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFF43A047),
-                modifier = Modifier.size(22.dp))
+        
+        if (!ev.wasCorrect) {
+            Spacer(Modifier.height(6.dp))
+            TextButton(
+                onClick = onDispute,
+                modifier = Modifier.align(Alignment.End).height(28.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text("Я сказал правильно!", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+            }
         }
     }
 }
