@@ -48,6 +48,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Stop
@@ -163,7 +164,7 @@ fun A1LearningScreen(
                 actions = {
                     IconButton(onClick = onOpenHistory) {
                         Icon(
-                            androidx.compose.material.icons.Icons.Filled.History,
+                            Icons.Filled.History,
                             contentDescription = "История",
                             tint = MaterialTheme.colorScheme.onBackground
                         )
