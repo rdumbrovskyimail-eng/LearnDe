@@ -93,6 +93,11 @@ data class ErrorDiagnosis(
 ) {
     val isError: Boolean get() = depth != ErrorDepth.NONE
 
+    companion object {
+        /** Синглтон "ошибки нет" — удобно для reset-состояний. */
+        val None = ErrorDiagnosis()
+    }
+
     /** Какая педагогическая интервенция требуется. */
     fun recommendedIntervention(): Intervention = when {
         !isError -> Intervention.PRAISE
