@@ -61,6 +61,7 @@ import com.learnde.app.presentation.learn.components.CurrentFunctionBar
 fun LearnHubScreen(
     onBack: () -> Unit,
     onOpenA0a1Test: () -> Unit,
+    onOpenA1Learning: () -> Unit,
     onOpenVoiceClient: () -> Unit,
     // LearnCoreViewModel — shared для всего Learn-графа; здесь нужен только
     // для доступа к statusBus (через его state). Передаётся извне из NavGraph.
@@ -79,6 +80,7 @@ fun LearnHubScreen(
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 is LearnHubEffect.NavigateToItem -> when (effect.route) {
                     "learn/a0a1" -> onOpenA0a1Test()
+                    "learn/a1" -> onOpenA1Learning()
                     else -> { /* добавится с новыми модулями */ }
                 }
             }
