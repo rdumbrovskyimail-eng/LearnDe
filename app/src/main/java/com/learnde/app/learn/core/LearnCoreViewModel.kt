@@ -74,6 +74,7 @@ class LearnCoreViewModel @Inject constructor(
     private val arbiter: ActiveClientArbiter,
     private val statusBus: LearnFunctionStatusBus,
     private val registry: LearnSessionRegistry,
+    private val vocabularyEnforcer: com.learnde.app.learn.domain.VocabularyEnforcer,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LearnCoreState())
@@ -255,6 +256,10 @@ class LearnCoreViewModel @Inject constructor(
                 // 4. onEnter у сессии
                 session.onEnter()
                 activeSession = session
+                // Patch 2: прогреваем Vocabulary Enforcer для A1-сессии
+                if (session.id == "a1_situation") {
+                    vocabularyEnforcer.warmUp()
+                }
 
                 _state.update {
                     it.copy(
