@@ -1,19 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1SituationSession.kt
-//
-// LearnSession для обучения A1 (не тестирования!).
-//
-// Принцип работы:
-//   1. ViewModel перед стартом вызывает prepareForCluster(id).
-//   2. Session подгружает SessionContext из планировщика.
-//   3. Строит dynamic system_instruction через PromptBuilder.
-//   4. Во время сессии обрабатывает function calls от Gemini:
-//        - start_phase → шлёт в Bus для UI
-//        - mark_lemma_heard → incrementExposure грамматики
-//        - evaluate_and_update_lemma → updates БД
-//        - introduce_grammar_rule → marks introduced
-//        - finish_session → вызов планировщика onSessionCompleted
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
@@ -33,6 +20,7 @@ import com.learnde.app.learn.domain.SessionContext
 import com.learnde.app.util.AppLogger
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -53,7 +41,6 @@ class A1SituationSession @Inject constructor(
 
     override val id: String = "a1_situation"
 
-    // Текущее состояние сессии — устанавливается через prepareForCluster()
     @Volatile private var currentContext: SessionContext? = null
     @Volatile private var sessionStartedAt: Long = 0L
 
@@ -63,10 +50,6 @@ class A1SituationSession @Inject constructor(
     private val failedLemmas = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var introducedRuleId: String? = null
 
-    /**
-     * ВЫЗЫВАЕТСЯ ИЗ VIEWMODEL ПЕРЕД START.
-     * Готовит контекст: подтягивает кластер, слабые леммы, грамматику.
-     */
     suspend fun prepareForCluster(cluster: ClusterA1Entity) {
         val ctx = planner.prepareSessionContext(cluster)
         currentContext = ctx
@@ -76,8 +59,6 @@ class A1SituationSession @Inject constructor(
         introducedRuleId = null
         logger.d("A1Session: prepared context for cluster ${cluster.id}")
     }
-
-    // ─── LearnSession interface ───
 
     override val systemInstruction: String
         get() {
@@ -113,8 +94,6 @@ class A1SituationSession @Inject constructor(
         }
     }
 
-    // ─── Handlers ───
-
     private fun handleStartPhase(call: FunctionCall): String {
         val phaseStr = call.args["phase"] ?: return err("no phase")
         val phase = runCatching { A1Phase.valueOf(phaseStr) }.getOrElse { A1Phase.IDLE }
@@ -127,7 +106,6 @@ class A1SituationSession @Inject constructor(
         val lemma = call.args["lemma"]?.trim() ?: return err("no lemma")
         targetedLemmas.add(lemma)
 
-        // Инкрементируем экспозицию грамматики, если лемма связана с правилом
         val ctx = currentContext
         if (ctx != null) {
             val grammarFocus = ctx.cluster.grammarFocus
@@ -145,7 +123,6 @@ class A1SituationSession @Inject constructor(
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
 
         producedLemmas.add(lemma)
-        // Лёгкий апдейт — полное обновление идёт в evaluate
         val delta = (quality - 3).coerceIn(-2, 4) * 0.03f
         val clusterId = currentContext?.cluster?.id ?: "unknown"
         lemmaDao.updateProgress(
@@ -170,7 +147,6 @@ class A1SituationSession @Inject constructor(
         if (wasCorrect) producedLemmas.add(lemma)
         else failedLemmas.add(lemma)
 
-        // Главный апдейт прогресса
         val productionDelta = when (quality) {
             7 -> 0.15f
             6 -> 0.10f
@@ -218,17 +194,10 @@ class A1SituationSession @Inject constructor(
 
         val endedAt = System.currentTimeMillis()
 
-        // 1. Обновляем прогресс кластера через планировщик
         planner.onSessionCompleted(ctx.cluster, quality, introducedRuleId)
 
-        // 2. Логируем сессию
         val jsonList = { list: Collection<String> ->
-            Json.encodeToString(
-                kotlinx.serialization.builtins.ListSerializer(
-                    kotlinx.serialization.builtins.serializer<String>()
-                ),
-                list.toList()
-            )
+            Json.encodeToString(list.toList())
         }
         sessionDao.insert(
             A1SessionLogEntity(
@@ -244,15 +213,12 @@ class A1SituationSession @Inject constructor(
             )
         )
 
-        // 3. Событие в UI
         bus.emit(A1LearningEvent.SessionFinished(quality, feedback))
         bus.emit(A1LearningEvent.PhaseChanged(A1Phase.FINISHED))
 
         logger.d("A1Session finished: cluster=${ctx.cluster.id} quality=$quality produced=${producedLemmas.size} failed=${failedLemmas.size}")
         ok()
     }
-
-    // ─── helpers ───
 
     private fun computeNextReviewForLemma(quality: Int): Long {
         val base = System.currentTimeMillis()
@@ -263,11 +229,10 @@ class A1SituationSession @Inject constructor(
             4 -> 1
             else -> 0
         }
-        return if (days == 0) base + 4 * 3_600_000L  // 4 часа для слабых
+        return if (days == 0) base + 4 * 3_600_000L
         else base + days.days.inWholeMilliseconds
     }
 
-    /** Эвристика — найти правило по грамматическому фокусу кластера. */
     private suspend fun findGrammarRuleIdByFocus(focus: String): String? {
         val rules = A1GrammarCatalog.RULES
         return rules.firstOrNull { rule ->
