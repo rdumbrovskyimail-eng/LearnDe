@@ -50,6 +50,24 @@ class A1SituationSession @Inject constructor(
     private val failedLemmas = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var introducedRuleId: String? = null
 
+    suspend fun disputeEvaluation(lemma: String) {
+        if (failedLemmas.remove(lemma)) {
+            producedLemmas.add(lemma)
+            val clusterId = currentContext?.cluster?.id ?: "unknown"
+            // Начисляем бонусные баллы, отменяя штраф
+            lemmaDao.updateProgress(
+                lemma = lemma,
+                produced = 1,
+                failed = -1, // Убираем фейл
+                productionDelta = 0.15f, // Даем максимальный плюс
+                recognitionDelta = 0.05f,
+                clusterId = clusterId,
+                nextReview = System.currentTimeMillis() + 7L * 24 * 3600 * 1000 // +7 дней
+            )
+            logger.d("A1Session: Disputed evaluation for $lemma")
+        }
+    }
+
     suspend fun prepareForCluster(cluster: ClusterA1Entity) {
         val ctx = planner.prepareSessionContext(cluster)
         currentContext = ctx
