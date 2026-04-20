@@ -352,6 +352,21 @@ class A1SituationSession @Inject constructor(
         val jsonList = { list: Collection<String> ->
             Json.encodeToString(list.toList())
         }
+        val avgQ = if (qualityAccumulator.isEmpty()) quality.toFloat()
+                   else qualityAccumulator.average().toFloat()
+        val diagnosesJson = try {
+            Json.encodeToString(
+                diagnoses.mapValues { (_, d) ->
+                    mapOf(
+                        "source" to d.source.name,
+                        "depth" to d.depth.name,
+                        "category" to d.category.name,
+                        "specifics" to d.specifics,
+                    )
+                }
+            )
+        } catch (e: Exception) { "{}" }
+
         sessionDao.insert(
             A1SessionLogEntity(
                 clusterId = ctx.cluster.id,
@@ -363,8 +378,14 @@ class A1SituationSession @Inject constructor(
                 overallQuality = quality,
                 feedbackText = feedback,
                 grammarRuleIntroduced = introducedRuleId,
+                isComplete = true,
+                phaseReached = A1Phase.FINISHED.name,
+                errorDiagnosesJson = diagnosesJson,
+                avgQuality = avgQ,
+                evaluateCallsCount = evaluateCallsCount,
             )
         )
+        currentPhase = A1Phase.FINISHED
 
         // Логируем сводку диагностики
         val errorSummary = diagnoses.values
