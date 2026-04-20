@@ -37,59 +37,50 @@ interface A1LemmaDao {
     @Query("SELECT * FROM a1_lemmas WHERE lemma IN (:lemmas)")
     suspend fun getByLemmas(lemmas: List<String>): List<LemmaA1Entity>
 
-    /** Общее число лемм в A1. */
     @Query("SELECT COUNT(*) FROM a1_lemmas")
     suspend fun getTotalCount(): Int
 
-    /** Число лемм, освоенных до порога (production >= 0.7). */
-    @Query("SELECT COUNT(*) FROM a1_lemmas WHERE productionScore >= 0.7")
+    /** Patch 3: порог снижен до 0.5 (было 0.7). */
+    @Query("SELECT COUNT(*) FROM a1_lemmas WHERE productionScore >= 0.5")
     suspend fun getMasteredCount(): Int
 
-    /** Число лемм, которые хотя бы встречались в сессиях. */
+    /** Леммы "в процессе изучения" (0.2..0.5). Новый счётчик Patch 3. */
+    @Query("SELECT COUNT(*) FROM a1_lemmas WHERE productionScore >= 0.2 AND productionScore < 0.5")
+    suspend fun getInProgressCount(): Int
+
     @Query("SELECT COUNT(*) FROM a1_lemmas WHERE timesHeard > 0")
     suspend fun getSeenCount(): Int
 
-    /** Flow для реактивных обновлений UI. */
-    @Query("SELECT COUNT(*) FROM a1_lemmas WHERE productionScore >= 0.7")
+    @Query("SELECT COUNT(*) FROM a1_lemmas WHERE productionScore >= 0.5")
     fun observeMasteredCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM a1_lemmas WHERE productionScore >= 0.2 AND productionScore < 0.5")
+    fun observeInProgressCount(): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM a1_lemmas WHERE timesHeard > 0")
     fun observeSeenCount(): Flow<Int>
 
-    /**
-     * Самые слабые леммы — кандидаты на повторение в следующей сессии.
-     * Используется Gemini в system_instruction как "target lemmas".
-     */
     @Query("""
-        SELECT * FROM a1_lemmas 
-        WHERE timesHeard > 0 AND productionScore < 0.5 
-        ORDER BY productionScore ASC, timesFailed DESC 
+        SELECT * FROM a1_lemmas
+        WHERE timesHeard > 0 AND productionScore < 0.5
+        ORDER BY productionScore ASC, timesFailed DESC
         LIMIT :limit
     """)
     suspend fun getWeakestLemmas(limit: Int = 10): List<LemmaA1Entity>
 
-    /**
-     * Леммы, которые давно не повторялись (SRS).
-     */
     @Query("""
-        SELECT * FROM a1_lemmas 
-        WHERE nextReviewAt IS NOT NULL AND nextReviewAt <= :now 
-        ORDER BY nextReviewAt ASC 
+        SELECT * FROM a1_lemmas
+        WHERE nextReviewAt IS NOT NULL AND nextReviewAt <= :now
+        ORDER BY nextReviewAt ASC
         LIMIT :limit
     """)
     suspend fun getDueForReview(now: Long = System.currentTimeMillis(), limit: Int = 20): List<LemmaA1Entity>
 
-    /** Леммы, которые ещё ни разу не встречались. */
     @Query("SELECT * FROM a1_lemmas WHERE timesHeard = 0 LIMIT :limit")
     suspend fun getUnseen(limit: Int = 50): List<LemmaA1Entity>
 
-    /**
-     * Апдейт счётчиков после сессии — атомарная операция.
-     * Вызывается из A1SituationSession.handleToolCall для каждой
-     * леммы, которую Gemini отметил как "использована успешно".
-     */
     @Query("""
-        UPDATE a1_lemmas 
+        UPDATE a1_lemmas
         SET timesHeard = timesHeard + 1,
             timesProduced = timesProduced + :produced,
             timesFailed = timesFailed + :failed,
@@ -109,6 +100,43 @@ interface A1LemmaDao {
         clusterId: String,
         now: Long = System.currentTimeMillis(),
         nextReview: Long,
+    )
+
+    /**
+     * Patch 3: полный апдейт по FSRS-5. Вызывается из A1SituationSession
+     * вместо updateProgress (старый остаётся для обратной совместимости).
+     */
+    @Query("""
+        UPDATE a1_lemmas
+        SET timesHeard = timesHeard + 1,
+            timesProduced = timesProduced + :produced,
+            timesFailed = timesFailed + :failed,
+            productionScore = :newProductionScore,
+            recognitionScore = MIN(1.0, recognitionScore + :recognitionDelta),
+            lastSeenAt = :now,
+            lastClusterId = :clusterId,
+            nextReviewAt = :nextReview,
+            fsrsDifficulty = :fsrsDifficulty,
+            fsrsStability = :fsrsStability,
+            fsrsReps = :fsrsReps,
+            fsrsLapses = :fsrsLapses,
+            fsrsLastReviewAt = :fsrsLastReviewAt
+        WHERE lemma = :lemma
+    """)
+    suspend fun updateProgressFsrs(
+        lemma: String,
+        produced: Int,
+        failed: Int,
+        newProductionScore: Float,
+        recognitionDelta: Float,
+        clusterId: String,
+        now: Long = System.currentTimeMillis(),
+        nextReview: Long,
+        fsrsDifficulty: Double,
+        fsrsStability: Double,
+        fsrsReps: Int,
+        fsrsLapses: Int,
+        fsrsLastReviewAt: Long,
     )
 }
 
