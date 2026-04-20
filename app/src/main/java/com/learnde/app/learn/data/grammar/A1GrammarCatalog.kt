@@ -1,39 +1,17 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/learn/data/grammar/A1GrammarCatalog.kt
-//
-// ФИЛОСОФИЯ:
-// Правила НЕ изучаются отдельным блоком. Они сопровождают
-// кластеры лемм. Каждое правило имеет:
-//   - exposureThreshold: порог экспозиции (сколько раз паттерн
-//     должен промелькнуть в речи Gemini до первого объяснения)
-//   - shortExplanation: 1-2 фразы, которые Gemini произнесёт
-//     ОДНИМ РАЗОМ по-русски, потом вернётся в ситуацию
-//   - difficulty: порядок введения
-//
-// Алгоритм Gemini:
-//   1. Использует правило в речи (Gemini слышит это в своей речи).
-//     → timesHeardInContext++
-//   2. Когда threshold достигнут → тест: "ты заметил что я говорю?"
-//   3. Если ученик не объясняет сам → Gemini даёт shortExplanation
-//   4. Отмечает wasIntroduced = true
-//   5. Дальше корректирует ошибки ссылаясь на это правило
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.data.grammar
 
 import com.learnde.app.learn.data.db.GrammarRuleA1Entity
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 object A1GrammarCatalog {
 
-    /**
-     * Список всех правил A1 в порядке введения.
-     * Это СТАТИЧНЫЕ данные, захардкожены в коде,
-     * импортируются в БД при первом запуске.
-     */
     val RULES: List<GrammarRuleA1Entity> = listOf(
 
-        // ─── Фундамент (вводится очень рано) ───
         GrammarRuleA1Entity(
             id = "g01_personalpronomen_nom",
             nameDe = "Personalpronomen Nominativ",
@@ -43,7 +21,6 @@ object A1GrammarCatalog {
             exposureThreshold = 5,
             difficulty = 1,
         ),
-
         GrammarRuleA1Entity(
             id = "g02_sein_praesens",
             nameDe = "Verb 'sein' im Präsens",
@@ -53,7 +30,6 @@ object A1GrammarCatalog {
             exposureThreshold = 8,
             difficulty = 1,
         ),
-
         GrammarRuleA1Entity(
             id = "g03_haben_praesens",
             nameDe = "Verb 'haben' im Präsens",
@@ -63,7 +39,6 @@ object A1GrammarCatalog {
             exposureThreshold = 8,
             difficulty = 1,
         ),
-
         GrammarRuleA1Entity(
             id = "g04_regulaere_verben",
             nameDe = "Regelmäßige Verben im Präsens",
@@ -73,7 +48,6 @@ object A1GrammarCatalog {
             exposureThreshold = 10,
             difficulty = 1,
         ),
-
         GrammarRuleA1Entity(
             id = "g05_w_fragen",
             nameDe = "W-Fragen",
@@ -83,8 +57,6 @@ object A1GrammarCatalog {
             exposureThreshold = 6,
             difficulty = 1,
         ),
-
-        // ─── Числа, даты, время ───
         GrammarRuleA1Entity(
             id = "g06_zahlen_1_100",
             nameDe = "Zahlen 1-100",
@@ -94,7 +66,6 @@ object A1GrammarCatalog {
             exposureThreshold = 5,
             difficulty = 2,
         ),
-
         GrammarRuleA1Entity(
             id = "g07_artikel_nominativ",
             nameDe = "Bestimmter und unbestimmter Artikel (Nominativ)",
@@ -104,7 +75,6 @@ object A1GrammarCatalog {
             exposureThreshold = 10,
             difficulty = 2,
         ),
-
         GrammarRuleA1Entity(
             id = "g08_akkusativ",
             nameDe = "Akkusativ",
@@ -114,7 +84,6 @@ object A1GrammarCatalog {
             exposureThreshold = 12,
             difficulty = 3,
         ),
-
         GrammarRuleA1Entity(
             id = "g09_negation",
             nameDe = "Negation mit 'nicht' und 'kein'",
@@ -124,7 +93,6 @@ object A1GrammarCatalog {
             exposureThreshold = 8,
             difficulty = 2,
         ),
-
         GrammarRuleA1Entity(
             id = "g10_possessiv",
             nameDe = "Possessivpronomen",
@@ -134,7 +102,6 @@ object A1GrammarCatalog {
             exposureThreshold = 8,
             difficulty = 3,
         ),
-
         GrammarRuleA1Entity(
             id = "g11_plural",
             nameDe = "Plural der Nomen",
@@ -144,7 +111,6 @@ object A1GrammarCatalog {
             exposureThreshold = 10,
             difficulty = 3,
         ),
-
         GrammarRuleA1Entity(
             id = "g12_modalverben",
             nameDe = "Modalverben: können, müssen, wollen, möchten",
@@ -154,7 +120,6 @@ object A1GrammarCatalog {
             exposureThreshold = 10,
             difficulty = 3,
         ),
-
         GrammarRuleA1Entity(
             id = "g13_trennbare_verben",
             nameDe = "Trennbare Verben",
@@ -164,7 +129,6 @@ object A1GrammarCatalog {
             exposureThreshold = 8,
             difficulty = 3,
         ),
-
         GrammarRuleA1Entity(
             id = "g14_praeposition_dativ",
             nameDe = "Präpositionen + Dativ (mit, zu, bei, von, nach, aus)",
@@ -174,17 +138,15 @@ object A1GrammarCatalog {
             exposureThreshold = 12,
             difficulty = 4,
         ),
-
         GrammarRuleA1Entity(
             id = "g15_zeitangaben",
             nameDe = "Zeitangaben: am, im, um",
             nameRu = "Время: am, im, um",
             shortExplanation = "am + день: am Montag. im + месяц/сезон: im Januar, im Sommer. um + время: um 10 Uhr. Запомни формулу: am Tag, im Monat, um Uhrzeit.",
-            examplesJson = """["Am Montag arbeite ich.", "Im Sommer fahren wir ans Meer.", "Um 8 Uhr beginnt der Kurs.", "Im Januar ist mein Geburtstag."]""",
+            examplesJson = """["Am Montag arbeite ich.", "Im Sommer fahrenhausen ans Meer.", "Um 8 Uhr beginnt der Kurs.", "Im Januar ist mein Geburtstag."]""",
             exposureThreshold = 8,
             difficulty = 3,
         ),
-
         GrammarRuleA1Entity(
             id = "g16_satzbau",
             nameDe = "Satzbau: Verb auf Position 2",
@@ -194,7 +156,6 @@ object A1GrammarCatalog {
             exposureThreshold = 10,
             difficulty = 3,
         ),
-
         GrammarRuleA1Entity(
             id = "g17_imperativ",
             nameDe = "Imperativ",
@@ -204,7 +165,6 @@ object A1GrammarCatalog {
             exposureThreshold = 6,
             difficulty = 3,
         ),
-
         GrammarRuleA1Entity(
             id = "g18_gern_lieber",
             nameDe = "gern, lieber, am liebsten",
@@ -214,7 +174,6 @@ object A1GrammarCatalog {
             exposureThreshold = 6,
             difficulty = 2,
         ),
-
         GrammarRuleA1Entity(
             id = "g19_weil",
             nameDe = "Nebensatz mit 'weil'",
@@ -224,7 +183,6 @@ object A1GrammarCatalog {
             exposureThreshold = 8,
             difficulty = 4,
         ),
-
         GrammarRuleA1Entity(
             id = "g20_perfekt_basics",
             nameDe = "Perfekt (Grundlagen)",
@@ -234,7 +192,6 @@ object A1GrammarCatalog {
             exposureThreshold = 10,
             difficulty = 4,
         ),
-
         GrammarRuleA1Entity(
             id = "g21_praeposition_akkusativ",
             nameDe = "Präpositionen + Akkusativ (für, ohne, gegen, um)",
@@ -244,7 +201,6 @@ object A1GrammarCatalog {
             exposureThreshold = 10,
             difficulty = 4,
         ),
-
         GrammarRuleA1Entity(
             id = "g22_adjektiv_nach_sein",
             nameDe = "Adjektiv als Prädikat",
@@ -256,9 +212,5 @@ object A1GrammarCatalog {
         ),
     )
 
-    /** Сериализованная версия для импорта в БД. */
-    fun asJson(): String = Json.encodeToString(
-        kotlinx.serialization.builtins.ListSerializer(GrammarRuleA1Entity.serializer()),
-        RULES
-    )
+    fun asJson(): String = Json.encodeToString(RULES)
 }
