@@ -1,6 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА
+// ПОЛНАЯ ЗАМЕНА (Patch 2.5)
 // Путь: app/src/main/java/com/learnde/app/presentation/navigation/NavGraph.kt
+//
+// ИЗМЕНЕНИЯ:
+//   - Добавлен маршрут learn/a1/history
+//   - A1LearningScreen теперь принимает onOpenHistory
+//   - Кнопка "Повторить урок" из History переводит в a1 с arg clusterId
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.navigation
 
@@ -10,15 +15,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavBackStackEntry
-import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.learnde.app.learn.core.LearnCoreViewModel
 import com.learnde.app.presentation.editor.ModelEditorScreen
 import com.learnde.app.presentation.functions.FunctionsTestScreen
@@ -35,9 +42,12 @@ object Routes {
     const val FUNCTIONS  = "functions"
 
     // ── Learn graph ──
-    const val LEARN_GRAPH = "learn_graph"
-    const val LEARN_HUB   = "learn/hub"
-    const val LEARN_A0A1  = "learn/a0a1"
+    const val LEARN_GRAPH   = "learn_graph"
+    const val LEARN_HUB     = "learn/hub"
+    const val LEARN_A0A1    = "learn/a0a1"
+    const val LEARN_A1      = "learn/a1"
+    const val LEARN_A1_WITH_CLUSTER = "learn/a1?clusterId={clusterId}"
+    const val LEARN_A1_HISTORY = "learn/a1/history"
 }
 
 object VoiceGender {
@@ -144,12 +154,16 @@ fun AppNavGraph(
             composable(Routes.LEARN_HUB) { entry ->
                 val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
                 LearnHubScreen(
-                    onBack = { navController.navigate(Routes.SETTINGS) { popUpTo(Routes.SETTINGS) { inclusive = true } } },
+                    onBack = {
+                        navController.navigate(Routes.SETTINGS) {
+                            popUpTo(Routes.SETTINGS) { inclusive = true }
+                        }
+                    },
                     onOpenA0a1Test = {
                         navController.navigate(Routes.LEARN_A0A1) { launchSingleTop = true }
                     },
                     onOpenA1Learning = {
-                        navController.navigate("learn/a1") { launchSingleTop = true }
+                        navController.navigate(Routes.LEARN_A1) { launchSingleTop = true }
                     },
                     onOpenVoiceClient = {
                         navController.navigate(Routes.VOICE) { launchSingleTop = true }
@@ -163,20 +177,76 @@ fun AppNavGraph(
                 com.learnde.app.learn.test.a0a1.A0a1TestScreen(
                     onBack = { navController.popBackStack() },
                     onNavigateToStudy = { level ->
-                        navController.navigate("learn/study/$level") { 
-                            popUpTo(Routes.LEARN_HUB) 
+                        navController.navigate("learn/study/$level") {
+                            popUpTo(Routes.LEARN_HUB)
                         }
                     },
                     learnCoreViewModel = learnCoreVm,
                 )
             }
 
-            composable("learn/a1") { entry ->
+            // A1 learning main screen
+            composable(
+                route = Routes.LEARN_A1_WITH_CLUSTER,
+                arguments = listOf(
+                    navArgument("clusterId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { entry ->
                 val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
-                // 👇 ИСПРАВЛЕН ПУТЬ ДО A1LearningScreen
+                val clusterId = entry.arguments?.getString("clusterId")
+                val a1Vm: com.learnde.app.learn.sessions.a1.A1LearningViewModel =
+                    hiltViewModel(entry)
+
+                // Если пришёл clusterId из History — автозапуск
+                LaunchedEffect(clusterId) {
+                    if (!clusterId.isNullOrBlank()) {
+                        a1Vm.onIntent(
+                            com.learnde.app.learn.sessions.a1.A1LearningIntent.StartCluster(clusterId)
+                        )
+                    }
+                }
+
                 com.learnde.app.learn.sessions.a1.A1LearningScreen(
                     onBack = { navController.popBackStack() },
+                    onOpenHistory = {
+                        navController.navigate(Routes.LEARN_A1_HISTORY) {
+                            launchSingleTop = true
+                        }
+                    },
                     learnCoreViewModel = learnCoreVm,
+                    vm = a1Vm,
+                )
+            }
+
+            // Простой alias без аргументов — перенаправляет в основной маршрут
+            composable(Routes.LEARN_A1) { entry ->
+                val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
+                com.learnde.app.learn.sessions.a1.A1LearningScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenHistory = {
+                        navController.navigate(Routes.LEARN_A1_HISTORY) {
+                            launchSingleTop = true
+                        }
+                    },
+                    learnCoreViewModel = learnCoreVm,
+                )
+            }
+
+            composable(Routes.LEARN_A1_HISTORY) {
+                com.learnde.app.learn.sessions.a1.history.A1HistoryScreen(
+                    onBack = { navController.popBackStack() },
+                    onRepeatCluster = { clusterId ->
+                        navController.navigate("learn/a1?clusterId=$clusterId") {
+                            popUpTo(Routes.LEARN_A1_HISTORY) { inclusive = true }
+                        }
+                    },
+                    onOpenDetails = { sessionId ->
+                        // TODO Patch 3: экран деталей сессии
+                    },
                 )
             }
 
@@ -193,7 +263,7 @@ fun AppNavGraph(
 
 @Composable
 private fun NavBackStackEntry.sharedLearnCoreViewModel(
-    navController: androidx.navigation.NavHostController
+    navController: NavHostController
 ): LearnCoreViewModel {
     val parentEntry = remember(this) {
         navController.getBackStackEntry(Routes.LEARN_GRAPH)
