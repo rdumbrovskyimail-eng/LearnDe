@@ -29,7 +29,7 @@ import javax.inject.Singleton
         A1UserProgressEntity::class,
     ],
     version = 1,
-    exportSchema = true
+    exportSchema = false // 👈 ИСПРАВЛЕНО (Убирает ворнинг от KSP/Room)
 )
 @TypeConverters(A1Converters::class)
 abstract class A1Database : RoomDatabase() {
