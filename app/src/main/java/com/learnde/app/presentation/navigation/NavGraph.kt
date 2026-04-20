@@ -140,10 +140,12 @@ fun AppNavGraph(
         navigation(
             route = Routes.LEARN_GRAPH,
             startDestination = Routes.LEARN_HUB,
-            enterTransition = { fadeIn(tween(250)) },
-            exitTransition  = { fadeOut(tween(200)) },
         ) {
-            composable(Routes.LEARN_HUB) { entry ->
+            composable(
+                route = Routes.LEARN_HUB,
+                enterTransition = { fadeIn(tween(250)) },
+                exitTransition  = { fadeOut(tween(200)) },
+            ) { entry ->
                 val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
                 LearnHubScreen(
                     onBack = { navController.navigate(Routes.SETTINGS) { popUpTo(Routes.SETTINGS) { inclusive = true } } },
