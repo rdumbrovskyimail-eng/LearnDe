@@ -1,3 +1,7 @@
+// ═══════════════════════════════════════════════════════════
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/learn/test/a0a1/A0a1TestScreen.kt
+// ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.test.a0a1
 
 import android.Manifest
@@ -10,28 +14,19 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -39,32 +34,25 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.learnde.app.domain.model.ConversationMessage
-import com.learnde.app.learn.core.LearnConnectionStatus
 import com.learnde.app.learn.core.LearnCoreIntent
 import com.learnde.app.learn.core.LearnCoreViewModel
 import com.learnde.app.presentation.learn.components.CurrentFunctionBar
-import kotlinx.coroutines.launch
-import kotlin.math.cos
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sin
+import kotlin.math.sqrt
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun A0a1TestScreen(
     onBack: () -> Unit,
+    onNavigateToStudy: (String) -> Unit,
     learnCoreViewModel: LearnCoreViewModel,
     viewModel: A0a1TestViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val learnState by learnCoreViewModel.state.collectAsStateWithLifecycle()
     val fnStatus by learnCoreViewModel.functionStatus.collectAsStateWithLifecycle()
     val context = LocalContext.current
-
-    // Состояния для шторки истории
-    var showHistorySheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    val coroutineScope = rememberCoroutineScope()
 
     val exitAndBack: () -> Unit = {
         learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
@@ -86,7 +74,7 @@ fun A0a1TestScreen(
         val hasMic = ContextCompat.checkSelfPermission(
             context, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
-        
+
         if (hasMic) {
             learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0_test"))
         } else {
@@ -94,541 +82,285 @@ fun A0a1TestScreen(
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Тест A0-A1 · Deutsch",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = exitAndBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                    }
-                },
-                actions = {
-                    // Кнопка для открытия окна с историей диалога
-                    IconButton(onClick = { showHistorySheet = true }) {
-                        Icon(Icons.Default.List, contentDescription = "История вопросов")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        },
-        bottomBar = {
-            Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                CurrentFunctionBar(status = fnStatus)
-            }
-        }
-    ) { pad ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(pad)
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(Modifier.height(8.dp))
-
-            ScoreGauge(
-                score = state.totalPoints,
-                maxScore = state.maxPoints,
-                threshold = state.threshold,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 420.dp)
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            QuestionsProgress(
-                answered = state.answeredCount,
-                total = state.totalQuestions
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            Text(
-                "Вопросы генерируются на лету. Чередуется русский и немецкий язык вопросов. Отвечайте всегда по-немецки!",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 12.dp),
-                lineHeight = 18.sp
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = when (learnState.connectionStatus) {
-                    LearnConnectionStatus.Disconnected -> "⚪ Не подключено"
-                    LearnConnectionStatus.Connecting   -> "🟡 Подключение…"
-                    LearnConnectionStatus.Negotiating  -> "🟡 Настройка сессии…"
-                    LearnConnectionStatus.Ready        -> "🟢 Готово · говорите"
-                    LearnConnectionStatus.Recording    -> "🔴 Запись"
-                    LearnConnectionStatus.Reconnecting -> "🟠 Переподключение…"
-                },
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            LastAwardCard(
-                points = state.lastPoints,
-                feedback = state.lastFeedback,
-                questionIndex = state.lastQuestionIndex
-            )
-
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-
-    // Окно с историей (Transcript)
-    if (showHistorySheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showHistorySheet = false },
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            TranscriptHistoryPanel(transcript = learnState.transcript)
-        }
-    }
-
-    // Итоговый диалог (динамический)
-    if (state.finished && state.verdict != TestVerdict.NONE) {
-        DynamicVerdictDialog(
-            state = state,
-            onAdvance = {
+    // Автоматическая навигация при завершении (Seamless Transition)
+    LaunchedEffect(state.finished, state.verdict) {
+        if (state.finished && state.verdict != TestVerdict.NONE) {
+            delay(2000) // Даем 2 секунды посмотреть на финальный счет
+            if (state.verdict == TestVerdict.PASSED) {
                 val nextSessionId = viewModel.advanceToNextPhase()
                 if (nextSessionId != null) {
+                    // Успех! Идем дальше
                     learnCoreViewModel.onIntent(LearnCoreIntent.Start(nextSessionId))
                 } else {
-                    // Конец тестов (прошел B2)
-                    exitAndBack()
-                }
-            },
-            onRestart = {
-                viewModel.resetUiState()
-                learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0_test"))
-            },
-            onClose = exitAndBack
-        )
-    }
-}
-
-@Composable
-private fun DynamicVerdictDialog(
-    state: A0a1TestUiState,
-    onAdvance: () -> Unit,
-    onRestart: () -> Unit,
-    onClose: () -> Unit
-) {
-    val isPassed = state.verdict == TestVerdict.PASSED
-    val currentLevel = state.phase.name // "A0", "A1", "A2", "B1", "B2"
-    
-    val nextLevel = when (state.phase) {
-        TestPhase.A0 -> "A1"
-        TestPhase.A1 -> "A2"
-        TestPhase.A2 -> "B1"
-        TestPhase.B1 -> "B2"
-        TestPhase.B2 -> null
-    }
-
-    val accent = if (isPassed) Color(0xFF43A047) else Color(0xFFE53935)
-    
-    val headline = when {
-        isPassed && nextLevel != null -> "$currentLevel Пройден!"
-        isPassed && nextLevel == null -> "Поздравляем! B2 Подтвержден!"
-        else -> "Уровень $currentLevel не подтвержден"
-    }
-
-    val subtitle = when {
-        isPassed && nextLevel != null -> "Отличный результат! Вы подтвердили уровень $currentLevel. Готовы начать тест на уровень $nextLevel?"
-        isPassed && nextLevel == null -> "Вы прошли все уровни до B2 включительно! У вас превосходные знания немецкого языка."
-        else -> "Для уровня $currentLevel нужно набрать минимум ${state.threshold} баллов. Повторите материал и попробуйте снова!"
-    }
-
-    AlertDialog(
-        onDismissRequest = { },
-        containerColor = MaterialTheme.colorScheme.surface,
-        title = null,
-        text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .shadow(4.dp, CircleShape)
-                        .clip(CircleShape)
-                        .background(accent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        currentLevel,
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    headline,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Ваш результат: ${state.totalPoints} из ${state.maxPoints}",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    subtitle,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 18.sp
-                )
-            }
-        },
-        confirmButton = {
-            if (isPassed && nextLevel != null) {
-                Button(onClick = onAdvance, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8))) {
-                    Text("Начать тест $nextLevel", color = Color.White)
+                    // Прошел все тесты (B2 окончен)
+                    onNavigateToStudy("B2_GRADUATE")
                 }
             } else {
-                Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = accent)) {
-                    Text("Завершить", color = Color.White)
-                }
-            }
-        },
-        dismissButton = {
-            if (!isPassed) {
-                TextButton(onClick = onRestart) {
-                    Text("Пройти заново", color = MaterialTheme.colorScheme.primary)
-                }
-            } else if (isPassed && nextLevel != null) {
-                TextButton(onClick = onClose) {
-                    Text("Не сейчас", color = Color.Gray)
-                }
-            }
-        }
-    )
-}
-
-// ════════════════════════════════════════════════════════════
-//  TRANSCRIPT HISTORY PANEL (НОВОЕ ОКНО)
-// ════════════════════════════════════════════════════════════
-
-@Composable
-private fun TranscriptHistoryPanel(transcript: List<ConversationMessage>) {
-    val listState = rememberLazyListState()
-    
-    // Автоскролл вниз при добавлении новых сообщений
-    LaunchedEffect(transcript.size) {
-        if (transcript.isNotEmpty()) {
-            listState.animateScrollToItem(transcript.size - 1)
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.7f) // Занимает 70% экрана
-            .padding(horizontal = 16.dp)
-    ) {
-        Text(
-            text = "История ответов",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        if (transcript.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("История пока пуста", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 24.dp)
-            ) {
-                items(transcript) { msg ->
-                    val isUser = msg.role == ConversationMessage.ROLE_USER
-                    MessageBubble(isUser = isUser, text = msg.text)
-                }
+                // Провал. Идем на экран обучения текущего уровня (например, A0)
+                onNavigateToStudy(state.phase.name)
             }
         }
     }
-}
 
-@Composable
-private fun MessageBubble(isUser: Boolean, text: String) {
-    val bg = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    val textColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-    val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
-    val shape = if (isUser) {
-        RoundedCornerShape(16.dp, 16.dp, 2.dp, 16.dp)
-    } else {
-        RoundedCornerShape(16.dp, 16.dp, 16.dp, 2.dp)
-    }
-
+    // Иммерсивный черный интерфейс
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        contentAlignment = alignment
+            .fillMaxSize()
+            .background(Color.Black)
     ) {
+        // 1. Анимированный серый фон-визуализатор
+        GrayAudioVisualizerScene(
+            modifier = Modifier.fillMaxSize(),
+            playbackSync = learnCoreViewModel.audioPlaybackFlow
+        )
+
+        // 2. Кнопка назад
+        IconButton(
+            onClick = exitAndBack,
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(8.dp)
+                .align(Alignment.TopStart)
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
+        }
+
+        // 3. Шапка с описанием
         Column(
             modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(shape)
-                .background(bg)
-                .padding(12.dp)
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 16.dp)
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = if (isUser) "Ваш ответ:" else "Экзаменатор:",
-                fontSize = 10.sp,
+                text = "Deutsch lernen",
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = textColor.copy(alpha = 0.7f),
-                modifier = Modifier.padding(bottom = 4.dp)
+                color = Color.White
             )
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = text,
-                fontSize = 14.sp,
-                color = textColor
+                text = "Перед началом учебного процесса, каждый ученик должен пройти тест на знание немецкого языка, после чего он будет перенаправлен на соответствующий уровень обучения, где он сможет продолжить новое обучение или вернуться в раздел повторения и закрепления материала.",
+                fontSize = 11.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Center,
+                lineHeight = 16.sp
             )
-        }
-    }
-}
-
-// ════════════════════════════════════════════════════════════
-//  НИЖЕ ИДУТ GAUGE И ПРОЧИЕ КОМПОНЕНТЫ БЕЗ ИЗМЕНЕНИЙ 
-//  (чтобы код компилировался, оставляем их как есть)
-// ════════════════════════════════════════════════════════════
-
-@Composable
-private fun ScoreGauge(
-    score: Int,
-    maxScore: Int,
-    threshold: Int,
-    modifier: Modifier = Modifier
-) {
-    val animated by animateFloatAsState(
-        targetValue = score.toFloat(),
-        animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
-        label = "gaugeAnim"
-    )
-    val progress = (animated / maxScore).coerceIn(0f, 1f)
-    val displayInt = animated.toInt().coerceIn(0, maxScore)
-
-    val numberPulse = remember { Animatable(1f) }
-    var lastScore by remember { mutableIntStateOf(score) }
-    LaunchedEffect(score) {
-        if (score > lastScore) {
-            numberPulse.snapTo(1.15f)
-            numberPulse.animateTo(1f, tween(450, easing = FastOutSlowInEasing))
-        }
-        lastScore = score
-    }
-
-    val bgCol    = MaterialTheme.colorScheme.surface
-    val trackCol = MaterialTheme.colorScheme.surfaceVariant
-    val tickCol  = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-    val thrCol   = MaterialTheme.colorScheme.tertiary
-    val primary  = MaterialTheme.colorScheme.primary
-    val onSurf   = MaterialTheme.colorScheme.onSurface
-
-    BoxWithConstraints(
-        modifier = modifier
-            .aspectRatio(1.6f)
-            .clip(RoundedCornerShape(18.dp))
-            .background(bgCol)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-    ) {
-        val density = LocalDensity.current
-        val strokeWidth = with(density) { 14.dp.toPx() }
-
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val diameter = min(w, h * 2f)
-            val rect = androidx.compose.ui.geometry.Rect(
-                offset = Offset((w - diameter) / 2f, h - diameter / 2f - 6.dp.toPx()),
-                size = Size(diameter, diameter)
-            )
-            // Track
-            drawArc(
-                color = trackCol,
-                startAngle = 180f,
-                sweepAngle = 180f,
-                useCenter = false,
-                topLeft = rect.topLeft,
-                size = rect.size,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-            )
-            // Progress
-            val sweep = 180f * progress
-            drawArc(
-                brush = Brush.sweepGradient(
-                    0f to primary.copy(alpha = 0.85f),
-                    1f to primary,
-                    center = rect.center
-                ),
-                startAngle = 180f,
-                sweepAngle = sweep,
-                useCenter = false,
-                topLeft = rect.topLeft,
-                size = rect.size,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-            )
-            // Threshold tick
-            val thrFrac = threshold.toFloat() / maxScore.toFloat()
-            val thrAngle = Math.PI * (1.0 + thrFrac)
-            val rx = rect.center.x + (rect.width / 2f) * cos(thrAngle).toFloat()
-            val ry = rect.center.y + (rect.height / 2f) * sin(thrAngle).toFloat()
-            val rxIn = rect.center.x + (rect.width / 2f - strokeWidth) * cos(thrAngle).toFloat()
-            val ryIn = rect.center.y + (rect.height / 2f - strokeWidth) * sin(thrAngle).toFloat()
-            drawLine(thrCol, Offset(rx, ry), Offset(rxIn, ryIn), strokeWidth = 3.dp.toPx())
+            Spacer(modifier = Modifier.height(24.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.1f))
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "${state.phase.name}-Test",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    letterSpacing = 2.sp
+                )
+            }
         }
 
+        // 4. Огромные баллы по центру
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(bottom = 12.dp)
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = displayInt.toString(),
-                fontSize = (64 * numberPulse.value).sp,
-                fontWeight = FontWeight.Bold,
-                color = onSurf
+                text = "Вопрос ${state.currentQuestion} из ${state.totalQuestions}",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Градиентный счетчик, меняющий цвет от красного к зеленому в зависимости от прогресса
+            val progressFrac = (state.totalPoints.toFloat() / state.threshold.toFloat()).coerceIn(0f, 1f)
+            val scoreColor1 = lerpColor(Color(0xFFFF5252), Color(0xFF69F0AE), progressFrac)
+            val scoreColor2 = lerpColor(Color(0xFFD32F2F), Color(0xFF00C853), progressFrac)
+
+            AnimatedContent(
+                targetState = state.totalPoints,
+                transitionSpec = {
+                    (scaleIn(tween(500, easing = OvershootInterpolator)) + fadeIn(tween(500))) togetherWith fadeOut(tween(300))
+                }, label = "scoreAnim"
+            ) { score ->
+                Text(
+                    text = score.toString(),
+                    fontSize = 140.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    style = androidx.compose.ui.text.TextStyle(
+                        brush = Brush.verticalGradient(listOf(scoreColor1, scoreColor2))
+                    )
+                )
+            }
+            
+            // Всплывающая оценка (например +7)
+            AnimatedVisibility(
+                visible = state.lastPoints != null,
+                enter = fadeIn() + slideInVertically { it / 2 },
+                exit = fadeOut()
+            ) {
+                Text(
+                    text = "+${state.lastPoints}",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+            }
+        }
+
+        // 5. Общее количество (Цель) внизу слева
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(bottom = 100.dp, start = 24.dp)
+        ) {
+            Text(
+                text = "Цель",
+                fontSize = 12.sp,
+                color = Color.Gray
             )
             Text(
-                text = "из $maxScore баллов",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "${state.threshold} баллов",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
         }
 
-        Row(
+        // 6. Статус-бар в самом низу
+        CurrentFunctionBar(
+            status = fnStatus,
             modifier = Modifier
-                .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(horizontal = 20.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("0",  fontSize = 11.sp, color = tickCol, fontWeight = FontWeight.Medium)
-            Text("$maxScore", fontSize = 11.sp, color = tickCol, fontWeight = FontWeight.Medium)
-        }
-    }
-}
-
-@Composable
-private fun QuestionsProgress(answered: Int, total: Int) {
-    val frac by animateFloatAsState(
-        targetValue = (answered.toFloat() / total).coerceIn(0f, 1f),
-        animationSpec = tween(600, easing = FastOutSlowInEasing),
-        label = "qProgress"
-    )
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                "Вопрос ${min(answered + 1, total)} из $total",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                "$answered / $total",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Spacer(Modifier.height(6.dp))
-        LinearProgressIndicator(
-            progress = { frac },
-            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            strokeCap = StrokeCap.Round,
-            gapSize = 0.dp,
-            drawStopIndicator = {}
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 16.dp)
         )
     }
 }
 
+// ════════════════════════════════════════════════════════════
+//  GRAY AUDIO VISUALIZER
+// ════════════════════════════════════════════════════════════
 @Composable
-private fun LastAwardCard(points: Int?, feedback: String?, questionIndex: Int) {
-    AnimatedVisibility(
-        visible = points != null,
-        enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 2 },
-        exit = fadeOut(tween(300)) + slideOutVertically(tween(300)) { it / 2 }
-    ) {
-        if (points != null) {
-            // Градация цветов от 1 (Красный) до 7 (Глубокий зеленый)
-            val accent = when (points) {
-                7 -> Color(0xFF2E7D32) // Тёмно-зелёный (Идеально)
-                6 -> Color(0xFF43A047) // Зелёный (Отлично, но мелкие помарки)
-                5 -> Color(0xFF7CB342) // Светло-зелёный (Верно, но неполно)
-                4 -> Color(0xFFFDD835) // Желтый (Неверно на немецком)
-                3 -> Color(0xFFFB8C00) // Оранжевый (Верно, но на русском)
-                2 -> Color(0xFFF4511E) // Тёмно-оранжевый (Сдался на немецком)
-                1 -> Color(0xFFE53935) // Красный (Сдался на русском)
-                else -> Color(0xFFE53935)
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(2.dp, RoundedCornerShape(14.dp))
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(accent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "+$points",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-                Spacer(Modifier.size(12.dp))
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "Вопрос $questionIndex оценён",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = feedback ?: "Оценено ИИ",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 16.sp
-                    )
+fun GrayAudioVisualizerScene(
+    modifier: Modifier = Modifier,
+    playbackSync: Flow<ByteArray>
+) {
+    var rms by remember { mutableFloatStateOf(0f) }
+    var lastDecayNanos by remember { mutableLongStateOf(0L) }
+
+    val animatedRms by animateFloatAsState(
+        targetValue = rms.coerceIn(0f, 1f),
+        animationSpec = spring(dampingRatio = 0.75f, stiffness = 180f),
+        label = "rmsAnim"
+    )
+
+    LaunchedEffect(playbackSync) {
+        playbackSync.collect { pcm ->
+            rms = computeRms16(pcm).coerceIn(0f, 1f)
+            lastDecayNanos = System.nanoTime()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        var prevFrame = System.nanoTime()
+        while (true) {
+            withFrameNanos { now ->
+                val dt = (now - prevFrame).coerceAtLeast(0L) / 1_000_000_000f
+                prevFrame = now
+                val silenceNanos = now - lastDecayNanos
+                if (silenceNanos > 120_000_000L) {
+                    val decay = Math.pow(0.02, dt.toDouble()).toFloat()
+                    rms = max(0f, rms * decay)
                 }
             }
         }
     }
+
+    // Вращение колец
+    var rotation by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var prev = System.nanoTime()
+        while (true) {
+            withFrameNanos { now ->
+                val dt = (now - prev) / 1_000_000_000f
+                prev = now
+                val speed = 20f + animatedRms * 100f
+                rotation = (rotation + speed * dt) % 360f
+            }
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        val baseR = min(w, h) / 2f
+        val pulse = 0.3f + animatedRms * 0.7f
+
+        val rings = 6
+        for (i in 0 until rings) {
+            val t = i.toFloat() / rings
+            // Цвет - оттенки серого, меняющие прозрачность
+            val color = Color.White.copy(alpha = 0.05f + (1f - t) * 0.15f)
+            val r = baseR * (0.22f + t * 0.78f) * pulse
+            drawCircle(
+                color = color,
+                radius = r,
+                center = Offset(cx, cy),
+                style = Stroke(width = (4f + (1f - t) * 10f) * (0.6f + pulse * 0.8f))
+            )
+        }
+        
+        // Центральное свечение (мягкий белый/серый)
+        val glowBrush = Brush.radialGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.1f + animatedRms * 0.3f),
+                Color.Transparent
+            ),
+            center = Offset(cx, cy),
+            radius = baseR * (0.4f + pulse * 0.6f)
+        )
+        drawCircle(brush = glowBrush, radius = baseR * pulse, center = Offset(cx, cy))
+    }
 }
 
+private fun computeRms16(pcm: ByteArray): Float {
+    if (pcm.size < 2) return 0f
+    val n = pcm.size / 2
+    var sum = 0.0
+    var i = 0
+    while (i + 1 < pcm.size) {
+        val lo = pcm[i].toInt() and 0xFF
+        val hi = pcm[i + 1].toInt()
+        val sample = (hi shl 8) or lo
+        val s = if (sample >= 0x8000) sample - 0x10000 else sample
+        sum += (s * s).toDouble()
+        i += 2
+    }
+    val rms = sqrt(sum / n) / 32768.0
+    return (rms * 2.8).toFloat().coerceIn(0f, 1f)
+}
+
+// Плавный переход цвета
+private fun lerpColor(start: Color, stop: Color, fraction: Float): Color {
+    return Color(
+        red = start.red + fraction * (stop.red - start.red),
+        green = start.green + fraction * (stop.green - start.green),
+        blue = start.blue + fraction * (stop.blue - start.blue),
+        alpha = start.alpha + fraction * (stop.alpha - start.alpha)
+    )
+}
+
+private val OvershootInterpolator = androidx.compose.animation.core.Easing { t ->
+    val tension = 2.0f
+    val t1 = t - 1.0f
+    t1 * t1 * ((tension + 1) * t1 + tension) + 1.0f
+}
