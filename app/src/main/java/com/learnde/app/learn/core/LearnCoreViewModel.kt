@@ -499,6 +499,10 @@ class LearnCoreViewModel @Inject constructor(
                             lastOutputTs = now
                             appendOrAppendToLastModel(event.text)
                         }
+                        // Patch 2: Vocabulary Enforcer — анализируем речь Gemini
+                        if (activeSession?.id == "a1_situation") {
+                            vocabularyEnforcer.analyze(event.text)
+                        }
                     }
 
                     is GeminiEvent.ModelText -> {
