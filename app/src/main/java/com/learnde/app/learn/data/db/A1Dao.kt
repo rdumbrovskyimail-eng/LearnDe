@@ -270,14 +270,50 @@ interface A1SessionDao {
     @Insert
     suspend fun insert(log: A1SessionLogEntity): Long
 
+    @androidx.room.Update
+    suspend fun update(log: A1SessionLogEntity)
+
+    @Query("SELECT * FROM a1_session_logs WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): A1SessionLogEntity?
+
     @Query("SELECT * FROM a1_session_logs ORDER BY startedAt DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 50): List<A1SessionLogEntity>
+
+    /** Реактивный список всех сессий для History-экрана. */
+    @Query("SELECT * FROM a1_session_logs ORDER BY startedAt DESC")
+    fun observeAll(): Flow<List<A1SessionLogEntity>>
+
+    /** Только последние N — для мини-виджета на главном. */
+    @Query("SELECT * FROM a1_session_logs ORDER BY startedAt DESC LIMIT :limit")
+    fun observeRecent(limit: Int = 3): Flow<List<A1SessionLogEntity>>
+
+    /** Только incomplete — для "продолжи урок". */
+    @Query("SELECT * FROM a1_session_logs WHERE isComplete = 0 ORDER BY startedAt DESC")
+    fun observeIncomplete(): Flow<List<A1SessionLogEntity>>
+
+    /** Сессии по конкретному кластеру — для "повтори этот кластер". */
+    @Query("SELECT * FROM a1_session_logs WHERE clusterId = :clusterId ORDER BY startedAt DESC")
+    suspend fun getByCluster(clusterId: String): List<A1SessionLogEntity>
 
     @Query("SELECT COUNT(*) FROM a1_session_logs")
     fun observeTotal(): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM a1_session_logs WHERE startedAt >= :since")
     suspend fun getCountSince(since: Long): Int
+
+    /** Средняя оценка за последние N сессий — для графика прогресса. */
+    @Query("""
+        SELECT AVG(avgQuality) FROM (
+            SELECT avgQuality FROM a1_session_logs
+            WHERE isComplete = 1
+            ORDER BY startedAt DESC
+            LIMIT :limit
+        )
+    """)
+    suspend fun getAvgQualityRecent(limit: Int = 10): Float?
+
+    @Query("DELETE FROM a1_session_logs WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }
 
 // ════════════════════════════════════════════════════
