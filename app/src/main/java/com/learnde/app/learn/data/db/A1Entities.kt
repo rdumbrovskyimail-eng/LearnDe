@@ -186,9 +186,12 @@ data class GrammarRuleA1Entity(
 )
 
 /**
- * Лог одной сессии обучения.
- * Одна запись = одна сессия = один пройденный кластер.
- * Нужно для: истории, SRS, анализа где ученик чаще всего ошибается.
+ * Лог одной сессии обучения. Расширен в Patch 2.5:
+ *   - isComplete — дошла ли до finish_session
+ *   - phaseReached — последняя достигнутая фаза
+ *   - errorDiagnosesJson — агрегат диагнозов Selinker (map lemma→diagnosis)
+ *   - avgQuality — средняя quality по всем evaluate вызовам
+ *   - durationMs — длительность сессии (endedAt - startedAt)
  */
 @Entity(tableName = "a1_session_logs")
 data class A1SessionLogEntity(
@@ -197,24 +200,40 @@ data class A1SessionLogEntity(
     val startedAt: Long,
     val endedAt: Long,
 
-    /** JSON-массив лемм, которые Gemini целенаправленно проверял. */
     val lemmasTargetedJson: String,
-
-    /** JSON-массив лемм, которые ученик успешно произвёл. */
     val lemmasProducedJson: String,
-
-    /** JSON-массив лемм, на которых ученик ошибся. */
     val lemmasFailedJson: String,
 
-    /** Общая оценка сессии 1-7 (по нашей 7-балльной шкале). */
+    /** 1-7. Для incomplete-сессий рассчитан автоматически по производительности. */
     val overallQuality: Int,
 
-    /** Короткая сводка фидбека от Gemini на русском. */
     val feedbackText: String,
-
-    /** ID грамматического правила, которое было представлено в этой сессии (если было). */
     val grammarRuleIntroduced: String?,
-)
+
+    // ─── Patch 2.5 fields ───
+
+    /** true — Gemini вызвал finish_session. false — сессия прервана (Stop/crash). */
+    val isComplete: Boolean = true,
+
+    /** Последняя фаза на момент завершения (для incomplete). */
+    val phaseReached: String = "COOL_DOWN",
+
+    /**
+     * JSON-мапа {lemma -> {source, depth, category, specifics}} —
+     * агрегат всех диагнозов ошибок за сессию.
+     * Для аналитики и подсказок в History-экране.
+     */
+    val errorDiagnosesJson: String = "{}",
+
+    /** Средняя оценка качества по всем evaluate вызовам. 0f если вызовов не было. */
+    val avgQuality: Float = 0f,
+
+    /** Сколько было вызовов evaluate_and_update_lemma — индикатор активности. */
+    val evaluateCallsCount: Int = 0,
+) {
+    val durationMs: Long get() = (endedAt - startedAt).coerceAtLeast(0L)
+    val durationMinutes: Int get() = (durationMs / 60_000L).toInt()
+}
 
 /**
  * Хранилище общего прогресса A1.
