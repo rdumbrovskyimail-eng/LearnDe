@@ -47,6 +47,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
@@ -97,6 +98,7 @@ import kotlin.math.min
 fun A1LearningScreen(
     onBack: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenDebugLogs: () -> Unit,
     learnCoreViewModel: LearnCoreViewModel,
     vm: A1LearningViewModel = hiltViewModel(),
 ) {
@@ -162,6 +164,13 @@ fun A1LearningScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenDebugLogs) {
+                        Icon(
+                            Icons.Filled.BugReport,
+                            contentDescription = "Логи",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                     IconButton(onClick = onOpenHistory) {
                         Icon(
                             Icons.Filled.History,
