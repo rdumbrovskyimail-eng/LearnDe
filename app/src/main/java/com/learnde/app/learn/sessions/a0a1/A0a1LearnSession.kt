@@ -18,7 +18,7 @@ abstract class BaseLevelSession(
     private val logger: AppLogger
 ) : LearnSession {
     override val functionDeclarations: List<FunctionDeclarationConfig> = A0a1TestRegistry.ALL_DECLARATIONS
-    override val initialUserMessage: String = "[СИСТЕМА]: Ученик готов. Поздоровайся и задай первый вопрос."
+    override val initialUserMessage: String = "[СИСТЕМА]: Ученик готов. Поздоровайся с ним, ИСПОЛЬЗУЯ ЕГО ИМЯ (оно есть в твоих инструкциях), и задай первый вопрос."
 
     override suspend fun onEnter() {
         logger.d("▶ Session onEnter: $id")
