@@ -98,6 +98,7 @@ class LearnCoreViewModel @Inject constructor(
     private val pendingToolCalls = ConcurrentHashMap.newKeySet<String>()
     private val startStopMutex = Mutex()
     private var micJob: Job? = null
+    private var silenceTimerJob: Job? = null
 
     // Dedup для транскрипта
     @Volatile private var lastInputTs: Long = 0L
@@ -462,6 +463,17 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.TurnComplete -> {
                         audioEngine.onTurnComplete()
                         _state.update { it.copy(isAiSpeaking = false) }
+
+                        // 👇 ДОБАВЛЕНО: Запускаем таймер молчания ученика
+                        if (_state.value.isMicActive) {
+                            silenceTimerJob?.cancel()
+                            silenceTimerJob = viewModelScope.launch {
+                                delay(6_000L) // Ждем 6 секунд
+                                // Если таймер не отменили, значит ученик молчит
+                                logger.d("Learn: Silence detected, prompting AI")
+                                liveClient.sendText("[СИСТЕМА]: Ученик молчит более 6 секунд. Подбодри его по-русски, дай подсказку или скажи правильный ответ и попроси повторить.")
+                            }
+                        }
                     }
 
                     is GeminiEvent.GenerationComplete -> {
@@ -469,6 +481,9 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.InputTranscript -> {
+                        // 👇 ДОБАВЛЕНО: Ученик начал говорить — отменяем таймер
+                        silenceTimerJob?.cancel()
+
                         val now = System.currentTimeMillis()
                         if (event.text != lastInputText || now - lastInputTs > 5_000) {
                             lastInputText = event.text
