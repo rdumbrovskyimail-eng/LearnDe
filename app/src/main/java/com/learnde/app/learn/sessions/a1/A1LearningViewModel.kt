@@ -70,6 +70,17 @@ class A1LearningViewModel @Inject constructor(
                 _effects.tryEmit(A1LearningEffect.RequestStopSession)
                 _state.update { it.copy(sessionActive = false) }
             }
+            is A1LearningIntent.DisputeEvaluation -> viewModelScope.launch {
+                session.disputeEvaluation(intent.lemma)
+                _effects.tryEmit(A1LearningEffect.ShowToast("Оценка исправлена!"))
+                // Обновляем UI, чтобы скрыть кнопку
+                _state.update { s ->
+                    val ev = s.lastEvaluation
+                    if (ev != null && ev.lemma == intent.lemma) {
+                        s.copy(lastEvaluation = ev.copy(wasCorrect = true, quality = 7))
+                    } else s
+                }
+            }
             is A1LearningIntent.DismissFinalDialog -> {
                 _state.update { it.copy(sessionFinished = false, finalQuality = null, finalFeedback = null) }
                 viewModelScope.launch { refresh() }
