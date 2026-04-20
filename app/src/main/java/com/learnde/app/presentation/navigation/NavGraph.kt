@@ -170,6 +170,14 @@ fun AppNavGraph(
                 )
             }
 
+            composable("learn/a1") { entry ->
+                val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
+                com.learnde.app.presentation.learn.A1LearningScreen(
+                    onBack = { navController.popBackStack() },
+                    learnCoreViewModel = learnCoreVm,
+                )
+            }
+
             composable("learn/study/{level}") { entry ->
                 val level = entry.arguments?.getString("level") ?: "A0"
                 com.learnde.app.presentation.learn.StudyScreen(
