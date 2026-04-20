@@ -1,0 +1,3699 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "total_clusters": 194,
+    "total_lemmas_covered": 824,
+    "total_lemmas_a1": 835,
+    "coverage_percent": 98.7,
+    "categories": {
+      "Grüße": 2,
+      "Grundlagen": 3,
+      "Zahlen": 4,
+      "Person": 7,
+      "Arbeit": 5,
+      "Sprache": 2,
+      "Familie": 7,
+      "Aktionen": 2,
+      "Essen": 11,
+      "Modalverben": 3,
+      "Zeit": 9,
+      "Wohnen": 7,
+      "Einkaufen": 8,
+      "Verkehr": 9,
+      "Gesundheit": 5,
+      "Umwelt": 3,
+      "Schule": 5,
+      "Freizeit": 9,
+      "Kommunikation": 10,
+      "Dienstleistungen": 5,
+      "Adjektive": 6,
+      "Ort": 5,
+      "Satzbau": 2,
+      "Menge": 1,
+      "Grammatik": 4,
+      "Alltag": 2,
+      "Soziales": 2,
+      "Wortschatz": 56
+    },
+    "difficulty_distribution": {
+      "1": 7,
+      "2": 57,
+      "3": 68,
+      "4": 62
+    }
+  },
+  "clusters": [
+    {
+      "id": "c001_greeting_basic",
+      "title_de": "Grüße und Verabschiedung",
+      "title_ru": "Приветствия и прощания",
+      "lemmas": [
+        "Tag",
+        "Morgen",
+        "Abend",
+        "tschüss",
+        "Wiedersehen",
+        "Wiederhören"
+      ],
+      "anchor_lemma": "Hallo",
+      "grammar_focus": "soziale_Formeln",
+      "scenario_hint": "Первая встреча с немцем утром/днём/вечером. Попрощаться.",
+      "category": "Grüße",
+      "difficulty": 1,
+      "prerequisites": []
+    },
+    {
+      "id": "c002_ich_du_sein",
+      "title_de": "Ich bin, du bist",
+      "title_ru": "Я есть, ты есть",
+      "lemmas": [
+        "ich",
+        "sein",
+        "heißen"
+      ],
+      "anchor_lemma": "sein",
+      "grammar_focus": "Verb-Konjugation sein (ich bin, du bist, er ist)",
+      "scenario_hint": "Знакомство: 'Ich bin Ruslan. Wer bist du? Wie heißt du?'",
+      "category": "Grundlagen",
+      "difficulty": 1,
+      "prerequisites": []
+    },
+    {
+      "id": "c003_danke_bitte",
+      "title_de": "Danke und Bitte",
+      "title_ru": "Спасибо и пожалуйста",
+      "lemmas": [
+        "danke",
+        "bitte",
+        "Entschuldigung"
+      ],
+      "anchor_lemma": "danke",
+      "grammar_focus": "Höflichkeitsformeln",
+      "scenario_hint": "В магазине: взять хлеб, сказать спасибо, извиниться что толкнул.",
+      "category": "Grüße",
+      "difficulty": 1,
+      "prerequisites": []
+    },
+    {
+      "id": "c004_ja_nein",
+      "title_de": "Ja, Nein, Doch",
+      "title_ru": "Да, нет, нет-же",
+      "lemmas": [
+        "ja",
+        "nein",
+        "nicht"
+      ],
+      "anchor_lemma": "ja",
+      "grammar_focus": "Negation einfach (nicht)",
+      "scenario_hint": "Кто-то спрашивает 'Bist du müde?' — ответить да/нет/наоборот.",
+      "category": "Grundlagen",
+      "difficulty": 1,
+      "prerequisites": []
+    },
+    {
+      "id": "c005_numbers_1_10",
+      "title_de": "Zahlen 1-10",
+      "title_ru": "Числа 1-10",
+      "lemmas": [
+        "eins",
+        "zwei",
+        "drei",
+        "vier",
+        "fünf",
+        "sechs",
+        "sieben",
+        "acht",
+        "neun",
+        "zehn"
+      ],
+      "anchor_lemma": "eins",
+      "grammar_focus": "Kardinalzahlen",
+      "scenario_hint": "Посчитать яблоки в корзине от 1 до 10.",
+      "category": "Zahlen",
+      "difficulty": 1,
+      "prerequisites": []
+    },
+    {
+      "id": "c006_numbers_11_20",
+      "title_de": "Zahlen 11-20",
+      "title_ru": "Числа 11-20",
+      "lemmas": [
+        "elf",
+        "zwölf",
+        "dreizehn",
+        "vierzehn",
+        "fünfzehn",
+        "sechzehn",
+        "siebzehn",
+        "achtzehn",
+        "neunzehn",
+        "zwanzig"
+      ],
+      "anchor_lemma": "zwanzig",
+      "grammar_focus": "Kardinalzahlen",
+      "scenario_hint": "Посчитать от 10 до 20, назвать возраст друзей (14, 17, 19 лет).",
+      "category": "Zahlen",
+      "difficulty": 1,
+      "prerequisites": [
+        "c005_numbers_1_10"
+      ]
+    },
+    {
+      "id": "c007_numbers_tens",
+      "title_de": "Zehnerzahlen",
+      "title_ru": "Десятки",
+      "lemmas": [
+        "dreißig",
+        "vierzig",
+        "fünfzig",
+        "sechzig",
+        "siebzig",
+        "achtzig",
+        "neunzig",
+        "hundert",
+        "tausend",
+        "Million"
+      ],
+      "anchor_lemma": "hundert",
+      "grammar_focus": "Kardinalzahlen höher",
+      "scenario_hint": "Назвать цены в магазине (30€, 45€, 100€).",
+      "category": "Zahlen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c006_numbers_11_20"
+      ]
+    },
+    {
+      "id": "c008_numbers_ordinal",
+      "title_de": "Ordinalzahlen",
+      "title_ru": "Порядковые числительные",
+      "lemmas": [
+        "erste",
+        "zweite"
+      ],
+      "anchor_lemma": "erste",
+      "grammar_focus": "Ordinalzahlen",
+      "scenario_hint": "Кто первый в очереди? Это мой первый день в Германии.",
+      "category": "Zahlen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c005_numbers_1_10"
+      ]
+    },
+    {
+      "id": "c010_wer_bist_du",
+      "title_de": "Wer bist du?",
+      "title_ru": "Кто ты?",
+      "lemmas": [
+        "wer",
+        "wie",
+        "was",
+        "Name",
+        "Vorname",
+        "Familienname"
+      ],
+      "anchor_lemma": "Name",
+      "grammar_focus": "W-Fragen",
+      "scenario_hint": "Знакомство в языковой школе: спросить имя, фамилию, записать.",
+      "category": "Person",
+      "difficulty": 1,
+      "prerequisites": [
+        "c002_ich_du_sein"
+      ]
+    },
+    {
+      "id": "c011_woher_kommst_du",
+      "title_de": "Woher kommst du?",
+      "title_ru": "Откуда ты?",
+      "lemmas": [
+        "woher",
+        "kommen",
+        "aus",
+        "Land",
+        "Heimat"
+      ],
+      "anchor_lemma": "kommen",
+      "grammar_focus": "Präposition 'aus' + Ländername",
+      "scenario_hint": "Международная вечеринка — узнать кто откуда приехал.",
+      "category": "Person",
+      "difficulty": 2,
+      "prerequisites": [
+        "c010_wer_bist_du"
+      ]
+    },
+    {
+      "id": "c012_wo_wohnst_du",
+      "title_de": "Wo wohnst du?",
+      "title_ru": "Где живёшь?",
+      "lemmas": [
+        "wo",
+        "wohnen",
+        "Stadt",
+        "Dorf",
+        "Straße"
+      ],
+      "anchor_lemma": "wohnen",
+      "grammar_focus": "Präposition 'in' mit Städten",
+      "scenario_hint": "Куда доставить заказ — рассказать где живёшь.",
+      "category": "Person",
+      "difficulty": 2,
+      "prerequisites": [
+        "c011_woher_kommst_du"
+      ]
+    },
+    {
+      "id": "c013_alter",
+      "title_de": "Wie alt bist du?",
+      "title_ru": "Сколько тебе лет?",
+      "lemmas": [
+        "alt",
+        "jung",
+        "Jahr",
+        "Geburtstag",
+        "Geburtsort",
+        "Alter"
+      ],
+      "anchor_lemma": "alt",
+      "grammar_focus": "sein + Alter",
+      "scenario_hint": "Заполнить форму в банке — возраст, дата рождения.",
+      "category": "Person",
+      "difficulty": 2,
+      "prerequisites": [
+        "c007_numbers_tens"
+      ]
+    },
+    {
+      "id": "c014_beruf_basic",
+      "title_de": "Was bist du von Beruf?",
+      "title_ru": "Кто ты по профессии?",
+      "lemmas": [
+        "Beruf",
+        "arbeiten",
+        "Arbeit",
+        "Arbeitsplatz",
+        "Job"
+      ],
+      "anchor_lemma": "Beruf",
+      "grammar_focus": "arbeiten als + Nominativ",
+      "scenario_hint": "Small-talk на работе: чем занимаешься.",
+      "category": "Arbeit",
+      "difficulty": 2,
+      "prerequisites": [
+        "c002_ich_du_sein"
+      ]
+    },
+    {
+      "id": "c015_sprache",
+      "title_de": "Welche Sprache sprichst du?",
+      "title_ru": "Какой язык знаешь?",
+      "lemmas": [
+        "sprechen",
+        "verstehen",
+        "lernen"
+      ],
+      "anchor_lemma": "sprechen",
+      "grammar_focus": "Verb-Konjugation sprechen",
+      "scenario_hint": "С кем на каком языке говорить на работе.",
+      "category": "Sprache",
+      "difficulty": 2,
+      "prerequisites": [
+        "c011_woher_kommst_du"
+      ]
+    },
+    {
+      "id": "c016_buchstabieren",
+      "title_de": "Buchstabieren",
+      "title_ru": "Произнести по буквам",
+      "lemmas": [
+        "buchstabieren",
+        "schreiben",
+        "Buchstabe"
+      ],
+      "anchor_lemma": "buchstabieren",
+      "grammar_focus": "Alphabet",
+      "scenario_hint": "По телефону диктуешь фамилию — просят произнести по буквам.",
+      "category": "Sprache",
+      "difficulty": 2,
+      "prerequisites": [
+        "c010_wer_bist_du"
+      ]
+    },
+    {
+      "id": "c020_familie_kern",
+      "title_de": "Meine Familie",
+      "title_ru": "Моя семья",
+      "lemmas": [
+        "Familie",
+        "Mutter",
+        "Vater",
+        "Eltern",
+        "Kind"
+      ],
+      "anchor_lemma": "Familie",
+      "grammar_focus": "Possessivpronomen mein/meine",
+      "scenario_hint": "Показываешь фото семьи коллеге: 'Das ist meine Mutter...'",
+      "category": "Familie",
+      "difficulty": 2,
+      "prerequisites": [
+        "c002_ich_du_sein"
+      ]
+    },
+    {
+      "id": "c021_familie_geschwister",
+      "title_de": "Geschwister",
+      "title_ru": "Братья и сёстры",
+      "lemmas": [
+        "Bruder",
+        "Schwester",
+        "Geschwister"
+      ],
+      "anchor_lemma": "Bruder",
+      "grammar_focus": "haben + Akkusativ (einen/eine)",
+      "scenario_hint": "Коллега спрашивает есть ли у тебя братья/сёстры.",
+      "category": "Familie",
+      "difficulty": 2,
+      "prerequisites": [
+        "c020_familie_kern"
+      ]
+    },
+    {
+      "id": "c022_familie_grosseltern",
+      "title_de": "Großeltern",
+      "title_ru": "Бабушки и дедушки",
+      "lemmas": [
+        "Oma",
+        "Opa",
+        "Großmutter",
+        "Großvater"
+      ],
+      "anchor_lemma": "Oma",
+      "grammar_focus": "Possessivpronomen",
+      "scenario_hint": "Рассказать что бабушка живёт в другой стране.",
+      "category": "Familie",
+      "difficulty": 2,
+      "prerequisites": [
+        "c020_familie_kern"
+      ]
+    },
+    {
+      "id": "c023_familienstand",
+      "title_de": "Familienstand",
+      "title_ru": "Семейное положение",
+      "lemmas": [
+        "verheiratet",
+        "ledig",
+        "Mann",
+        "Frau",
+        "Freund",
+        "Freundin"
+      ],
+      "anchor_lemma": "verheiratet",
+      "grammar_focus": "sein + Prädikativ",
+      "scenario_hint": "Формуляр в иммиграционной службе: семейное положение.",
+      "category": "Familie",
+      "difficulty": 2,
+      "prerequisites": [
+        "c020_familie_kern"
+      ]
+    },
+    {
+      "id": "c024_leute",
+      "title_de": "Andere Menschen",
+      "title_ru": "Другие люди",
+      "lemmas": [
+        "Leute",
+        "Mensch",
+        "Herr",
+        "Junge",
+        "Mädchen",
+        "Baby",
+        "Erwachsene",
+        "Jugendliche"
+      ],
+      "anchor_lemma": "Leute",
+      "grammar_focus": "Plural-Formen",
+      "scenario_hint": "Описать кто в кафе: двое мужчин, три женщины, дети.",
+      "category": "Person",
+      "difficulty": 3,
+      "prerequisites": [
+        "c020_familie_kern"
+      ]
+    },
+    {
+      "id": "c030_verb_movement",
+      "title_de": "Gehen, kommen, fahren",
+      "title_ru": "Идти, приходить, ехать",
+      "lemmas": [
+        "gehen",
+        "kommen",
+        "fahren",
+        "laufen",
+        "fliegen"
+      ],
+      "anchor_lemma": "gehen",
+      "grammar_focus": "Verb-Konjugation Präsens",
+      "scenario_hint": "Как добрался до работы сегодня — пешком, на машине, самолётом.",
+      "category": "Aktionen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c002_ich_du_sein"
+      ]
+    },
+    {
+      "id": "c031_verb_daily",
+      "title_de": "Tägliche Aktionen",
+      "title_ru": "Повседневные действия",
+      "lemmas": [
+        "machen",
+        "tun",
+        "sehen",
+        "hören",
+        "lesen",
+        "schreiben"
+      ],
+      "anchor_lemma": "machen",
+      "grammar_focus": "Verb-Konjugation Präsens",
+      "scenario_hint": "Что ты делаешь вечером дома.",
+      "category": "Aktionen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c002_ich_du_sein"
+      ]
+    },
+    {
+      "id": "c032_verb_essen_trinken",
+      "title_de": "Essen und trinken",
+      "title_ru": "Есть и пить",
+      "lemmas": [
+        "essen",
+        "trinken",
+        "kochen",
+        "frühstücken"
+      ],
+      "anchor_lemma": "essen",
+      "grammar_focus": "Verb-Konjugation (essen → ich esse, du isst)",
+      "scenario_hint": "Завтрак с семьёй — что кто ест/пьёт.",
+      "category": "Essen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c030_verb_movement"
+      ]
+    },
+    {
+      "id": "c033_verb_haben",
+      "title_de": "Haben",
+      "title_ru": "Иметь",
+      "lemmas": [
+        "haben",
+        "bekommen",
+        "geben",
+        "nehmen"
+      ],
+      "anchor_lemma": "haben",
+      "grammar_focus": "haben + Akkusativ",
+      "scenario_hint": "На вопрос 'У тебя есть ручка?' — ответить, дать/взять.",
+      "category": "Grundlagen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c002_ich_du_sein"
+      ]
+    },
+    {
+      "id": "c034_modalverb_1",
+      "title_de": "Können, müssen",
+      "title_ru": "Могу, должен",
+      "lemmas": [
+        "können",
+        "müssen"
+      ],
+      "anchor_lemma": "können",
+      "grammar_focus": "Modalverben Satzbau",
+      "scenario_hint": "В работе: что я могу делать, что должен сегодня сделать.",
+      "category": "Modalverben",
+      "difficulty": 3,
+      "prerequisites": [
+        "c030_verb_movement"
+      ]
+    },
+    {
+      "id": "c035_modalverb_2",
+      "title_de": "Wollen, möchten",
+      "title_ru": "Хочу, хотел бы",
+      "lemmas": [
+        "wollen",
+        "mögen"
+      ],
+      "anchor_lemma": "möchten",
+      "grammar_focus": "Modalverben (höflich)",
+      "scenario_hint": "В ресторане: 'Ich möchte einen Kaffee'.",
+      "category": "Modalverben",
+      "difficulty": 3,
+      "prerequisites": [
+        "c034_modalverb_1"
+      ]
+    },
+    {
+      "id": "c036_modalverb_3",
+      "title_de": "Dürfen, sollen",
+      "title_ru": "Можно, должно",
+      "lemmas": [
+        "dürfen",
+        "sollen"
+      ],
+      "anchor_lemma": "dürfen",
+      "grammar_focus": "Modalverben Erlaubnis/Pflicht",
+      "scenario_hint": "'Darf ich hier rauchen?' — 'Nein, das ist verboten.'",
+      "category": "Modalverben",
+      "difficulty": 4,
+      "prerequisites": [
+        "c035_modalverb_2"
+      ]
+    },
+    {
+      "id": "c040_uhr",
+      "title_de": "Uhrzeit",
+      "title_ru": "Время",
+      "lemmas": [
+        "Uhr",
+        "Stunde",
+        "Minute",
+        "Sekunde",
+        "spät"
+      ],
+      "anchor_lemma": "Uhr",
+      "grammar_focus": "Uhrzeit lesen (um + Uhrzeit)",
+      "scenario_hint": "Коллега спрашивает: 'Wie spät ist es?' / 'Wann kommst du?'",
+      "category": "Zeit",
+      "difficulty": 2,
+      "prerequisites": [
+        "c007_numbers_tens"
+      ]
+    },
+    {
+      "id": "c041_wochentage",
+      "title_de": "Wochentage",
+      "title_ru": "Дни недели",
+      "lemmas": [
+        "Montag",
+        "Dienstag",
+        "Mittwoch",
+        "Donnerstag",
+        "Freitag",
+        "Samstag",
+        "Sonntag",
+        "Wochentag",
+        "Woche",
+        "Wochenende"
+      ],
+      "anchor_lemma": "Montag",
+      "grammar_focus": "Präposition 'am' + Tag",
+      "scenario_hint": "План на неделю — встречи в понедельник, спорт в среду.",
+      "category": "Zeit",
+      "difficulty": 2,
+      "prerequisites": [
+        "c040_uhr"
+      ]
+    },
+    {
+      "id": "c042_monate",
+      "title_de": "Monate",
+      "title_ru": "Месяцы",
+      "lemmas": [
+        "Januar",
+        "Februar",
+        "März",
+        "April",
+        "Mai",
+        "Juni",
+        "Juli",
+        "August",
+        "September",
+        "Oktober",
+        "November",
+        "Dezember"
+      ],
+      "anchor_lemma": "Januar",
+      "grammar_focus": "Präposition 'im' + Monat",
+      "scenario_hint": "Когда у кого день рождения: mein Geburtstag ist im Mai.",
+      "category": "Zeit",
+      "difficulty": 2,
+      "prerequisites": [
+        "c041_wochentage"
+      ]
+    },
+    {
+      "id": "c043_jahreszeit",
+      "title_de": "Jahreszeiten",
+      "title_ru": "Времена года",
+      "lemmas": [
+        "Sommer",
+        "Winter",
+        "Frühling",
+        "Herbst",
+        "Jahr"
+      ],
+      "anchor_lemma": "Sommer",
+      "grammar_focus": "Präposition 'im' + Jahreszeit",
+      "scenario_hint": "Какое время года любишь и что тогда делаешь.",
+      "category": "Zeit",
+      "difficulty": 2,
+      "prerequisites": [
+        "c042_monate"
+      ]
+    },
+    {
+      "id": "c044_zeit_adverbien",
+      "title_de": "Heute, gestern, morgen",
+      "title_ru": "Сегодня, вчера, завтра",
+      "lemmas": [
+        "heute",
+        "gestern",
+        "morgen",
+        "jetzt",
+        "später",
+        "bald",
+        "immer",
+        "nie",
+        "oft"
+      ],
+      "anchor_lemma": "heute",
+      "grammar_focus": "Zeitadverbien",
+      "scenario_hint": "Сегодня не работаю, вчера устал, завтра в кино.",
+      "category": "Zeit",
+      "difficulty": 2,
+      "prerequisites": [
+        "c041_wochentage"
+      ]
+    },
+    {
+      "id": "c045_zeit_periode",
+      "title_de": "Tageszeiten",
+      "title_ru": "Части дня",
+      "lemmas": [
+        "Morgen",
+        "Mittag",
+        "Nachmittag",
+        "Abend"
+      ],
+      "anchor_lemma": "Morgen",
+      "grammar_focus": "Präposition 'am' + Tageszeit",
+      "scenario_hint": "Утром кофе, в обед встреча, вечером семья.",
+      "category": "Zeit",
+      "difficulty": 2,
+      "prerequisites": [
+        "c044_zeit_adverbien"
+      ]
+    },
+    {
+      "id": "c046_datum",
+      "title_de": "Datum",
+      "title_ru": "Дата",
+      "lemmas": [
+        "Datum",
+        "am",
+        "erste",
+        "zweite"
+      ],
+      "anchor_lemma": "Datum",
+      "grammar_focus": "Ordinalzahlen für Datum (am 15. Mai)",
+      "scenario_hint": "Какое сегодня число? День рождения когда?",
+      "category": "Zeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c042_monate",
+        "c008_numbers_ordinal"
+      ]
+    },
+    {
+      "id": "c050_wohnen_basic",
+      "title_de": "Haus und Wohnung",
+      "title_ru": "Дом и квартира",
+      "lemmas": [
+        "Haus",
+        "Wohnung",
+        "Zimmer",
+        "Apartment",
+        "Appartement"
+      ],
+      "anchor_lemma": "Wohnung",
+      "grammar_focus": "Artikel + Nomen (der/die/das)",
+      "scenario_hint": "Описать свою новую квартиру другу.",
+      "category": "Wohnen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c012_wo_wohnst_du"
+      ]
+    },
+    {
+      "id": "c051_zimmer",
+      "title_de": "Räume im Haus",
+      "title_ru": "Комнаты в доме",
+      "lemmas": [
+        "Küche",
+        "Bad",
+        "Toilette",
+        "Balkon",
+        "Garten"
+      ],
+      "anchor_lemma": "Küche",
+      "grammar_focus": "Präposition 'in dem' → 'im'",
+      "scenario_hint": "Где что в квартире: в кухне холодильник, в ванной...",
+      "category": "Wohnen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c050_wohnen_basic"
+      ]
+    },
+    {
+      "id": "c052_moebel",
+      "title_de": "Möbel",
+      "title_ru": "Мебель",
+      "lemmas": [
+        "Tisch",
+        "Bett",
+        "Sofa",
+        "Schrank",
+        "Möbel"
+      ],
+      "anchor_lemma": "Tisch",
+      "grammar_focus": "Akkusativ im Kontext",
+      "scenario_hint": "Покупка мебели в IKEA — что тебе нужно.",
+      "category": "Wohnen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c051_zimmer"
+      ]
+    },
+    {
+      "id": "c053_technik_haus",
+      "title_de": "Technik im Haus",
+      "title_ru": "Техника в доме",
+      "lemmas": [
+        "Licht",
+        "Wasser"
+      ],
+      "anchor_lemma": "Fenster",
+      "grammar_focus": "einfaches Vokabular",
+      "scenario_hint": "Сломалось отопление — звонишь хозяину, объясняешь.",
+      "category": "Wohnen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c051_zimmer"
+      ]
+    },
+    {
+      "id": "c054_miete",
+      "title_de": "Miete und Vertrag",
+      "title_ru": "Аренда и договор",
+      "lemmas": [
+        "Miete",
+        "mieten",
+        "umziehen"
+      ],
+      "anchor_lemma": "Miete",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Обсуждение новой квартиры с хозяином.",
+      "category": "Wohnen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c050_wohnen_basic"
+      ]
+    },
+    {
+      "id": "c060_fruehstueck",
+      "title_de": "Frühstück",
+      "title_ru": "Завтрак",
+      "lemmas": [
+        "Brot",
+        "Brötchen",
+        "Butter",
+        "Ei",
+        "Frühstück"
+      ],
+      "anchor_lemma": "Brot",
+      "grammar_focus": "Akkusativ mit 'einen/ein'",
+      "scenario_hint": "Завтрак в отеле: что ты берёшь.",
+      "category": "Essen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c032_verb_essen_trinken"
+      ]
+    },
+    {
+      "id": "c061_getraenke",
+      "title_de": "Getränke",
+      "title_ru": "Напитки",
+      "lemmas": [
+        "Kaffee",
+        "Tee",
+        "Wasser",
+        "Milch",
+        "Saft",
+        "Bier",
+        "Wein"
+      ],
+      "anchor_lemma": "Kaffee",
+      "grammar_focus": "Akkusativ",
+      "scenario_hint": "В кафе: заказать кофе/чай/сок.",
+      "category": "Essen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c060_fruehstueck"
+      ]
+    },
+    {
+      "id": "c062_obst_gemuese",
+      "title_de": "Obst und Gemüse",
+      "title_ru": "Фрукты и овощи",
+      "lemmas": [
+        "Apfel",
+        "Banane",
+        "Kartoffel",
+        "Tomate",
+        "Salat",
+        "Obst",
+        "Gemüse"
+      ],
+      "anchor_lemma": "Apfel",
+      "grammar_focus": "Plural-Formen",
+      "scenario_hint": "На рынке покупать овощи и фрукты.",
+      "category": "Essen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c061_getraenke"
+      ]
+    },
+    {
+      "id": "c063_fleisch_fisch",
+      "title_de": "Fleisch und Fisch",
+      "title_ru": "Мясо и рыба",
+      "lemmas": [
+        "Fleisch",
+        "Fisch",
+        "Hähnchen"
+      ],
+      "anchor_lemma": "Fleisch",
+      "grammar_focus": "bestimmte Artikel",
+      "scenario_hint": "В ресторане: выбрать между мясом и рыбой.",
+      "category": "Essen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c062_obst_gemuese"
+      ]
+    },
+    {
+      "id": "c064_essen_mahlzeit",
+      "title_de": "Mahlzeiten",
+      "title_ru": "Приёмы пищи",
+      "lemmas": [
+        "Essen",
+        "Reis"
+      ],
+      "anchor_lemma": "Mittagessen",
+      "grammar_focus": "temporale Präpositionen",
+      "scenario_hint": "Где и когда обедаешь на работе.",
+      "category": "Essen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c063_fleisch_fisch"
+      ]
+    },
+    {
+      "id": "c066_gewuerz",
+      "title_de": "Gewürze und Grundzutaten",
+      "title_ru": "Приправы",
+      "lemmas": [
+        "Salz",
+        "Öl"
+      ],
+      "anchor_lemma": "Salz",
+      "grammar_focus": "einfache Nomen",
+      "scenario_hint": "Готовишь еду — просишь соль, перец.",
+      "category": "Essen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c064_essen_mahlzeit"
+      ]
+    },
+    {
+      "id": "c067_restaurant",
+      "title_de": "Im Restaurant",
+      "title_ru": "В ресторане",
+      "lemmas": [
+        "Restaurant",
+        "Café",
+        "Speisekarte",
+        "bestellen",
+        "Rechnung",
+        "Tisch",
+        "Platz"
+      ],
+      "anchor_lemma": "Restaurant",
+      "grammar_focus": "möchten + Akkusativ",
+      "scenario_hint": "Вечер в ресторане с другом: заказ, оплата.",
+      "category": "Essen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c035_modalverb_2",
+        "c064_essen_mahlzeit"
+      ]
+    },
+    {
+      "id": "c068_geschmack",
+      "title_de": "Geschmack",
+      "title_ru": "Вкус",
+      "lemmas": [
+        "schmecken",
+        "Appetit",
+        "Hunger",
+        "Durst"
+      ],
+      "anchor_lemma": "lecker",
+      "grammar_focus": "Adjektive ohne Endung",
+      "scenario_hint": "Оценить еду в гостях: 'Sehr lecker!'",
+      "category": "Essen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c067_restaurant"
+      ]
+    },
+    {
+      "id": "c070_einkaufen_basic",
+      "title_de": "Einkaufen",
+      "title_ru": "Покупки",
+      "lemmas": [
+        "kaufen",
+        "Geschäft",
+        "Laden"
+      ],
+      "anchor_lemma": "kaufen",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Маршрут субботних покупок.",
+      "category": "Einkaufen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c033_verb_haben"
+      ]
+    },
+    {
+      "id": "c071_geld",
+      "title_de": "Geld",
+      "title_ru": "Деньги",
+      "lemmas": [
+        "Geld",
+        "Euro",
+        "Cent",
+        "bezahlen",
+        "zahlen",
+        "bar",
+        "Kreditkarte"
+      ],
+      "anchor_lemma": "Euro",
+      "grammar_focus": "mit + Dativ (mit Karte)",
+      "scenario_hint": "В магазине: наличными или картой.",
+      "category": "Einkaufen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c070_einkaufen_basic"
+      ]
+    },
+    {
+      "id": "c072_preis",
+      "title_de": "Preise",
+      "title_ru": "Цены",
+      "lemmas": [
+        "Preis",
+        "kosten",
+        "teuer",
+        "billig",
+        "günstig",
+        "Angebot"
+      ],
+      "anchor_lemma": "kosten",
+      "grammar_focus": "kosten + Akkusativ",
+      "scenario_hint": "'Was kostet das?' — обсуждение дорого/дёшево.",
+      "category": "Einkaufen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c071_geld"
+      ]
+    },
+    {
+      "id": "c073_kasse",
+      "title_de": "An der Kasse",
+      "title_ru": "На кассе",
+      "lemmas": [
+        "Kasse",
+        "Rechnung",
+        "Kunde",
+        "Verkäufer"
+      ],
+      "anchor_lemma": "Kasse",
+      "grammar_focus": "bestimmte Artikel",
+      "scenario_hint": "Оплатить покупки, получить чек.",
+      "category": "Einkaufen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c072_preis"
+      ]
+    },
+    {
+      "id": "c074_einkaufsliste",
+      "title_de": "Einkaufsliste",
+      "title_ru": "Список покупок",
+      "lemmas": [
+        "brauchen",
+        "suchen",
+        "finden",
+        "holen"
+      ],
+      "anchor_lemma": "brauchen",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Составить список покупок перед магазином.",
+      "category": "Einkaufen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c070_einkaufen_basic"
+      ]
+    },
+    {
+      "id": "c080_transport_mittel",
+      "title_de": "Verkehrsmittel",
+      "title_ru": "Транспорт",
+      "lemmas": [
+        "Auto",
+        "Bus",
+        "Zug",
+        "Straßenbahn",
+        "Fahrrad",
+        "Taxi",
+        "Flugzeug"
+      ],
+      "anchor_lemma": "Zug",
+      "grammar_focus": "mit + Dativ (mit dem Bus)",
+      "scenario_hint": "Как доехать до центра — на чём.",
+      "category": "Verkehr",
+      "difficulty": 2,
+      "prerequisites": [
+        "c030_verb_movement"
+      ]
+    },
+    {
+      "id": "c081_abfahrt_ankunft",
+      "title_de": "Abfahrt und Ankunft",
+      "title_ru": "Отправление и прибытие",
+      "lemmas": [
+        "abfahren",
+        "ankommen",
+        "Abfahrt",
+        "Ankunft",
+        "abfliegen",
+        "Abflug"
+      ],
+      "anchor_lemma": "abfahren",
+      "grammar_focus": "trennbare Verben",
+      "scenario_hint": "Когда поезд/самолёт уходит, когда прибывает.",
+      "category": "Verkehr",
+      "difficulty": 3,
+      "prerequisites": [
+        "c080_transport_mittel"
+      ]
+    },
+    {
+      "id": "c082_fahrkarte",
+      "title_de": "Fahrkarte kaufen",
+      "title_ru": "Купить билет",
+      "lemmas": [
+        "Fahrkarte",
+        "Ticket",
+        "Haltestelle",
+        "Bahnhof",
+        "Flughafen"
+      ],
+      "anchor_lemma": "Fahrkarte",
+      "grammar_focus": "Akkusativ",
+      "scenario_hint": "В кассе — билет до Берлина.",
+      "category": "Verkehr",
+      "difficulty": 3,
+      "prerequisites": [
+        "c081_abfahrt_ankunft"
+      ]
+    },
+    {
+      "id": "c083_weg_fragen",
+      "title_de": "Nach dem Weg fragen",
+      "title_ru": "Спросить дорогу",
+      "lemmas": [
+        "links",
+        "rechts",
+        "geradeaus",
+        "zurück",
+        "vor"
+      ],
+      "anchor_lemma": "Weg",
+      "grammar_focus": "lokale Präpositionen",
+      "scenario_hint": "Прохожий: 'Wo ist der Bahnhof?'",
+      "category": "Verkehr",
+      "difficulty": 3,
+      "prerequisites": [
+        "c082_fahrkarte"
+      ]
+    },
+    {
+      "id": "c084_reise",
+      "title_de": "Reise",
+      "title_ru": "Путешествие",
+      "lemmas": [
+        "reisen",
+        "Reise",
+        "Urlaub",
+        "Koffer",
+        "Gepäck",
+        "Pass",
+        "Ausweis"
+      ],
+      "anchor_lemma": "Reise",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Собираем чемодан перед отпуском.",
+      "category": "Verkehr",
+      "difficulty": 3,
+      "prerequisites": [
+        "c080_transport_mittel"
+      ]
+    },
+    {
+      "id": "c085_hotel",
+      "title_de": "Hotel",
+      "title_ru": "Отель",
+      "lemmas": [
+        "Hotel",
+        "übernachten",
+        "Zimmer",
+        "Einzelzimmer",
+        "Doppelzimmer"
+      ],
+      "anchor_lemma": "Hotel",
+      "grammar_focus": "möchten + Infinitiv",
+      "scenario_hint": "Бронирование номера.",
+      "category": "Verkehr",
+      "difficulty": 3,
+      "prerequisites": [
+        "c084_reise"
+      ]
+    },
+    {
+      "id": "c090_koerper_oben",
+      "title_de": "Kopf und Gesicht",
+      "title_ru": "Голова и лицо",
+      "lemmas": [
+        "Kopf",
+        "Auge",
+        "Mund",
+        "Haar"
+      ],
+      "anchor_lemma": "Kopf",
+      "grammar_focus": "Körperteile mit Artikel",
+      "scenario_hint": "У врача: 'Mein Kopf tut weh'.",
+      "category": "Gesundheit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c002_ich_du_sein"
+      ]
+    },
+    {
+      "id": "c091_koerper_rumpf",
+      "title_de": "Arme, Hände, Beine",
+      "title_ru": "Руки, ноги",
+      "lemmas": [
+        "Arm",
+        "Hand",
+        "Bein",
+        "Fuß",
+        "Bauch"
+      ],
+      "anchor_lemma": "Hand",
+      "grammar_focus": "Körperteile",
+      "scenario_hint": "Упал, болит нога — описать врачу.",
+      "category": "Gesundheit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c090_koerper_oben"
+      ]
+    },
+    {
+      "id": "c092_gesundheit",
+      "title_de": "Krank oder gesund",
+      "title_ru": "Болен или здоров",
+      "lemmas": [
+        "krank",
+        "Fieber"
+      ],
+      "anchor_lemma": "krank",
+      "grammar_focus": "Verb 'tun' (weh tun)",
+      "scenario_hint": "Сегодня не смог прийти — заболел.",
+      "category": "Gesundheit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c091_koerper_rumpf"
+      ]
+    },
+    {
+      "id": "c093_arzt_apotheke",
+      "title_de": "Arzt und Apotheke",
+      "title_ru": "Врач и аптека",
+      "lemmas": [
+        "Arzt",
+        "Termin"
+      ],
+      "anchor_lemma": "Arzt",
+      "grammar_focus": "zum + Dativ (zum Arzt)",
+      "scenario_hint": "Запись к врачу по телефону.",
+      "category": "Gesundheit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c092_gesundheit"
+      ]
+    },
+    {
+      "id": "c100_wetter",
+      "title_de": "Wetter",
+      "title_ru": "Погода",
+      "lemmas": [
+        "Wetter",
+        "Sonne",
+        "Regen",
+        "regnen",
+        "Wind"
+      ],
+      "anchor_lemma": "Wetter",
+      "grammar_focus": "unpersönliches 'es regnet'",
+      "scenario_hint": "Small-talk о погоде.",
+      "category": "Umwelt",
+      "difficulty": 2,
+      "prerequisites": [
+        "c043_jahreszeit"
+      ]
+    },
+    {
+      "id": "c102_natur",
+      "title_de": "Natur",
+      "title_ru": "Природа",
+      "lemmas": [
+        "Baum",
+        "Blume",
+        "See",
+        "Meer"
+      ],
+      "anchor_lemma": "Baum",
+      "grammar_focus": "bestimmte Artikel",
+      "scenario_hint": "Рассказать о прогулке в парке.",
+      "category": "Umwelt",
+      "difficulty": 3,
+      "prerequisites": [
+        "c101_temperatur"
+      ]
+    },
+    {
+      "id": "c103_tiere",
+      "title_de": "Tiere",
+      "title_ru": "Животные",
+      "lemmas": [
+        "Hund",
+        "Fisch"
+      ],
+      "anchor_lemma": "Hund",
+      "grammar_focus": "bestimmte Artikel",
+      "scenario_hint": "У тебя есть собака? Как её зовут?",
+      "category": "Umwelt",
+      "difficulty": 2,
+      "prerequisites": [
+        "c102_natur"
+      ]
+    },
+    {
+      "id": "c110_arbeitstag",
+      "title_de": "Arbeitstag",
+      "title_ru": "Рабочий день",
+      "lemmas": [
+        "Chef",
+        "Kollege",
+        "Firma",
+        "Termin",
+        "Pause"
+      ],
+      "anchor_lemma": "Büro",
+      "grammar_focus": "bestimmte Artikel",
+      "scenario_hint": "Обычный рабочий день в офисе.",
+      "category": "Arbeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c014_beruf_basic"
+      ]
+    },
+    {
+      "id": "c111_arbeitslos",
+      "title_de": "Arbeit suchen",
+      "title_ru": "Поиск работы",
+      "lemmas": [
+        "arbeitslos",
+        "suchen",
+        "Praktikum"
+      ],
+      "anchor_lemma": "suchen",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Ищу работу — объяснить ситуацию.",
+      "category": "Arbeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c110_arbeitstag"
+      ]
+    },
+    {
+      "id": "c112_schule",
+      "title_de": "Schule",
+      "title_ru": "Школа",
+      "lemmas": [
+        "Schule",
+        "Klasse",
+        "Lehrer",
+        "Schüler"
+      ],
+      "anchor_lemma": "Schule",
+      "grammar_focus": "bestimmte Artikel",
+      "scenario_hint": "Как учился в школе, любимые предметы.",
+      "category": "Schule",
+      "difficulty": 3,
+      "prerequisites": [
+        "c002_ich_du_sein"
+      ]
+    },
+    {
+      "id": "c113_universitaet",
+      "title_de": "Universität",
+      "title_ru": "Университет",
+      "lemmas": [
+        "studieren",
+        "Student",
+        "Kurs",
+        "Prüfung",
+        "Test"
+      ],
+      "anchor_lemma": "studieren",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Что учил в университете.",
+      "category": "Schule",
+      "difficulty": 3,
+      "prerequisites": [
+        "c112_schule"
+      ]
+    },
+    {
+      "id": "c114_lernen",
+      "title_de": "Lernen",
+      "title_ru": "Учиться",
+      "lemmas": [
+        "lernen",
+        "wiederholen",
+        "Unterricht"
+      ],
+      "anchor_lemma": "lernen",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Как ты учишь немецкий.",
+      "category": "Schule",
+      "difficulty": 3,
+      "prerequisites": [
+        "c015_sprache"
+      ]
+    },
+    {
+      "id": "c115_schulmaterial",
+      "title_de": "Heft und Stift",
+      "title_ru": "Тетрадь и ручка",
+      "lemmas": [
+        "Buch",
+        "Bleistift",
+        "Papier"
+      ],
+      "anchor_lemma": "Buch",
+      "grammar_focus": "Artikel",
+      "scenario_hint": "Собираешь портфель в школу.",
+      "category": "Schule",
+      "difficulty": 2,
+      "prerequisites": [
+        "c112_schule"
+      ]
+    },
+    {
+      "id": "c120_hobby",
+      "title_de": "Hobby",
+      "title_ru": "Хобби",
+      "lemmas": [
+        "Hobby",
+        "Freizeit",
+        "gern",
+        "spielen",
+        "mögen"
+      ],
+      "anchor_lemma": "Hobby",
+      "grammar_focus": "gern + Verb",
+      "scenario_hint": "Что любишь делать в свободное время.",
+      "category": "Freizeit",
+      "difficulty": 2,
+      "prerequisites": [
+        "c031_verb_daily"
+      ]
+    },
+    {
+      "id": "c121_sport",
+      "title_de": "Sport",
+      "title_ru": "Спорт",
+      "lemmas": [
+        "Sport",
+        "Fußball",
+        "schwimmen",
+        "laufen"
+      ],
+      "anchor_lemma": "Sport",
+      "grammar_focus": "Verb + Akkusativ (Fußball spielen)",
+      "scenario_hint": "Какой спорт любишь.",
+      "category": "Freizeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c120_hobby"
+      ]
+    },
+    {
+      "id": "c122_musik",
+      "title_de": "Musik",
+      "title_ru": "Музыка",
+      "lemmas": [
+        "hören",
+        "Lied"
+      ],
+      "anchor_lemma": "Musik",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Какую музыку слушаешь.",
+      "category": "Freizeit",
+      "difficulty": 2,
+      "prerequisites": [
+        "c120_hobby"
+      ]
+    },
+    {
+      "id": "c123_film",
+      "title_de": "Film und Fernsehen",
+      "title_ru": "Кино и ТВ",
+      "lemmas": [
+        "Film",
+        "Kino",
+        "fernsehen"
+      ],
+      "anchor_lemma": "Film",
+      "grammar_focus": "trennbare Verben (fernsehen)",
+      "scenario_hint": "Вчера смотрел фильм — обсудить.",
+      "category": "Freizeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c031_verb_daily"
+      ]
+    },
+    {
+      "id": "c124_lesen_schreiben",
+      "title_de": "Lesen und Schreiben",
+      "title_ru": "Читать и писать",
+      "lemmas": [
+        "Zeitung",
+        "schreiben"
+      ],
+      "anchor_lemma": "Zeitung",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Читаешь ли газеты по утрам.",
+      "category": "Freizeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c115_schulmaterial"
+      ]
+    },
+    {
+      "id": "c125_feiern",
+      "title_de": "Feste und Feiern",
+      "title_ru": "Праздники",
+      "lemmas": [
+        "Party",
+        "feiern"
+      ],
+      "anchor_lemma": "Party",
+      "grammar_focus": "Präpositionen (an + Dativ)",
+      "scenario_hint": "Как празднуешь Новый год.",
+      "category": "Freizeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c120_hobby"
+      ]
+    },
+    {
+      "id": "c126_einladung",
+      "title_de": "Einladung",
+      "title_ru": "Приглашение",
+      "lemmas": [
+        "einladen",
+        "Einladung",
+        "besuchen",
+        "Gast"
+      ],
+      "anchor_lemma": "einladen",
+      "grammar_focus": "trennbare Verben",
+      "scenario_hint": "Пригласить друзей домой на ужин.",
+      "category": "Freizeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c125_feiern"
+      ]
+    },
+    {
+      "id": "c130_telefon",
+      "title_de": "Telefon",
+      "title_ru": "Телефон",
+      "lemmas": [
+        "Telefon",
+        "Handy",
+        "anrufen",
+        "Anruf",
+        "Nummer",
+        "Anrufbeantworter",
+        "Ansage",
+        "Anschluss"
+      ],
+      "anchor_lemma": "Telefon",
+      "grammar_focus": "trennbare Verben (anrufen)",
+      "scenario_hint": "Звонок в офис — кого просишь к телефону.",
+      "category": "Kommunikation",
+      "difficulty": 3,
+      "prerequisites": [
+        "c015_sprache"
+      ]
+    },
+    {
+      "id": "c131_schreiben_kommunikation",
+      "title_de": "Brief und E-Mail",
+      "title_ru": "Письмо и имейл",
+      "lemmas": [
+        "Brief",
+        "E-Mail",
+        "schreiben",
+        "antworten",
+        "Absender",
+        "Adresse"
+      ],
+      "anchor_lemma": "E-Mail",
+      "grammar_focus": "Dativ + Akkusativ",
+      "scenario_hint": "Пишу письмо другу в Берлин.",
+      "category": "Kommunikation",
+      "difficulty": 3,
+      "prerequisites": [
+        "c130_telefon"
+      ]
+    },
+    {
+      "id": "c132_fragen_antworten",
+      "title_de": "Fragen und Antworten",
+      "title_ru": "Спрашивать и отвечать",
+      "lemmas": [
+        "fragen",
+        "Frage",
+        "Antwort",
+        "antworten",
+        "sagen"
+      ],
+      "anchor_lemma": "fragen",
+      "grammar_focus": "W-Fragen Wiederholung",
+      "scenario_hint": "Переспросить на уроке, чтобы понять.",
+      "category": "Kommunikation",
+      "difficulty": 2,
+      "prerequisites": [
+        "c010_wer_bist_du"
+      ]
+    },
+    {
+      "id": "c133_verstehen",
+      "title_de": "Verstehen und Wiederholen",
+      "title_ru": "Понимать и повторять",
+      "lemmas": [
+        "verstehen",
+        "wiederholen",
+        "langsam",
+        "schnell",
+        "leise",
+        "laut"
+      ],
+      "anchor_lemma": "verstehen",
+      "grammar_focus": "Modalverben + nicht",
+      "scenario_hint": "'Я не понял, повторите пожалуйста медленнее.'",
+      "category": "Kommunikation",
+      "difficulty": 2,
+      "prerequisites": [
+        "c132_fragen_antworten"
+      ]
+    },
+    {
+      "id": "c134_computer_internet",
+      "title_de": "Computer und Internet",
+      "title_ru": "Компьютер и интернет",
+      "lemmas": [
+        "Computer",
+        "Internet",
+        "anklicken",
+        "ankreuzen"
+      ],
+      "anchor_lemma": "Computer",
+      "grammar_focus": "trennbare Verben",
+      "scenario_hint": "Регистрация на сайте — нажать сюда, отметить.",
+      "category": "Kommunikation",
+      "difficulty": 3,
+      "prerequisites": [
+        "c131_schreiben_kommunikation"
+      ]
+    },
+    {
+      "id": "c140_post",
+      "title_de": "Post",
+      "title_ru": "Почта",
+      "lemmas": [
+        "Post",
+        "schicken",
+        "Briefmarke"
+      ],
+      "anchor_lemma": "Post",
+      "grammar_focus": "Verb + Dativ",
+      "scenario_hint": "Отправить посылку родителям.",
+      "category": "Dienstleistungen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c131_schreiben_kommunikation"
+      ]
+    },
+    {
+      "id": "c141_bank",
+      "title_de": "Bank",
+      "title_ru": "Банк",
+      "lemmas": [
+        "Bank",
+        "Konto",
+        "überweisen",
+        "Kreditkarte"
+      ],
+      "anchor_lemma": "Bank",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Открыть счёт в банке.",
+      "category": "Dienstleistungen",
+      "difficulty": 4,
+      "prerequisites": [
+        "c071_geld"
+      ]
+    },
+    {
+      "id": "c142_amt",
+      "title_de": "Amt und Polizei",
+      "title_ru": "Учреждение и полиция",
+      "lemmas": [
+        "Polizei",
+        "Achtung",
+        "Anmeldung",
+        "anmelden",
+        "Formular"
+      ],
+      "anchor_lemma": "Anmeldung",
+      "grammar_focus": "trennbare Verben",
+      "scenario_hint": "Регистрация по месту жительства.",
+      "category": "Dienstleistungen",
+      "difficulty": 4,
+      "prerequisites": [
+        "c141_bank"
+      ]
+    },
+    {
+      "id": "c150_adj_size",
+      "title_de": "Groß und klein",
+      "title_ru": "Большой и маленький",
+      "lemmas": [
+        "groß",
+        "klein",
+        "lang",
+        "kurz",
+        "hoch",
+        "breit"
+      ],
+      "anchor_lemma": "groß",
+      "grammar_focus": "Adjektive als Prädikat",
+      "scenario_hint": "Описать предметы — большой/маленький.",
+      "category": "Adjektive",
+      "difficulty": 2,
+      "prerequisites": [
+        "c050_wohnen_basic"
+      ]
+    },
+    {
+      "id": "c151_adj_quality",
+      "title_de": "Gut und schlecht",
+      "title_ru": "Хороший и плохой",
+      "lemmas": [
+        "gut",
+        "schlecht",
+        "schön",
+        "richtig",
+        "falsch",
+        "wunderbar"
+      ],
+      "anchor_lemma": "gut",
+      "grammar_focus": "Adjektive als Prädikat",
+      "scenario_hint": "Оценить фильм/книгу.",
+      "category": "Adjektive",
+      "difficulty": 2,
+      "prerequisites": [
+        "c150_adj_size"
+      ]
+    },
+    {
+      "id": "c152_adj_speed",
+      "title_de": "Schnell und langsam",
+      "title_ru": "Быстрый и медленный",
+      "lemmas": [
+        "schnell",
+        "langsam",
+        "leicht",
+        "schwer"
+      ],
+      "anchor_lemma": "schnell",
+      "grammar_focus": "Adjektive als Prädikat",
+      "scenario_hint": "Поезд быстрый, работа тяжёлая.",
+      "category": "Adjektive",
+      "difficulty": 2,
+      "prerequisites": [
+        "c151_adj_quality"
+      ]
+    },
+    {
+      "id": "c153_adj_feeling",
+      "title_de": "Emotionen",
+      "title_ru": "Эмоции",
+      "lemmas": [
+        "müde",
+        "glücklich",
+        "zufrieden",
+        "wichtig",
+        "frei",
+        "besetzt"
+      ],
+      "anchor_lemma": "müde",
+      "grammar_focus": "sein + Adjektiv",
+      "scenario_hint": "Как ты себя чувствуешь сейчас.",
+      "category": "Adjektive",
+      "difficulty": 2,
+      "prerequisites": [
+        "c151_adj_quality"
+      ]
+    },
+    {
+      "id": "c154_adj_state",
+      "title_de": "Offen und zu",
+      "title_ru": "Открытый и закрытый",
+      "lemmas": [
+        "zu",
+        "neu"
+      ],
+      "anchor_lemma": "offen",
+      "grammar_focus": "Adjektive als Prädikat",
+      "scenario_hint": "Магазин открыт? Бутылка полная?",
+      "category": "Adjektive",
+      "difficulty": 2,
+      "prerequisites": [
+        "c151_adj_quality"
+      ]
+    },
+    {
+      "id": "c155_farben",
+      "title_de": "Farben",
+      "title_ru": "Цвета",
+      "lemmas": [
+        "rot",
+        "blau",
+        "grün",
+        "gelb",
+        "schwarz",
+        "weiß",
+        "braun",
+        "Farbe"
+      ],
+      "anchor_lemma": "Farbe",
+      "grammar_focus": "Adjektive ohne Endung",
+      "scenario_hint": "Какого цвета машина/дом.",
+      "category": "Adjektive",
+      "difficulty": 2,
+      "prerequisites": [
+        "c151_adj_quality"
+      ]
+    },
+    {
+      "id": "c160_orte",
+      "title_de": "Orte in der Stadt",
+      "title_ru": "Места в городе",
+      "lemmas": [
+        "hier",
+        "da",
+        "dort",
+        "Ort",
+        "Platz"
+      ],
+      "anchor_lemma": "hier",
+      "grammar_focus": "lokale Adverbien",
+      "scenario_hint": "Укажи где что в своём районе.",
+      "category": "Ort",
+      "difficulty": 2,
+      "prerequisites": [
+        "c012_wo_wohnst_du"
+      ]
+    },
+    {
+      "id": "c161_oben_unten",
+      "title_de": "Oben, unten, vorne, hinten",
+      "title_ru": "Наверху, внизу",
+      "lemmas": [
+        "oben",
+        "unten",
+        "hinten",
+        "draußen"
+      ],
+      "anchor_lemma": "oben",
+      "grammar_focus": "lokale Adverbien",
+      "scenario_hint": "Где кошка — сверху на шкафу.",
+      "category": "Ort",
+      "difficulty": 3,
+      "prerequisites": [
+        "c160_orte"
+      ]
+    },
+    {
+      "id": "c162_praeposition_ort",
+      "title_de": "Auf, in, unter",
+      "title_ru": "На, в, под",
+      "lemmas": [
+        "auf",
+        "in",
+        "an",
+        "unter",
+        "über",
+        "zwischen",
+        "bei",
+        "vor"
+      ],
+      "anchor_lemma": "in",
+      "grammar_focus": "lokale Präpositionen + Dativ",
+      "scenario_hint": "Книга на столе, под столом, у окна.",
+      "category": "Ort",
+      "difficulty": 3,
+      "prerequisites": [
+        "c161_oben_unten"
+      ]
+    },
+    {
+      "id": "c163_praeposition_richtung",
+      "title_de": "Zu, nach, aus",
+      "title_ru": "К, в, из",
+      "lemmas": [
+        "zu",
+        "nach",
+        "aus",
+        "von",
+        "durch",
+        "um"
+      ],
+      "anchor_lemma": "zu",
+      "grammar_focus": "direktionale Präpositionen",
+      "scenario_hint": "Куда ты идёшь? — К Петру, в Берлин, из дома.",
+      "category": "Ort",
+      "difficulty": 3,
+      "prerequisites": [
+        "c162_praeposition_ort"
+      ]
+    },
+    {
+      "id": "c170_verbindung",
+      "title_de": "Und, oder, aber",
+      "title_ru": "И, или, но",
+      "lemmas": [
+        "und",
+        "oder",
+        "aber",
+        "also",
+        "dann"
+      ],
+      "anchor_lemma": "und",
+      "grammar_focus": "Konjunktionen",
+      "scenario_hint": "Связать две мысли в одно предложение.",
+      "category": "Satzbau",
+      "difficulty": 2,
+      "prerequisites": [
+        "c031_verb_daily"
+      ]
+    },
+    {
+      "id": "c171_begruendung",
+      "title_de": "Warum? Weil",
+      "title_ru": "Почему? Потому что",
+      "lemmas": [
+        "warum",
+        "denn",
+        "wie"
+      ],
+      "anchor_lemma": "weil",
+      "grammar_focus": "Nebensätze mit weil",
+      "scenario_hint": "Почему не пришёл — потому что болел.",
+      "category": "Satzbau",
+      "difficulty": 4,
+      "prerequisites": [
+        "c170_verbindung"
+      ]
+    },
+    {
+      "id": "c172_menge",
+      "title_de": "Viele und wenig",
+      "title_ru": "Много и мало",
+      "lemmas": [
+        "wenig",
+        "halb",
+        "alle",
+        "nichts",
+        "alles"
+      ],
+      "anchor_lemma": "viele",
+      "grammar_focus": "Mengenangaben",
+      "scenario_hint": "Сколько людей в комнате, сколько осталось времени.",
+      "category": "Menge",
+      "difficulty": 2,
+      "prerequisites": [
+        "c007_numbers_tens"
+      ]
+    },
+    {
+      "id": "c180_possessiv",
+      "title_de": "Possessivpronomen",
+      "title_ru": "Притяжательные местоимения",
+      "lemmas": [
+        "mein",
+        "dein",
+        "unser",
+        "euer"
+      ],
+      "anchor_lemma": "mein",
+      "grammar_focus": "Possessivpronomen volle Deklination",
+      "scenario_hint": "Чья это машина — моя, твоя, наша.",
+      "category": "Grammatik",
+      "difficulty": 3,
+      "prerequisites": [
+        "c020_familie_kern"
+      ]
+    },
+    {
+      "id": "c181_personalpronomen",
+      "title_de": "Er, sie, es, wir, ihr",
+      "title_ru": "Он, она, оно, мы, вы",
+      "lemmas": [
+        "er",
+        "sie",
+        "es",
+        "wir",
+        "ihr",
+        "man"
+      ],
+      "anchor_lemma": "er",
+      "grammar_focus": "Personalpronomen Nominativ",
+      "scenario_hint": "Пересказать коротко о ком-то из семьи.",
+      "category": "Grammatik",
+      "difficulty": 2,
+      "prerequisites": [
+        "c002_ich_du_sein"
+      ]
+    },
+    {
+      "id": "c183_artikel_unbestimmt",
+      "title_de": "Ein, eine, ein",
+      "title_ru": "Неопределённые артикли",
+      "lemmas": [
+        "ein",
+        "eine"
+      ],
+      "anchor_lemma": "ein",
+      "grammar_focus": "unbestimmter Artikel",
+      "scenario_hint": "Есть яблоко, есть книга, есть окно.",
+      "category": "Grammatik",
+      "difficulty": 2,
+      "prerequisites": [
+        "c182_demonstrativ"
+      ]
+    },
+    {
+      "id": "c200_fernsehen_abend",
+      "title_de": "Abends zu Hause",
+      "title_ru": "Вечером дома",
+      "lemmas": [
+        "Abend",
+        "sitzen"
+      ],
+      "anchor_lemma": "sitzen",
+      "grammar_focus": "Verb + Ort",
+      "scenario_hint": "Описать вечер дома — что делаешь.",
+      "category": "Alltag",
+      "difficulty": 2,
+      "prerequisites": [
+        "c031_verb_daily"
+      ]
+    },
+    {
+      "id": "c201_kleidung",
+      "title_de": "Kleidung",
+      "title_ru": "Одежда",
+      "lemmas": [
+        "Kleidung",
+        "Jacke",
+        "Schuh"
+      ],
+      "anchor_lemma": "Jacke",
+      "grammar_focus": "Akkusativ",
+      "scenario_hint": "Что надеть в плохую погоду.",
+      "category": "Alltag",
+      "difficulty": 3,
+      "prerequisites": [
+        "c101_temperatur"
+      ]
+    },
+    {
+      "id": "c210_familie_erweitert",
+      "title_de": "Ehe und Familie",
+      "title_ru": "Брак и семья (расширенно)",
+      "lemmas": [
+        "Ehefrau",
+        "Ehemann",
+        "Hochzeit",
+        "Großeltern"
+      ],
+      "anchor_lemma": "Hochzeit",
+      "grammar_focus": "Komposita verstehen",
+      "scenario_hint": "Рассказать о свадьбе, показать фото с родителями мужа.",
+      "category": "Familie",
+      "difficulty": 3,
+      "prerequisites": [
+        "c020_familie_kern"
+      ]
+    },
+    {
+      "id": "c211_hausfrau",
+      "title_de": "Hausfrau und Hausmann",
+      "title_ru": "Домохозяйство",
+      "lemmas": [
+        "Hausfrau",
+        "Hausmann"
+      ],
+      "anchor_lemma": "Haushalt",
+      "grammar_focus": "Komposita",
+      "scenario_hint": "Кто дома занимается хозяйством — жена, муж, оба.",
+      "category": "Familie",
+      "difficulty": 3,
+      "prerequisites": [
+        "c210_familie_erweitert"
+      ]
+    },
+    {
+      "id": "c212_deutsche_europa",
+      "title_de": "Deutsche und Europäer",
+      "title_ru": "Немцы и европейцы",
+      "lemmas": [
+        "Deutsche",
+        "Deutschland",
+        "Europa",
+        "Europäer",
+        "Ausland",
+        "Ausländer"
+      ],
+      "anchor_lemma": "Deutschland",
+      "grammar_focus": "substantivierte Adjektive (der Deutsche)",
+      "scenario_hint": "Я иностранец в Германии. Мой друг немец. Мы из Европы.",
+      "category": "Person",
+      "difficulty": 3,
+      "prerequisites": [
+        "c011_woher_kommst_du"
+      ]
+    },
+    {
+      "id": "c213_freund_bekannte",
+      "title_de": "Freund, Bekannte",
+      "title_ru": "Друзья, знакомые",
+      "lemmas": [
+        "Bekannte",
+        "besuchen"
+      ],
+      "anchor_lemma": "Bekannte",
+      "grammar_focus": "substantivierte Adjektive",
+      "scenario_hint": "Встретил старого знакомого на улице.",
+      "category": "Person",
+      "difficulty": 3,
+      "prerequisites": [
+        "c024_leute"
+      ]
+    },
+    {
+      "id": "c220_auskunft_info",
+      "title_de": "Information erfragen",
+      "title_ru": "Справочная информация",
+      "lemmas": [
+        "Auskunft",
+        "Information",
+        "Durchsage",
+        "Ansage"
+      ],
+      "anchor_lemma": "Auskunft",
+      "grammar_focus": "nach + Dativ",
+      "scenario_hint": "На вокзале в справочной спросить о поезде.",
+      "category": "Dienstleistungen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c082_fahrkarte"
+      ]
+    },
+    {
+      "id": "c221_aufgabe_antwort",
+      "title_de": "Aufgabe und Aussage",
+      "title_ru": "Задача и высказывание",
+      "lemmas": [
+        "Aufgabe",
+        "Aussage",
+        "Anzeige",
+        "Ergebnis"
+      ],
+      "anchor_lemma": "Aufgabe",
+      "grammar_focus": "Akkusativ",
+      "scenario_hint": "На работе: новая задача, результаты встречи.",
+      "category": "Arbeit",
+      "difficulty": 4,
+      "prerequisites": [
+        "c110_arbeitstag"
+      ]
+    },
+    {
+      "id": "c222_anrede_empfaenger",
+      "title_de": "Anrede und Empfänger",
+      "title_ru": "Обращение и получатель",
+      "lemmas": [
+        "Anrede",
+        "Empfänger",
+        "Absender",
+        "Gruß"
+      ],
+      "anchor_lemma": "Gruß",
+      "grammar_focus": "Briefformeln",
+      "scenario_hint": "Оформить посылку: кто отправитель, кто получатель.",
+      "category": "Kommunikation",
+      "difficulty": 3,
+      "prerequisites": [
+        "c140_post"
+      ]
+    },
+    {
+      "id": "c223_fehler_hilfe",
+      "title_de": "Fehler und Hilfe",
+      "title_ru": "Ошибка и помощь",
+      "lemmas": [
+        "Fehler",
+        "Hilfe",
+        "helfen"
+      ],
+      "anchor_lemma": "Hilfe",
+      "grammar_focus": "Dativ mit helfen",
+      "scenario_hint": "Я сделал ошибку в формуляре, нужна помощь.",
+      "category": "Kommunikation",
+      "difficulty": 3,
+      "prerequisites": [
+        "c132_fragen_antworten"
+      ]
+    },
+    {
+      "id": "c224_bahn_gleis",
+      "title_de": "Bahnsteig und Gleis",
+      "title_ru": "Платформа и путь",
+      "lemmas": [
+        "Bahn",
+        "Bahnsteig",
+        "Gleis",
+        "S-Bahn"
+      ],
+      "anchor_lemma": "Gleis",
+      "grammar_focus": "auf + Dativ (auf Gleis 3)",
+      "scenario_hint": "Поезд на 3-м пути — идём туда.",
+      "category": "Verkehr",
+      "difficulty": 3,
+      "prerequisites": [
+        "c082_fahrkarte"
+      ]
+    },
+    {
+      "id": "c225_auto_autobahn",
+      "title_de": "Auto und Autobahn",
+      "title_ru": "Машина и автобан",
+      "lemmas": [
+        "Autobahn",
+        "Automat",
+        "Fahrer"
+      ],
+      "anchor_lemma": "Autobahn",
+      "grammar_focus": "auf + Dativ",
+      "scenario_hint": "Едем на автобане — водитель, пробки.",
+      "category": "Verkehr",
+      "difficulty": 3,
+      "prerequisites": [
+        "c080_transport_mittel"
+      ]
+    },
+    {
+      "id": "c226_ausflug_fuehrung",
+      "title_de": "Ausflug und Führung",
+      "title_ru": "Экскурсия",
+      "lemmas": [
+        "Ausflug",
+        "Führung",
+        "Gruppe"
+      ],
+      "anchor_lemma": "Ausflug",
+      "grammar_focus": "Verb + Akkusativ",
+      "scenario_hint": "Поехали группой на экскурсию в Мюнхен.",
+      "category": "Freizeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c084_reise"
+      ]
+    },
+    {
+      "id": "c227_eingang_ausgang",
+      "title_de": "Eingang und Ausgang",
+      "title_ru": "Вход и выход",
+      "lemmas": [
+        "Eingang",
+        "Ausgang",
+        "Ecke",
+        "Eintritt"
+      ],
+      "anchor_lemma": "Eingang",
+      "grammar_focus": "lokale Präpositionen",
+      "scenario_hint": "В музее: где вход, сколько стоит билет, где выход.",
+      "category": "Ort",
+      "difficulty": 3,
+      "prerequisites": [
+        "c162_praeposition_ort"
+      ]
+    },
+    {
+      "id": "c228_aufzug_halle",
+      "title_de": "Aufzug und Halle",
+      "title_ru": "Лифт и холл",
+      "lemmas": [
+        "Aufzug",
+        "Halle"
+      ],
+      "anchor_lemma": "Aufzug",
+      "grammar_focus": "Artikel",
+      "scenario_hint": "Отель: лифт в холле, второй этаж.",
+      "category": "Wohnen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c085_hotel"
+      ]
+    },
+    {
+      "id": "c229_baeckerei",
+      "title_de": "In der Bäckerei",
+      "title_ru": "В булочной",
+      "lemmas": [
+        "Bäckerei",
+        "Birne"
+      ],
+      "anchor_lemma": "Bäckerei",
+      "grammar_focus": "in der + Dativ",
+      "scenario_hint": "Утром в булочной: булочки, груша.",
+      "category": "Einkaufen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c070_einkaufen_basic"
+      ]
+    },
+    {
+      "id": "c230_glas_flasche",
+      "title_de": "Glas und Flasche",
+      "title_ru": "Стакан и бутылка",
+      "lemmas": [
+        "Glas",
+        "Flasche"
+      ],
+      "anchor_lemma": "Flasche",
+      "grammar_focus": "Mengenangaben (ein Glas Wein)",
+      "scenario_hint": "Заказать стакан воды и бутылку вина.",
+      "category": "Essen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c067_restaurant"
+      ]
+    },
+    {
+      "id": "c231_getraenk_kaffee",
+      "title_de": "Getränk bestellen",
+      "title_ru": "Напитки в кафе",
+      "lemmas": [
+        "Getränk"
+      ],
+      "anchor_lemma": "Getränk",
+      "grammar_focus": "Akkusativ",
+      "scenario_hint": "Выбрать напиток в кафе.",
+      "category": "Essen",
+      "difficulty": 2,
+      "prerequisites": [
+        "c061_getraenke"
+      ]
+    },
+    {
+      "id": "c232_gewicht_menge",
+      "title_de": "Gewicht und Menge",
+      "title_ru": "Вес и количество",
+      "lemmas": [
+        "Gewicht",
+        "Gramm",
+        "Kilo",
+        "Kilogramm",
+        "Pfund",
+        "Liter"
+      ],
+      "anchor_lemma": "Kilogramm",
+      "grammar_focus": "Mengenangaben + Substantiv",
+      "scenario_hint": "Купить полкило сыра, литр молока.",
+      "category": "Einkaufen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c071_geld"
+      ]
+    },
+    {
+      "id": "c233_groesse_kleidung",
+      "title_de": "Größe und Kleidung",
+      "title_ru": "Размер одежды",
+      "lemmas": [
+        "Größe",
+        "Kleidung"
+      ],
+      "anchor_lemma": "Größe",
+      "grammar_focus": "haben + Akkusativ",
+      "scenario_hint": "Какой у тебя размер? Есть эта куртка больше?",
+      "category": "Einkaufen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c201_kleidung"
+      ]
+    },
+    {
+      "id": "c234_feiertag_feierabend",
+      "title_de": "Feiertag und Feierabend",
+      "title_ru": "Выходной и конец работы",
+      "lemmas": [
+        "Feiertag",
+        "Feierabend",
+        "Urlaub"
+      ],
+      "anchor_lemma": "Feierabend",
+      "grammar_focus": "Komposita",
+      "scenario_hint": "Сегодня праздник, не работаем. Feierabend!",
+      "category": "Freizeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c044_zeit_adverbien"
+      ]
+    },
+    {
+      "id": "c235_geschenk_glueck",
+      "title_de": "Geschenk und Glück",
+      "title_ru": "Подарок и удача",
+      "lemmas": [
+        "Geschenk",
+        "Glück",
+        "Dank"
+      ],
+      "anchor_lemma": "Geschenk",
+      "grammar_focus": "Akkusativ",
+      "scenario_hint": "Принёс подарок коллеге, он рад.",
+      "category": "Soziales",
+      "difficulty": 2,
+      "prerequisites": []
+    },
+    {
+      "id": "c236_foto_bild_cd",
+      "title_de": "Foto, Bild, CD",
+      "title_ru": "Фото, картинка, CD",
+      "lemmas": [
+        "Foto",
+        "Bild",
+        "CD",
+        "Drucker"
+      ],
+      "anchor_lemma": "Foto",
+      "grammar_focus": "Akkusativ",
+      "scenario_hint": "Показать фото с отпуска, скопировать на CD.",
+      "category": "Kommunikation",
+      "difficulty": 2,
+      "prerequisites": [
+        "c134_computer_internet"
+      ]
+    },
+    {
+      "id": "c237_fax_karte",
+      "title_de": "Fax und Karte",
+      "title_ru": "Факс и открытка",
+      "lemmas": [
+        "Fax",
+        "Karte",
+        "Formular"
+      ],
+      "anchor_lemma": "Karte",
+      "grammar_focus": "Akkusativ",
+      "scenario_hint": "Отправить открытку с отпуска, заполнить формуляр.",
+      "category": "Kommunikation",
+      "difficulty": 3,
+      "prerequisites": [
+        "c131_schreiben_kommunikation"
+      ]
+    },
+    {
+      "id": "c238_gespraech_meeting",
+      "title_de": "Gespräch und Besprechung",
+      "title_ru": "Разговор и обсуждение",
+      "lemmas": [
+        "Gespräch",
+        "Termin"
+      ],
+      "anchor_lemma": "Gespräch",
+      "grammar_focus": "Akkusativ",
+      "scenario_hint": "У нас встреча в 10, важный разговор.",
+      "category": "Arbeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c110_arbeitstag"
+      ]
+    },
+    {
+      "id": "c239_feuer_dusche",
+      "title_de": "Feuer und Dusche",
+      "title_ru": "Огонь и душ",
+      "lemmas": [
+        "Feuer",
+        "Dusche",
+        "Herd"
+      ],
+      "anchor_lemma": "Dusche",
+      "grammar_focus": "Artikel",
+      "scenario_hint": "Дома: плита горит, пойду в душ.",
+      "category": "Wohnen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c051_zimmer"
+      ]
+    },
+    {
+      "id": "c240_fruehjahr_geburt",
+      "title_de": "Frühjahr und Geburtstag",
+      "title_ru": "Весна и дни рождения",
+      "lemmas": [
+        "Frühjahr",
+        "Geburtsjahr"
+      ],
+      "anchor_lemma": "Frühjahr",
+      "grammar_focus": "Datumsangaben",
+      "scenario_hint": "Я родился весной, в 1990 году.",
+      "category": "Zeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c013_alter"
+      ]
+    },
+    {
+      "id": "c241_ende_anfang",
+      "title_de": "Anfang und Ende",
+      "title_ru": "Начало и конец",
+      "lemmas": [
+        "Anfang",
+        "Ende",
+        "anfangen",
+        "aufhören",
+        "beginnen"
+      ],
+      "anchor_lemma": "anfangen",
+      "grammar_focus": "trennbare Verben",
+      "scenario_hint": "Когда начинается фильм, когда заканчивается.",
+      "category": "Zeit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c040_uhr"
+      ]
+    },
+    {
+      "id": "c242_bitte_dank_hoeflich",
+      "title_de": "Höflichkeit",
+      "title_ru": "Вежливость",
+      "lemmas": [
+        "Bitte",
+        "Blick",
+        "Achtung"
+      ],
+      "anchor_lemma": "Bitte",
+      "grammar_focus": "Höflichkeitsformeln",
+      "scenario_hint": "Обратить внимание прохожего вежливо.",
+      "category": "Soziales",
+      "difficulty": 2,
+      "prerequisites": [
+        "c003_danke_bitte"
+      ]
+    },
+    {
+      "id": "c243_doktor",
+      "title_de": "Beim Doktor",
+      "title_ru": "У доктора",
+      "lemmas": [
+        "Doktor",
+        "Beamte"
+      ],
+      "anchor_lemma": "Doktor",
+      "grammar_focus": "Titel",
+      "scenario_hint": "Записаться к доктору Мюллеру.",
+      "category": "Gesundheit",
+      "difficulty": 3,
+      "prerequisites": [
+        "c093_arzt_apotheke"
+      ]
+    },
+    {
+      "id": "c244_bogen",
+      "title_de": "Das Formular / Der Bogen",
+      "title_ru": "Бланк / формуляр",
+      "lemmas": [
+        "Bogen"
+      ],
+      "anchor_lemma": "Bogen",
+      "grammar_focus": "Akkusativ",
+      "scenario_hint": "В офисе заполнить бланк на отпуск.",
+      "category": "Dienstleistungen",
+      "difficulty": 3,
+      "prerequisites": [
+        "c142_amt"
+      ]
+    },
+    {
+      "id": "c245_ihr_euer",
+      "title_de": "Ihr und euer",
+      "title_ru": "Ваш (вы-формы)",
+      "lemmas": [
+        "Ihr",
+        "Ihre"
+      ],
+      "anchor_lemma": "Ihr",
+      "grammar_focus": "Possessivpronomen Sie-Form",
+      "scenario_hint": "Вежливое 'Ваш': 'Ist das Ihr Auto?'",
+      "category": "Grammatik",
+      "difficulty": 3,
+      "prerequisites": [
+        "c180_possessiv"
+      ]
+    },
+    {
+      "id": "c246_beispiel_und_fehler",
+      "title_de": "Beispiel",
+      "title_ru": "Пример",
+      "lemmas": [
+        "Beispiel"
+      ],
+      "anchor_lemma": "Beispiel",
+      "grammar_focus": "zum + Dativ (zum Beispiel)",
+      "scenario_hint": "Приведи пример — zum Beispiel.",
+      "category": "Kommunikation",
+      "difficulty": 2,
+      "prerequisites": [
+        "c170_verbindung"
+      ]
+    },
+    {
+      "id": "c247_halbpension",
+      "title_de": "Halbpension im Hotel",
+      "title_ru": "Полупансион в отеле",
+      "lemmas": [
+        "Halbpension"
+      ],
+      "anchor_lemma": "Halbpension",
+      "grammar_focus": "mit + Dativ",
+      "scenario_hint": "Бронь отеля с завтраком и ужином.",
+      "category": "Verkehr",
+      "difficulty": 4,
+      "prerequisites": [
+        "c085_hotel"
+      ]
+    },
+    {
+      "id": "c248_familienstand",
+      "title_de": "Familienstand",
+      "title_ru": "Семейное положение",
+      "lemmas": [
+        "Familienstand"
+      ],
+      "anchor_lemma": "Familienstand",
+      "grammar_focus": "Komposita",
+      "scenario_hint": "В анкете указать семейное положение.",
+      "category": "Familie",
+      "difficulty": 3,
+      "prerequisites": [
+        "c023_familienstand"
+      ]
+    },
+    {
+      "id": "c249_hausaufgabe",
+      "title_de": "Hausaufgabe",
+      "title_ru": "Домашнее задание",
+      "lemmas": [
+        "Hausaufgabe"
+      ],
+      "anchor_lemma": "Hausaufgabe",
+      "grammar_focus": "Komposita",
+      "scenario_hint": "Учитель: сделать домашку к завтрашнему дню.",
+      "category": "Schule",
+      "difficulty": 2,
+      "prerequisites": [
+        "c114_lernen"
+      ]
+    },
+    {
+      "id": "c_vocab_misc_001",
+      "title_de": "Weitere Wörter Teil 1",
+      "title_ru": "Дополнительная лексика 1",
+      "lemmas": [
+        "Glückwunsch",
+        "Grad",
+        "Kilometer",
+        "Kindergarten",
+        "Kiosk"
+      ],
+      "anchor_lemma": "Glückwunsch",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Glückwunsch, Grad, Kilometer, Kindergarten, Kiosk",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_002",
+      "title_de": "Weitere Wörter Teil 2",
+      "title_ru": "Дополнительная лексика 2",
+      "lemmas": [
+        "Kuchen",
+        "Kugelschreiber",
+        "Kundin",
+        "Kühlschrank",
+        "Leben"
+      ],
+      "anchor_lemma": "Kuchen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Kuchen, Kugelschreiber, Kundin, Kühlschrank, Leben",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_003",
+      "title_de": "Weitere Wörter Teil 3",
+      "title_ru": "Дополнительная лексика 3",
+      "lemmas": [
+        "Lebensmittel",
+        "Lieblingslied",
+        "Lkw",
+        "Lokal",
+        "Lösung"
+      ],
+      "anchor_lemma": "Lebensmittel",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Lebensmittel, Lieblingslied, Lkw, Lokal, Lösung",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_004",
+      "title_de": "Weitere Wörter Teil 4",
+      "title_ru": "Дополнительная лексика 4",
+      "lemmas": [
+        "Maschine",
+        "Meter",
+        "Milliarde",
+        "Mitte",
+        "Moment"
+      ],
+      "anchor_lemma": "Maschine",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Maschine, Meter, Milliarde, Mitte, Moment",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_005",
+      "title_de": "Weitere Wörter Teil 5",
+      "title_ru": "Дополнительная лексика 5",
+      "lemmas": [
+        "Namen",
+        "Norden",
+        "Ordnung",
+        "Osten",
+        "Partner"
+      ],
+      "anchor_lemma": "Namen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Namen, Norden, Ordnung, Osten, Partner",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_006",
+      "title_de": "Weitere Wörter Teil 6",
+      "title_ru": "Дополнительная лексика 6",
+      "lemmas": [
+        "Partnerin",
+        "Plan",
+        "Pommes frites",
+        "Postleitzahl",
+        "Praxis"
+      ],
+      "anchor_lemma": "Partnerin",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Partnerin, Plan, Pommes frites, Postleitzahl, Praxis",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_007",
+      "title_de": "Weitere Wörter Teil 7",
+      "title_ru": "Дополнительная лексика 7",
+      "lemmas": [
+        "Problem",
+        "Prospekt",
+        "Prozent",
+        "Quadratmeter",
+        "Rad fahren"
+      ],
+      "anchor_lemma": "Problem",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Problem, Prospekt, Prozent, Quadratmeter, Rad fahren",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_008",
+      "title_de": "Weitere Wörter Teil 8",
+      "title_ru": "Дополнительная лексика 8",
+      "lemmas": [
+        "Raum",
+        "Reisebüro",
+        "Reiseführer",
+        "Reparatur",
+        "Rezeption"
+      ],
+      "anchor_lemma": "Raum",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Raum, Reisebüro, Reiseführer, Reparatur, Rezeption",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_009",
+      "title_de": "Weitere Wörter Teil 9",
+      "title_ru": "Дополнительная лексика 9",
+      "lemmas": [
+        "Satz",
+        "Schalter",
+        "Schild",
+        "Schinken",
+        "Schluss"
+      ],
+      "anchor_lemma": "Satz",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Satz, Schalter, Schild, Schinken, Schluss",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_010",
+      "title_de": "Weitere Wörter Teil 10",
+      "title_ru": "Дополнительная лексика 10",
+      "lemmas": [
+        "Schlüssel",
+        "Schwimmbad",
+        "Sehenswürdigkeit",
+        "Sie",
+        "Sohn"
+      ],
+      "anchor_lemma": "Schlüssel",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Schlüssel, Schwimmbad, Sehenswürdigkeit, Sie, Sohn",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_011",
+      "title_de": "Weitere Wörter Teil 11",
+      "title_ru": "Дополнительная лексика 11",
+      "lemmas": [
+        "Sonnabend",
+        "Speisenkarte",
+        "Sprache",
+        "Stelle",
+        "Stock"
+      ],
+      "anchor_lemma": "Sonnabend",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Sonnabend, Speisenkarte, Sprache, Stelle, Stock",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_012",
+      "title_de": "Weitere Wörter Teil 12",
+      "title_ru": "Дополнительная лексика 12",
+      "lemmas": [
+        "Studium",
+        "Süden",
+        "Tasche",
+        "Teil",
+        "Text"
+      ],
+      "anchor_lemma": "Studium",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Studium, Süden, Tasche, Teil, Text",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_013",
+      "title_de": "Weitere Wörter Teil 13",
+      "title_ru": "Дополнительная лексика 13",
+      "lemmas": [
+        "Thema",
+        "Tochter",
+        "Treppe",
+        "Tschüss",
+        "Unterschrift"
+      ],
+      "anchor_lemma": "Thema",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Thema, Tochter, Treppe, Tschüss, Unterschrift",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_014",
+      "title_de": "Weitere Wörter Teil 14",
+      "title_ru": "Дополнительная лексика 14",
+      "lemmas": [
+        "Verein",
+        "Vermieter",
+        "Verwandte",
+        "Viertel",
+        "Vormittag"
+      ],
+      "anchor_lemma": "Verein",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Verein, Vermieter, Verwandte, Viertel, Vormittag",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_015",
+      "title_de": "Weitere Wörter Teil 15",
+      "title_ru": "Дополнительная лексика 15",
+      "lemmas": [
+        "Vorsicht",
+        "Vorwahl",
+        "Wagen",
+        "Welt",
+        "Westen"
+      ],
+      "anchor_lemma": "Vorsicht",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Vorsicht, Vorwahl, Wagen, Welt, Westen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_016",
+      "title_de": "Weitere Wörter Teil 16",
+      "title_ru": "Дополнительная лексика 16",
+      "lemmas": [
+        "Wort",
+        "Zeit",
+        "Zentimeter",
+        "Zigarette",
+        "Zoll"
+      ],
+      "anchor_lemma": "Wort",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: Wort, Zeit, Zentimeter, Zigarette, Zoll",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_017",
+      "title_de": "Weitere Wörter Teil 17",
+      "title_ru": "Дополнительная лексика 17",
+      "lemmas": [
+        "ab",
+        "abgeben",
+        "abholen",
+        "all",
+        "allein"
+      ],
+      "anchor_lemma": "ab",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: ab, abgeben, abholen, all, allein",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_018",
+      "title_de": "Weitere Wörter Teil 18",
+      "title_ru": "Дополнительная лексика 18",
+      "lemmas": [
+        "alleine",
+        "anbieten",
+        "ander",
+        "anmachen",
+        "anziehen"
+      ],
+      "anchor_lemma": "alleine",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: alleine, anbieten, ander, anmachen, anziehen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_019",
+      "title_de": "Weitere Wörter Teil 19",
+      "title_ru": "Дополнительная лексика 19",
+      "lemmas": [
+        "auch",
+        "auf sein",
+        "aufstehen",
+        "aus sein",
+        "ausfüllen"
+      ],
+      "anchor_lemma": "auch",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: auch, auf sein, aufstehen, aus sein, ausfüllen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_020",
+      "title_de": "Weitere Wörter Teil 20",
+      "title_ru": "Дополнительная лексика 20",
+      "lemmas": [
+        "ausländisch",
+        "ausmachen",
+        "aussehen",
+        "aussteigen",
+        "ausziehen"
+      ],
+      "anchor_lemma": "ausländisch",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: ausländisch, ausmachen, aussehen, aussteigen, ausziehen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_021",
+      "title_de": "Weitere Wörter Teil 21",
+      "title_ru": "Дополнительная лексика 21",
+      "lemmas": [
+        "automatisch",
+        "baden",
+        "bedeuten",
+        "beide",
+        "bekannt"
+      ],
+      "anchor_lemma": "automatisch",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: automatisch, baden, bedeuten, beide, bekannt",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_022",
+      "title_de": "Weitere Wörter Teil 22",
+      "title_ru": "Дополнительная лексика 22",
+      "lemmas": [
+        "benutzen",
+        "besichtigen",
+        "besser",
+        "best",
+        "bis"
+      ],
+      "anchor_lemma": "benutzen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: benutzen, besichtigen, besser, best, bis",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_023",
+      "title_de": "Weitere Wörter Teil 23",
+      "title_ru": "Дополнительная лексика 23",
+      "lemmas": [
+        "bisschen",
+        "bitten",
+        "bitter",
+        "bleiben",
+        "bringen"
+      ],
+      "anchor_lemma": "bisschen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: bisschen, bitten, bitter, bleiben, bringen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_024",
+      "title_de": "Weitere Wörter Teil 24",
+      "title_ru": "Дополнительная лексика 24",
+      "lemmas": [
+        "bös",
+        "böse",
+        "daneben",
+        "danken",
+        "das"
+      ],
+      "anchor_lemma": "bös",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: bös, böse, daneben, danken, das",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_025",
+      "title_de": "Weitere Wörter Teil 25",
+      "title_ru": "Дополнительная лексика 25",
+      "lemmas": [
+        "dauern",
+        "deine",
+        "der",
+        "deutsch",
+        "dich"
+      ],
+      "anchor_lemma": "dauern",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: dauern, deine, der, deutsch, dich",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_026",
+      "title_de": "Weitere Wörter Teil 26",
+      "title_ru": "Дополнительная лексика 26",
+      "lemmas": [
+        "die",
+        "dir",
+        "dritte",
+        "drucken",
+        "drücken"
+      ],
+      "anchor_lemma": "die",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: die, dir, dritte, drucken, drücken",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_027",
+      "title_de": "Weitere Wörter Teil 27",
+      "title_ru": "Дополнительная лексика 27",
+      "lemmas": [
+        "duschen",
+        "eilig",
+        "einfach",
+        "einhundert",
+        "einkaufen"
+      ],
+      "anchor_lemma": "duschen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: duschen, eilig, einfach, einhundert, einkaufen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_028",
+      "title_de": "Weitere Wörter Teil 28",
+      "title_ru": "Дополнительная лексика 28",
+      "lemmas": [
+        "einsteigen",
+        "eintausend",
+        "empfehlen",
+        "enden",
+        "entschuldigen"
+      ],
+      "anchor_lemma": "einsteigen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: einsteigen, eintausend, empfehlen, enden, entschuldigen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_029",
+      "title_de": "Weitere Wörter Teil 29",
+      "title_ru": "Дополнительная лексика 29",
+      "lemmas": [
+        "erklären",
+        "erlauben",
+        "erzählen",
+        "eure",
+        "europäisch"
+      ],
+      "anchor_lemma": "erklären",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: erklären, erlauben, erzählen, eure, europäisch",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_030",
+      "title_de": "Weitere Wörter Teil 30",
+      "title_ru": "Дополнительная лексика 30",
+      "lemmas": [
+        "fehlen",
+        "fertig",
+        "fremd",
+        "freuen",
+        "früher"
+      ],
+      "anchor_lemma": "fehlen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: fehlen, fertig, fremd, freuen, früher",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_031",
+      "title_de": "Weitere Wörter Teil 31",
+      "title_ru": "Дополнительная лексика 31",
+      "lemmas": [
+        "für",
+        "geboren",
+        "gefallen",
+        "gegen",
+        "gehören"
+      ],
+      "anchor_lemma": "für",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: für, geboren, gefallen, gegen, gehören",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_032",
+      "title_de": "Weitere Wörter Teil 32",
+      "title_ru": "Дополнительная лексика 32",
+      "lemmas": [
+        "gerade",
+        "gerne",
+        "geschlossen",
+        "gewinnen",
+        "glauben"
+      ],
+      "anchor_lemma": "gerade",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: gerade, gerne, geschlossen, gewinnen, glauben",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_033",
+      "title_de": "Weitere Wörter Teil 33",
+      "title_ru": "Дополнительная лексика 33",
+      "lemmas": [
+        "gleich",
+        "grade",
+        "gradeaus",
+        "gratulieren",
+        "grau"
+      ],
+      "anchor_lemma": "gleich",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: gleich, grade, gradeaus, gratulieren, grau",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_034",
+      "title_de": "Weitere Wörter Teil 34",
+      "title_ru": "Дополнительная лексика 34",
+      "lemmas": [
+        "grillen",
+        "gültig",
+        "hallo",
+        "halten",
+        "heiraten"
+      ],
+      "anchor_lemma": "grillen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: grillen, gültig, hallo, halten, heiraten",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_035",
+      "title_de": "Weitere Wörter Teil 35",
+      "title_ru": "Дополнительная лексика 35",
+      "lemmas": [
+        "hell",
+        "herzlich",
+        "heut",
+        "ihm",
+        "ihn"
+      ],
+      "anchor_lemma": "hell",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: hell, herzlich, heut, ihm, ihn",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_036",
+      "title_de": "Weitere Wörter Teil 36",
+      "title_ru": "Дополнительная лексика 36",
+      "lemmas": [
+        "ihre",
+        "ins",
+        "international",
+        "jede",
+        "jeder"
+      ],
+      "anchor_lemma": "ihre",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: ihre, ins, international, jede, jeder",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_037",
+      "title_de": "Weitere Wörter Teil 37",
+      "title_ru": "Дополнительная лексика 37",
+      "lemmas": [
+        "jedes",
+        "kaputt",
+        "kein",
+        "kennen",
+        "kennenlernen"
+      ],
+      "anchor_lemma": "jedes",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: jedes, kaputt, kein, kennen, kennenlernen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_038",
+      "title_de": "Weitere Wörter Teil 38",
+      "title_ru": "Дополнительная лексика 38",
+      "lemmas": [
+        "klar",
+        "kriegen",
+        "kulturell",
+        "kümmern",
+        "lachen"
+      ],
+      "anchor_lemma": "klar",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: klar, kriegen, kulturell, kümmern, lachen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_039",
+      "title_de": "Weitere Wörter Teil 39",
+      "title_ru": "Дополнительная лексика 39",
+      "lemmas": [
+        "lange",
+        "leben",
+        "legen",
+        "leider",
+        "letzt"
+      ],
+      "anchor_lemma": "lange",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: lange, leben, legen, leider, letzt",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_040",
+      "title_de": "Weitere Wörter Teil 40",
+      "title_ru": "Дополнительная лексика 40",
+      "lemmas": [
+        "lieb",
+        "lieben",
+        "lieber",
+        "liegen",
+        "lustig"
+      ],
+      "anchor_lemma": "lieb",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: lieb, lieben, lieber, liegen, lustig",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_041",
+      "title_de": "Weitere Wörter Teil 41",
+      "title_ru": "Дополнительная лексика 41",
+      "lemmas": [
+        "mehr",
+        "meine",
+        "meist",
+        "mit",
+        "mitbringen"
+      ],
+      "anchor_lemma": "mehr",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: mehr, meine, meist, mit, mitbringen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_042",
+      "title_de": "Weitere Wörter Teil 42",
+      "title_ru": "Дополнительная лексика 42",
+      "lemmas": [
+        "mitkommen",
+        "mitmachen",
+        "mitnehmen",
+        "männlich",
+        "möglich"
+      ],
+      "anchor_lemma": "mitkommen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: mitkommen, mitmachen, mitnehmen, männlich, möglich",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_043",
+      "title_de": "Weitere Wörter Teil 43",
+      "title_ru": "Дополнительная лексика 43",
+      "lemmas": [
+        "noch",
+        "normal",
+        "nur",
+        "nächst",
+        "ohne"
+      ],
+      "anchor_lemma": "noch",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: noch, normal, nur, nächst, ohne",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_044",
+      "title_de": "Weitere Wörter Teil 44",
+      "title_ru": "Дополнительная лексика 44",
+      "lemmas": [
+        "pünktlich",
+        "rauchen",
+        "reparieren",
+        "riechen",
+        "ruhig"
+      ],
+      "anchor_lemma": "pünktlich",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: pünktlich, rauchen, reparieren, riechen, ruhig",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_045",
+      "title_de": "Weitere Wörter Teil 45",
+      "title_ru": "Дополнительная лексика 45",
+      "lemmas": [
+        "scheinen",
+        "schlafen",
+        "schließen",
+        "schon",
+        "sehr"
+      ],
+      "anchor_lemma": "scheinen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: scheinen, schlafen, schließen, schon, sehr",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_046",
+      "title_de": "Weitere Wörter Teil 46",
+      "title_ru": "Дополнительная лексика 46",
+      "lemmas": [
+        "seine",
+        "seit",
+        "selbstständig",
+        "selbständig",
+        "sich"
+      ],
+      "anchor_lemma": "seine",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: seine, seit, selbstständig, selbständig, sich",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_047",
+      "title_de": "Weitere Wörter Teil 47",
+      "title_ru": "Дополнительная лексика 47",
+      "lemmas": [
+        "siebenzig",
+        "so",
+        "sofort",
+        "stehen",
+        "stellen"
+      ],
+      "anchor_lemma": "siebenzig",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: siebenzig, so, sofort, stehen, stellen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_048",
+      "title_de": "Weitere Wörter Teil 48",
+      "title_ru": "Дополнительная лексика 48",
+      "lemmas": [
+        "tanzen",
+        "telefonieren",
+        "tot",
+        "treffen",
+        "unsere"
+      ],
+      "anchor_lemma": "tanzen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: tanzen, telefonieren, tot, treffen, unsere",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_049",
+      "title_de": "Weitere Wörter Teil 49",
+      "title_ru": "Дополнительная лексика 49",
+      "lemmas": [
+        "unsre",
+        "unterschreiben",
+        "verboten",
+        "verdienen",
+        "verkaufen"
+      ],
+      "anchor_lemma": "unsre",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: unsre, unterschreiben, verboten, verdienen, verkaufen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_050",
+      "title_de": "Weitere Wörter Teil 50",
+      "title_ru": "Дополнительная лексика 50",
+      "lemmas": [
+        "vermieten",
+        "viel",
+        "vielleicht",
+        "vierte",
+        "vorstellen"
+      ],
+      "anchor_lemma": "vermieten",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: vermieten, viel, vielleicht, vierte, vorstellen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_051",
+      "title_de": "Weitere Wörter Teil 51",
+      "title_ru": "Дополнительная лексика 51",
+      "lemmas": [
+        "wandern",
+        "wann",
+        "warten",
+        "was für ein",
+        "was für eine"
+      ],
+      "anchor_lemma": "wandern",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: wandern, wann, warten, was für ein, was für eine",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_052",
+      "title_de": "Weitere Wörter Teil 52",
+      "title_ru": "Дополнительная лексика 52",
+      "lemmas": [
+        "waschen",
+        "weg sein",
+        "wehtun",
+        "weiblich",
+        "weit"
+      ],
+      "anchor_lemma": "waschen",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: waschen, weg sein, wehtun, weiblich, weit",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_053",
+      "title_de": "Weitere Wörter Teil 53",
+      "title_ru": "Дополнительная лексика 53",
+      "lemmas": [
+        "weiter-",
+        "welche",
+        "welcher",
+        "welches",
+        "werden"
+      ],
+      "anchor_lemma": "weiter-",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: weiter-, welche, welcher, welches, werden",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_054",
+      "title_de": "Weitere Wörter Teil 54",
+      "title_ru": "Дополнительная лексика 54",
+      "lemmas": [
+        "wie viel",
+        "wieder",
+        "wieder holen",
+        "willkommen",
+        "wissen"
+      ],
+      "anchor_lemma": "wie viel",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: wie viel, wieder, wieder holen, willkommen, wissen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_055",
+      "title_de": "Weitere Wörter Teil 55",
+      "title_ru": "Дополнительная лексика 55",
+      "lemmas": [
+        "wohin",
+        "zirka",
+        "zu sein",
+        "zurzeit",
+        "zusammen"
+      ],
+      "anchor_lemma": "wohin",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: wohin, zirka, zu sein, zurzeit, zusammen",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    },
+    {
+      "id": "c_vocab_misc_056",
+      "title_de": "Weitere Wörter Teil 56",
+      "title_ru": "Дополнительная лексика 56",
+      "lemmas": [
+        "zweihundert",
+        "öffnen",
+        "’s"
+      ],
+      "anchor_lemma": "zweihundert",
+      "grammar_focus": "Wortschatz-Erweiterung",
+      "scenario_hint": "Gemini: построй ситуацию, где естественно всплывут слова: zweihundert, öffnen, ’s",
+      "category": "Wortschatz",
+      "difficulty": 4,
+      "prerequisites": []
+    }
+  ]
+}
