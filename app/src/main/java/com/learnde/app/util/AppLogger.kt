@@ -15,7 +15,9 @@ import javax.inject.Singleton
  * - Потокобезопасный доступ к буферу
  */
 @Singleton
-class AppLogger @Inject constructor() {
+class AppLogger @Inject constructor(
+    private val buffer: LogBuffer,
+) {
 
     companion object {
         private const val TAG = "GeminiLive"
@@ -36,45 +38,24 @@ class AppLogger @Inject constructor() {
     }
 
     fun d(msg: String) {
-        val line = "[${timeFormat.format(Date())}] $msg"
         Timber.tag(TAG).d(msg)
-        appendToBuffer(line)
+        buffer.append(LogLevel.D, msg)
+    }
+
+    fun i(msg: String) {
+        Timber.tag(TAG).i(msg)
+        buffer.append(LogLevel.I, msg)
     }
 
     fun w(msg: String) {
-        val line = "[${timeFormat.format(Date())}] ⚠ $msg"
         Timber.tag(TAG).w(msg)
-        appendToBuffer(line)
+        buffer.append(LogLevel.W, msg)
     }
 
     fun e(msg: String, throwable: Throwable? = null) {
-        val line = "[${timeFormat.format(Date())}] ✖ $msg"
         Timber.tag(TAG).e(throwable, msg)
-        appendToBuffer(line)
+        buffer.append(LogLevel.E, msg, throwable)
     }
 
-    private fun appendToBuffer(line: String) {
-        synchronized(logBuffer) {
-            logBuffer.addLast(line)
-            while (logBuffer.size > MAX_LOG_LINES) {
-                logBuffer.removeFirst()
-            }
-        }
-    }
 
-    /** Полный лог для экспорта в файл */
-    fun getFullLog(): String = synchronized(logBuffer) {
-        logBuffer.joinToString("\n")
-    }
-
-    /** Обрезанный лог для отображения в UI */
-    fun getDisplayLog(): String {
-        val full = getFullLog()
-        return if (full.length > MAX_DISPLAY_CHARS) full.takeLast(MAX_DISPLAY_CHARS) else full
-    }
-
-    /** Очистка буфера */
-    fun clear() = synchronized(logBuffer) {
-        logBuffer.clear()
-    }
 }
