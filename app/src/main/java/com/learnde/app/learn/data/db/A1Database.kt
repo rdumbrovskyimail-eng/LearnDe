@@ -1,11 +1,10 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА (Patch 2.5)
+// ПОЛНАЯ ЗАМЕНА (Patch 3)
 // Путь: app/src/main/java/com/learnde/app/learn/data/db/A1Database.kt
 //
 // ИЗМЕНЕНИЯ:
-//   - version = 2 (было 1)
-//   - Добавлена MIGRATION_1_2 — добавляет 5 новых колонок в a1_session_logs
-//   - Убран fallbackToDestructiveMigration — теперь данные не теряются
+//   - version = 3 (было 2)
+//   - Добавлена MIGRATION_2_3 для FSRS-полей в a1_lemmas
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.data.db
 
@@ -35,7 +34,7 @@ import javax.inject.Singleton
         A1SessionLogEntity::class,
         A1UserProgressEntity::class,
     ],
-    version = 2, // Patch 2.5
+    version = 3, // Patch 3
     exportSchema = false
 )
 @TypeConverters(A1Converters::class)
@@ -47,28 +46,24 @@ abstract class A1Database : RoomDatabase() {
     abstract fun userProgressDao(): A1UserProgressDao
 }
 
-/**
- * Migration 1 → 2: добавляем поля для Patch 2.5.
- * Старые записи получат дефолты (isComplete=1, phaseReached='COOL_DOWN',
- * errorDiagnosesJson='{}', avgQuality=0, evaluateCallsCount=0).
- */
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL(
-            "ALTER TABLE a1_session_logs ADD COLUMN isComplete INTEGER NOT NULL DEFAULT 1"
-        )
-        db.execSQL(
-            "ALTER TABLE a1_session_logs ADD COLUMN phaseReached TEXT NOT NULL DEFAULT 'COOL_DOWN'"
-        )
-        db.execSQL(
-            "ALTER TABLE a1_session_logs ADD COLUMN errorDiagnosesJson TEXT NOT NULL DEFAULT '{}'"
-        )
-        db.execSQL(
-            "ALTER TABLE a1_session_logs ADD COLUMN avgQuality REAL NOT NULL DEFAULT 0"
-        )
-        db.execSQL(
-            "ALTER TABLE a1_session_logs ADD COLUMN evaluateCallsCount INTEGER NOT NULL DEFAULT 0"
-        )
+        db.execSQL("ALTER TABLE a1_session_logs ADD COLUMN isComplete INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE a1_session_logs ADD COLUMN phaseReached TEXT NOT NULL DEFAULT 'COOL_DOWN'")
+        db.execSQL("ALTER TABLE a1_session_logs ADD COLUMN errorDiagnosesJson TEXT NOT NULL DEFAULT '{}'")
+        db.execSQL("ALTER TABLE a1_session_logs ADD COLUMN avgQuality REAL NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE a1_session_logs ADD COLUMN evaluateCallsCount INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/** Patch 3: FSRS-5 fields. */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE a1_lemmas ADD COLUMN fsrsDifficulty REAL NOT NULL DEFAULT 5.0")
+        db.execSQL("ALTER TABLE a1_lemmas ADD COLUMN fsrsStability REAL NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE a1_lemmas ADD COLUMN fsrsReps INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE a1_lemmas ADD COLUMN fsrsLapses INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE a1_lemmas ADD COLUMN fsrsLastReviewAt INTEGER NOT NULL DEFAULT 0")
     }
 }
 
@@ -93,9 +88,7 @@ object A1DatabaseModule {
     @Singleton
     fun provideA1Database(@ApplicationContext ctx: Context): A1Database =
         Room.databaseBuilder(ctx, A1Database::class.java, "a1_learning.db")
-            .addMigrations(MIGRATION_1_2)
-            // Fallback только для dev-сценария "схема сломалась между миграциями".
-            // В релизе убрать.
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
 
