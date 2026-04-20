@@ -219,6 +219,11 @@ fun AppNavGraph(
                             launchSingleTop = true
                         }
                     },
+                    onOpenDebugLogs = {
+                        navController.navigate(Routes.DEBUG_LOGS) {
+                            launchSingleTop = true
+                        }
+                    },
                     learnCoreViewModel = learnCoreVm,
                     vm = a1Vm,
                 )
@@ -231,6 +236,11 @@ fun AppNavGraph(
                     onBack = { navController.popBackStack() },
                     onOpenHistory = {
                         navController.navigate(Routes.LEARN_A1_HISTORY) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onOpenDebugLogs = {
+                        navController.navigate(Routes.DEBUG_LOGS) {
                             launchSingleTop = true
                         }
                     },
