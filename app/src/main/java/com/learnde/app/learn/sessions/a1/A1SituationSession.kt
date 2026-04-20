@@ -63,6 +63,9 @@ class A1SituationSession @Inject constructor(
     private val diagnoses = ConcurrentHashMap<String, ErrorDiagnosis>()
 
     @Volatile private var introducedRuleId: String? = null
+    @Volatile private var currentPhase: A1Phase = A1Phase.IDLE
+    @Volatile private var evaluateCallsCount: Int = 0
+    private val qualityAccumulator = mutableListOf<Int>()
 
     suspend fun disputeEvaluation(lemma: String) {
         if (failedLemmas.remove(lemma)) {
@@ -90,6 +93,9 @@ class A1SituationSession @Inject constructor(
         failedLemmas.clear()
         diagnoses.clear()
         introducedRuleId = null
+        currentPhase = A1Phase.IDLE
+        evaluateCallsCount = 0
+        qualityAccumulator.clear()
         logger.d("A1Session: prepared context for cluster ${cluster.id}")
     }
 
@@ -112,7 +118,76 @@ class A1SituationSession @Inject constructor(
     }
 
     override suspend fun onExit() {
-        logger.d("A1Session onExit")
+        logger.d("A1Session onExit (phase=$currentPhase, evaluateCalls=$evaluateCallsCount)")
+        // Patch 2.5: если finish_session не вызывался, но были evaluate —
+        // автосохраняем incomplete-сессию.
+        if (currentPhase != A1Phase.FINISHED && evaluateCallsCount > 0) {
+            autoSaveIncompleteSession()
+        }
+    }
+
+    private suspend fun autoSaveIncompleteSession() {
+        val ctx = currentContext ?: return
+        val endedAt = System.currentTimeMillis()
+        val avgQ = if (qualityAccumulator.isEmpty()) 0f
+                   else qualityAccumulator.average().toFloat()
+        val rawQuality = avgQ.toInt().coerceIn(1, 7)
+
+        logger.w("A1Session: AUTOSAVING incomplete session (cluster=${ctx.cluster.id})")
+
+        // Всё же обновим mastery кластера — иначе пользователь прошёл 80%
+        // и не получил ничего. Даём пропорциональный бонус.
+        val progressFraction = when (currentPhase) {
+            A1Phase.IDLE, A1Phase.WARM_UP -> 0.1f
+            A1Phase.INTRODUCE -> 0.3f
+            A1Phase.DRILL -> 0.6f
+            A1Phase.APPLY -> 0.8f
+            A1Phase.GRAMMAR -> 0.9f
+            A1Phase.COOL_DOWN, A1Phase.FINISHED -> 1.0f
+        }
+        // Снижаем "штраф" за прерывание — масштабируем quality
+        val adjustedQuality = (rawQuality * progressFraction).toInt().coerceAtLeast(1)
+
+        planner.onSessionCompleted(ctx.cluster, adjustedQuality, introducedRuleId)
+
+        val jsonList = { list: Collection<String> -> Json.encodeToString(list.toList()) }
+        val diagnosesJson = try {
+            Json.encodeToString(
+                diagnoses.mapValues { (_, d) ->
+                    mapOf(
+                        "source" to d.source.name,
+                        "depth" to d.depth.name,
+                        "category" to d.category.name,
+                        "specifics" to d.specifics,
+                    )
+                }
+            )
+        } catch (e: Exception) { "{}" }
+
+        sessionDao.insert(
+            A1SessionLogEntity(
+                clusterId = ctx.cluster.id,
+                startedAt = sessionStartedAt,
+                endedAt = endedAt,
+                lemmasTargetedJson = jsonList(targetedLemmas),
+                lemmasProducedJson = jsonList(producedLemmas),
+                lemmasFailedJson = jsonList(failedLemmas),
+                overallQuality = adjustedQuality,
+                feedbackText = "Сессия прервана на фазе $currentPhase. Прогресс частично засчитан.",
+                grammarRuleIntroduced = introducedRuleId,
+                isComplete = false,
+                phaseReached = currentPhase.name,
+                errorDiagnosesJson = diagnosesJson,
+                avgQuality = avgQ,
+                evaluateCallsCount = evaluateCallsCount,
+            )
+        )
+
+        // Эмитим псевдо-SessionFinished чтобы UI закрыл сессию аккуратно
+        bus.emit(A1LearningEvent.SessionFinished(
+            overallQuality = adjustedQuality,
+            feedback = "Сессия прервана. Засчитано ${(progressFraction * 100).toInt()}% прогресса."
+        ))
     }
 
     override suspend fun handleToolCall(call: FunctionCall): String? {
@@ -130,6 +205,7 @@ class A1SituationSession @Inject constructor(
     private fun handleStartPhase(call: FunctionCall): String {
         val phaseStr = call.args["phase"] ?: return err("no phase")
         val phase = runCatching { A1Phase.valueOf(phaseStr) }.getOrElse { A1Phase.IDLE }
+        currentPhase = phase
         logger.d("A1Session: phase → $phase")
         bus.emit(A1LearningEvent.PhaseChanged(phase))
         return ok()
@@ -187,6 +263,8 @@ class A1SituationSession @Inject constructor(
             specifics = call.args["error_specifics"] ?: "",
         )
         diagnoses[lemma] = diagnosis
+        evaluateCallsCount++
+        qualityAccumulator.add(quality)
 
         val wasCorrect = !diagnosis.isError
         if (wasCorrect) producedLemmas.add(lemma) else failedLemmas.add(lemma)
