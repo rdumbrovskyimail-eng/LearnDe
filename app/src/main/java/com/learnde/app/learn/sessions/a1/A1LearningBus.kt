@@ -1,14 +1,15 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1LearningBus.kt
 //
-// SharedFlow-шина для событий обучения A1 — UI подписывается
-// и обновляется в реальном времени. Пока Gemini "живёт" внутри
-// сессии, ученик видит каждое событие: фаза сменилась, лемма
-// проверена, правило введено.
+// ИЗМЕНЕНИЯ:
+//   - LemmaEvaluated теперь несёт ErrorDiagnosis и Intervention
+//   - Старое поле wasCorrect оставлено (вычисляется из diagnosis.isError)
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
+import com.learnde.app.learn.domain.ErrorDiagnosis
+import com.learnde.app.learn.domain.Intervention
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -16,17 +17,22 @@ import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Событие, которое UI получает из сессии. */
 sealed class A1LearningEvent {
     data class PhaseChanged(val phase: A1Phase) : A1LearningEvent()
     data class LemmaHeard(val lemma: String) : A1LearningEvent()
     data class LemmaProduced(val lemma: String, val quality: Int) : A1LearningEvent()
+
     data class LemmaEvaluated(
         val lemma: String,
         val quality: Int,
-        val wasCorrect: Boolean,
+        val diagnosis: ErrorDiagnosis,
+        val intervention: Intervention,
         val feedback: String,
-    ) : A1LearningEvent()
+    ) : A1LearningEvent() {
+        /** Для обратной совместимости с UI. */
+        val wasCorrect: Boolean get() = !diagnosis.isError
+    }
+
     data class GrammarIntroduced(val ruleId: String, val ruleName: String) : A1LearningEvent()
     data class SessionFinished(val overallQuality: Int, val feedback: String) : A1LearningEvent()
 }
