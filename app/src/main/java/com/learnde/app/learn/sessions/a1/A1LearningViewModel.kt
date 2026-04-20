@@ -80,7 +80,7 @@ class A1LearningViewModel @Inject constructor(
                     if (ev != null && ev.lemma == intent.lemma) {
                         s.copy(lastEvaluation = ev.copy(
                             quality = 7,
-                            diagnosis = ErrorDiagnosis(),
+                            diagnosis = ErrorDiagnosis.None,
                             intervention = Intervention.PRAISE,
                         ))
                     } else s
@@ -97,6 +97,7 @@ class A1LearningViewModel @Inject constructor(
         val lemmasTotal = lemmaDao.getTotalCount()
         val lemmasSeen = lemmaDao.getSeenCount()
         val lemmasMastered = lemmaDao.getMasteredCount()
+        val lemmasInProgress = lemmaDao.getInProgressCount()
         val clustersTotal = clusterDao.getTotalCount()
         val clustersMastered = clusterDao.getMasteredCount()
         val next = planner.pickNextCluster()
@@ -108,6 +109,7 @@ class A1LearningViewModel @Inject constructor(
                 totalLemmas = lemmasTotal,
                 lemmasSeen = lemmasSeen,
                 lemmasMastered = lemmasMastered,
+                lemmasInProgress = lemmasInProgress,
                 totalClusters = clustersTotal,
                 clustersMastered = clustersMastered,
                 currentCluster = next ?: it.currentCluster,
@@ -211,6 +213,11 @@ class A1LearningViewModel @Inject constructor(
         viewModelScope.launch {
             lemmaDao.observeMasteredCount().collect { count ->
                 _state.update { it.copy(lemmasMastered = count) }
+            }
+        }
+        viewModelScope.launch {
+            lemmaDao.observeInProgressCount().collect { count ->
+                _state.update { it.copy(lemmasInProgress = count) }
             }
         }
         viewModelScope.launch {
