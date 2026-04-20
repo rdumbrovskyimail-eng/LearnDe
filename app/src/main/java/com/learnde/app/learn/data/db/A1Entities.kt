@@ -13,66 +13,51 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Лемма из Goethe A1 Wortschatz.
- * Источник: DWDS JSON (clean_a1_lemmas.json).
- * 835 записей. Grundlage твоей метрики покрытия A1.
+ * Лемма из Goethe A1 Wortschatz. Расширена в Patch 3 полями FSRS-5.
  */
 @Entity(tableName = "a1_lemmas")
 data class LemmaA1Entity(
-    /** Сама лемма как есть (например "Haus"). Уникальна. */
     @PrimaryKey val lemma: String,
-
-    /** Часть речи (Substantiv, Verb, Adjektiv, ...). */
     val pos: String,
-
-    /** Артикль если существительное (der/die/das), иначе null. */
     val article: String?,
-
-    /** Все возможные артикли через запятую (Beamte — der,die). */
     val articlesAll: String,
-
-    /** Род (mask./fem./neutr.) или null. */
     val genus: String?,
-
-    /** Ссылка на DWDS для подгрузки примеров. */
     val urlDwds: String,
-
-    /** Индекс омонима (Bank#1, Bank#2) или null. */
     val hidx: String?,
 
-    // ───── Прогресс обучения ─────
-
-    /** 0..1. Насколько лемма узнаётся пассивно (услышал → понял). */
+    // ─── Старые поля (оставлены для совместимости UI) ───
     val recognitionScore: Float = 0f,
-
-    /** 0..1. Насколько лемма воспроизводится активно (сам произвёл в речи). */
     val productionScore: Float = 0f,
-
-    /** Сколько раз Gemini использовал эту лемму в диалоге. */
     val timesHeard: Int = 0,
-
-    /** Сколько раз ученик правильно её использовал. */
     val timesProduced: Int = 0,
-
-    /** Сколько раз ученик провалил (не узнал или ошибся). */
     val timesFailed: Int = 0,
-
-    /** Когда лемма последний раз встречалась. */
     val lastSeenAt: Long? = null,
-
-    /** Когда будет следующий запланированный повтор (SRS). */
     val nextReviewAt: Long? = null,
-
-    /** ID последнего кластера, в котором лемма работалась. */
     val lastClusterId: String? = null,
+
+    // ─── Patch 3: FSRS-5 state ───
+    val fsrsDifficulty: Double = 5.0,
+    val fsrsStability: Double = 0.0,
+    val fsrsReps: Int = 0,
+    val fsrsLapses: Int = 0,
+    val fsrsLastReviewAt: Long = 0L,
 ) {
-    /** Общий «индекс освоения» леммы 0..1. */
+    /** Индекс освоения. В Patch 3 считается через FsrsScheduler.masteryScore(). */
     val masteryScore: Float
         get() = (recognitionScore * 0.3f + productionScore * 0.7f).coerceIn(0f, 1f)
 
-    /** Готова ли лемма к следующему повтору по SRS. */
     fun isDueForReview(now: Long = System.currentTimeMillis()): Boolean =
         nextReviewAt?.let { it <= now } ?: true
+
+    /** Построить FsrsState из полей. */
+    fun toFsrsState(): com.learnde.app.learn.domain.FsrsState =
+        com.learnde.app.learn.domain.FsrsState(
+            difficulty = fsrsDifficulty,
+            stability = fsrsStability,
+            reps = fsrsReps,
+            lapses = fsrsLapses,
+            lastReviewAt = fsrsLastReviewAt,
+        )
 }
 
 /**
