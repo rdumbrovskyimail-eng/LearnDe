@@ -1,9 +1,13 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1FunctionDeclarations.kt
 //
-// Объявления функций, которые Gemini может вызывать во время
-// учебной сессии A1. Каждый вызов = сигнал для БД и UI.
+// ИЗМЕНЕНИЯ:
+//   - FN_EVALUATE_AND_UPDATE расширен до диагностики Selinker
+//   - Добавлены 4 новых параметра: error_source, error_depth,
+//     error_category, error_specifics
+//   - Старое поле was_produced_correctly оставлено для совместимости,
+//     но теперь вычисляется по error_depth (NONE == correct)
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
@@ -19,23 +23,21 @@ object A1FunctionDeclarations {
     const val FN_INTRODUCE_GRAMMAR    = "introduce_grammar_rule"
     const val FN_FINISH_SESSION       = "finish_session"
 
-    // ─── Фазы сессии ───
     val START_PHASE_DECL = FunctionDeclarationConfig(
         name = FN_START_PHASE,
-        description = "Вызывай перед началом каждой фазы сессии. Это обновит UI и покажет ученику прогресс по фазам.",
+        description = "Вызывай перед началом каждой фазы сессии.",
         parameters = mapOf(
             "phase" to ParameterConfig(
                 type = "STRING",
-                description = "Имя фазы: WARM_UP, INTRODUCE, DRILL, APPLY, GRAMMAR, или COOL_DOWN."
+                description = "WARM_UP, INTRODUCE, DRILL, APPLY, GRAMMAR, или COOL_DOWN."
             )
         ),
         required = listOf("phase")
     )
 
-    // ─── Лемма услышана (в речи Gemini) ───
     val MARK_LEMMA_HEARD_DECL = FunctionDeclarationConfig(
         name = FN_MARK_LEMMA_HEARD,
-        description = "Вызывай КАЖДЫЙ раз, когда используешь целевую лемму в своей речи (для SRS-трекинга).",
+        description = "Вызывай КАЖДЫЙ раз, когда используешь целевую лемму в своей речи.",
         parameters = mapOf(
             "lemma" to ParameterConfig(
                 type = "STRING",
@@ -45,27 +47,26 @@ object A1FunctionDeclarations {
         required = listOf("lemma")
     )
 
-    // ─── Лемма произведена учеником ───
     val MARK_LEMMA_PRODUCED_DECL = FunctionDeclarationConfig(
         name = FN_MARK_LEMMA_PRODUCED,
-        description = "Вызывай когда ученик успешно использовал лемму в своей речи (без оценки правильности).",
+        description = "Вызывай когда ученик успешно использовал лемму в своей речи.",
         parameters = mapOf(
-            "lemma" to ParameterConfig(
-                type = "STRING",
-                description = "Базовая форма леммы."
-            ),
-            "quality" to ParameterConfig(
-                type = "INTEGER",
-                description = "Качество 1-7 по нашей шкале."
-            )
+            "lemma" to ParameterConfig(type = "STRING", description = "Базовая форма леммы."),
+            "quality" to ParameterConfig(type = "INTEGER", description = "Качество 1-7.")
         ),
         required = listOf("lemma", "quality")
     )
 
-    // ─── Полная оценка: лемма + прогресс ───
+    // ═══════════════════════════════════════════════════════════════
+    //  ГЛАВНОЕ ИЗМЕНЕНИЕ: EVALUATE_AND_UPDATE с диагностикой Selinker
+    // ═══════════════════════════════════════════════════════════════
     val EVALUATE_AND_UPDATE_DECL = FunctionDeclarationConfig(
         name = FN_EVALUATE_AND_UPDATE,
-        description = "Вызывай после каждого ответа ученика в фазе DRILL. Оцени его попытку употребить лемму.",
+        description = """
+            Вызывай после каждого ответа ученика в фазе DRILL или APPLY.
+            Проведи ДИАГНОСТИКУ ошибки по модели Selinker (interlanguage).
+            Если ошибки нет — все поля error_* должны быть NONE.
+        """.trimIndent(),
         parameters = mapOf(
             "lemma" to ParameterConfig(
                 type = "STRING",
@@ -73,24 +74,54 @@ object A1FunctionDeclarations {
             ),
             "quality" to ParameterConfig(
                 type = "INTEGER",
-                description = "Оценка 1-7."
+                description = "Оценка 1-7 по качеству ответа."
             ),
-            "was_produced_correctly" to ParameterConfig(
-                type = "BOOLEAN",
-                description = "true если ученик правильно произнёс/применил лемму."
+            "error_source" to ParameterConfig(
+                type = "STRING",
+                description = """
+                    Источник ошибки (ось 1 модели Selinker). Значения:
+                    NONE — ошибки нет.
+                    L1_TRANSFER — влияние русского языка (пропуск артикля, нет падежа).
+                    OVERGENERALIZATION — применил правило слишком широко (напр. 'gehte' вместо 'ging').
+                    SIMPLIFICATION — упростил форму (пропустил окончание, 'ich gehen').
+                    COMMUNICATION_STRATEGY — сознательный обход (перефразирование, жест).
+                """.trimIndent()
+            ),
+            "error_depth" to ParameterConfig(
+                type = "STRING",
+                description = """
+                    Глубина ошибки (ось 2 модели Selinker). Значения:
+                    NONE — ошибки нет.
+                    SLIP — ученик знает правило, оговорился (под стрессом, в шуме).
+                    MISTAKE — ученик неуверен, может исправить при наводящем вопросе.
+                    ERROR — ученик НЕ знает правила вообще, требуется явное объяснение.
+                """.trimIndent()
+            ),
+            "error_category" to ParameterConfig(
+                type = "STRING",
+                description = """
+                    Конкретная категория ошибки. Значения:
+                    NONE, GENDER, CASE, WORD_ORDER, LEXICAL, PHONOLOGY,
+                    PRAGMATICS, CONJUGATION, NEGATION, PLURAL, PREPOSITION.
+                """.trimIndent()
+            ),
+            "error_specifics" to ParameterConfig(
+                type = "STRING",
+                description = "Конкретика на русском, 1 фраза: 'использовал Nominativ вместо Akkusativ после haben'. Пусто если ошибки нет."
             ),
             "feedback" to ParameterConfig(
                 type = "STRING",
-                description = "Краткий фидбек на русском (1 предложение)."
+                description = "Краткий фидбек на русском для ученика (1 предложение)."
             )
         ),
-        required = listOf("lemma", "quality", "was_produced_correctly")
+        required = listOf(
+            "lemma", "quality", "error_source", "error_depth", "error_category"
+        )
     )
 
-    // ─── Правило грамматики представлено ───
     val INTRODUCE_GRAMMAR_DECL = FunctionDeclarationConfig(
         name = FN_INTRODUCE_GRAMMAR,
-        description = "Вызывай ТОЛЬКО ОДИН РАЗ за сессию — когда объясняешь новое правило грамматики в фазе GRAMMAR.",
+        description = "Вызывай ТОЛЬКО ОДИН РАЗ за сессию — когда объясняешь новое правило.",
         parameters = mapOf(
             "rule_id" to ParameterConfig(
                 type = "STRING",
@@ -100,18 +131,17 @@ object A1FunctionDeclarations {
         required = listOf("rule_id")
     )
 
-    // ─── Завершение сессии ───
     val FINISH_SESSION_DECL = FunctionDeclarationConfig(
         name = FN_FINISH_SESSION,
-        description = "Вызывай ПОСЛЕДНИМ — когда сессия полностью завершена (после COOL_DOWN).",
+        description = "Вызывай ПОСЛЕДНИМ — когда сессия полностью завершена.",
         parameters = mapOf(
             "overall_quality" to ParameterConfig(
                 type = "INTEGER",
-                description = "Общая оценка всей сессии 1-7."
+                description = "Общая оценка 1-7."
             ),
             "feedback" to ParameterConfig(
                 type = "STRING",
-                description = "Короткий итог на русском (1-2 предложения): что получилось, что повторить."
+                description = "Итог на русском (1-2 предложения)."
             )
         ),
         required = listOf("overall_quality", "feedback")
