@@ -1,10 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/learn/data/db/A1Database.kt
-//
-// Room database для системы A1.
-// Отдельная БД от твоей основной conversation-БД —
-// чтобы не миксовать учебные данные с голосовыми диалогами.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.data.db
 
@@ -19,6 +15,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
 
@@ -49,13 +47,13 @@ abstract class A1Database : RoomDatabase() {
 class A1Converters {
     @TypeConverter
     fun listToJson(list: List<String>?): String =
-        if (list == null) "[]" else Json.encodeToString(kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.builtins.serializer()), list)
+        if (list == null) "[]" else Json.encodeToString(list)
 
     @TypeConverter
     fun jsonToList(json: String?): List<String> =
         if (json.isNullOrBlank()) emptyList()
         else try {
-            Json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.builtins.serializer()), json)
+            Json.decodeFromString<List<String>>(json)
         } catch (e: Exception) { emptyList() }
 }
 
