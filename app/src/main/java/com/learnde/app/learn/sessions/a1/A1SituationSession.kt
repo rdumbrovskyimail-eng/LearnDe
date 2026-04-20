@@ -47,6 +47,7 @@ class A1SituationSession @Inject constructor(
     private val sessionDao: A1SessionDao,
     private val bus: A1LearningBus,
     private val logger: AppLogger,
+    private val fsrs: com.learnde.app.learn.domain.FsrsScheduler,
 ) : LearnSession {
 
     override val id: String = "a1_situation"
@@ -255,7 +256,6 @@ class A1SituationSession @Inject constructor(
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
         val feedback = call.args["feedback"] ?: ""
 
-        // Парсим диагностику Selinker
         val diagnosis = ErrorDiagnosis(
             source = ErrorSource.fromString(call.args["error_source"]),
             depth = ErrorDepth.fromString(call.args["error_depth"]),
@@ -269,28 +269,49 @@ class A1SituationSession @Inject constructor(
         val wasCorrect = !diagnosis.isError
         if (wasCorrect) producedLemmas.add(lemma) else failedLemmas.add(lemma)
 
-        // Интервенция на основе диагностики
         val intervention = diagnosis.recommendedIntervention()
 
+        // ═══ Patch 3: FSRS-5 scheduling ═══
+        val entity = lemmaDao.getByLemma(lemma)
+        if (entity == null) {
+            logger.w("A1Session.eval: lemma '$lemma' not in DB (Gemini сочинил?)")
+            return """{"status":"ignored","reason":"unknown lemma"}"""
+        }
+
+        // Корректируем rating с учётом глубины ошибки:
+        // SLIP не штрафуется полностью — бампим rating вверх.
+        val adjustedQuality = when (diagnosis.depth) {
+            ErrorDepth.SLIP -> (quality + 2).coerceAtMost(7)
+            ErrorDepth.MISTAKE -> (quality + 1).coerceAtMost(7)
+            else -> quality
+        }
+        val rating = com.learnde.app.learn.domain.FsrsRating.fromQuality(adjustedQuality)
+
+        val (newFsrsState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
+        val newMastery = fsrs.masteryScore(newFsrsState)
+
         logger.d(
-            "A1Session.eval: lemma=$lemma quality=$quality " +
-                "src=${diagnosis.source} depth=${diagnosis.depth} cat=${diagnosis.category} " +
-                "→ intervention=$intervention"
+            "A1Session.eval[FSRS]: lemma=$lemma q=$quality(adj=$adjustedQuality) " +
+            "rating=$rating src=${diagnosis.source} depth=${diagnosis.depth} " +
+            "→ mastery=$newMastery, next in ${(nextReviewAt - System.currentTimeMillis()) / 3600_000}h"
         )
 
-        // Коррекция дельт с учётом глубины ошибки
-        val productionDelta = computeProductionDelta(quality, diagnosis.depth)
         val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
         val clusterId = currentContext?.cluster?.id ?: "unknown"
 
-        lemmaDao.updateProgress(
+        lemmaDao.updateProgressFsrs(
             lemma = lemma,
             produced = if (wasCorrect) 1 else 0,
             failed = if (!wasCorrect) 1 else 0,
-            productionDelta = productionDelta,
+            newProductionScore = newMastery,
             recognitionDelta = recognitionDelta,
             clusterId = clusterId,
-            nextReview = computeNextReviewForLemma(quality),
+            nextReview = nextReviewAt,
+            fsrsDifficulty = newFsrsState.difficulty,
+            fsrsStability = newFsrsState.stability,
+            fsrsReps = newFsrsState.reps,
+            fsrsLapses = newFsrsState.lapses,
+            fsrsLastReviewAt = newFsrsState.lastReviewAt,
         )
 
         bus.emit(A1LearningEvent.LemmaEvaluated(
@@ -300,31 +321,10 @@ class A1SituationSession @Inject constructor(
             intervention = intervention,
             feedback = feedback,
         ))
-        return """{"status":"ok","intervention":"$intervention"}"""
+        return """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
     }
 
-    /**
-     * SLIP наказывается меньше, чем ERROR: ученик знает правило.
-     * ERROR наказывается сильнее — нужна новая экспозиция.
-     */
-    private fun computeProductionDelta(quality: Int, depth: ErrorDepth): Float {
-        val baseDelta = when (quality) {
-            7 -> 0.15f
-            6 -> 0.10f
-            5 -> 0.05f
-            4 -> 0.0f
-            3 -> -0.03f
-            2 -> -0.05f
-            else -> -0.08f
-        }
-        val depthMultiplier = when (depth) {
-            ErrorDepth.NONE -> 1.0f
-            ErrorDepth.SLIP -> 0.5f       // не штрафуем полностью
-            ErrorDepth.MISTAKE -> 0.8f
-            ErrorDepth.ERROR -> 1.3f      // штрафуем сильнее
-        }
-        return baseDelta * depthMultiplier
-    }
+
 
     private suspend fun handleIntroduceGrammar(call: FunctionCall): String {
         val ruleId = call.args["rule_id"]?.trim() ?: return err("no rule_id")
