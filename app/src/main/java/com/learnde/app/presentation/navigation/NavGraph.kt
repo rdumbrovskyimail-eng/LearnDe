@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// ЗАМЕНА
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/presentation/navigation/NavGraph.kt
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.navigation
@@ -58,7 +58,7 @@ fun AppNavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Routes.ONBOARDING, // 👈 Изменен стартовый экран
+        startDestination = Routes.ONBOARDING,
     ) {
         composable(
             route = Routes.ONBOARDING,
@@ -82,7 +82,6 @@ fun AppNavGraph(
         ) {
             SettingsScreen(
                 onStartSession = {
-                    // 👈 При нажатии на кнопку внизу открывается Обучение (Hub), а не Voice
                     navController.navigate(Routes.LEARN_GRAPH) {
                         launchSingleTop = true
                         popUpTo(Routes.SETTINGS) { saveState = true }
@@ -115,7 +114,6 @@ fun AppNavGraph(
                     navController.navigate(Routes.FUNCTIONS) { launchSingleTop = true }
                 },
                 onOpenLearnHub = {
-                    // Возвращаемся в хаб (или открываем его, если пришли из настроек)
                     navController.navigate(Routes.LEARN_GRAPH) { launchSingleTop = true }
                 },
             )
@@ -172,7 +170,8 @@ fun AppNavGraph(
 
             composable("learn/a1") { entry ->
                 val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
-                com.learnde.app.presentation.learn.A1LearningScreen(
+                // 👇 ИСПРАВЛЕН ПУТЬ ДО A1LearningScreen
+                com.learnde.app.learn.sessions.a1.A1LearningScreen(
                     onBack = { navController.popBackStack() },
                     learnCoreViewModel = learnCoreVm,
                 )
