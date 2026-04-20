@@ -338,28 +338,41 @@ fun A1LearningScreen(
 
 @Composable
 private fun ProgressSummary(state: A1LearningState) {
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-    ) {
-        CircularProgressItem(
-            label = "Леммы",
-            current = state.lemmasMastered,
-            total = state.totalLemmas,
-            color = MaterialTheme.colorScheme.primary
-        )
-        CircularProgressItem(
-            label = "Кластеры",
-            current = state.clustersMastered,
-            total = state.totalClusters,
-            color = Color(0xFF43A047)
-        )
-        CircularProgressItem(
-            label = "Правила",
-            current = state.grammarIntroduced,
-            total = state.grammarTotal,
-            color = Color(0xFFFB8C00)
-        )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            CircularProgressItem(
+                label = "Леммы",
+                current = state.lemmasMastered,
+                total = state.totalLemmas,
+                color = MaterialTheme.colorScheme.primary,
+                subValue = if (state.lemmasInProgress > 0) "+${state.lemmasInProgress}" else null
+            )
+            CircularProgressItem(
+                label = "Кластеры",
+                current = state.clustersMastered,
+                total = state.totalClusters,
+                color = Color(0xFF43A047)
+            )
+            CircularProgressItem(
+                label = "Правила",
+                current = state.grammarIntroduced,
+                total = state.grammarTotal,
+                color = Color(0xFFFB8C00)
+            )
+        }
+        if (state.lemmasInProgress > 0) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "В процессе изучения: ${state.lemmasInProgress} лемм",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
     }
 }
 
@@ -369,6 +382,7 @@ private fun CircularProgressItem(
     current: Int,
     total: Int,
     color: Color,
+    subValue: String? = null,
 ) {
     val fraction by animateFloatAsState(
         targetValue = if (total == 0) 0f else (current.toFloat() / total).coerceIn(0f, 1f),
@@ -408,6 +422,10 @@ private fun CircularProgressItem(
                     color = MaterialTheme.colorScheme.onSurface)
                 Text("/$total", fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+                subValue?.let {
+                    Text(it, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                        color = color)
+                }
             }
         }
         Spacer(Modifier.height(6.dp))
