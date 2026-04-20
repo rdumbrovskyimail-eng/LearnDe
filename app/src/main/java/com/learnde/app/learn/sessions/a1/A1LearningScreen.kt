@@ -95,6 +95,7 @@ import kotlin.math.min
 @Composable
 fun A1LearningScreen(
     onBack: () -> Unit,
+    onOpenHistory: () -> Unit,
     learnCoreViewModel: LearnCoreViewModel,
     vm: A1LearningViewModel = hiltViewModel(),
 ) {
@@ -157,6 +158,15 @@ fun A1LearningScreen(
                 navigationIcon = {
                     IconButton(onClick = exitAndBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenHistory) {
+                        Icon(
+                            androidx.compose.material.icons.Icons.Filled.History,
+                            contentDescription = "История",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
