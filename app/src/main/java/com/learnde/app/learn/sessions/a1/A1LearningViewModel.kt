@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1LearningViewModel.kt
 //
-// ViewModel экрана обучения A1.
-// Работает "поверх" LearnCoreViewModel — не владеет Gemini,
-// а только подписывается на события и управляет кластерами.
+// ИЗМЕНЕНИЯ:
+//   - LemmaEvaluated теперь берёт ErrorDiagnosis из event
+//   - DisputeEvaluation обновлён под новую LastEvaluation
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
@@ -16,6 +16,8 @@ import com.learnde.app.learn.data.db.A1GrammarDao
 import com.learnde.app.learn.data.db.A1LemmaDao
 import com.learnde.app.learn.data.db.A1UserProgressDao
 import com.learnde.app.learn.domain.A1SessionPlanner
+import com.learnde.app.learn.domain.ErrorDiagnosis
+import com.learnde.app.learn.domain.Intervention
 import com.learnde.app.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -73,11 +75,14 @@ class A1LearningViewModel @Inject constructor(
             is A1LearningIntent.DisputeEvaluation -> viewModelScope.launch {
                 session.disputeEvaluation(intent.lemma)
                 _effects.tryEmit(A1LearningEffect.ShowToast("Оценка исправлена!"))
-                // Обновляем UI, чтобы скрыть кнопку
                 _state.update { s ->
                     val ev = s.lastEvaluation
                     if (ev != null && ev.lemma == intent.lemma) {
-                        s.copy(lastEvaluation = ev.copy(wasCorrect = true, quality = 7))
+                        s.copy(lastEvaluation = ev.copy(
+                            quality = 7,
+                            diagnosis = ErrorDiagnosis(),
+                            intervention = Intervention.PRAISE,
+                        ))
                     } else s
                 }
             }
@@ -87,8 +92,6 @@ class A1LearningViewModel @Inject constructor(
             }
         }
     }
-
-    // ─── Рефреш общего прогресса ───
 
     private suspend fun refresh() {
         val lemmasTotal = lemmaDao.getTotalCount()
@@ -111,10 +114,7 @@ class A1LearningViewModel @Inject constructor(
                 isA1Completed = userProgress?.isA1Completed ?: false,
             )
         }
-        logger.d("A1VM refresh: lemmas $lemmasMastered/$lemmasTotal, clusters $clustersMastered/$clustersTotal, next=${next?.id}")
     }
-
-    // ─── Старт сессии ───
 
     private suspend fun startNextCluster() {
         val next = planner.pickNextCluster()
@@ -133,7 +133,7 @@ class A1LearningViewModel @Inject constructor(
             return
         }
         if (!cluster.isUnlocked) {
-            _effects.tryEmit(A1LearningEffect.ShowToast("Этот кластер ещё не разблокирован — пройди предыдущие"))
+            _effects.tryEmit(A1LearningEffect.ShowToast("Этот кластер ещё не разблокирован"))
             return
         }
         beginClusterSession(clusterId)
@@ -141,7 +141,6 @@ class A1LearningViewModel @Inject constructor(
 
     private suspend fun beginClusterSession(clusterId: String) {
         val cluster = clusterDao.getById(clusterId) ?: return
-        // Готовим контекст в сессии
         session.prepareForCluster(cluster)
         _state.update {
             it.copy(
@@ -158,11 +157,8 @@ class A1LearningViewModel @Inject constructor(
                 finalFeedback = null,
             )
         }
-        // Просим UI (через Effect) поднять LearnCore
         _effects.tryEmit(A1LearningEffect.RequestStartSession)
     }
-
-    // ─── Подписка на события из сессии ───
 
     private fun observeBus() {
         viewModelScope.launch {
@@ -179,10 +175,17 @@ class A1LearningViewModel @Inject constructor(
 
                     is A1LearningEvent.LemmaEvaluated -> {
                         _state.update { s ->
-                            val newProduced = if (event.wasCorrect) s.lemmasProducedThisSession + event.lemma else s.lemmasProducedThisSession
-                            val newFailed = if (!event.wasCorrect) s.lemmasFailedThisSession + event.lemma else s.lemmasFailedThisSession
+                            val wasCorrect = !event.diagnosis.isError
+                            val newProduced = if (wasCorrect) s.lemmasProducedThisSession + event.lemma else s.lemmasProducedThisSession
+                            val newFailed = if (!wasCorrect) s.lemmasFailedThisSession + event.lemma else s.lemmasFailedThisSession
                             s.copy(
-                                lastEvaluation = LastEvaluation(event.lemma, event.quality, event.wasCorrect, event.feedback),
+                                lastEvaluation = LastEvaluation(
+                                    lemma = event.lemma,
+                                    quality = event.quality,
+                                    diagnosis = event.diagnosis,
+                                    intervention = event.intervention,
+                                    feedback = event.feedback,
+                                ),
                                 lemmasProducedThisSession = newProduced,
                                 lemmasFailedThisSession = newFailed,
                             )
@@ -204,7 +207,6 @@ class A1LearningViewModel @Inject constructor(
         }
     }
 
-    // Обновляем счётчики из Flow (реактивно)
     private fun observeCounters() {
         viewModelScope.launch {
             lemmaDao.observeMasteredCount().collect { count ->
