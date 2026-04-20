@@ -1,18 +1,20 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1LearningContract.kt
 //
-// MVI-контракт экрана обучения A1.
+// ИЗМЕНЕНИЯ:
+//   - LastEvaluation теперь включает ErrorDiagnosis и Intervention
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
 import com.learnde.app.learn.data.db.ClusterA1Entity
+import com.learnde.app.learn.domain.ErrorDiagnosis
+import com.learnde.app.learn.domain.Intervention
 
 data class A1LearningState(
     val loading: Boolean = true,
     val error: String? = null,
 
-    // ─── Прогресс ───
     val totalLemmas: Int = 835,
     val lemmasSeen: Int = 0,
     val lemmasMastered: Int = 0,
@@ -21,53 +23,45 @@ data class A1LearningState(
     val grammarIntroduced: Int = 0,
     val grammarTotal: Int = 22,
 
-    // ─── Текущая сессия ───
     val currentCluster: ClusterA1Entity? = null,
     val currentPhase: A1Phase = A1Phase.IDLE,
     val sessionActive: Boolean = false,
     val sessionFinished: Boolean = false,
 
-    // ─── Live-данные во время сессии ───
     val lemmasHeardThisSession: Set<String> = emptySet(),
     val lemmasProducedThisSession: Set<String> = emptySet(),
     val lemmasFailedThisSession: Set<String> = emptySet(),
     val lastEvaluation: LastEvaluation? = null,
     val grammarIntroducedInSession: String? = null,
 
-    // ─── Завершение сессии ───
     val finalQuality: Int? = null,
     val finalFeedback: String? = null,
 
-    // ─── Достижение ───
     val isA1Completed: Boolean = false,
 )
 
 data class LastEvaluation(
     val lemma: String,
     val quality: Int,
-    val wasCorrect: Boolean,
+    val diagnosis: ErrorDiagnosis,
+    val intervention: Intervention,
     val feedback: String,
-)
+) {
+    /** Для обратной совместимости. */
+    val wasCorrect: Boolean get() = !diagnosis.isError
+}
 
 sealed class A1LearningIntent {
-    /** Загрузить/обновить прогресс и подобрать следующий кластер. */
     data object Refresh : A1LearningIntent()
-    /** Начать сессию со следующим кластером из планировщика. */
     data object StartNextCluster : A1LearningIntent()
-    /** Начать сессию с конкретным кластером (из карты тем). */
     data class StartCluster(val clusterId: String) : A1LearningIntent()
-    /** Прервать текущую сессию. */
     data object StopSession : A1LearningIntent()
-    /** Оспорить оценку последнего слова. */
     data class DisputeEvaluation(val lemma: String) : A1LearningIntent()
-    /** Закрыть диалог итога сессии. */
     data object DismissFinalDialog : A1LearningIntent()
 }
 
 sealed class A1LearningEffect {
-    /** Попросить LearnCore стартовать сессию с id = "a1_situation". */
     data object RequestStartSession : A1LearningEffect()
-    /** Попросить LearnCore остановить текущую сессию. */
     data object RequestStopSession : A1LearningEffect()
     data class ShowToast(val msg: String) : A1LearningEffect()
 }
