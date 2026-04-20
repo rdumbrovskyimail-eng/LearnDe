@@ -1,18 +1,12 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
-// Путь: app/src/main/java/com/learnde/app/learn/domain/A1SystemPromptBuilder.kt
-//
-// Строит system_instruction для Gemini на основе SessionContext.
-//
-// Главная задача: задать Gemini ЖЁСТКИЙ шаблон сессии
-// (WARM-UP → INTRODUCE → DRILL → APPLY → GRAMMAR → COOL-DOWN)
-// и обеспечить, чтобы ВСЕ леммы кластера были использованы
-// несколько раз в разных контекстах.
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/learn/data/domain/A1SystemPromtBuilder.kt
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.domain
 
 import com.learnde.app.learn.data.db.GrammarRuleA1Entity
 import com.learnde.app.learn.data.db.LemmaA1Entity
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -165,12 +159,7 @@ $grammarBlock
             return "═══ ПРАВИЛО ДЛЯ ВВЕДЕНИЯ ═══\n(нет правил, готовых к показу — пропусти фазу GRAMMAR)"
         }
         val examples = try {
-            Json.decodeFromString(
-                kotlinx.serialization.builtins.ListSerializer(
-                    kotlinx.serialization.builtins.serializer<String>()
-                ),
-                rule.examplesJson
-            ).joinToString("\n    ") { "◦ $it" }
+            Json.decodeFromString<List<String>>(rule.examplesJson).joinToString("\n    ") { "◦ $it" }
         } catch (_: Exception) { "(нет примеров)" }
 
         return """
