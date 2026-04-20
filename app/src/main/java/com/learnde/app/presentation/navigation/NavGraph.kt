@@ -148,6 +148,9 @@ fun AppNavGraph(
                     onOpenA0a1Test = {
                         navController.navigate(Routes.LEARN_A0A1) { launchSingleTop = true }
                     },
+                    onOpenA1Learning = {
+                        navController.navigate("learn/a1") { launchSingleTop = true }
+                    },
                     onOpenVoiceClient = {
                         navController.navigate(Routes.VOICE) { launchSingleTop = true }
                     },
