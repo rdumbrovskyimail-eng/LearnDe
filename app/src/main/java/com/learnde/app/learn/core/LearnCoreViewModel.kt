@@ -82,6 +82,8 @@ class LearnCoreViewModel @Inject constructor(
     private val _effects = MutableSharedFlow<LearnCoreEffect>(extraBufferCapacity = 8)
     val effects: SharedFlow<LearnCoreEffect> = _effects.asSharedFlow()
 
+    val audioPlaybackFlow get() = audioEngine.playbackSync
+
     /**
      * Live-статус выполняемой функции Gemini — проксируется из LearnFunctionStatusBus.
      * Используется UI (CurrentFunctionBar) на всех экранах Learn-блока.
