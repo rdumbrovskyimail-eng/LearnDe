@@ -18,6 +18,7 @@ data class A1LearningState(
     val totalLemmas: Int = 835,
     val lemmasSeen: Int = 0,
     val lemmasMastered: Int = 0,
+    val lemmasInProgress: Int = 0,
     val totalClusters: Int = 194,
     val clustersMastered: Int = 0,
     val grammarIntroduced: Int = 0,
