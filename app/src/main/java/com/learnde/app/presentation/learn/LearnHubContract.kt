@@ -37,8 +37,15 @@ data class LearnHubState(
             LearnHubItem(
                 id = "a0a1_test",
                 title = "Тест A0 – A1",
-                subtitle = "20 вопросов · устный экзамен с ИИ-преподавателем",
+                subtitle = "20 вопросов · устный экзамен",
                 badge = "A0-A1",
+                implemented = true,
+            ),
+            LearnHubItem(
+                id = "a1_learning",
+                title = "Обучение A1",
+                subtitle = "194 урока · 835 слов · 22 правила",
+                badge = "A1",
                 implemented = true,
             ),
             LearnHubItem(
