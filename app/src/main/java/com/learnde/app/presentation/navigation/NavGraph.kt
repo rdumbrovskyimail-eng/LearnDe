@@ -48,6 +48,8 @@ object Routes {
     const val LEARN_A1      = "learn/a1"
     const val LEARN_A1_WITH_CLUSTER = "learn/a1?clusterId={clusterId}"
     const val LEARN_A1_HISTORY = "learn/a1/history"
+    const val LEARN_A1_SESSION_DETAILS = "learn/a1/session/{sessionId}"
+    const val DEBUG_LOGS = "debug/logs"
 }
 
 object VoiceGender {
@@ -245,8 +247,36 @@ fun AppNavGraph(
                         }
                     },
                     onOpenDetails = { sessionId ->
-                        // TODO Patch 3: экран деталей сессии
+                        navController.navigate("learn/a1/session/$sessionId") {
+                            launchSingleTop = true
+                        }
                     },
+                )
+            }
+
+            composable(
+                route = Routes.LEARN_A1_SESSION_DETAILS,
+                arguments = listOf(
+                    androidx.navigation.navArgument("sessionId") {
+                        type = androidx.navigation.NavType.LongType
+                    }
+                )
+            ) { entry ->
+                val sessionId = entry.arguments?.getLong("sessionId") ?: 0L
+                com.learnde.app.learn.sessions.a1.history.SessionDetailsScreen(
+                    sessionId = sessionId,
+                    onBack = { navController.popBackStack() },
+                    onRepeatCluster = { clusterId ->
+                        navController.navigate("learn/a1?clusterId=$clusterId") {
+                            popUpTo(Routes.LEARN_A1_HISTORY) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            composable(Routes.DEBUG_LOGS) {
+                com.learnde.app.learn.sessions.a1.debug.DebugLogsScreen(
+                    onBack = { navController.popBackStack() }
                 )
             }
 
