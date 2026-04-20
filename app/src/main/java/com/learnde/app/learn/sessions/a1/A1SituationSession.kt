@@ -1,6 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1SituationSession.kt
+//
+// ИЗМЕНЕНИЯ:
+//   - handleEvaluateAndUpdate теперь парсит ErrorDiagnosis из Gemini
+//   - Вычисляет Intervention
+//   - Эмитит расширенный LemmaEvaluated с диагностикой
+//   - disputeEvaluation обновлён для новой модели
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
@@ -16,6 +22,10 @@ import com.learnde.app.learn.data.db.ClusterA1Entity
 import com.learnde.app.learn.data.grammar.A1GrammarCatalog
 import com.learnde.app.learn.domain.A1SessionPlanner
 import com.learnde.app.learn.domain.A1SystemPromptBuilder
+import com.learnde.app.learn.domain.ErrorCategory
+import com.learnde.app.learn.domain.ErrorDepth
+import com.learnde.app.learn.domain.ErrorDiagnosis
+import com.learnde.app.learn.domain.ErrorSource
 import com.learnde.app.learn.domain.SessionContext
 import com.learnde.app.util.AppLogger
 import kotlinx.coroutines.sync.Mutex
@@ -48,21 +58,25 @@ class A1SituationSession @Inject constructor(
     private val targetedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val producedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val failedLemmas = ConcurrentHashMap.newKeySet<String>()
+
+    // Диагностика по каждой лемме сессии — для аналитики и дебага
+    private val diagnoses = ConcurrentHashMap<String, ErrorDiagnosis>()
+
     @Volatile private var introducedRuleId: String? = null
 
     suspend fun disputeEvaluation(lemma: String) {
         if (failedLemmas.remove(lemma)) {
             producedLemmas.add(lemma)
+            diagnoses[lemma] = ErrorDiagnosis() // NONE/NONE/NONE
             val clusterId = currentContext?.cluster?.id ?: "unknown"
-            // Начисляем бонусные баллы, отменяя штраф
             lemmaDao.updateProgress(
                 lemma = lemma,
                 produced = 1,
-                failed = -1, // Убираем фейл
-                productionDelta = 0.15f, // Даем максимальный плюс
+                failed = -1,
+                productionDelta = 0.15f,
                 recognitionDelta = 0.05f,
                 clusterId = clusterId,
-                nextReview = System.currentTimeMillis() + 7L * 24 * 3600 * 1000 // +7 дней
+                nextReview = System.currentTimeMillis() + 7L * 24 * 3600 * 1000
             )
             logger.d("A1Session: Disputed evaluation for $lemma")
         }
@@ -74,6 +88,7 @@ class A1SituationSession @Inject constructor(
         targetedLemmas.clear()
         producedLemmas.clear()
         failedLemmas.clear()
+        diagnoses.clear()
         introducedRuleId = null
         logger.d("A1Session: prepared context for cluster ${cluster.id}")
     }
@@ -156,24 +171,37 @@ class A1SituationSession @Inject constructor(
         return ok()
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  EVALUATE_AND_UPDATE — теперь с диагностикой Selinker
+    // ═══════════════════════════════════════════════════════════
     private suspend fun handleEvaluateAndUpdate(call: FunctionCall): String {
         val lemma = call.args["lemma"]?.trim() ?: return err("no lemma")
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
-        val wasCorrect = call.args["was_produced_correctly"]?.toBooleanStrictOrNull() ?: false
         val feedback = call.args["feedback"] ?: ""
 
-        if (wasCorrect) producedLemmas.add(lemma)
-        else failedLemmas.add(lemma)
+        // Парсим диагностику Selinker
+        val diagnosis = ErrorDiagnosis(
+            source = ErrorSource.fromString(call.args["error_source"]),
+            depth = ErrorDepth.fromString(call.args["error_depth"]),
+            category = ErrorCategory.fromString(call.args["error_category"]),
+            specifics = call.args["error_specifics"] ?: "",
+        )
+        diagnoses[lemma] = diagnosis
 
-        val productionDelta = when (quality) {
-            7 -> 0.15f
-            6 -> 0.10f
-            5 -> 0.05f
-            4 -> 0.0f
-            3 -> -0.03f
-            2 -> -0.05f
-            else -> -0.08f
-        }
+        val wasCorrect = !diagnosis.isError
+        if (wasCorrect) producedLemmas.add(lemma) else failedLemmas.add(lemma)
+
+        // Интервенция на основе диагностики
+        val intervention = diagnosis.recommendedIntervention()
+
+        logger.d(
+            "A1Session.eval: lemma=$lemma quality=$quality " +
+                "src=${diagnosis.source} depth=${diagnosis.depth} cat=${diagnosis.category} " +
+                "→ intervention=$intervention"
+        )
+
+        // Коррекция дельт с учётом глубины ошибки
+        val productionDelta = computeProductionDelta(quality, diagnosis.depth)
         val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
         val clusterId = currentContext?.cluster?.id ?: "unknown"
 
@@ -187,8 +215,37 @@ class A1SituationSession @Inject constructor(
             nextReview = computeNextReviewForLemma(quality),
         )
 
-        bus.emit(A1LearningEvent.LemmaEvaluated(lemma, quality, wasCorrect, feedback))
-        return ok()
+        bus.emit(A1LearningEvent.LemmaEvaluated(
+            lemma = lemma,
+            quality = quality,
+            diagnosis = diagnosis,
+            intervention = intervention,
+            feedback = feedback,
+        ))
+        return """{"status":"ok","intervention":"$intervention"}"""
+    }
+
+    /**
+     * SLIP наказывается меньше, чем ERROR: ученик знает правило.
+     * ERROR наказывается сильнее — нужна новая экспозиция.
+     */
+    private fun computeProductionDelta(quality: Int, depth: ErrorDepth): Float {
+        val baseDelta = when (quality) {
+            7 -> 0.15f
+            6 -> 0.10f
+            5 -> 0.05f
+            4 -> 0.0f
+            3 -> -0.03f
+            2 -> -0.05f
+            else -> -0.08f
+        }
+        val depthMultiplier = when (depth) {
+            ErrorDepth.NONE -> 1.0f
+            ErrorDepth.SLIP -> 0.5f       // не штрафуем полностью
+            ErrorDepth.MISTAKE -> 0.8f
+            ErrorDepth.ERROR -> 1.3f      // штрафуем сильнее
+        }
+        return baseDelta * depthMultiplier
     }
 
     private suspend fun handleIntroduceGrammar(call: FunctionCall): String {
@@ -231,10 +288,16 @@ class A1SituationSession @Inject constructor(
             )
         )
 
+        // Логируем сводку диагностики
+        val errorSummary = diagnoses.values
+            .filter { it.isError }
+            .groupingBy { "${it.source}/${it.category}" }
+            .eachCount()
+        logger.d("A1Session finished: errors summary = $errorSummary")
+
         bus.emit(A1LearningEvent.SessionFinished(quality, feedback))
         bus.emit(A1LearningEvent.PhaseChanged(A1Phase.FINISHED))
 
-        logger.d("A1Session finished: cluster=${ctx.cluster.id} quality=$quality produced=${producedLemmas.size} failed=${failedLemmas.size}")
         ok()
     }
 
