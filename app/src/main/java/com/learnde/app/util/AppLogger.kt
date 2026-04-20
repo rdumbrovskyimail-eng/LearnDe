@@ -57,5 +57,21 @@ class AppLogger @Inject constructor(
         buffer.append(LogLevel.E, msg, throwable)
     }
 
+    // ─── Patch 4: UI access to log buffer ───
 
+    /** Полный дамп всех логов из буфера. Для handleSaveLog(). */
+    fun getFullLog(): String = buffer.exportAsText()
+
+    /**
+     * Последние N записей как одна строка для UI-дебаг-блока.
+     * Ограничен чарами, чтобы не раздувать state VoiceScreen.
+     */
+    fun getDisplayLog(): String {
+        val entries = buffer.entries.value
+        val recent = entries.takeLast(100)
+        val text = recent.joinToString("\n") { it.formatted() }
+        return if (text.length > MAX_DISPLAY_CHARS)
+            text.takeLast(MAX_DISPLAY_CHARS)
+        else text
+    }
 }
