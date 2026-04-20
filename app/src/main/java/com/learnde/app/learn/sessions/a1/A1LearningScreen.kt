@@ -506,7 +506,8 @@ private fun LemmaEvaluationCard(ev: LastEvaluation, onDispute: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(34.dp).clip(CircleShape).background(color),
                 contentAlignment = Alignment.Center) {
-                Text("${ev.quality}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("${ev.quality}", color = Color.White,
+                    fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
@@ -518,20 +519,99 @@ private fun LemmaEvaluationCard(ev: LastEvaluation, onDispute: () -> Unit) {
                 }
             }
             if (ev.wasCorrect) {
-                Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFF43A047), modifier = Modifier.size(22.dp))
+                Icon(Icons.Filled.CheckCircle, null,
+                    tint = Color(0xFF43A047), modifier = Modifier.size(22.dp))
             }
         }
-        
+
+        // ─── Patch 2: диагностика Selinker ───
+        if (ev.diagnosis.isError) {
+            Spacer(Modifier.height(8.dp))
+            DiagnosisChips(ev)
+            if (ev.diagnosis.specifics.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "💡 ${ev.diagnosis.specifics}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 15.sp
+                )
+            }
+        }
+
         if (!ev.wasCorrect) {
             Spacer(Modifier.height(6.dp))
             TextButton(
                 onClick = onDispute,
                 modifier = Modifier.align(Alignment.End).height(28.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    horizontal = 8.dp, vertical = 0.dp
+                )
             ) {
-                Text("Я сказал правильно!", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                Text("Я сказал правильно!", fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.primary)
             }
         }
+    }
+}
+
+@Composable
+private fun DiagnosisChips(ev: LastEvaluation) {
+    val sourceLabel = when (ev.diagnosis.source) {
+        com.learnde.app.learn.domain.ErrorSource.L1_TRANSFER -> "Влияние русского"
+        com.learnde.app.learn.domain.ErrorSource.OVERGENERALIZATION -> "Широкое правило"
+        com.learnde.app.learn.domain.ErrorSource.SIMPLIFICATION -> "Упрощение"
+        com.learnde.app.learn.domain.ErrorSource.COMMUNICATION_STRATEGY -> "Обход"
+        com.learnde.app.learn.domain.ErrorSource.NONE -> null
+    }
+    val depthLabel = when (ev.diagnosis.depth) {
+        com.learnde.app.learn.domain.ErrorDepth.SLIP -> "оговорка"
+        com.learnde.app.learn.domain.ErrorDepth.MISTAKE -> "неуверенность"
+        com.learnde.app.learn.domain.ErrorDepth.ERROR -> "не знал"
+        com.learnde.app.learn.domain.ErrorDepth.NONE -> null
+    }
+    val categoryLabel = when (ev.diagnosis.category) {
+        com.learnde.app.learn.domain.ErrorCategory.GENDER -> "артикль"
+        com.learnde.app.learn.domain.ErrorCategory.CASE -> "падеж"
+        com.learnde.app.learn.domain.ErrorCategory.WORD_ORDER -> "порядок слов"
+        com.learnde.app.learn.domain.ErrorCategory.LEXICAL -> "слово"
+        com.learnde.app.learn.domain.ErrorCategory.PHONOLOGY -> "звук"
+        com.learnde.app.learn.domain.ErrorCategory.PRAGMATICS -> "регистр"
+        com.learnde.app.learn.domain.ErrorCategory.CONJUGATION -> "спряжение"
+        com.learnde.app.learn.domain.ErrorCategory.NEGATION -> "отрицание"
+        com.learnde.app.learn.domain.ErrorCategory.PLURAL -> "мн. число"
+        com.learnde.app.learn.domain.ErrorCategory.PREPOSITION -> "предлог"
+        com.learnde.app.learn.domain.ErrorCategory.NONE -> null
+    }
+
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        sourceLabel?.let { Chip(it, Color(0xFFFB8C00)) }
+        depthLabel?.let {
+            val c = when (ev.diagnosis.depth) {
+                com.learnde.app.learn.domain.ErrorDepth.SLIP -> Color(0xFF43A047)
+                com.learnde.app.learn.domain.ErrorDepth.MISTAKE -> Color(0xFFFDD835)
+                com.learnde.app.learn.domain.ErrorDepth.ERROR -> Color(0xFFE53935)
+                else -> Color.Gray
+            }
+            Chip(it, c)
+        }
+        categoryLabel?.let { Chip(it, Color(0xFF7B1FA2)) }
+    }
+}
+
+@Composable
+private fun Chip(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(color.copy(alpha = 0.15f))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text, fontSize = 9.sp, color = color,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }
 
