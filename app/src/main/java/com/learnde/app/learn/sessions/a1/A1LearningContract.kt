@@ -58,6 +58,8 @@ sealed class A1LearningIntent {
     data class StartCluster(val clusterId: String) : A1LearningIntent()
     /** Прервать текущую сессию. */
     data object StopSession : A1LearningIntent()
+    /** Оспорить оценку последнего слова. */
+    data class DisputeEvaluation(val lemma: String) : A1LearningIntent()
     /** Закрыть диалог итога сессии. */
     data object DismissFinalDialog : A1LearningIntent()
 }
