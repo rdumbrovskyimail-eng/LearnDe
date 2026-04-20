@@ -140,12 +140,10 @@ fun AppNavGraph(
         navigation(
             route = Routes.LEARN_GRAPH,
             startDestination = Routes.LEARN_HUB,
+            enterTransition = { fadeIn(tween(250)) },
+            exitTransition  = { fadeOut(tween(200)) },
         ) {
-            composable(
-                route = Routes.LEARN_HUB,
-                enterTransition = { fadeIn(tween(250)) },
-                exitTransition  = { fadeOut(tween(200)) },
-            ) { entry ->
+            composable(Routes.LEARN_HUB) { entry ->
                 val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
                 LearnHubScreen(
                     onBack = { navController.navigate(Routes.SETTINGS) { popUpTo(Routes.SETTINGS) { inclusive = true } } },
@@ -153,7 +151,6 @@ fun AppNavGraph(
                         navController.navigate(Routes.LEARN_A0A1) { launchSingleTop = true }
                     },
                     onOpenVoiceClient = {
-                        // 👈 Открытие чистого Gemini-клиента из правого верхнего угла Hub
                         navController.navigate(Routes.VOICE) { launchSingleTop = true }
                     },
                     learnCoreViewModel = learnCoreVm,
@@ -164,7 +161,20 @@ fun AppNavGraph(
                 val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
                 com.learnde.app.learn.test.a0a1.A0a1TestScreen(
                     onBack = { navController.popBackStack() },
+                    onNavigateToStudy = { level ->
+                        navController.navigate("learn/study/$level") { 
+                            popUpTo(Routes.LEARN_HUB) 
+                        }
+                    },
                     learnCoreViewModel = learnCoreVm,
+                )
+            }
+
+            composable("learn/study/{level}") { entry ->
+                val level = entry.arguments?.getString("level") ?: "A0"
+                com.learnde.app.presentation.learn.StudyScreen(
+                    level = level,
+                    onBack = { navController.popBackStack(Routes.LEARN_HUB, inclusive = false) }
                 )
             }
         }
