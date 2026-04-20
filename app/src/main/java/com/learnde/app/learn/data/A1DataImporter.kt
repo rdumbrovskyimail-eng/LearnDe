@@ -1,23 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/learn/data/A1DataImporter.kt
-//
-// Импортёр справочных данных A1 в Room при первом запуске.
-//
-// Источники (положить файлы в assets/a1/):
-//   - clean_a1_lemmas.json   → a1_lemmas (835 записей)
-//   - a1_clusters.json        → a1_clusters (194 записи)
-//   - A1GrammarCatalog.RULES  → a1_grammar_rules (22 записи, захардкожено)
-//
-// Импорт идёт один раз — факт импорта сохраняется в DataStore.
-// Повторный импорт игнорируется (если только не сбросили флаг).
-//
-// ВАЖНО: импорт также проводит "разблокировку" первых кластеров
-// (у которых нет prerequisites) — иначе система не запустится.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.data
 
 import android.content.Context
+import androidx.datastore.core.DataStore
 import com.learnde.app.data.settings.AppSettings
 import com.learnde.app.learn.data.db.A1ClusterDao
 import com.learnde.app.learn.data.db.A1GrammarDao
@@ -28,10 +16,11 @@ import com.learnde.app.learn.data.db.ClusterA1Entity
 import com.learnde.app.learn.data.db.LemmaA1Entity
 import com.learnde.app.learn.data.grammar.A1GrammarCatalog
 import com.learnde.app.util.AppLogger
-import androidx.datastore.core.DataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -146,23 +135,13 @@ class A1DataImporter @Inject constructor(
                 id = dto.id,
                 titleDe = dto.title_de,
                 titleRu = dto.title_ru,
-                lemmasJson = json.encodeToString(
-                    kotlinx.serialization.builtins.ListSerializer(
-                        kotlinx.serialization.builtins.serializer<String>()
-                    ),
-                    dto.lemmas
-                ),
+                lemmasJson = Json.encodeToString(dto.lemmas),
                 anchorLemma = dto.anchor_lemma,
                 grammarFocus = dto.grammar_focus,
                 scenarioHint = dto.scenario_hint,
                 category = dto.category,
                 difficulty = dto.difficulty,
-                prerequisitesJson = json.encodeToString(
-                    kotlinx.serialization.builtins.ListSerializer(
-                        kotlinx.serialization.builtins.serializer<String>()
-                    ),
-                    dto.prerequisites
-                ),
+                prerequisitesJson = Json.encodeToString(dto.prerequisites),
                 // Unlock правило: нет prerequisites → разблокирован сразу
                 isUnlocked = dto.prerequisites.isEmpty(),
             )
