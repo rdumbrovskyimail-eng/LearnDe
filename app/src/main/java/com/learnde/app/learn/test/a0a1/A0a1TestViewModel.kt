@@ -28,7 +28,13 @@ data class A0a1TestUiState(
     val lastFeedback: String? = null,
     val lastQuestionIndex: Int = 0,
     val verdict: TestVerdict = TestVerdict.NONE,
-    val finished: Boolean = false
+    val finished: Boolean = false,
+
+    // ─── Новые поля для премиального UI ───
+    val currentQuestionText: String? = null,
+    val lastAnswerCorrect: Boolean? = null,
+    val lastAnswerReason: String? = null,
+    val lastScoreRationale: String? = null,
 ) {
     val totalQuestions: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_QUESTIONS else A0a1TestRegistry.STANDARD_QUESTIONS
     val maxPoints: Int get() = if (phase == TestPhase.A0) A0a1TestRegistry.A0_MAX_POINTS else A0a1TestRegistry.STANDARD_MAX_POINTS
@@ -47,16 +53,26 @@ class A0a1TestViewModel @Inject constructor(
     private var autoFinishJob: Job? = null
 
     init {
-        viewModelScope.launch { bus.awards.collect { (points, feedback) -> onAward(points, feedback) } }
+        viewModelScope.launch { bus.awards.collect { payload -> onAward(payload) } }
+        viewModelScope.launch { bus.questions.collect { q -> onQuestion(q) } }
         viewModelScope.launch { bus.finished.collect { finalizeVerdict() } }
     }
 
-    private fun onAward(points: Int, feedback: String) {
+    private fun onQuestion(payload: QuestionPayload) {
+        _state.update {
+            it.copy(
+                currentQuestionText = payload.text,
+                currentQuestion = payload.index.coerceAtLeast(1)
+            )
+        }
+    }
+
+    private fun onAward(payload: AwardPayload) {
         val cur = _state.value
         if (cur.answeredCount >= cur.totalQuestions) return
 
         val newAnswered = cur.answeredCount + 1
-        val newTotal = cur.totalPoints + points
+        val newTotal = cur.totalPoints + payload.points
         val nextQ = (newAnswered + 1).coerceAtMost(cur.totalQuestions)
 
         _state.update {
@@ -64,9 +80,12 @@ class A0a1TestViewModel @Inject constructor(
                 totalPoints = newTotal,
                 answeredCount = newAnswered,
                 currentQuestion = nextQ,
-                lastPoints = points,
-                lastFeedback = feedback,
-                lastQuestionIndex = newAnswered
+                lastPoints = payload.points,
+                lastFeedback = payload.feedback,
+                lastQuestionIndex = newAnswered,
+                lastAnswerCorrect = payload.isCorrect,
+                lastAnswerReason = payload.reason,
+                lastScoreRationale = payload.scoreRationale,
             )
         }
 
@@ -83,20 +102,16 @@ class A0a1TestViewModel @Inject constructor(
         if (_state.value.finished) return
         autoFinishJob?.cancel()
         autoFinishJob = null
-        
+
         val passed = _state.value.isPassed
         val verdict = if (passed) TestVerdict.PASSED else TestVerdict.FAILED
         _state.update { it.copy(verdict = verdict, finished = true) }
     }
 
-    /** 
-     * Продвигает фазу на шаг вперед. 
-     * Возвращает ID сессии для запуска, или null если это был конец. 
-     */
     fun advanceToNextPhase(): String? {
         autoFinishJob?.cancel()
         bus.reset()
-        
+
         val nextPhase = when (_state.value.phase) {
             TestPhase.A0 -> TestPhase.A1
             TestPhase.A1 -> TestPhase.A2
@@ -104,10 +119,10 @@ class A0a1TestViewModel @Inject constructor(
             TestPhase.B1 -> TestPhase.B2
             TestPhase.B2 -> null
         }
-        
+
         if (nextPhase != null) {
             _state.value = A0a1TestUiState(phase = nextPhase)
-            return "${nextPhase.name.lowercase()}_test" // "a1_test", "a2_test" и т.д.
+            return "${nextPhase.name.lowercase()}_test"
         }
         return null
     }
@@ -115,7 +130,7 @@ class A0a1TestViewModel @Inject constructor(
     fun resetUiState() {
         autoFinishJob?.cancel()
         bus.reset()
-        _state.value = A0a1TestUiState(phase = TestPhase.A0) // Всегда начинаем с А0 при полном сбросе
+        _state.value = A0a1TestUiState(phase = TestPhase.A0)
     }
 
     override fun onCleared() {
