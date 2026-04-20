@@ -1,13 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА + ПЕРЕИМЕНОВАНИЕ ПАКЕТА
-// Старый путь: app/src/main/java/com/learnde/app/Learn/Test/A0a1/A0a1TestBus.kt
-// Новый путь:  app/src/main/java/com/learnde/app/learn/test/a0a1/A0a1TestBus.kt
-//
-// Изменения:
-//   • Пакет lowercase (Java convention, стабильность Hilt/KSP).
-//   • Убраны startSignal/exitSignal — переехали в LearnSessionController.
-//   • Добавлен dedup по callId (tryConsume).
-//   • Осталось ТОЛЬКО то, что нужно UI: awards + finished.
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/learn/test/a0a1/A0a1TestBus.kt
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.test.a0a1
 
@@ -19,16 +12,37 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class AwardPayload(
+    val points: Int,
+    val feedback: String,
+    val isCorrect: Boolean,
+    val reason: String,
+    val scoreRationale: String
+)
+
+data class QuestionPayload(
+    val text: String,
+    val index: Int
+)
+
 @Singleton
 class A0a1TestBus @Inject constructor() {
 
-    // ───── Оценки: балл и текстовый фидбек от ИИ ─────
-    private val _awards = MutableSharedFlow<Pair<Int, String>>(
+    // ───── Оценки: полный разбор от ИИ ─────
+    private val _awards = MutableSharedFlow<AwardPayload>(
         replay = 0,
         extraBufferCapacity = 8,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val awards: SharedFlow<Pair<Int, String>> = _awards.asSharedFlow()
+    val awards: SharedFlow<AwardPayload> = _awards.asSharedFlow()
+
+    // ───── Вопросы: текст перед озвучиванием ─────
+    private val _questions = MutableSharedFlow<QuestionPayload>(
+        replay = 0,
+        extraBufferCapacity = 8,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val questions: SharedFlow<QuestionPayload> = _questions.asSharedFlow()
 
     // ───── Финал ─────
     private val _finished = MutableSharedFlow<Unit>(
@@ -40,18 +54,11 @@ class A0a1TestBus @Inject constructor() {
 
     // ───── Dedup по callId ─────
     private val processedIds = ConcurrentHashMap.newKeySet<String>()
-    private val maxProcessed = 256
+    private val maxProcessed = 512
 
-    /**
-     * Попытаться "потребить" callId. Возвращает true если id новый,
-     * false если мы уже его обрабатывали (дубликат после reconnect).
-     *
-     * Пустой id (не задан сервером) — всегда true (dedup невозможен).
-     */
     fun tryConsume(id: String): Boolean {
         if (id.isBlank()) return true
         val added = processedIds.add(id)
-        // Простой FIFO-like cap: при переполнении удаляем один старый
         if (processedIds.size > maxProcessed) {
             val iter = processedIds.iterator()
             if (iter.hasNext()) {
@@ -62,11 +69,11 @@ class A0a1TestBus @Inject constructor() {
         return added
     }
 
-    /** Сбросить dedup-кэш (вызывается в onEnter сессии и в restart UI). */
     fun reset() {
         processedIds.clear()
     }
 
-    fun publishAward(points: Int, feedback: String) { _awards.tryEmit(points to feedback) }
-    fun publishFinish()            { _finished.tryEmit(Unit) }
+    fun publishAward(payload: AwardPayload) { _awards.tryEmit(payload) }
+    fun publishQuestion(payload: QuestionPayload) { _questions.tryEmit(payload) }
+    fun publishFinish() { _finished.tryEmit(Unit) }
 }
