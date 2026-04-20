@@ -122,7 +122,11 @@ class A0a1TestViewModel @Inject constructor(
 
         if (nextPhase != null) {
             _state.value = A0a1TestUiState(phase = nextPhase)
-            return "${nextPhase.name.lowercase()}_test"
+            return if (nextPhase == TestPhase.A1 && _state.value.phase == TestPhase.A0) {
+                "learn/a1"
+            } else {
+                "${nextPhase.name.lowercase()}_test"
+            }
         }
         return null
     }
