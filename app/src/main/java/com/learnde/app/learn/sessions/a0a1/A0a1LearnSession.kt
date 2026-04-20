@@ -18,7 +18,7 @@ abstract class BaseLevelSession(
     private val logger: AppLogger
 ) : LearnSession {
     override val functionDeclarations: List<FunctionDeclarationConfig> = A0a1TestRegistry.ALL_DECLARATIONS
-    override val initialUserMessage: String = "[СИСТЕМА]: Ученик готов. Поздоровайся с ним, ИСПОЛЬЗУЯ ЕГО ИМЯ (оно есть в твоих инструкциях), и задай первый вопрос."
+    override val initialUserMessage: String = "[СИСТЕМА]: Ученик готов. Начинай алгоритм."
 
     override suspend fun onEnter() {
         logger.d("▶ Session onEnter: $id")
@@ -31,14 +31,32 @@ abstract class BaseLevelSession(
 
     override suspend fun handleToolCall(call: FunctionCall): String? {
         return when (call.name) {
+            // ─── НОВАЯ ФУНКЦИЯ ДЛЯ ТЕКСТА ВОПРОСА ───
+            A0a1TestRegistry.FN_ASK_QUESTION -> {
+                val text = call.args["text"] ?: "Вопрос"
+                val index = call.args["index"]?.toIntOrNull() ?: 1
+                if (bus.tryConsume(call.id)) {
+                    bus.publishQuestion(QuestionPayload(text, index))
+                }
+                """{"status":"ok"}"""
+            }
+
+            // ─── РАСШИРЕННАЯ ОЦЕНКА ───
             A0a1TestRegistry.FN_EVALUATE -> {
                 val points = call.args["points"]?.toIntOrNull() ?: 0
+                // JSON parser Gemini возвращает boolean как строки "true"/"false"
+                val isCorrect = call.args["is_correct"]?.toBooleanStrictOrNull() ?: false
+                val reason = call.args["reason"] ?: "Обоснование не предоставлено"
+                val scoreRationale = call.args["score_rationale"] ?: "Балл выставлен на усмотрение ИИ"
                 val feedback = call.args["feedback"] ?: "Оценено ИИ"
+
                 if (bus.tryConsume(call.id)) {
-                    bus.publishAward(points, feedback)
+                    val payload = AwardPayload(points, feedback, isCorrect, reason, scoreRationale)
+                    bus.publishAward(payload)
                 }
                 """{"status":"ok", "recorded_points":$points}"""
             }
+
             A0a1TestRegistry.FN_FINISH -> {
                 if (bus.tryConsume(call.id)) bus.publishFinish()
                 """{"status":"ok"}"""
