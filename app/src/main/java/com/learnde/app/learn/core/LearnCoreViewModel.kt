@@ -114,7 +114,21 @@ class LearnCoreViewModel @Inject constructor(
         observeSettings()
         observeGeminiEvents()
         observeArbiter()
+        observeVocabularyViolations()
         viewModelScope.launch { audioEngine.initPlayback() }
+    }
+
+    private fun observeVocabularyViolations() {
+        viewModelScope.launch {
+            vocabularyEnforcer.violations.collect { violation ->
+                // Шлём скрытый промпт только если клиент готов и идёт A1-сессия
+                if (liveClient.isReady && activeSession?.id == "a1_situation") {
+                    val prompt = vocabularyEnforcer.buildCorrectionPrompt(violation)
+                    logger.d("Learn: injecting vocab correction (${violation.violatingWords})")
+                    liveClient.sendText(prompt)
+                }
+            }
+        }
     }
 
     // ══════════════════════════════════════════════════════
@@ -316,6 +330,7 @@ class LearnCoreViewModel @Inject constructor(
                 activeSession = null
                 pendingToolCalls.clear()
                 statusBus.reset()
+                vocabularyEnforcer.reset()
                 contextSeeded = false
 
                 _state.update {
