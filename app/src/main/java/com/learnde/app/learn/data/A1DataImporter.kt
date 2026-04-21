@@ -47,6 +47,7 @@ private data class ClusterDto(
     val title_ru: String,
     val lemmas: List<String>,
     val anchor_lemma: String,
+    val grammar_rule_id: String? = null,
     val grammar_focus: String,
     val scenario_hint: String,
     val category: String,
@@ -110,7 +111,16 @@ class A1DataImporter @Inject constructor(
             .bufferedReader().use { it.readText() }
         val dtos = json.decodeFromString<List<LemmaDto>>(raw)
 
-        val entities = dtos.map { dto ->
+        // v3.1.2: дедупликация дублей (sein#1, sein#3 → sein#1).
+        // Группируем по lemma, берём запись с минимальным hidx.
+        val dedupedDtos = dtos
+            .groupBy { it.lemma }
+            .map { (_, group) ->
+                group.minByOrNull { it.hidx?.toIntOrNull() ?: Int.MAX_VALUE }
+                    ?: group.first()
+            }
+
+        val entities = dedupedDtos.map { dto ->
             LemmaA1Entity(
                 lemma = dto.lemma,
                 pos = dto.pos,
@@ -122,7 +132,7 @@ class A1DataImporter @Inject constructor(
             )
         }
         lemmaDao.insertAll(entities)
-        logger.d("A1Importer: imported ${entities.size} lemmas")
+        logger.d("A1Importer: imported ${entities.size} lemmas (deduped from ${dtos.size})")
     }
 
     // ────────── Кластеры ──────────
