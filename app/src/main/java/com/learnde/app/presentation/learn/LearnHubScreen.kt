@@ -60,6 +60,7 @@ import com.learnde.app.presentation.learn.components.CurrentFunctionBar
 @Composable
 fun LearnHubScreen(
     onBack: () -> Unit,
+    onOpenTranslator: () -> Unit,
     onOpenA0a1Test: () -> Unit,
     onOpenA1Learning: () -> Unit,
     onOpenVoiceClient: () -> Unit,
@@ -79,6 +80,7 @@ fun LearnHubScreen(
                 is LearnHubEffect.ShowToast ->
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 is LearnHubEffect.NavigateToItem -> when (effect.route) {
+                    "learn/translator" -> onOpenTranslator()
                     "learn/a0a1" -> onOpenA0a1Test()
                     "learn/a1" -> onOpenA1Learning()
                     else -> { /* добавится с новыми модулями */ }
