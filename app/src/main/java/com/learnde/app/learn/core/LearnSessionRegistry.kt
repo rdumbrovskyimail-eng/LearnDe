@@ -24,8 +24,10 @@ class LearnSessionRegistry @Inject constructor(
     a2: A2LearnSession,
     b1: B1LearnSession,
     b2: B2LearnSession,
-    // Учебная сессия A1 (после определения уровня → сюда)
+    // Учебная сессия A1
     a1Learning: A1SituationSession,
+    // Живой переводчик
+    translator: com.learnde.app.learn.sessions.translator.TranslatorSession,
 ) {
     private val sessions: Map<String, LearnSession> = mapOf(
         a0.id       to a0,
@@ -34,6 +36,7 @@ class LearnSessionRegistry @Inject constructor(
         b1.id       to b1,
         b2.id       to b2,
         a1Learning.id to a1Learning,
+        translator.id to translator,
     )
 
     fun get(id: String): LearnSession? = sessions[id]
