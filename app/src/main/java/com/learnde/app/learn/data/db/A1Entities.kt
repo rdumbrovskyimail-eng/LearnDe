@@ -17,8 +17,7 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "a1_lemmas")
 data class LemmaA1Entity(
-    @PrimaryKey val uniqueId: String,
-    val lemma: String,
+    @PrimaryKey val lemma: String,
     val pos: String,
     val article: String?,
     val articlesAll: String,
