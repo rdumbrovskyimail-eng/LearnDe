@@ -34,7 +34,7 @@ import javax.inject.Singleton
         A1SessionLogEntity::class,
         A1UserProgressEntity::class,
     ],
-    version = 3, // Patch 3
+    version = 4, // v3.1.2: grammarRuleId в a1_clusters
     exportSchema = false
 )
 @TypeConverters(A1Converters::class)
@@ -67,6 +67,13 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+/** v3.1.2: grammarRuleId для точной привязки кластера к правилу. */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE a1_clusters ADD COLUMN grammarRuleId TEXT DEFAULT NULL")
+    }
+}
+
 class A1Converters {
     @TypeConverter
     fun listToJson(list: List<String>?): String =
@@ -88,7 +95,7 @@ object A1DatabaseModule {
     @Singleton
     fun provideA1Database(@ApplicationContext ctx: Context): A1Database =
         Room.databaseBuilder(ctx, A1Database::class.java, "a1_learning.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
 
