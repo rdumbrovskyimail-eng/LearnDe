@@ -17,7 +17,8 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "a1_lemmas")
 data class LemmaA1Entity(
-    @PrimaryKey val lemma: String,
+    @PrimaryKey val uniqueId: String,
+    val lemma: String,
     val pos: String,
     val article: String?,
     val articlesAll: String,
@@ -82,6 +83,9 @@ data class ClusterA1Entity(
 
     /** Главная лемма (для иконки/короткого label). */
     val anchorLemma: String,
+
+    /** v3.1: ПРЯМАЯ ссылка на правило из A1GrammarCatalog. */
+    val grammarRuleId: String? = null,
 
     /** Грамматический фокус, который всплывает в ситуации. */
     val grammarFocus: String,
