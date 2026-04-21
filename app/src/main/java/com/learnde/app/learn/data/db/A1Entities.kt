@@ -84,7 +84,7 @@ data class ClusterA1Entity(
     /** Главная лемма (для иконки/короткого label). */
     val anchorLemma: String,
 
-    /** v3.1: ПРЯМАЯ ссылка на правило из A1GrammarCatalog. */
+    /** v3.1.1: ПРЯМАЯ ссылка на правило из A1GrammarCatalog. */
     val grammarRuleId: String? = null,
 
     /** Грамматический фокус, который всплывает в ситуации. */
