@@ -77,6 +77,7 @@ class LearnHubViewModel @Inject constructor(
 
         // Маршрут определяется по id — см. Routes в NavGraph
         val route = when (itemId) {
+            "translator" -> "learn/translator"
             "a0a1_test" -> "learn/a0a1"
             "a1_learning" -> "learn/a1"
             else -> {
