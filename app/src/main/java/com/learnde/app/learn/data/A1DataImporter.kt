@@ -36,6 +36,7 @@ private data class LemmaDto(
     val genus: String? = null,
     val url_dwds: String,
     val hidx: String? = null,
+    val unique_id: String? = null,
     val goethe_level: String = "A1",
 )
 
