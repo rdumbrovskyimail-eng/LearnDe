@@ -7,6 +7,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ab#1",
     "hidx": "1",
+    "unique_id": "ab",
     "goethe_level": "A1"
   },
   {
@@ -18,7 +19,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Abend",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Abend",
     "goethe_level": "A1"
   },
   {
@@ -29,6 +31,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/aber#1",
     "hidx": "1",
+    "unique_id": "aber",
     "goethe_level": "A1"
   },
   {
@@ -38,7 +41,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/abfahren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "abfahren",
     "goethe_level": "A1"
   },
   {
@@ -50,7 +54,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Abfahrt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Abfahrt",
     "goethe_level": "A1"
   },
   {
@@ -60,7 +65,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/abfliegen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "abfliegen",
     "goethe_level": "A1"
   },
   {
@@ -72,7 +78,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Abflug",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Abflug",
     "goethe_level": "A1"
   },
   {
@@ -82,7 +89,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/abgeben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "abgeben",
     "goethe_level": "A1"
   },
   {
@@ -92,7 +100,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/abholen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "abholen",
     "goethe_level": "A1"
   },
   {
@@ -104,7 +113,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Absender",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Absender",
     "goethe_level": "A1"
   },
   {
@@ -114,7 +124,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/acht",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "acht",
     "goethe_level": "A1"
   },
   {
@@ -126,7 +137,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Achtung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Achtung",
     "goethe_level": "A1"
   },
   {
@@ -136,7 +148,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/achtzehn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "achtzehn",
     "goethe_level": "A1"
   },
   {
@@ -146,7 +159,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/achtzig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "achtzig",
     "goethe_level": "A1"
   },
   {
@@ -158,7 +172,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Adresse",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Adresse",
     "goethe_level": "A1"
   },
   {
@@ -168,7 +183,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/all",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "all",
     "goethe_level": "A1"
   },
   {
@@ -179,6 +195,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/alle#2",
     "hidx": "2",
+    "unique_id": "alle",
     "goethe_level": "A1"
   },
   {
@@ -188,7 +205,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/allein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "allein",
     "goethe_level": "A1"
   },
   {
@@ -198,7 +216,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/alleine",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "alleine",
     "goethe_level": "A1"
   },
   {
@@ -208,7 +227,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/alles",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "alles",
     "goethe_level": "A1"
   },
   {
@@ -219,6 +239,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/also#1",
     "hidx": "1",
+    "unique_id": "also",
     "goethe_level": "A1"
   },
   {
@@ -228,7 +249,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/alt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "alt",
     "goethe_level": "A1"
   },
   {
@@ -240,7 +262,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Alter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Alter",
     "goethe_level": "A1"
   },
   {
@@ -250,7 +273,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/am",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "am",
     "goethe_level": "A1"
   },
   {
@@ -261,6 +285,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/an#1",
     "hidx": "1",
+    "unique_id": "an#1",
     "goethe_level": "A1"
   },
   {
@@ -271,6 +296,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/an#2",
     "hidx": "2",
+    "unique_id": "an#2",
     "goethe_level": "A1"
   },
   {
@@ -280,7 +306,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/anbieten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "anbieten",
     "goethe_level": "A1"
   },
   {
@@ -290,7 +317,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ander",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ander",
     "goethe_level": "A1"
   },
   {
@@ -302,7 +330,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Anfang",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Anfang",
     "goethe_level": "A1"
   },
   {
@@ -312,7 +341,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/anfangen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "anfangen",
     "goethe_level": "A1"
   },
   {
@@ -324,7 +354,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Angebot",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Angebot",
     "goethe_level": "A1"
   },
   {
@@ -334,7 +365,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/anklicken",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "anklicken",
     "goethe_level": "A1"
   },
   {
@@ -344,7 +376,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ankommen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ankommen",
     "goethe_level": "A1"
   },
   {
@@ -354,7 +387,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ankreuzen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ankreuzen",
     "goethe_level": "A1"
   },
   {
@@ -366,7 +400,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Ankunft",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ankunft",
     "goethe_level": "A1"
   },
   {
@@ -376,7 +411,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/anmachen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "anmachen",
     "goethe_level": "A1"
   },
   {
@@ -386,7 +422,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/anmelden",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "anmelden",
     "goethe_level": "A1"
   },
   {
@@ -398,7 +435,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Anmeldung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Anmeldung",
     "goethe_level": "A1"
   },
   {
@@ -410,7 +448,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Anrede",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Anrede",
     "goethe_level": "A1"
   },
   {
@@ -422,7 +461,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Anruf",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Anruf",
     "goethe_level": "A1"
   },
   {
@@ -434,7 +474,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Anrufbeantworter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Anrufbeantworter",
     "goethe_level": "A1"
   },
   {
@@ -444,7 +485,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/anrufen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "anrufen",
     "goethe_level": "A1"
   },
   {
@@ -456,7 +498,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Ansage",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ansage",
     "goethe_level": "A1"
   },
   {
@@ -468,7 +511,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Anschluss",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Anschluss",
     "goethe_level": "A1"
   },
   {
@@ -480,7 +524,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Antwort",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Antwort",
     "goethe_level": "A1"
   },
   {
@@ -490,7 +535,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/antworten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "antworten",
     "goethe_level": "A1"
   },
   {
@@ -502,7 +548,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Anzeige",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Anzeige",
     "goethe_level": "A1"
   },
   {
@@ -512,7 +559,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/anziehen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "anziehen",
     "goethe_level": "A1"
   },
   {
@@ -524,7 +572,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Apartment",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Apartment",
     "goethe_level": "A1"
   },
   {
@@ -536,7 +585,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Apfel",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Apfel",
     "goethe_level": "A1"
   },
   {
@@ -548,7 +598,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Appartement",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Appartement",
     "goethe_level": "A1"
   },
   {
@@ -560,7 +611,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Appetit",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Appetit",
     "goethe_level": "A1"
   },
   {
@@ -572,7 +624,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/April",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "April",
     "goethe_level": "A1"
   },
   {
@@ -584,7 +637,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Arbeit",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Arbeit",
     "goethe_level": "A1"
   },
   {
@@ -594,7 +648,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/arbeiten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "arbeiten",
     "goethe_level": "A1"
   },
   {
@@ -604,7 +659,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/arbeitslos",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "arbeitslos",
     "goethe_level": "A1"
   },
   {
@@ -616,7 +672,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Arbeitsplatz",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Arbeitsplatz",
     "goethe_level": "A1"
   },
   {
@@ -628,7 +685,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Arm",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Arm",
     "goethe_level": "A1"
   },
   {
@@ -640,7 +698,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Arzt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Arzt",
     "goethe_level": "A1"
   },
   {
@@ -650,7 +709,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/auch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "auch",
     "goethe_level": "A1"
   },
   {
@@ -661,6 +721,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/auf#1",
     "hidx": "1",
+    "unique_id": "auf",
     "goethe_level": "A1"
   },
   {
@@ -670,7 +731,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/auf%20sein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "auf sein",
     "goethe_level": "A1"
   },
   {
@@ -682,7 +744,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Aufgabe",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Aufgabe",
     "goethe_level": "A1"
   },
   {
@@ -692,7 +755,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/aufh%C3%B6ren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "aufhören",
     "goethe_level": "A1"
   },
   {
@@ -702,7 +766,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/aufstehen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "aufstehen",
     "goethe_level": "A1"
   },
   {
@@ -714,7 +779,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Aufzug",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Aufzug",
     "goethe_level": "A1"
   },
   {
@@ -726,7 +792,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Auge",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Auge",
     "goethe_level": "A1"
   },
   {
@@ -739,6 +806,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/August#1",
     "hidx": "1",
+    "unique_id": "August",
     "goethe_level": "A1"
   },
   {
@@ -749,6 +817,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/aus#1",
     "hidx": "1",
+    "unique_id": "aus#1",
     "goethe_level": "A1"
   },
   {
@@ -759,6 +828,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/aus#2",
     "hidx": "2",
+    "unique_id": "aus#2",
     "goethe_level": "A1"
   },
   {
@@ -768,7 +838,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/aus%20sein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "aus sein",
     "goethe_level": "A1"
   },
   {
@@ -780,7 +851,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Ausflug",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ausflug",
     "goethe_level": "A1"
   },
   {
@@ -790,7 +862,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ausf%C3%BCllen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ausfüllen",
     "goethe_level": "A1"
   },
   {
@@ -802,7 +875,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Ausgang",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ausgang",
     "goethe_level": "A1"
   },
   {
@@ -814,7 +888,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Auskunft",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Auskunft",
     "goethe_level": "A1"
   },
   {
@@ -826,7 +901,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Ausland",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ausland",
     "goethe_level": "A1"
   },
   {
@@ -838,7 +914,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Ausl%C3%A4nder",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ausländer",
     "goethe_level": "A1"
   },
   {
@@ -848,7 +925,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ausl%C3%A4ndisch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ausländisch",
     "goethe_level": "A1"
   },
   {
@@ -858,7 +936,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ausmachen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ausmachen",
     "goethe_level": "A1"
   },
   {
@@ -870,7 +949,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Aussage",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Aussage",
     "goethe_level": "A1"
   },
   {
@@ -880,7 +960,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/aussehen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "aussehen",
     "goethe_level": "A1"
   },
   {
@@ -890,7 +971,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/aussteigen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "aussteigen",
     "goethe_level": "A1"
   },
   {
@@ -902,7 +984,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Ausweis",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ausweis",
     "goethe_level": "A1"
   },
   {
@@ -912,7 +995,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ausziehen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ausziehen",
     "goethe_level": "A1"
   },
   {
@@ -924,7 +1008,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Auto",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Auto",
     "goethe_level": "A1"
   },
   {
@@ -936,7 +1021,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Autobahn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Autobahn",
     "goethe_level": "A1"
   },
   {
@@ -948,7 +1034,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Automat",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Automat",
     "goethe_level": "A1"
   },
   {
@@ -958,7 +1045,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/automatisch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "automatisch",
     "goethe_level": "A1"
   },
   {
@@ -970,7 +1058,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Baby",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Baby",
     "goethe_level": "A1"
   },
   {
@@ -982,7 +1071,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Bad",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bad",
     "goethe_level": "A1"
   },
   {
@@ -992,7 +1082,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/baden",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "baden",
     "goethe_level": "A1"
   },
   {
@@ -1004,7 +1095,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Bahn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bahn",
     "goethe_level": "A1"
   },
   {
@@ -1016,7 +1108,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Bahnhof",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bahnhof",
     "goethe_level": "A1"
   },
   {
@@ -1028,7 +1121,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Bahnsteig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bahnsteig",
     "goethe_level": "A1"
   },
   {
@@ -1038,7 +1132,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bald",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bald",
     "goethe_level": "A1"
   },
   {
@@ -1050,7 +1145,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Balkon",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Balkon",
     "goethe_level": "A1"
   },
   {
@@ -1062,7 +1158,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Banane",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Banane",
     "goethe_level": "A1"
   },
   {
@@ -1075,6 +1172,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Bank#1",
     "hidx": "1",
+    "unique_id": "Bank#1",
     "goethe_level": "A1"
   },
   {
@@ -1087,6 +1185,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Bank#2",
     "hidx": "2",
+    "unique_id": "Bank#2",
     "goethe_level": "A1"
   },
   {
@@ -1097,6 +1196,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bar#1",
     "hidx": "1",
+    "unique_id": "bar",
     "goethe_level": "A1"
   },
   {
@@ -1108,7 +1208,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Bauch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bauch",
     "goethe_level": "A1"
   },
   {
@@ -1120,7 +1221,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Baum",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Baum",
     "goethe_level": "A1"
   },
   {
@@ -1133,7 +1235,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Beamte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Beamte",
     "goethe_level": "A1"
   },
   {
@@ -1143,7 +1246,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bedeuten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bedeuten",
     "goethe_level": "A1"
   },
   {
@@ -1153,7 +1257,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/beginnen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "beginnen",
     "goethe_level": "A1"
   },
   {
@@ -1164,6 +1269,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bei#1",
     "hidx": "1",
+    "unique_id": "bei",
     "goethe_level": "A1"
   },
   {
@@ -1173,7 +1279,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/beide",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "beide",
     "goethe_level": "A1"
   },
   {
@@ -1185,7 +1292,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Bein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bein",
     "goethe_level": "A1"
   },
   {
@@ -1197,7 +1305,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Beispiel",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Beispiel",
     "goethe_level": "A1"
   },
   {
@@ -1207,7 +1316,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bekannt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bekannt",
     "goethe_level": "A1"
   },
   {
@@ -1220,7 +1330,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Bekannte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bekannte",
     "goethe_level": "A1"
   },
   {
@@ -1230,7 +1341,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bekommen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bekommen",
     "goethe_level": "A1"
   },
   {
@@ -1240,7 +1352,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/benutzen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "benutzen",
     "goethe_level": "A1"
   },
   {
@@ -1252,7 +1365,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Beruf",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Beruf",
     "goethe_level": "A1"
   },
   {
@@ -1262,7 +1376,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/besetzt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "besetzt",
     "goethe_level": "A1"
   },
   {
@@ -1272,7 +1387,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/besichtigen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "besichtigen",
     "goethe_level": "A1"
   },
   {
@@ -1282,7 +1398,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/besser",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "besser",
     "goethe_level": "A1"
   },
   {
@@ -1292,7 +1409,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/best",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "best",
     "goethe_level": "A1"
   },
   {
@@ -1302,7 +1420,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bestellen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bestellen",
     "goethe_level": "A1"
   },
   {
@@ -1312,7 +1431,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/besuchen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "besuchen",
     "goethe_level": "A1"
   },
   {
@@ -1324,7 +1444,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Bett",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bett",
     "goethe_level": "A1"
   },
   {
@@ -1334,7 +1455,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bezahlen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bezahlen",
     "goethe_level": "A1"
   },
   {
@@ -1346,7 +1468,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Bier",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bier",
     "goethe_level": "A1"
   },
   {
@@ -1358,7 +1481,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Bild",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bild",
     "goethe_level": "A1"
   },
   {
@@ -1368,7 +1492,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/billig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "billig",
     "goethe_level": "A1"
   },
   {
@@ -1380,7 +1505,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Birne",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Birne",
     "goethe_level": "A1"
   },
   {
@@ -1390,7 +1516,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bis",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bis",
     "goethe_level": "A1"
   },
   {
@@ -1400,7 +1527,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bisschen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bisschen",
     "goethe_level": "A1"
   },
   {
@@ -1410,7 +1538,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bitte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bitte",
     "goethe_level": "A1"
   },
   {
@@ -1422,7 +1551,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Bitte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bitte",
     "goethe_level": "A1"
   },
   {
@@ -1432,7 +1562,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bitten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bitten",
     "goethe_level": "A1"
   },
   {
@@ -1442,7 +1573,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bitter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bitter",
     "goethe_level": "A1"
   },
   {
@@ -1452,7 +1584,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/blau",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "blau",
     "goethe_level": "A1"
   },
   {
@@ -1462,7 +1595,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bleiben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bleiben",
     "goethe_level": "A1"
   },
   {
@@ -1474,7 +1608,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Bleistift",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bleistift",
     "goethe_level": "A1"
   },
   {
@@ -1487,6 +1622,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Blick#1",
     "hidx": "1",
+    "unique_id": "Blick",
     "goethe_level": "A1"
   },
   {
@@ -1498,7 +1634,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Blume",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Blume",
     "goethe_level": "A1"
   },
   {
@@ -1511,6 +1648,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Bogen#2",
     "hidx": "2",
+    "unique_id": "Bogen",
     "goethe_level": "A1"
   },
   {
@@ -1520,7 +1658,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/brauchen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "brauchen",
     "goethe_level": "A1"
   },
   {
@@ -1530,7 +1669,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/braun",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "braun",
     "goethe_level": "A1"
   },
   {
@@ -1540,7 +1680,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/breit",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "breit",
     "goethe_level": "A1"
   },
   {
@@ -1552,7 +1693,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Brief",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Brief",
     "goethe_level": "A1"
   },
   {
@@ -1564,7 +1706,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Briefmarke",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Briefmarke",
     "goethe_level": "A1"
   },
   {
@@ -1574,7 +1717,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/bringen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bringen",
     "goethe_level": "A1"
   },
   {
@@ -1586,7 +1730,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Brot",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Brot",
     "goethe_level": "A1"
   },
   {
@@ -1598,7 +1743,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Bruder",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bruder",
     "goethe_level": "A1"
   },
   {
@@ -1610,7 +1756,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Br%C3%B6tchen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Brötchen",
     "goethe_level": "A1"
   },
   {
@@ -1622,7 +1769,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Buch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Buch",
     "goethe_level": "A1"
   },
   {
@@ -1634,7 +1782,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Buchstabe",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Buchstabe",
     "goethe_level": "A1"
   },
   {
@@ -1644,7 +1793,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/buchstabieren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "buchstabieren",
     "goethe_level": "A1"
   },
   {
@@ -1656,7 +1806,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Bus",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bus",
     "goethe_level": "A1"
   },
   {
@@ -1668,7 +1819,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Butter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Butter",
     "goethe_level": "A1"
   },
   {
@@ -1680,7 +1832,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/B%C3%A4ckerei",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Bäckerei",
     "goethe_level": "A1"
   },
   {
@@ -1690,7 +1843,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/b%C3%B6s",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "bös",
     "goethe_level": "A1"
   },
   {
@@ -1700,7 +1854,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/b%C3%B6se",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "böse",
     "goethe_level": "A1"
   },
   {
@@ -1712,7 +1867,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Caf%C3%A9",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Café",
     "goethe_level": "A1"
   },
   {
@@ -1725,6 +1881,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/CD#1",
     "hidx": "1",
+    "unique_id": "CD",
     "goethe_level": "A1"
   },
   {
@@ -1736,7 +1893,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Cent",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Cent",
     "goethe_level": "A1"
   },
   {
@@ -1748,7 +1906,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Chef",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Chef",
     "goethe_level": "A1"
   },
   {
@@ -1760,7 +1919,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Computer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Computer",
     "goethe_level": "A1"
   },
   {
@@ -1771,6 +1931,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/da#1",
     "hidx": "1",
+    "unique_id": "da",
     "goethe_level": "A1"
   },
   {
@@ -1780,7 +1941,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/daneben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "daneben",
     "goethe_level": "A1"
   },
   {
@@ -1792,7 +1954,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Dank",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Dank",
     "goethe_level": "A1"
   },
   {
@@ -1802,7 +1965,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/danke",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "danke",
     "goethe_level": "A1"
   },
   {
@@ -1812,7 +1976,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/danken",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "danken",
     "goethe_level": "A1"
   },
   {
@@ -1822,7 +1987,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/dann",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "dann",
     "goethe_level": "A1"
   },
   {
@@ -1833,6 +1999,7 @@
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/das#1",
     "hidx": "1",
+    "unique_id": "das",
     "goethe_level": "A1"
   },
   {
@@ -1844,7 +2011,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Datum",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Datum",
     "goethe_level": "A1"
   },
   {
@@ -1855,6 +2023,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/dauern#1",
     "hidx": "1",
+    "unique_id": "dauern",
     "goethe_level": "A1"
   },
   {
@@ -1865,6 +2034,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/dein#1",
     "hidx": "1",
+    "unique_id": "dein",
     "goethe_level": "A1"
   },
   {
@@ -1874,7 +2044,8 @@
     "articles_all": [],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/deine",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "deine",
     "goethe_level": "A1"
   },
   {
@@ -1885,6 +2056,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/denn#1",
     "hidx": "1",
+    "unique_id": "denn",
     "goethe_level": "A1"
   },
   {
@@ -1895,6 +2067,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/der#1",
     "hidx": "1",
+    "unique_id": "der",
     "goethe_level": "A1"
   },
   {
@@ -1904,7 +2077,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/deutsch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "deutsch",
     "goethe_level": "A1"
   },
   {
@@ -1918,6 +2092,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Deutsche#2",
     "hidx": "2",
+    "unique_id": "Deutsche",
     "goethe_level": "A1"
   },
   {
@@ -1929,7 +2104,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Deutschland",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Deutschland",
     "goethe_level": "A1"
   },
   {
@@ -1941,7 +2117,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Dezember",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Dezember",
     "goethe_level": "A1"
   },
   {
@@ -1951,7 +2128,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/dich",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "dich",
     "goethe_level": "A1"
   },
   {
@@ -1962,6 +2140,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/die#1",
     "hidx": "1",
+    "unique_id": "die",
     "goethe_level": "A1"
   },
   {
@@ -1973,7 +2152,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Dienstag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Dienstag",
     "goethe_level": "A1"
   },
   {
@@ -1983,7 +2163,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/dir",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "dir",
     "goethe_level": "A1"
   },
   {
@@ -1995,7 +2176,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Doktor",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Doktor",
     "goethe_level": "A1"
   },
   {
@@ -2007,7 +2189,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Donnerstag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Donnerstag",
     "goethe_level": "A1"
   },
   {
@@ -2019,7 +2202,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Doppelzimmer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Doppelzimmer",
     "goethe_level": "A1"
   },
   {
@@ -2031,7 +2215,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Dorf",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Dorf",
     "goethe_level": "A1"
   },
   {
@@ -2041,7 +2226,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/dort",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "dort",
     "goethe_level": "A1"
   },
   {
@@ -2051,7 +2237,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/drau%C3%9Fen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "draußen",
     "goethe_level": "A1"
   },
   {
@@ -2061,7 +2248,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/drei",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "drei",
     "goethe_level": "A1"
   },
   {
@@ -2071,7 +2259,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/dreizehn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "dreizehn",
     "goethe_level": "A1"
   },
   {
@@ -2081,7 +2270,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/drei%C3%9Fig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "dreißig",
     "goethe_level": "A1"
   },
   {
@@ -2091,7 +2281,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/dritte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "dritte",
     "goethe_level": "A1"
   },
   {
@@ -2101,7 +2292,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/drucken",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "drucken",
     "goethe_level": "A1"
   },
   {
@@ -2113,7 +2305,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Drucker",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Drucker",
     "goethe_level": "A1"
   },
   {
@@ -2123,7 +2316,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/dr%C3%BCcken",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "drücken",
     "goethe_level": "A1"
   },
   {
@@ -2134,6 +2328,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/durch#1",
     "hidx": "1",
+    "unique_id": "durch",
     "goethe_level": "A1"
   },
   {
@@ -2145,7 +2340,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Durchsage",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Durchsage",
     "goethe_level": "A1"
   },
   {
@@ -2157,7 +2353,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Durst",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Durst",
     "goethe_level": "A1"
   },
   {
@@ -2169,7 +2366,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Dusche",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Dusche",
     "goethe_level": "A1"
   },
   {
@@ -2179,7 +2377,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/duschen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "duschen",
     "goethe_level": "A1"
   },
   {
@@ -2189,7 +2388,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/d%C3%BCrfen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "dürfen",
     "goethe_level": "A1"
   },
   {
@@ -2201,7 +2401,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/E-Mail",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "E-Mail",
     "goethe_level": "A1"
   },
   {
@@ -2213,7 +2414,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Ecke",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ecke",
     "goethe_level": "A1"
   },
   {
@@ -2225,7 +2427,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Ehefrau",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ehefrau",
     "goethe_level": "A1"
   },
   {
@@ -2237,7 +2440,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Ehemann",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ehemann",
     "goethe_level": "A1"
   },
   {
@@ -2249,7 +2453,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Ei",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ei",
     "goethe_level": "A1"
   },
   {
@@ -2259,7 +2464,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/eilig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "eilig",
     "goethe_level": "A1"
   },
   {
@@ -2270,6 +2476,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/ein#1",
     "hidx": "1",
+    "unique_id": "ein",
     "goethe_level": "A1"
   },
   {
@@ -2280,6 +2487,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/eine#1",
     "hidx": "1",
+    "unique_id": "eine",
     "goethe_level": "A1"
   },
   {
@@ -2289,7 +2497,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/einfach",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "einfach",
     "goethe_level": "A1"
   },
   {
@@ -2301,7 +2510,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Eingang",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Eingang",
     "goethe_level": "A1"
   },
   {
@@ -2311,7 +2521,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/einhundert",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "einhundert",
     "goethe_level": "A1"
   },
   {
@@ -2321,7 +2532,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/einkaufen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "einkaufen",
     "goethe_level": "A1"
   },
   {
@@ -2332,6 +2544,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/einladen#2",
     "hidx": "2",
+    "unique_id": "einladen",
     "goethe_level": "A1"
   },
   {
@@ -2343,7 +2556,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Einladung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Einladung",
     "goethe_level": "A1"
   },
   {
@@ -2353,7 +2567,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/eins",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "eins",
     "goethe_level": "A1"
   },
   {
@@ -2363,7 +2578,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/einsteigen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "einsteigen",
     "goethe_level": "A1"
   },
   {
@@ -2373,7 +2589,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/eintausend",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "eintausend",
     "goethe_level": "A1"
   },
   {
@@ -2385,7 +2602,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Eintritt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Eintritt",
     "goethe_level": "A1"
   },
   {
@@ -2397,7 +2615,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Einzelzimmer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Einzelzimmer",
     "goethe_level": "A1"
   },
   {
@@ -2407,7 +2626,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/elf",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "elf",
     "goethe_level": "A1"
   },
   {
@@ -2417,7 +2637,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/Eltern",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Eltern",
     "goethe_level": "A1"
   },
   {
@@ -2427,7 +2648,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/empfehlen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "empfehlen",
     "goethe_level": "A1"
   },
   {
@@ -2439,7 +2661,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Empf%C3%A4nger",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Empfänger",
     "goethe_level": "A1"
   },
   {
@@ -2451,7 +2674,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Ende",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ende",
     "goethe_level": "A1"
   },
   {
@@ -2461,7 +2685,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/enden",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "enden",
     "goethe_level": "A1"
   },
   {
@@ -2471,7 +2696,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/entschuldigen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "entschuldigen",
     "goethe_level": "A1"
   },
   {
@@ -2483,7 +2709,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Entschuldigung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Entschuldigung",
     "goethe_level": "A1"
   },
   {
@@ -2493,7 +2720,8 @@
     "articles_all": [],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/er",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "er",
     "goethe_level": "A1"
   },
   {
@@ -2505,7 +2733,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Ergebnis",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ergebnis",
     "goethe_level": "A1"
   },
   {
@@ -2515,7 +2744,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/erkl%C3%A4ren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "erklären",
     "goethe_level": "A1"
   },
   {
@@ -2525,7 +2755,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/erlauben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "erlauben",
     "goethe_level": "A1"
   },
   {
@@ -2535,7 +2766,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/erste",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "erste",
     "goethe_level": "A1"
   },
   {
@@ -2548,7 +2780,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Erwachsene",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Erwachsene",
     "goethe_level": "A1"
   },
   {
@@ -2558,7 +2791,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/erz%C3%A4hlen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "erzählen",
     "goethe_level": "A1"
   },
   {
@@ -2569,6 +2803,7 @@
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/es#1",
     "hidx": "1",
+    "unique_id": "es",
     "goethe_level": "A1"
   },
   {
@@ -2580,7 +2815,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Essen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Essen",
     "goethe_level": "A1"
   },
   {
@@ -2590,7 +2826,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/essen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "essen",
     "goethe_level": "A1"
   },
   {
@@ -2601,6 +2838,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/euer#1",
     "hidx": "1",
+    "unique_id": "euer",
     "goethe_level": "A1"
   },
   {
@@ -2610,7 +2848,8 @@
     "articles_all": [],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/eure",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "eure",
     "goethe_level": "A1"
   },
   {
@@ -2623,6 +2862,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Euro#1",
     "hidx": "1",
+    "unique_id": "Euro",
     "goethe_level": "A1"
   },
   {
@@ -2634,7 +2874,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Europa",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Europa",
     "goethe_level": "A1"
   },
   {
@@ -2646,7 +2887,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Europ%C3%A4er",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Europäer",
     "goethe_level": "A1"
   },
   {
@@ -2656,7 +2898,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/europ%C3%A4isch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "europäisch",
     "goethe_level": "A1"
   },
   {
@@ -2666,7 +2909,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/fahren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "fahren",
     "goethe_level": "A1"
   },
   {
@@ -2678,7 +2922,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Fahrer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Fahrer",
     "goethe_level": "A1"
   },
   {
@@ -2690,7 +2935,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Fahrkarte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Fahrkarte",
     "goethe_level": "A1"
   },
   {
@@ -2702,7 +2948,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Fahrrad",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Fahrrad",
     "goethe_level": "A1"
   },
   {
@@ -2712,7 +2959,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/falsch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "falsch",
     "goethe_level": "A1"
   },
   {
@@ -2724,7 +2972,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Familie",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Familie",
     "goethe_level": "A1"
   },
   {
@@ -2736,7 +2985,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Familienname",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Familienname",
     "goethe_level": "A1"
   },
   {
@@ -2748,7 +2998,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Familienstand",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Familienstand",
     "goethe_level": "A1"
   },
   {
@@ -2760,7 +3011,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Farbe",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Farbe",
     "goethe_level": "A1"
   },
   {
@@ -2772,7 +3024,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Fax",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Fax",
     "goethe_level": "A1"
   },
   {
@@ -2784,7 +3037,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Februar",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Februar",
     "goethe_level": "A1"
   },
   {
@@ -2794,7 +3048,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/fehlen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "fehlen",
     "goethe_level": "A1"
   },
   {
@@ -2806,7 +3061,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Fehler",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Fehler",
     "goethe_level": "A1"
   },
   {
@@ -2818,7 +3074,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Feierabend",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Feierabend",
     "goethe_level": "A1"
   },
   {
@@ -2828,7 +3085,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/feiern",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "feiern",
     "goethe_level": "A1"
   },
   {
@@ -2840,7 +3098,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Feiertag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Feiertag",
     "goethe_level": "A1"
   },
   {
@@ -2850,7 +3109,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/fernsehen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "fernsehen",
     "goethe_level": "A1"
   },
   {
@@ -2860,7 +3120,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/fertig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "fertig",
     "goethe_level": "A1"
   },
   {
@@ -2872,7 +3133,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Feuer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Feuer",
     "goethe_level": "A1"
   },
   {
@@ -2884,7 +3146,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Fieber",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Fieber",
     "goethe_level": "A1"
   },
   {
@@ -2896,7 +3159,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Film",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Film",
     "goethe_level": "A1"
   },
   {
@@ -2906,7 +3170,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/finden",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "finden",
     "goethe_level": "A1"
   },
   {
@@ -2918,7 +3183,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Firma",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Firma",
     "goethe_level": "A1"
   },
   {
@@ -2930,7 +3196,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Fisch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Fisch",
     "goethe_level": "A1"
   },
   {
@@ -2942,7 +3209,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Flasche",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Flasche",
     "goethe_level": "A1"
   },
   {
@@ -2954,7 +3222,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Fleisch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Fleisch",
     "goethe_level": "A1"
   },
   {
@@ -2964,7 +3233,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/fliegen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "fliegen",
     "goethe_level": "A1"
   },
   {
@@ -2976,7 +3246,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Flughafen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Flughafen",
     "goethe_level": "A1"
   },
   {
@@ -2988,7 +3259,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Flugzeug",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Flugzeug",
     "goethe_level": "A1"
   },
   {
@@ -3000,7 +3272,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Formular",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Formular",
     "goethe_level": "A1"
   },
   {
@@ -3013,6 +3286,7 @@
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Foto#1",
     "hidx": "1",
+    "unique_id": "Foto",
     "goethe_level": "A1"
   },
   {
@@ -3024,7 +3298,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Frage",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Frage",
     "goethe_level": "A1"
   },
   {
@@ -3034,7 +3309,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/fragen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "fragen",
     "goethe_level": "A1"
   },
   {
@@ -3046,7 +3322,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Frau",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Frau",
     "goethe_level": "A1"
   },
   {
@@ -3056,7 +3333,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/frei",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "frei",
     "goethe_level": "A1"
   },
   {
@@ -3068,7 +3346,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Freitag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Freitag",
     "goethe_level": "A1"
   },
   {
@@ -3080,7 +3359,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Freizeit",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Freizeit",
     "goethe_level": "A1"
   },
   {
@@ -3090,7 +3370,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/fremd",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "fremd",
     "goethe_level": "A1"
   },
   {
@@ -3100,7 +3381,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/freuen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "freuen",
     "goethe_level": "A1"
   },
   {
@@ -3112,7 +3394,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Freund",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Freund",
     "goethe_level": "A1"
   },
   {
@@ -3124,7 +3407,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Freundin",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Freundin",
     "goethe_level": "A1"
   },
   {
@@ -3134,7 +3418,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/fr%C3%BCher",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "früher",
     "goethe_level": "A1"
   },
   {
@@ -3146,7 +3431,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Fr%C3%BChjahr",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Frühjahr",
     "goethe_level": "A1"
   },
   {
@@ -3158,7 +3444,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Fr%C3%BChling",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Frühling",
     "goethe_level": "A1"
   },
   {
@@ -3170,7 +3457,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Fr%C3%BChst%C3%BCck",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Frühstück",
     "goethe_level": "A1"
   },
   {
@@ -3180,7 +3468,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/fr%C3%BChst%C3%BCcken",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "frühstücken",
     "goethe_level": "A1"
   },
   {
@@ -3192,7 +3481,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Fu%C3%9F",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Fuß",
     "goethe_level": "A1"
   },
   {
@@ -3204,7 +3494,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Fu%C3%9Fball",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Fußball",
     "goethe_level": "A1"
   },
   {
@@ -3216,7 +3507,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/F%C3%BChrung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Führung",
     "goethe_level": "A1"
   },
   {
@@ -3226,7 +3518,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/f%C3%BCnf",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "fünf",
     "goethe_level": "A1"
   },
   {
@@ -3236,7 +3529,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/f%C3%BCnfzehn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "fünfzehn",
     "goethe_level": "A1"
   },
   {
@@ -3246,7 +3540,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/f%C3%BCnfzig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "fünfzig",
     "goethe_level": "A1"
   },
   {
@@ -3257,6 +3552,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/f%C3%BCr#1",
     "hidx": "1",
+    "unique_id": "für",
     "goethe_level": "A1"
   },
   {
@@ -3268,7 +3564,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Garten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Garten",
     "goethe_level": "A1"
   },
   {
@@ -3281,6 +3578,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Gast#1",
     "hidx": "1",
+    "unique_id": "Gast",
     "goethe_level": "A1"
   },
   {
@@ -3290,7 +3588,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/geben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "geben",
     "goethe_level": "A1"
   },
   {
@@ -3300,7 +3599,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/geboren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "geboren",
     "goethe_level": "A1"
   },
   {
@@ -3312,7 +3612,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Geburtsjahr",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Geburtsjahr",
     "goethe_level": "A1"
   },
   {
@@ -3324,7 +3625,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Geburtsort",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Geburtsort",
     "goethe_level": "A1"
   },
   {
@@ -3336,7 +3638,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Geburtstag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Geburtstag",
     "goethe_level": "A1"
   },
   {
@@ -3347,6 +3650,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gefallen#1",
     "hidx": "1",
+    "unique_id": "gefallen",
     "goethe_level": "A1"
   },
   {
@@ -3356,7 +3660,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gegen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gegen",
     "goethe_level": "A1"
   },
   {
@@ -3366,7 +3671,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gehen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gehen",
     "goethe_level": "A1"
   },
   {
@@ -3376,7 +3682,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/geh%C3%B6ren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gehören",
     "goethe_level": "A1"
   },
   {
@@ -3386,7 +3693,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gelb",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gelb",
     "goethe_level": "A1"
   },
   {
@@ -3398,7 +3706,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Geld",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Geld",
     "goethe_level": "A1"
   },
   {
@@ -3410,7 +3719,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Gem%C3%BCse",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Gemüse",
     "goethe_level": "A1"
   },
   {
@@ -3422,7 +3732,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Gep%C3%A4ck",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Gepäck",
     "goethe_level": "A1"
   },
   {
@@ -3433,6 +3744,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gerade#2",
     "hidx": "2",
+    "unique_id": "gerade",
     "goethe_level": "A1"
   },
   {
@@ -3442,7 +3754,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/geradeaus",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "geradeaus",
     "goethe_level": "A1"
   },
   {
@@ -3452,7 +3765,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gern",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gern",
     "goethe_level": "A1"
   },
   {
@@ -3462,7 +3776,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gerne",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gerne",
     "goethe_level": "A1"
   },
   {
@@ -3474,7 +3789,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Geschenk",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Geschenk",
     "goethe_level": "A1"
   },
   {
@@ -3484,7 +3800,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/geschlossen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "geschlossen",
     "goethe_level": "A1"
   },
   {
@@ -3496,7 +3813,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Geschwister",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Geschwister",
     "goethe_level": "A1"
   },
   {
@@ -3508,7 +3826,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Gesch%C3%A4ft",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Geschäft",
     "goethe_level": "A1"
   },
   {
@@ -3520,7 +3839,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Gespr%C3%A4ch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Gespräch",
     "goethe_level": "A1"
   },
   {
@@ -3530,7 +3850,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gestern",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gestern",
     "goethe_level": "A1"
   },
   {
@@ -3542,7 +3863,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Getr%C3%A4nk",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Getränk",
     "goethe_level": "A1"
   },
   {
@@ -3554,7 +3876,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Gewicht",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Gewicht",
     "goethe_level": "A1"
   },
   {
@@ -3564,7 +3887,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gewinnen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gewinnen",
     "goethe_level": "A1"
   },
   {
@@ -3577,6 +3901,7 @@
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Glas#1",
     "hidx": "1",
+    "unique_id": "Glas",
     "goethe_level": "A1"
   },
   {
@@ -3586,7 +3911,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/glauben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "glauben",
     "goethe_level": "A1"
   },
   {
@@ -3597,6 +3923,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gleich#1",
     "hidx": "1",
+    "unique_id": "gleich#1",
     "goethe_level": "A1"
   },
   {
@@ -3607,6 +3934,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gleich#2",
     "hidx": "2",
+    "unique_id": "gleich#2",
     "goethe_level": "A1"
   },
   {
@@ -3618,7 +3946,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Gleis",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Gleis",
     "goethe_level": "A1"
   },
   {
@@ -3630,7 +3959,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Gl%C3%BCck",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Glück",
     "goethe_level": "A1"
   },
   {
@@ -3640,7 +3970,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gl%C3%BCcklich",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "glücklich",
     "goethe_level": "A1"
   },
   {
@@ -3652,7 +3983,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Gl%C3%BCckwunsch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Glückwunsch",
     "goethe_level": "A1"
   },
   {
@@ -3664,7 +3996,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Grad",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Grad",
     "goethe_level": "A1"
   },
   {
@@ -3675,6 +4008,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/grade#2",
     "hidx": "2",
+    "unique_id": "grade",
     "goethe_level": "A1"
   },
   {
@@ -3684,7 +4018,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gradeaus",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gradeaus",
     "goethe_level": "A1"
   },
   {
@@ -3696,7 +4031,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Gramm",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Gramm",
     "goethe_level": "A1"
   },
   {
@@ -3706,7 +4042,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gratulieren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gratulieren",
     "goethe_level": "A1"
   },
   {
@@ -3716,7 +4053,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/grau",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "grau",
     "goethe_level": "A1"
   },
   {
@@ -3726,7 +4064,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/grillen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "grillen",
     "goethe_level": "A1"
   },
   {
@@ -3736,7 +4075,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gro%C3%9F",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "groß",
     "goethe_level": "A1"
   },
   {
@@ -3746,7 +4086,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/Gro%C3%9Feltern",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Großeltern",
     "goethe_level": "A1"
   },
   {
@@ -3758,7 +4099,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Gro%C3%9Fmutter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Großmutter",
     "goethe_level": "A1"
   },
   {
@@ -3770,7 +4112,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Gro%C3%9Fvater",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Großvater",
     "goethe_level": "A1"
   },
   {
@@ -3782,7 +4125,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Gruppe",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Gruppe",
     "goethe_level": "A1"
   },
   {
@@ -3794,7 +4138,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Gru%C3%9F",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Gruß",
     "goethe_level": "A1"
   },
   {
@@ -3806,7 +4151,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Gr%C3%B6%C3%9Fe",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Größe",
     "goethe_level": "A1"
   },
   {
@@ -3816,7 +4162,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gr%C3%BCn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "grün",
     "goethe_level": "A1"
   },
   {
@@ -3826,7 +4173,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/gut",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gut",
     "goethe_level": "A1"
   },
   {
@@ -3836,7 +4184,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/g%C3%BCltig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "gültig",
     "goethe_level": "A1"
   },
   {
@@ -3846,7 +4195,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/g%C3%BCnstig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "günstig",
     "goethe_level": "A1"
   },
   {
@@ -3858,7 +4208,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Haar",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Haar",
     "goethe_level": "A1"
   },
   {
@@ -3868,7 +4219,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/haben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "haben",
     "goethe_level": "A1"
   },
   {
@@ -3878,7 +4230,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/halb",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "halb",
     "goethe_level": "A1"
   },
   {
@@ -3890,7 +4243,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Halbpension",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Halbpension",
     "goethe_level": "A1"
   },
   {
@@ -3902,7 +4256,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Halle",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Halle",
     "goethe_level": "A1"
   },
   {
@@ -3912,7 +4267,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/hallo",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "hallo",
     "goethe_level": "A1"
   },
   {
@@ -3922,7 +4278,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/halten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "halten",
     "goethe_level": "A1"
   },
   {
@@ -3934,7 +4291,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Haltestelle",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Haltestelle",
     "goethe_level": "A1"
   },
   {
@@ -3946,7 +4304,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Hand",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Hand",
     "goethe_level": "A1"
   },
   {
@@ -3958,7 +4317,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Handy",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Handy",
     "goethe_level": "A1"
   },
   {
@@ -3970,7 +4330,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Haus",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Haus",
     "goethe_level": "A1"
   },
   {
@@ -3982,7 +4343,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Hausaufgabe",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Hausaufgabe",
     "goethe_level": "A1"
   },
   {
@@ -3994,7 +4356,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Hausfrau",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Hausfrau",
     "goethe_level": "A1"
   },
   {
@@ -4006,7 +4369,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Hausmann",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Hausmann",
     "goethe_level": "A1"
   },
   {
@@ -4018,7 +4382,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Heimat",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Heimat",
     "goethe_level": "A1"
   },
   {
@@ -4028,7 +4393,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/heiraten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "heiraten",
     "goethe_level": "A1"
   },
   {
@@ -4039,6 +4405,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/hei%C3%9Fen#1",
     "hidx": "1",
+    "unique_id": "heißen",
     "goethe_level": "A1"
   },
   {
@@ -4048,7 +4415,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/helfen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "helfen",
     "goethe_level": "A1"
   },
   {
@@ -4058,7 +4426,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/hell",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "hell",
     "goethe_level": "A1"
   },
   {
@@ -4070,7 +4439,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Herbst",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Herbst",
     "goethe_level": "A1"
   },
   {
@@ -4082,7 +4452,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Herd",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Herd",
     "goethe_level": "A1"
   },
   {
@@ -4094,7 +4465,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Herr",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Herr",
     "goethe_level": "A1"
   },
   {
@@ -4104,7 +4476,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/herzlich",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "herzlich",
     "goethe_level": "A1"
   },
   {
@@ -4114,7 +4487,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/heut",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "heut",
     "goethe_level": "A1"
   },
   {
@@ -4124,7 +4498,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/heute",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "heute",
     "goethe_level": "A1"
   },
   {
@@ -4134,7 +4509,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/hier",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "hier",
     "goethe_level": "A1"
   },
   {
@@ -4146,7 +4522,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Hilfe",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Hilfe",
     "goethe_level": "A1"
   },
   {
@@ -4156,7 +4533,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/hinten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "hinten",
     "goethe_level": "A1"
   },
   {
@@ -4168,7 +4546,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Hobby",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Hobby",
     "goethe_level": "A1"
   },
   {
@@ -4178,7 +4557,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/hoch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "hoch",
     "goethe_level": "A1"
   },
   {
@@ -4191,6 +4571,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Hochzeit#1",
     "hidx": "1",
+    "unique_id": "Hochzeit",
     "goethe_level": "A1"
   },
   {
@@ -4200,7 +4581,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/holen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "holen",
     "goethe_level": "A1"
   },
   {
@@ -4212,7 +4594,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Hotel",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Hotel",
     "goethe_level": "A1"
   },
   {
@@ -4225,6 +4608,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Hund#1",
     "hidx": "1",
+    "unique_id": "Hund",
     "goethe_level": "A1"
   },
   {
@@ -4234,7 +4618,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/hundert",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "hundert",
     "goethe_level": "A1"
   },
   {
@@ -4246,7 +4631,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Hunger",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Hunger",
     "goethe_level": "A1"
   },
   {
@@ -4258,7 +4644,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/H%C3%A4hnchen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Hähnchen",
     "goethe_level": "A1"
   },
   {
@@ -4268,7 +4655,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/h%C3%B6ren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "hören",
     "goethe_level": "A1"
   },
   {
@@ -4278,7 +4666,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ich",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ich",
     "goethe_level": "A1"
   },
   {
@@ -4288,7 +4677,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ihm",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ihm",
     "goethe_level": "A1"
   },
   {
@@ -4298,7 +4688,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ihn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ihn",
     "goethe_level": "A1"
   },
   {
@@ -4309,6 +4700,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Ihr#1",
     "hidx": "1",
+    "unique_id": "Ihr",
     "goethe_level": "A1"
   },
   {
@@ -4319,6 +4711,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ihr#1",
     "hidx": "1",
+    "unique_id": "ihr#1",
     "goethe_level": "A1"
   },
   {
@@ -4329,6 +4722,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/ihr#2",
     "hidx": "2",
+    "unique_id": "ihr#2",
     "goethe_level": "A1"
   },
   {
@@ -4338,7 +4732,8 @@
     "articles_all": [],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Ihre",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ihre",
     "goethe_level": "A1"
   },
   {
@@ -4348,7 +4743,8 @@
     "articles_all": [],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/ihre",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ihre",
     "goethe_level": "A1"
   },
   {
@@ -4358,7 +4754,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/immer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "immer",
     "goethe_level": "A1"
   },
   {
@@ -4369,6 +4766,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/in#1",
     "hidx": "1",
+    "unique_id": "in",
     "goethe_level": "A1"
   },
   {
@@ -4380,7 +4778,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Information",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Information",
     "goethe_level": "A1"
   },
   {
@@ -4390,7 +4789,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ins",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ins",
     "goethe_level": "A1"
   },
   {
@@ -4400,7 +4800,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/international",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "international",
     "goethe_level": "A1"
   },
   {
@@ -4412,7 +4813,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Internet",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Internet",
     "goethe_level": "A1"
   },
   {
@@ -4422,7 +4824,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ja",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ja",
     "goethe_level": "A1"
   },
   {
@@ -4434,7 +4837,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Jacke",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Jacke",
     "goethe_level": "A1"
   },
   {
@@ -4446,7 +4850,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Jahr",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Jahr",
     "goethe_level": "A1"
   },
   {
@@ -4458,7 +4863,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Januar",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Januar",
     "goethe_level": "A1"
   },
   {
@@ -4468,7 +4874,8 @@
     "articles_all": [],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/jede",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "jede",
     "goethe_level": "A1"
   },
   {
@@ -4478,7 +4885,8 @@
     "articles_all": [],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/jeder",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "jeder",
     "goethe_level": "A1"
   },
   {
@@ -4488,7 +4896,8 @@
     "articles_all": [],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/jedes",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "jedes",
     "goethe_level": "A1"
   },
   {
@@ -4498,7 +4907,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/jetzt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "jetzt",
     "goethe_level": "A1"
   },
   {
@@ -4510,7 +4920,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Job",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Job",
     "goethe_level": "A1"
   },
   {
@@ -4523,7 +4934,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Jugendliche",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Jugendliche",
     "goethe_level": "A1"
   },
   {
@@ -4535,7 +4947,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Juli",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Juli",
     "goethe_level": "A1"
   },
   {
@@ -4545,7 +4958,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/jung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "jung",
     "goethe_level": "A1"
   },
   {
@@ -4558,6 +4972,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Junge#1",
     "hidx": "1",
+    "unique_id": "Junge",
     "goethe_level": "A1"
   },
   {
@@ -4569,7 +4984,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Juni",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Juni",
     "goethe_level": "A1"
   },
   {
@@ -4582,6 +4998,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Kaffee#1",
     "hidx": "1",
+    "unique_id": "Kaffee",
     "goethe_level": "A1"
   },
   {
@@ -4591,7 +5008,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kaputt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "kaputt",
     "goethe_level": "A1"
   },
   {
@@ -4603,7 +5021,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Karte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Karte",
     "goethe_level": "A1"
   },
   {
@@ -4615,7 +5034,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Kartoffel",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kartoffel",
     "goethe_level": "A1"
   },
   {
@@ -4627,7 +5047,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Kasse",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kasse",
     "goethe_level": "A1"
   },
   {
@@ -4637,7 +5058,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kaufen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "kaufen",
     "goethe_level": "A1"
   },
   {
@@ -4647,7 +5069,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "kein",
     "goethe_level": "A1"
   },
   {
@@ -4657,7 +5080,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kennen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "kennen",
     "goethe_level": "A1"
   },
   {
@@ -4667,7 +5091,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kennenlernen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "kennenlernen",
     "goethe_level": "A1"
   },
   {
@@ -4679,7 +5104,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Kilo",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kilo",
     "goethe_level": "A1"
   },
   {
@@ -4691,7 +5117,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Kilogramm",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kilogramm",
     "goethe_level": "A1"
   },
   {
@@ -4703,7 +5130,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Kilometer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kilometer",
     "goethe_level": "A1"
   },
   {
@@ -4715,7 +5143,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Kind",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kind",
     "goethe_level": "A1"
   },
   {
@@ -4727,7 +5156,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Kindergarten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kindergarten",
     "goethe_level": "A1"
   },
   {
@@ -4739,7 +5169,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Kino",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kino",
     "goethe_level": "A1"
   },
   {
@@ -4751,7 +5182,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Kiosk",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kiosk",
     "goethe_level": "A1"
   },
   {
@@ -4761,7 +5193,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/klar",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "klar",
     "goethe_level": "A1"
   },
   {
@@ -4773,7 +5206,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Klasse",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Klasse",
     "goethe_level": "A1"
   },
   {
@@ -4785,7 +5219,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Kleidung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kleidung",
     "goethe_level": "A1"
   },
   {
@@ -4795,7 +5230,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/klein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "klein",
     "goethe_level": "A1"
   },
   {
@@ -4805,7 +5241,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kochen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "kochen",
     "goethe_level": "A1"
   },
   {
@@ -4817,7 +5254,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Koffer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Koffer",
     "goethe_level": "A1"
   },
   {
@@ -4829,7 +5267,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Kollege",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kollege",
     "goethe_level": "A1"
   },
   {
@@ -4839,7 +5278,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kommen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "kommen",
     "goethe_level": "A1"
   },
   {
@@ -4851,7 +5291,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Konto",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Konto",
     "goethe_level": "A1"
   },
   {
@@ -4863,7 +5304,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Kopf",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kopf",
     "goethe_level": "A1"
   },
   {
@@ -4874,6 +5316,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kosten#2",
     "hidx": "2",
+    "unique_id": "kosten",
     "goethe_level": "A1"
   },
   {
@@ -4883,7 +5326,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/krank",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "krank",
     "goethe_level": "A1"
   },
   {
@@ -4895,7 +5339,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Kreditkarte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kreditkarte",
     "goethe_level": "A1"
   },
   {
@@ -4906,6 +5351,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kriegen#1",
     "hidx": "1",
+    "unique_id": "kriegen",
     "goethe_level": "A1"
   },
   {
@@ -4917,7 +5363,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Kuchen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kuchen",
     "goethe_level": "A1"
   },
   {
@@ -4929,7 +5376,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Kugelschreiber",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kugelschreiber",
     "goethe_level": "A1"
   },
   {
@@ -4939,7 +5387,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kulturell",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "kulturell",
     "goethe_level": "A1"
   },
   {
@@ -4952,6 +5401,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Kunde#1",
     "hidx": "1",
+    "unique_id": "Kunde",
     "goethe_level": "A1"
   },
   {
@@ -4963,7 +5413,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Kundin",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kundin",
     "goethe_level": "A1"
   },
   {
@@ -4976,6 +5427,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Kurs#2",
     "hidx": "2",
+    "unique_id": "Kurs",
     "goethe_level": "A1"
   },
   {
@@ -4985,7 +5437,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/kurz",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "kurz",
     "goethe_level": "A1"
   },
   {
@@ -4995,7 +5448,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/k%C3%B6nnen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "können",
     "goethe_level": "A1"
   },
   {
@@ -5007,7 +5461,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/K%C3%BCche",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Küche",
     "goethe_level": "A1"
   },
   {
@@ -5019,7 +5474,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/K%C3%BChlschrank",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Kühlschrank",
     "goethe_level": "A1"
   },
   {
@@ -5030,6 +5486,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/k%C3%BCmmern#1",
     "hidx": "1",
+    "unique_id": "kümmern",
     "goethe_level": "A1"
   },
   {
@@ -5039,7 +5496,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/lachen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "lachen",
     "goethe_level": "A1"
   },
   {
@@ -5051,7 +5509,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Laden",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Laden",
     "goethe_level": "A1"
   },
   {
@@ -5063,7 +5522,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Land",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Land",
     "goethe_level": "A1"
   },
   {
@@ -5074,6 +5534,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/lang#1",
     "hidx": "1",
+    "unique_id": "lang",
     "goethe_level": "A1"
   },
   {
@@ -5083,7 +5544,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/lange",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "lange",
     "goethe_level": "A1"
   },
   {
@@ -5093,7 +5555,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/langsam",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "langsam",
     "goethe_level": "A1"
   },
   {
@@ -5103,7 +5566,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/laufen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "laufen",
     "goethe_level": "A1"
   },
   {
@@ -5114,6 +5578,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/laut#1",
     "hidx": "1",
+    "unique_id": "laut",
     "goethe_level": "A1"
   },
   {
@@ -5123,7 +5588,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/leben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "leben",
     "goethe_level": "A1"
   },
   {
@@ -5135,7 +5601,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Leben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Leben",
     "goethe_level": "A1"
   },
   {
@@ -5147,7 +5614,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Lebensmittel",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Lebensmittel",
     "goethe_level": "A1"
   },
   {
@@ -5157,7 +5625,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ledig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ledig",
     "goethe_level": "A1"
   },
   {
@@ -5167,7 +5636,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/legen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "legen",
     "goethe_level": "A1"
   },
   {
@@ -5179,7 +5649,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Lehrer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Lehrer",
     "goethe_level": "A1"
   },
   {
@@ -5189,7 +5660,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/leicht",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "leicht",
     "goethe_level": "A1"
   },
   {
@@ -5199,7 +5671,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/leider",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "leider",
     "goethe_level": "A1"
   },
   {
@@ -5209,7 +5682,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/leise",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "leise",
     "goethe_level": "A1"
   },
   {
@@ -5219,7 +5693,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/lernen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "lernen",
     "goethe_level": "A1"
   },
   {
@@ -5230,6 +5705,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/lesen#1",
     "hidx": "1",
+    "unique_id": "lesen",
     "goethe_level": "A1"
   },
   {
@@ -5239,7 +5715,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/letzt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "letzt",
     "goethe_level": "A1"
   },
   {
@@ -5249,7 +5726,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/Leute",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Leute",
     "goethe_level": "A1"
   },
   {
@@ -5261,7 +5739,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Licht",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Licht",
     "goethe_level": "A1"
   },
   {
@@ -5271,7 +5750,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/lieb",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "lieb",
     "goethe_level": "A1"
   },
   {
@@ -5281,7 +5761,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/lieben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "lieben",
     "goethe_level": "A1"
   },
   {
@@ -5291,7 +5772,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/lieber",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "lieber",
     "goethe_level": "A1"
   },
   {
@@ -5303,7 +5785,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Lieblingslied",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Lieblingslied",
     "goethe_level": "A1"
   },
   {
@@ -5315,7 +5798,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Lied",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Lied",
     "goethe_level": "A1"
   },
   {
@@ -5325,7 +5809,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/liegen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "liegen",
     "goethe_level": "A1"
   },
   {
@@ -5336,6 +5821,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/links#1",
     "hidx": "1",
+    "unique_id": "links",
     "goethe_level": "A1"
   },
   {
@@ -5348,7 +5834,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Liter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Liter",
     "goethe_level": "A1"
   },
   {
@@ -5360,7 +5847,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Lkw",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Lkw",
     "goethe_level": "A1"
   },
   {
@@ -5372,7 +5860,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Lokal",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Lokal",
     "goethe_level": "A1"
   },
   {
@@ -5382,7 +5871,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/lustig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "lustig",
     "goethe_level": "A1"
   },
   {
@@ -5394,7 +5884,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/L%C3%B6sung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Lösung",
     "goethe_level": "A1"
   },
   {
@@ -5404,7 +5895,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/machen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "machen",
     "goethe_level": "A1"
   },
   {
@@ -5416,7 +5908,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Mai",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Mai",
     "goethe_level": "A1"
   },
   {
@@ -5427,6 +5920,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/man#1",
     "hidx": "1",
+    "unique_id": "man",
     "goethe_level": "A1"
   },
   {
@@ -5438,7 +5932,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Mann",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Mann",
     "goethe_level": "A1"
   },
   {
@@ -5450,7 +5945,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Maschine",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Maschine",
     "goethe_level": "A1"
   },
   {
@@ -5462,7 +5958,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Meer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Meer",
     "goethe_level": "A1"
   },
   {
@@ -5472,7 +5969,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/mehr",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "mehr",
     "goethe_level": "A1"
   },
   {
@@ -5483,6 +5981,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/mein#1",
     "hidx": "1",
+    "unique_id": "mein",
     "goethe_level": "A1"
   },
   {
@@ -5492,7 +5991,8 @@
     "articles_all": [],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/meine",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "meine",
     "goethe_level": "A1"
   },
   {
@@ -5502,7 +6002,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/meist",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "meist",
     "goethe_level": "A1"
   },
   {
@@ -5515,6 +6016,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Mensch#1",
     "hidx": "1",
+    "unique_id": "Mensch",
     "goethe_level": "A1"
   },
   {
@@ -5526,7 +6028,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Meter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Meter",
     "goethe_level": "A1"
   },
   {
@@ -5539,6 +6042,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Miete#1",
     "hidx": "1",
+    "unique_id": "Miete",
     "goethe_level": "A1"
   },
   {
@@ -5548,7 +6052,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/mieten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "mieten",
     "goethe_level": "A1"
   },
   {
@@ -5560,7 +6065,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Milch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Milch",
     "goethe_level": "A1"
   },
   {
@@ -5572,7 +6078,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Milliarde",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Milliarde",
     "goethe_level": "A1"
   },
   {
@@ -5584,7 +6091,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Million",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Million",
     "goethe_level": "A1"
   },
   {
@@ -5596,7 +6104,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Minute",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Minute",
     "goethe_level": "A1"
   },
   {
@@ -5607,6 +6116,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/mit#1",
     "hidx": "1",
+    "unique_id": "mit",
     "goethe_level": "A1"
   },
   {
@@ -5616,7 +6126,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/mitbringen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "mitbringen",
     "goethe_level": "A1"
   },
   {
@@ -5626,7 +6137,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/mitkommen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "mitkommen",
     "goethe_level": "A1"
   },
   {
@@ -5636,7 +6148,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/mitmachen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "mitmachen",
     "goethe_level": "A1"
   },
   {
@@ -5646,7 +6159,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/mitnehmen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "mitnehmen",
     "goethe_level": "A1"
   },
   {
@@ -5659,6 +6173,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Mittag#1",
     "hidx": "1",
+    "unique_id": "Mittag",
     "goethe_level": "A1"
   },
   {
@@ -5670,7 +6185,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Mitte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Mitte",
     "goethe_level": "A1"
   },
   {
@@ -5682,7 +6198,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Mittwoch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Mittwoch",
     "goethe_level": "A1"
   },
   {
@@ -5695,6 +6212,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Moment#1",
     "hidx": "1",
+    "unique_id": "Moment",
     "goethe_level": "A1"
   },
   {
@@ -5706,7 +6224,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Montag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Montag",
     "goethe_level": "A1"
   },
   {
@@ -5716,7 +6235,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/morgen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "morgen",
     "goethe_level": "A1"
   },
   {
@@ -5728,7 +6248,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Morgen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Morgen",
     "goethe_level": "A1"
   },
   {
@@ -5741,6 +6262,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Mund#1",
     "hidx": "1",
+    "unique_id": "Mund",
     "goethe_level": "A1"
   },
   {
@@ -5752,7 +6274,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Mutter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Mutter",
     "goethe_level": "A1"
   },
   {
@@ -5764,7 +6287,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/M%C3%A4dchen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Mädchen",
     "goethe_level": "A1"
   },
   {
@@ -5774,7 +6298,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/m%C3%A4nnlich",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "männlich",
     "goethe_level": "A1"
   },
   {
@@ -5786,7 +6311,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/M%C3%A4rz",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "März",
     "goethe_level": "A1"
   },
   {
@@ -5798,7 +6324,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/M%C3%B6bel",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Möbel",
     "goethe_level": "A1"
   },
   {
@@ -5808,7 +6335,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/m%C3%B6gen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "mögen",
     "goethe_level": "A1"
   },
   {
@@ -5818,7 +6346,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/m%C3%B6glich",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "möglich",
     "goethe_level": "A1"
   },
   {
@@ -5828,7 +6357,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/m%C3%BCde",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "müde",
     "goethe_level": "A1"
   },
   {
@@ -5838,7 +6368,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/m%C3%BCssen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "müssen",
     "goethe_level": "A1"
   },
   {
@@ -5849,6 +6380,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/nach#1",
     "hidx": "1",
+    "unique_id": "nach",
     "goethe_level": "A1"
   },
   {
@@ -5860,7 +6392,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Nachmittag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Nachmittag",
     "goethe_level": "A1"
   },
   {
@@ -5872,7 +6405,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Name",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Name",
     "goethe_level": "A1"
   },
   {
@@ -5884,7 +6418,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Namen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Namen",
     "goethe_level": "A1"
   },
   {
@@ -5894,7 +6429,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/nehmen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "nehmen",
     "goethe_level": "A1"
   },
   {
@@ -5904,7 +6440,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/nein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "nein",
     "goethe_level": "A1"
   },
   {
@@ -5914,7 +6451,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/neu",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "neu",
     "goethe_level": "A1"
   },
   {
@@ -5924,7 +6462,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/neun",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "neun",
     "goethe_level": "A1"
   },
   {
@@ -5934,7 +6473,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/neunzehn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "neunzehn",
     "goethe_level": "A1"
   },
   {
@@ -5944,7 +6484,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/neunzig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "neunzig",
     "goethe_level": "A1"
   },
   {
@@ -5954,7 +6495,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/nicht",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "nicht",
     "goethe_level": "A1"
   },
   {
@@ -5964,7 +6506,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/nichts",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "nichts",
     "goethe_level": "A1"
   },
   {
@@ -5974,7 +6517,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/nie",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "nie",
     "goethe_level": "A1"
   },
   {
@@ -5985,6 +6529,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/noch#1",
     "hidx": "1",
+    "unique_id": "noch",
     "goethe_level": "A1"
   },
   {
@@ -5996,7 +6541,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Norden",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Norden",
     "goethe_level": "A1"
   },
   {
@@ -6006,7 +6552,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/normal",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "normal",
     "goethe_level": "A1"
   },
   {
@@ -6018,7 +6565,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/November",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "November",
     "goethe_level": "A1"
   },
   {
@@ -6030,7 +6578,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Nummer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Nummer",
     "goethe_level": "A1"
   },
   {
@@ -6040,7 +6589,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/nur",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "nur",
     "goethe_level": "A1"
   },
   {
@@ -6050,7 +6600,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/n%C3%A4chst",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "nächst",
     "goethe_level": "A1"
   },
   {
@@ -6060,7 +6611,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/oben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "oben",
     "goethe_level": "A1"
   },
   {
@@ -6072,7 +6624,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Obst",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Obst",
     "goethe_level": "A1"
   },
   {
@@ -6082,7 +6635,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/oder",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "oder",
     "goethe_level": "A1"
   },
   {
@@ -6092,7 +6646,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/oft",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "oft",
     "goethe_level": "A1"
   },
   {
@@ -6102,7 +6657,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ohne",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ohne",
     "goethe_level": "A1"
   },
   {
@@ -6114,7 +6670,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Oktober",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Oktober",
     "goethe_level": "A1"
   },
   {
@@ -6126,7 +6683,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Oma",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Oma",
     "goethe_level": "A1"
   },
   {
@@ -6138,7 +6696,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Opa",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Opa",
     "goethe_level": "A1"
   },
   {
@@ -6150,7 +6709,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Ordnung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ordnung",
     "goethe_level": "A1"
   },
   {
@@ -6163,6 +6723,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Ort#1",
     "hidx": "1",
+    "unique_id": "Ort",
     "goethe_level": "A1"
   },
   {
@@ -6174,7 +6735,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Osten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Osten",
     "goethe_level": "A1"
   },
   {
@@ -6186,7 +6748,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Papier",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Papier",
     "goethe_level": "A1"
   },
   {
@@ -6198,7 +6761,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Partner",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Partner",
     "goethe_level": "A1"
   },
   {
@@ -6210,7 +6774,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Partnerin",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Partnerin",
     "goethe_level": "A1"
   },
   {
@@ -6222,7 +6787,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Party",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Party",
     "goethe_level": "A1"
   },
   {
@@ -6235,6 +6801,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Pass#1",
     "hidx": "1",
+    "unique_id": "Pass",
     "goethe_level": "A1"
   },
   {
@@ -6247,6 +6814,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Pause#1",
     "hidx": "1",
+    "unique_id": "Pause",
     "goethe_level": "A1"
   },
   {
@@ -6258,7 +6826,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Pfund",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Pfund",
     "goethe_level": "A1"
   },
   {
@@ -6271,6 +6840,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Plan#1",
     "hidx": "1",
+    "unique_id": "Plan",
     "goethe_level": "A1"
   },
   {
@@ -6282,7 +6852,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Platz",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Platz",
     "goethe_level": "A1"
   },
   {
@@ -6294,7 +6865,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Polizei",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Polizei",
     "goethe_level": "A1"
   },
   {
@@ -6304,7 +6876,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/Pommes%20frites",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Pommes frites",
     "goethe_level": "A1"
   },
   {
@@ -6317,6 +6890,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Post#1",
     "hidx": "1",
+    "unique_id": "Post",
     "goethe_level": "A1"
   },
   {
@@ -6328,7 +6902,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Postleitzahl",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Postleitzahl",
     "goethe_level": "A1"
   },
   {
@@ -6340,7 +6915,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Praktikum",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Praktikum",
     "goethe_level": "A1"
   },
   {
@@ -6352,7 +6928,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Praxis",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Praxis",
     "goethe_level": "A1"
   },
   {
@@ -6364,7 +6941,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Preis",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Preis",
     "goethe_level": "A1"
   },
   {
@@ -6376,7 +6954,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Problem",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Problem",
     "goethe_level": "A1"
   },
   {
@@ -6388,7 +6967,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Prospekt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Prospekt",
     "goethe_level": "A1"
   },
   {
@@ -6400,7 +6980,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Prozent",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Prozent",
     "goethe_level": "A1"
   },
   {
@@ -6412,7 +6993,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Pr%C3%BCfung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Prüfung",
     "goethe_level": "A1"
   },
   {
@@ -6422,7 +7004,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/p%C3%BCnktlich",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "pünktlich",
     "goethe_level": "A1"
   },
   {
@@ -6434,7 +7017,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Quadratmeter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Quadratmeter",
     "goethe_level": "A1"
   },
   {
@@ -6444,7 +7028,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/Rad%20fahren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Rad fahren",
     "goethe_level": "A1"
   },
   {
@@ -6454,7 +7039,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/rauchen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "rauchen",
     "goethe_level": "A1"
   },
   {
@@ -6466,7 +7052,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Raum",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Raum",
     "goethe_level": "A1"
   },
   {
@@ -6478,7 +7065,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Rechnung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Rechnung",
     "goethe_level": "A1"
   },
   {
@@ -6489,6 +7077,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/rechts#1",
     "hidx": "1",
+    "unique_id": "rechts",
     "goethe_level": "A1"
   },
   {
@@ -6500,7 +7089,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Regen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Regen",
     "goethe_level": "A1"
   },
   {
@@ -6510,7 +7100,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/regnen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "regnen",
     "goethe_level": "A1"
   },
   {
@@ -6523,6 +7114,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Reis#1",
     "hidx": "1",
+    "unique_id": "Reis",
     "goethe_level": "A1"
   },
   {
@@ -6534,7 +7126,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Reise",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Reise",
     "goethe_level": "A1"
   },
   {
@@ -6546,7 +7139,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Reiseb%C3%BCro",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Reisebüro",
     "goethe_level": "A1"
   },
   {
@@ -6558,7 +7152,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Reisef%C3%BChrer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Reiseführer",
     "goethe_level": "A1"
   },
   {
@@ -6568,7 +7163,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/reisen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "reisen",
     "goethe_level": "A1"
   },
   {
@@ -6580,7 +7176,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Reparatur",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Reparatur",
     "goethe_level": "A1"
   },
   {
@@ -6590,7 +7187,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/reparieren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "reparieren",
     "goethe_level": "A1"
   },
   {
@@ -6602,7 +7200,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Restaurant",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Restaurant",
     "goethe_level": "A1"
   },
   {
@@ -6614,7 +7213,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Rezeption",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Rezeption",
     "goethe_level": "A1"
   },
   {
@@ -6624,7 +7224,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/richtig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "richtig",
     "goethe_level": "A1"
   },
   {
@@ -6634,7 +7235,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/riechen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "riechen",
     "goethe_level": "A1"
   },
   {
@@ -6644,7 +7246,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/rot",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "rot",
     "goethe_level": "A1"
   },
   {
@@ -6654,7 +7257,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/ruhig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "ruhig",
     "goethe_level": "A1"
   },
   {
@@ -6666,7 +7270,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/S-Bahn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "S-Bahn",
     "goethe_level": "A1"
   },
   {
@@ -6678,7 +7283,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Saft",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Saft",
     "goethe_level": "A1"
   },
   {
@@ -6688,7 +7294,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sagen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sagen",
     "goethe_level": "A1"
   },
   {
@@ -6701,6 +7308,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Salat#1",
     "hidx": "1",
+    "unique_id": "Salat",
     "goethe_level": "A1"
   },
   {
@@ -6712,7 +7320,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Salz",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Salz",
     "goethe_level": "A1"
   },
   {
@@ -6724,7 +7333,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Samstag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Samstag",
     "goethe_level": "A1"
   },
   {
@@ -6736,7 +7346,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Satz",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Satz",
     "goethe_level": "A1"
   },
   {
@@ -6748,7 +7359,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Schalter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Schalter",
     "goethe_level": "A1"
   },
   {
@@ -6758,7 +7370,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/scheinen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "scheinen",
     "goethe_level": "A1"
   },
   {
@@ -6769,6 +7382,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schicken#1",
     "hidx": "1",
+    "unique_id": "schicken",
     "goethe_level": "A1"
   },
   {
@@ -6781,6 +7395,7 @@
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Schild#1",
     "hidx": "1",
+    "unique_id": "Schild",
     "goethe_level": "A1"
   },
   {
@@ -6792,7 +7407,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Schinken",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Schinken",
     "goethe_level": "A1"
   },
   {
@@ -6802,7 +7418,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schlafen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schlafen",
     "goethe_level": "A1"
   },
   {
@@ -6812,7 +7429,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schlecht",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schlecht",
     "goethe_level": "A1"
   },
   {
@@ -6822,7 +7440,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schlie%C3%9Fen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schließen",
     "goethe_level": "A1"
   },
   {
@@ -6834,7 +7453,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Schluss",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Schluss",
     "goethe_level": "A1"
   },
   {
@@ -6846,7 +7466,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Schl%C3%BCssel",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Schlüssel",
     "goethe_level": "A1"
   },
   {
@@ -6856,7 +7477,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schmecken",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schmecken",
     "goethe_level": "A1"
   },
   {
@@ -6866,7 +7488,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schnell",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schnell",
     "goethe_level": "A1"
   },
   {
@@ -6876,7 +7499,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schon",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schon",
     "goethe_level": "A1"
   },
   {
@@ -6888,7 +7512,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Schrank",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Schrank",
     "goethe_level": "A1"
   },
   {
@@ -6898,7 +7523,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schreiben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schreiben",
     "goethe_level": "A1"
   },
   {
@@ -6910,7 +7536,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Schuh",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Schuh",
     "goethe_level": "A1"
   },
   {
@@ -6922,7 +7549,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Schule",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Schule",
     "goethe_level": "A1"
   },
   {
@@ -6932,7 +7560,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schwarz",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schwarz",
     "goethe_level": "A1"
   },
   {
@@ -6942,7 +7571,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schwer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schwer",
     "goethe_level": "A1"
   },
   {
@@ -6954,7 +7584,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Schwester",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Schwester",
     "goethe_level": "A1"
   },
   {
@@ -6966,7 +7597,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Schwimmbad",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Schwimmbad",
     "goethe_level": "A1"
   },
   {
@@ -6976,7 +7608,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/schwimmen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schwimmen",
     "goethe_level": "A1"
   },
   {
@@ -6986,7 +7619,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sch%C3%B6n",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "schön",
     "goethe_level": "A1"
   },
   {
@@ -6998,7 +7632,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Sch%C3%BCler",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Schüler",
     "goethe_level": "A1"
   },
   {
@@ -7008,7 +7643,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sechs",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sechs",
     "goethe_level": "A1"
   },
   {
@@ -7018,7 +7654,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sechzehn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sechzehn",
     "goethe_level": "A1"
   },
   {
@@ -7028,7 +7665,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sechzig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sechzig",
     "goethe_level": "A1"
   },
   {
@@ -7041,6 +7679,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/See#1",
     "hidx": "1",
+    "unique_id": "See",
     "goethe_level": "A1"
   },
   {
@@ -7050,7 +7689,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sehen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sehen",
     "goethe_level": "A1"
   },
   {
@@ -7062,7 +7702,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Sehensw%C3%BCrdigkeit",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Sehenswürdigkeit",
     "goethe_level": "A1"
   },
   {
@@ -7072,7 +7713,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sehr",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sehr",
     "goethe_level": "A1"
   },
   {
@@ -7083,6 +7725,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/sein#1",
     "hidx": "1",
+    "unique_id": "sein#1",
     "goethe_level": "A1"
   },
   {
@@ -7093,6 +7736,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sein#3",
     "hidx": "3",
+    "unique_id": "sein#3",
     "goethe_level": "A1"
   },
   {
@@ -7102,7 +7746,8 @@
     "articles_all": [],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/seine",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "seine",
     "goethe_level": "A1"
   },
   {
@@ -7112,7 +7757,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/seit",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "seit",
     "goethe_level": "A1"
   },
   {
@@ -7124,7 +7770,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Sekunde",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Sekunde",
     "goethe_level": "A1"
   },
   {
@@ -7134,7 +7781,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/selbstst%C3%A4ndig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "selbstständig",
     "goethe_level": "A1"
   },
   {
@@ -7144,7 +7792,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/selbst%C3%A4ndig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "selbständig",
     "goethe_level": "A1"
   },
   {
@@ -7156,7 +7805,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/September",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "September",
     "goethe_level": "A1"
   },
   {
@@ -7166,7 +7816,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sich",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sich",
     "goethe_level": "A1"
   },
   {
@@ -7177,6 +7828,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/sie#1",
     "hidx": "1",
+    "unique_id": "sie#1",
     "goethe_level": "A1"
   },
   {
@@ -7187,6 +7839,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/Sie#1",
     "hidx": "1",
+    "unique_id": "Sie#1",
     "goethe_level": "A1"
   },
   {
@@ -7199,6 +7852,7 @@
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Sie#2",
     "hidx": "2",
+    "unique_id": "Sie#2",
     "goethe_level": "A1"
   },
   {
@@ -7209,6 +7863,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sie#2",
     "hidx": "2",
+    "unique_id": "sie#2",
     "goethe_level": "A1"
   },
   {
@@ -7221,6 +7876,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Sie#3",
     "hidx": "3",
+    "unique_id": "Sie#3",
     "goethe_level": "A1"
   },
   {
@@ -7231,6 +7887,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sieben#2",
     "hidx": "2",
+    "unique_id": "sieben",
     "goethe_level": "A1"
   },
   {
@@ -7240,7 +7897,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/siebenzig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "siebenzig",
     "goethe_level": "A1"
   },
   {
@@ -7250,7 +7908,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/siebzehn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "siebzehn",
     "goethe_level": "A1"
   },
   {
@@ -7260,7 +7919,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/siebzig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "siebzig",
     "goethe_level": "A1"
   },
   {
@@ -7270,7 +7930,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sitzen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sitzen",
     "goethe_level": "A1"
   },
   {
@@ -7280,7 +7941,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/so",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "so",
     "goethe_level": "A1"
   },
   {
@@ -7292,7 +7954,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Sofa",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Sofa",
     "goethe_level": "A1"
   },
   {
@@ -7302,7 +7965,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sofort",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sofort",
     "goethe_level": "A1"
   },
   {
@@ -7314,7 +7978,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Sohn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Sohn",
     "goethe_level": "A1"
   },
   {
@@ -7324,7 +7989,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sollen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sollen",
     "goethe_level": "A1"
   },
   {
@@ -7336,7 +8002,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Sommer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Sommer",
     "goethe_level": "A1"
   },
   {
@@ -7348,7 +8015,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Sonnabend",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Sonnabend",
     "goethe_level": "A1"
   },
   {
@@ -7360,7 +8028,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Sonne",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Sonne",
     "goethe_level": "A1"
   },
   {
@@ -7372,7 +8041,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Sonntag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Sonntag",
     "goethe_level": "A1"
   },
   {
@@ -7384,7 +8054,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Speisekarte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Speisekarte",
     "goethe_level": "A1"
   },
   {
@@ -7396,7 +8067,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Speisenkarte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Speisenkarte",
     "goethe_level": "A1"
   },
   {
@@ -7406,7 +8078,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/spielen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "spielen",
     "goethe_level": "A1"
   },
   {
@@ -7418,7 +8091,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Sport",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Sport",
     "goethe_level": "A1"
   },
   {
@@ -7430,7 +8104,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Sprache",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Sprache",
     "goethe_level": "A1"
   },
   {
@@ -7440,7 +8115,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sprechen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "sprechen",
     "goethe_level": "A1"
   },
   {
@@ -7450,7 +8126,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sp%C3%A4t",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "spät",
     "goethe_level": "A1"
   },
   {
@@ -7460,7 +8137,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/sp%C3%A4ter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "später",
     "goethe_level": "A1"
   },
   {
@@ -7472,7 +8150,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Stadt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Stadt",
     "goethe_level": "A1"
   },
   {
@@ -7482,7 +8161,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/stehen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "stehen",
     "goethe_level": "A1"
   },
   {
@@ -7494,7 +8174,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Stelle",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Stelle",
     "goethe_level": "A1"
   },
   {
@@ -7504,7 +8185,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/stellen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "stellen",
     "goethe_level": "A1"
   },
   {
@@ -7517,6 +8199,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Stock#2",
     "hidx": "2",
+    "unique_id": "Stock",
     "goethe_level": "A1"
   },
   {
@@ -7528,7 +8211,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Stra%C3%9Fe",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Straße",
     "goethe_level": "A1"
   },
   {
@@ -7540,7 +8224,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Stra%C3%9Fenbahn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Straßenbahn",
     "goethe_level": "A1"
   },
   {
@@ -7552,7 +8237,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Student",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Student",
     "goethe_level": "A1"
   },
   {
@@ -7562,7 +8248,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/studieren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "studieren",
     "goethe_level": "A1"
   },
   {
@@ -7574,7 +8261,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Studium",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Studium",
     "goethe_level": "A1"
   },
   {
@@ -7586,7 +8274,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Stunde",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Stunde",
     "goethe_level": "A1"
   },
   {
@@ -7596,7 +8285,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/suchen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "suchen",
     "goethe_level": "A1"
   },
   {
@@ -7608,7 +8298,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/S%C3%BCden",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Süden",
     "goethe_level": "A1"
   },
   {
@@ -7621,6 +8312,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Tag#1",
     "hidx": "1",
+    "unique_id": "Tag",
     "goethe_level": "A1"
   },
   {
@@ -7630,7 +8322,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/tanzen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "tanzen",
     "goethe_level": "A1"
   },
   {
@@ -7642,7 +8335,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Tasche",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Tasche",
     "goethe_level": "A1"
   },
   {
@@ -7652,7 +8346,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/tausend",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "tausend",
     "goethe_level": "A1"
   },
   {
@@ -7664,7 +8359,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Taxi",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Taxi",
     "goethe_level": "A1"
   },
   {
@@ -7677,6 +8373,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Tee#1",
     "hidx": "1",
+    "unique_id": "Tee",
     "goethe_level": "A1"
   },
   {
@@ -7689,7 +8386,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Teil",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Teil",
     "goethe_level": "A1"
   },
   {
@@ -7701,7 +8399,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Telefon",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Telefon",
     "goethe_level": "A1"
   },
   {
@@ -7711,7 +8410,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/telefonieren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "telefonieren",
     "goethe_level": "A1"
   },
   {
@@ -7723,7 +8423,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Termin",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Termin",
     "goethe_level": "A1"
   },
   {
@@ -7735,7 +8436,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Test",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Test",
     "goethe_level": "A1"
   },
   {
@@ -7745,7 +8447,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/teuer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "teuer",
     "goethe_level": "A1"
   },
   {
@@ -7757,7 +8460,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Text",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Text",
     "goethe_level": "A1"
   },
   {
@@ -7769,7 +8473,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Thema",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Thema",
     "goethe_level": "A1"
   },
   {
@@ -7781,7 +8486,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Ticket",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Ticket",
     "goethe_level": "A1"
   },
   {
@@ -7793,7 +8499,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Tisch",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Tisch",
     "goethe_level": "A1"
   },
   {
@@ -7805,7 +8512,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Tochter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Tochter",
     "goethe_level": "A1"
   },
   {
@@ -7817,7 +8525,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Toilette",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Toilette",
     "goethe_level": "A1"
   },
   {
@@ -7829,7 +8538,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Tomate",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Tomate",
     "goethe_level": "A1"
   },
   {
@@ -7839,7 +8549,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/tot",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "tot",
     "goethe_level": "A1"
   },
   {
@@ -7849,7 +8560,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/treffen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "treffen",
     "goethe_level": "A1"
   },
   {
@@ -7861,7 +8573,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Treppe",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Treppe",
     "goethe_level": "A1"
   },
   {
@@ -7871,7 +8584,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/trinken",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "trinken",
     "goethe_level": "A1"
   },
   {
@@ -7881,7 +8595,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/Tsch%C3%BCss",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Tschüss",
     "goethe_level": "A1"
   },
   {
@@ -7891,7 +8606,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/tsch%C3%BCss",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "tschüss",
     "goethe_level": "A1"
   },
   {
@@ -7901,7 +8617,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/tun",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "tun",
     "goethe_level": "A1"
   },
   {
@@ -7913,7 +8630,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Uhr",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Uhr",
     "goethe_level": "A1"
   },
   {
@@ -7924,6 +8642,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/um#1",
     "hidx": "1",
+    "unique_id": "um",
     "goethe_level": "A1"
   },
   {
@@ -7933,7 +8652,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/umziehen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "umziehen",
     "goethe_level": "A1"
   },
   {
@@ -7943,7 +8663,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/und",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "und",
     "goethe_level": "A1"
   },
   {
@@ -7954,6 +8675,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/unser#1",
     "hidx": "1",
+    "unique_id": "unser",
     "goethe_level": "A1"
   },
   {
@@ -7963,7 +8685,8 @@
     "articles_all": [],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/unsere",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "unsere",
     "goethe_level": "A1"
   },
   {
@@ -7973,7 +8696,8 @@
     "articles_all": [],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/unsre",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "unsre",
     "goethe_level": "A1"
   },
   {
@@ -7983,7 +8707,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/unten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "unten",
     "goethe_level": "A1"
   },
   {
@@ -7994,6 +8719,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/unter#1",
     "hidx": "1",
+    "unique_id": "unter",
     "goethe_level": "A1"
   },
   {
@@ -8005,7 +8731,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Unterricht",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Unterricht",
     "goethe_level": "A1"
   },
   {
@@ -8015,7 +8742,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/unterschreiben",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "unterschreiben",
     "goethe_level": "A1"
   },
   {
@@ -8027,7 +8755,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Unterschrift",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Unterschrift",
     "goethe_level": "A1"
   },
   {
@@ -8039,7 +8768,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Urlaub",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Urlaub",
     "goethe_level": "A1"
   },
   {
@@ -8051,7 +8781,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Vater",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Vater",
     "goethe_level": "A1"
   },
   {
@@ -8061,7 +8792,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/verboten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "verboten",
     "goethe_level": "A1"
   },
   {
@@ -8071,7 +8803,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/verdienen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "verdienen",
     "goethe_level": "A1"
   },
   {
@@ -8083,7 +8816,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Verein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Verein",
     "goethe_level": "A1"
   },
   {
@@ -8093,7 +8827,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/verheiratet",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "verheiratet",
     "goethe_level": "A1"
   },
   {
@@ -8103,7 +8838,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/verkaufen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "verkaufen",
     "goethe_level": "A1"
   },
   {
@@ -8115,7 +8851,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Verk%C3%A4ufer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Verkäufer",
     "goethe_level": "A1"
   },
   {
@@ -8125,7 +8862,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/vermieten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "vermieten",
     "goethe_level": "A1"
   },
   {
@@ -8137,7 +8875,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Vermieter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Vermieter",
     "goethe_level": "A1"
   },
   {
@@ -8148,6 +8887,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/verstehen#1",
     "hidx": "1",
+    "unique_id": "verstehen",
     "goethe_level": "A1"
   },
   {
@@ -8160,7 +8900,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Verwandte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Verwandte",
     "goethe_level": "A1"
   },
   {
@@ -8170,7 +8911,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/viel",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "viel",
     "goethe_level": "A1"
   },
   {
@@ -8180,7 +8922,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/vielleicht",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "vielleicht",
     "goethe_level": "A1"
   },
   {
@@ -8190,7 +8933,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/vier",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "vier",
     "goethe_level": "A1"
   },
   {
@@ -8200,7 +8944,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/vierte",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "vierte",
     "goethe_level": "A1"
   },
   {
@@ -8213,6 +8958,7 @@
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Viertel#1",
     "hidx": "1",
+    "unique_id": "Viertel",
     "goethe_level": "A1"
   },
   {
@@ -8222,7 +8968,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/vierzehn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "vierzehn",
     "goethe_level": "A1"
   },
   {
@@ -8232,7 +8979,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/vierzig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "vierzig",
     "goethe_level": "A1"
   },
   {
@@ -8243,6 +8991,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/von#1",
     "hidx": "1",
+    "unique_id": "von",
     "goethe_level": "A1"
   },
   {
@@ -8253,6 +9002,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/vor#1",
     "hidx": "1",
+    "unique_id": "vor",
     "goethe_level": "A1"
   },
   {
@@ -8264,7 +9014,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Vormittag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Vormittag",
     "goethe_level": "A1"
   },
   {
@@ -8276,7 +9027,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Vorname",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Vorname",
     "goethe_level": "A1"
   },
   {
@@ -8288,7 +9040,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Vorsicht",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Vorsicht",
     "goethe_level": "A1"
   },
   {
@@ -8298,7 +9051,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/vorstellen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "vorstellen",
     "goethe_level": "A1"
   },
   {
@@ -8310,7 +9064,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Vorwahl",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Vorwahl",
     "goethe_level": "A1"
   },
   {
@@ -8322,7 +9077,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Wagen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wagen",
     "goethe_level": "A1"
   },
   {
@@ -8332,7 +9088,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wandern",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wandern",
     "goethe_level": "A1"
   },
   {
@@ -8342,7 +9099,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wann",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wann",
     "goethe_level": "A1"
   },
   {
@@ -8353,6 +9111,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/warten#1",
     "hidx": "1",
+    "unique_id": "warten",
     "goethe_level": "A1"
   },
   {
@@ -8362,7 +9121,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/warum",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "warum",
     "goethe_level": "A1"
   },
   {
@@ -8373,6 +9133,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/was#1",
     "hidx": "1",
+    "unique_id": "was",
     "goethe_level": "A1"
   },
   {
@@ -8382,7 +9143,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/was%20f%C3%BCr%20ein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "was für ein",
     "goethe_level": "A1"
   },
   {
@@ -8392,7 +9154,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/was%20f%C3%BCr%20eine",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "was für eine",
     "goethe_level": "A1"
   },
   {
@@ -8402,7 +9165,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/waschen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "waschen",
     "goethe_level": "A1"
   },
   {
@@ -8414,7 +9178,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Wasser",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wasser",
     "goethe_level": "A1"
   },
   {
@@ -8424,7 +9189,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/weg%20sein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "weg sein",
     "goethe_level": "A1"
   },
   {
@@ -8434,7 +9200,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wehtun",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wehtun",
     "goethe_level": "A1"
   },
   {
@@ -8444,7 +9211,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/weiblich",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "weiblich",
     "goethe_level": "A1"
   },
   {
@@ -8456,7 +9224,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Wein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wein",
     "goethe_level": "A1"
   },
   {
@@ -8466,7 +9235,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/weit",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "weit",
     "goethe_level": "A1"
   },
   {
@@ -8476,7 +9246,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/weiter-",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "weiter-",
     "goethe_level": "A1"
   },
   {
@@ -8486,7 +9257,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wei%C3%9F",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "weiß",
     "goethe_level": "A1"
   },
   {
@@ -8497,6 +9269,7 @@
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/welche#1",
     "hidx": "1",
+    "unique_id": "welche",
     "goethe_level": "A1"
   },
   {
@@ -8507,6 +9280,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/welcher#1",
     "hidx": "1",
+    "unique_id": "welcher",
     "goethe_level": "A1"
   },
   {
@@ -8517,6 +9291,7 @@
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/welches#1",
     "hidx": "1",
+    "unique_id": "welches",
     "goethe_level": "A1"
   },
   {
@@ -8528,7 +9303,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Welt",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Welt",
     "goethe_level": "A1"
   },
   {
@@ -8538,7 +9314,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wenig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wenig",
     "goethe_level": "A1"
   },
   {
@@ -8548,7 +9325,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wer",
     "goethe_level": "A1"
   },
   {
@@ -8558,7 +9336,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/werden",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "werden",
     "goethe_level": "A1"
   },
   {
@@ -8570,7 +9349,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Westen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Westen",
     "goethe_level": "A1"
   },
   {
@@ -8582,7 +9362,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Wetter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wetter",
     "goethe_level": "A1"
   },
   {
@@ -8592,7 +9373,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wichtig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wichtig",
     "goethe_level": "A1"
   },
   {
@@ -8602,7 +9384,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wie",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wie",
     "goethe_level": "A1"
   },
   {
@@ -8612,7 +9395,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wie%20viel",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wie viel",
     "goethe_level": "A1"
   },
   {
@@ -8622,7 +9406,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wieder",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wieder",
     "goethe_level": "A1"
   },
   {
@@ -8632,7 +9417,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wieder%20holen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wieder holen",
     "goethe_level": "A1"
   },
   {
@@ -8643,6 +9429,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wiederholen#1",
     "hidx": "1",
+    "unique_id": "wiederholen#1",
     "goethe_level": "A1"
   },
   {
@@ -8653,6 +9440,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wiederholen#2",
     "hidx": "2",
+    "unique_id": "wiederholen#2",
     "goethe_level": "A1"
   },
   {
@@ -8664,7 +9452,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Wiederh%C3%B6ren",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wiederhören",
     "goethe_level": "A1"
   },
   {
@@ -8676,7 +9465,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Wiedersehen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wiedersehen",
     "goethe_level": "A1"
   },
   {
@@ -8686,7 +9476,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/willkommen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "willkommen",
     "goethe_level": "A1"
   },
   {
@@ -8698,7 +9489,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Wind",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wind",
     "goethe_level": "A1"
   },
   {
@@ -8710,7 +9502,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Winter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Winter",
     "goethe_level": "A1"
   },
   {
@@ -8720,7 +9513,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wir",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wir",
     "goethe_level": "A1"
   },
   {
@@ -8730,7 +9524,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wissen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wissen",
     "goethe_level": "A1"
   },
   {
@@ -8740,7 +9535,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wo",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wo",
     "goethe_level": "A1"
   },
   {
@@ -8752,7 +9548,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Woche",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Woche",
     "goethe_level": "A1"
   },
   {
@@ -8764,7 +9561,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Wochenende",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wochenende",
     "goethe_level": "A1"
   },
   {
@@ -8776,7 +9574,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Wochentag",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wochentag",
     "goethe_level": "A1"
   },
   {
@@ -8786,7 +9585,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/woher",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "woher",
     "goethe_level": "A1"
   },
   {
@@ -8796,7 +9596,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wohin",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wohin",
     "goethe_level": "A1"
   },
   {
@@ -8806,7 +9607,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wohnen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wohnen",
     "goethe_level": "A1"
   },
   {
@@ -8818,7 +9620,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Wohnung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wohnung",
     "goethe_level": "A1"
   },
   {
@@ -8829,6 +9632,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wollen#2",
     "hidx": "2",
+    "unique_id": "wollen",
     "goethe_level": "A1"
   },
   {
@@ -8840,7 +9644,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Wort",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Wort",
     "goethe_level": "A1"
   },
   {
@@ -8850,7 +9655,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/wunderbar",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "wunderbar",
     "goethe_level": "A1"
   },
   {
@@ -8860,7 +9666,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zahlen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zahlen",
     "goethe_level": "A1"
   },
   {
@@ -8870,7 +9677,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zehn",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zehn",
     "goethe_level": "A1"
   },
   {
@@ -8882,7 +9690,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Zeit",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Zeit",
     "goethe_level": "A1"
   },
   {
@@ -8894,7 +9703,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Zeitung",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Zeitung",
     "goethe_level": "A1"
   },
   {
@@ -8906,7 +9716,8 @@
     ],
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Zentimeter",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Zentimeter",
     "goethe_level": "A1"
   },
   {
@@ -8918,7 +9729,8 @@
     ],
     "genus": "fem.",
     "url_dwds": "https://www.dwds.de/wb/Zigarette",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Zigarette",
     "goethe_level": "A1"
   },
   {
@@ -8930,7 +9742,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/Zimmer",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Zimmer",
     "goethe_level": "A1"
   },
   {
@@ -8940,7 +9753,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zirka",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zirka",
     "goethe_level": "A1"
   },
   {
@@ -8953,6 +9767,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Zoll#2",
     "hidx": "2",
+    "unique_id": "Zoll",
     "goethe_level": "A1"
   },
   {
@@ -8963,6 +9778,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zu#1",
     "hidx": "1",
+    "unique_id": "zu#1",
     "goethe_level": "A1"
   },
   {
@@ -8973,6 +9789,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zu#2",
     "hidx": "2",
+    "unique_id": "zu#2",
     "goethe_level": "A1"
   },
   {
@@ -8982,7 +9799,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zu%20sein",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zu sein",
     "goethe_level": "A1"
   },
   {
@@ -8992,7 +9810,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zufrieden",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zufrieden",
     "goethe_level": "A1"
   },
   {
@@ -9005,6 +9824,7 @@
     "genus": "mask.",
     "url_dwds": "https://www.dwds.de/wb/Zug#1",
     "hidx": "1",
+    "unique_id": "Zug",
     "goethe_level": "A1"
   },
   {
@@ -9014,7 +9834,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zurzeit",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zurzeit",
     "goethe_level": "A1"
   },
   {
@@ -9024,7 +9845,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zur%C3%BCck",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zurück",
     "goethe_level": "A1"
   },
   {
@@ -9034,7 +9856,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zusammen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zusammen",
     "goethe_level": "A1"
   },
   {
@@ -9044,7 +9867,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zwanzig",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zwanzig",
     "goethe_level": "A1"
   },
   {
@@ -9054,7 +9878,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zwei",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zwei",
     "goethe_level": "A1"
   },
   {
@@ -9064,7 +9889,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zweihundert",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zweihundert",
     "goethe_level": "A1"
   },
   {
@@ -9074,7 +9900,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zweite",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zweite",
     "goethe_level": "A1"
   },
   {
@@ -9084,7 +9911,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zwischen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zwischen",
     "goethe_level": "A1"
   },
   {
@@ -9094,7 +9922,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/zw%C3%B6lf",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "zwölf",
     "goethe_level": "A1"
   },
   {
@@ -9104,7 +9933,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/%C3%B6ffnen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "öffnen",
     "goethe_level": "A1"
   },
   {
@@ -9116,7 +9946,8 @@
     ],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/%C3%96l",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "Öl",
     "goethe_level": "A1"
   },
   {
@@ -9127,6 +9958,7 @@
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/%C3%BCber#1",
     "hidx": "1",
+    "unique_id": "über",
     "goethe_level": "A1"
   },
   {
@@ -9136,7 +9968,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/%C3%BCbernachten",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "übernachten",
     "goethe_level": "A1"
   },
   {
@@ -9146,7 +9979,8 @@
     "articles_all": [],
     "genus": null,
     "url_dwds": "https://www.dwds.de/wb/%C3%BCberweisen",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "überweisen",
     "goethe_level": "A1"
   },
   {
@@ -9156,7 +9990,8 @@
     "articles_all": [],
     "genus": "neutr.",
     "url_dwds": "https://www.dwds.de/wb/%E2%80%99s",
-    "hidx": null,
+    "hidx": "0",
+    "unique_id": "’s",
     "goethe_level": "A1"
   }
 ]
