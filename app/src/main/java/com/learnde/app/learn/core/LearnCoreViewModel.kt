@@ -110,6 +110,11 @@ class LearnCoreViewModel @Inject constructor(
     // In-memory transcript (не сохраняется в БД — учебный режим)
     private val transcriptBuffer = mutableListOf<ConversationMessage>()
 
+    private val pendingTextByTurn = mutableMapOf<String, StringBuilder>()
+    private val audioReceivedTurns = mutableSetOf<String>()
+    private val flushJobs = mutableMapOf<String, Job>()
+    private val TEXT_FLUSH_TIMEOUT_MS = 2_000L
+
     init {
         observeSettings()
         observeGeminiEvents()
@@ -473,6 +478,8 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.AudioChunk -> {
                         _state.update { it.copy(isAiSpeaking = true) }
                         audioEngine.enqueuePlayback(event.pcmData)
+                        // Patch v3.1: Обработка аудио-дельты
+                        onModelAudioDelta(event.turnId, event.pcmData)
                     }
 
                     is GeminiEvent.Interrupted -> {
@@ -483,6 +490,8 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.TurnComplete -> {
                         audioEngine.onTurnComplete()
                         _state.update { it.copy(isAiSpeaking = false) }
+                        // Patch v3.1: Очистка стейта turn
+                        onTurnComplete(event.turnId)
 
                         // 👇 ДОБАВЛЕНО: Запускаем таймер молчания ученика
                         if (_state.value.isMicActive) {
@@ -513,12 +522,9 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.OutputTranscript -> {
-                        val now = System.currentTimeMillis()
-                        if (event.text != lastOutputText || now - lastOutputTs > 5_000) {
-                            lastOutputText = event.text
-                            lastOutputTs = now
-                            appendOrAppendToLastModel(event.text)
-                        }
+                        // Patch v3.1: Буферизация текста
+                        onModelTextDelta(event.turnId, event.text)
+
                         // Patch 2: Vocabulary Enforcer — анализируем речь Gemini
                         if (activeSession?.id == "a1_situation") {
                             vocabularyEnforcer.analyze(event.text)
@@ -526,7 +532,8 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.ModelText -> {
-                        appendOrAppendToLastModel(event.text)
+                        // Patch v3.1: Буферизация текста
+                        onModelTextDelta(event.turnId, event.text)
                     }
 
                     is GeminiEvent.ToolCall -> handleToolCalls(event)
@@ -586,19 +593,64 @@ class LearnCoreViewModel @Inject constructor(
     }
 
     /** Если последнее сообщение — MODEL, дописываем к нему; иначе новое. */
-    private fun appendOrAppendToLastModel(text: String) {
-        val last = transcriptBuffer.lastOrNull()
-        if (last != null && last.role == ConversationMessage.ROLE_MODEL) {
-            val updated = last.copy(text = last.text + text)
-            transcriptBuffer[transcriptBuffer.size - 1] = updated
-        } else {
-            transcriptBuffer.add(ConversationMessage(
-                role = ConversationMessage.ROLE_MODEL,
-                text = text,
-                timestamp = System.currentTimeMillis()
-            ))
+    /**
+     * Обработка text-delta от модели.
+     * НЕ добавляем в transcript сразу — ждём audio или таймаут.
+     */
+    private fun onModelTextDelta(turnId: String, text: String) {
+        val buf = pendingTextByTurn.getOrPut(turnId) { StringBuilder() }
+        buf.append(text)
+
+        // Если аудио уже пришло — коммитим сразу
+        if (turnId in audioReceivedTurns) {
+            commitTurnText(turnId)
+            return
         }
+
+        // Иначе — запускаем таймер на force-flush
+        flushJobs[turnId]?.cancel()
+        flushJobs[turnId] = viewModelScope.launch {
+            delay(TEXT_FLUSH_TIMEOUT_MS)
+            if (turnId in pendingTextByTurn) {
+                logger.w("LearnCore: force-flush turn=$turnId (audio не пришёл за ${TEXT_FLUSH_TIMEOUT_MS}ms)")
+                commitTurnText(turnId)
+            }
+        }
+    }
+
+    private fun onModelAudioDelta(turnId: String, audioBytes: ByteArray) {
+        audioReceivedTurns.add(turnId)
+        // Проигрываем аудио через существующий TTS/audio-sink
+        // Примечание: audioEngine уже получает аудио в GeminiEvent.AudioChunk,
+        // здесь мы только синхронизируем текст.
+        
+        // Если текст уже буферизован — коммитим
+        if (turnId in pendingTextByTurn) {
+            commitTurnText(turnId)
+        }
+    }
+
+    private fun commitTurnText(turnId: String) {
+        val text = pendingTextByTurn.remove(turnId)?.toString() ?: return
+        flushJobs.remove(turnId)?.cancel()
+        if (text.isBlank()) return
+
+        val msg = ConversationMessage(
+            role = ConversationMessage.ROLE_MODEL,
+            text = text,
+            timestamp = System.currentTimeMillis()
+        )
+        transcriptBuffer.add(msg)
         _state.update { it.copy(transcript = transcriptBuffer.toList()) }
+    }
+
+    /**
+     * Вызывай в начале каждого turn для очистки стейта предыдущих.
+     */
+    private fun onTurnComplete(turnId: String) {
+        pendingTextByTurn.remove(turnId)
+        audioReceivedTurns.remove(turnId)
+        flushJobs.remove(turnId)?.cancel()
     }
 
     // ══════════════════════════════════════════════════════
