@@ -44,6 +44,7 @@ object Routes {
     // ── Learn graph ──
     const val LEARN_GRAPH   = "learn_graph"
     const val LEARN_HUB     = "learn/hub"
+    const val LEARN_TRANSLATOR = "learn/translator"
     const val LEARN_A0A1    = "learn/a0a1"
     const val LEARN_A1      = "learn/a1"
     const val LEARN_A1_WITH_CLUSTER = "learn/a1?clusterId={clusterId}"
@@ -161,6 +162,9 @@ fun AppNavGraph(
                             popUpTo(Routes.SETTINGS) { inclusive = true }
                         }
                     },
+                    onOpenTranslator = {
+                        navController.navigate(Routes.LEARN_TRANSLATOR) { launchSingleTop = true }
+                    },
                     onOpenA0a1Test = {
                         navController.navigate(Routes.LEARN_A0A1) { launchSingleTop = true }
                     },
@@ -170,6 +174,14 @@ fun AppNavGraph(
                     onOpenVoiceClient = {
                         navController.navigate(Routes.VOICE) { launchSingleTop = true }
                     },
+                    learnCoreViewModel = learnCoreVm,
+                )
+            }
+
+            composable(Routes.LEARN_TRANSLATOR) { entry ->
+                val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
+                com.learnde.app.learn.sessions.translator.TranslatorScreen(
+                    onBack = { navController.popBackStack() },
                     learnCoreViewModel = learnCoreVm,
                 )
             }
