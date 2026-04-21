@@ -35,6 +35,13 @@ data class LearnHubState(
          */
         val DEFAULT_ITEMS: List<LearnHubItem> = listOf(
             LearnHubItem(
+                id = "translator",
+                title = "Переводчик 🇺🇦🇷🇺 ↔ 🇩🇪",
+                subtitle = "Живой диалог · переводит обе стороны",
+                badge = "LIVE",
+                implemented = true,
+            ),
+            LearnHubItem(
                 id = "a0a1_test",
                 title = "Тест A0 – A1",
                 subtitle = "20 вопросов · устный экзамен",
@@ -44,7 +51,7 @@ data class LearnHubState(
             LearnHubItem(
                 id = "a1_learning",
                 title = "Обучение A1",
-                subtitle = "194 урока · 835 слов · 22 правила",
+                subtitle = "141 урок · 835 слов · 26 правил",
                 badge = "A1",
                 implemented = true,
             ),
