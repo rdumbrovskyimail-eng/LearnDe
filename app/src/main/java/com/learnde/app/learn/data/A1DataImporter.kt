@@ -148,6 +148,7 @@ class A1DataImporter @Inject constructor(
                 titleRu = dto.title_ru,
                 lemmasJson = Json.encodeToString(dto.lemmas),
                 anchorLemma = dto.anchor_lemma,
+                grammarRuleId = dto.grammar_rule_id,
                 grammarFocus = dto.grammar_focus,
                 scenarioHint = dto.scenario_hint,
                 category = dto.category,
