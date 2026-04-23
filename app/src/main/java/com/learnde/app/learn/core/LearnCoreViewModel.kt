@@ -138,11 +138,14 @@ class LearnCoreViewModel @Inject constructor(
         }
         val finalSystemInstruction = if (userInfo.isNotBlank()) "${session.systemInstruction}\n\n[ДАННЫЕ ПОЛЬЗОВАТЕЛЯ]:\n$userInfo" else session.systemInstruction
 
+        // ИСПРАВЛЕНИЕ: Возвращаем стабильные настройки VAD. 
+        // 800мс тишины достаточно для быстрого отклика, но не обрезает слова.
+        // 300мс префикса не перегружает буфер.
         val (silenceMs, prefixMs, temp) = when (session.id) {
-            "translator"    -> Triple(800, 1000, 0.3f)
-            "a1_situation"  -> Triple(600, 1000, cachedSettings.temperature)
-            "a1_review"     -> Triple(400, 1000, cachedSettings.temperature)
-            else            -> Triple(600, 1000, cachedSettings.temperature)
+            "translator"    -> Triple(1000, 300, 0.3f)
+            "a1_situation"  -> Triple(800, 300, cachedSettings.temperature)
+            "a1_review"     -> Triple(800, 300, cachedSettings.temperature)
+            else            -> Triple(1000, 300, cachedSettings.temperature)
         }
 
         return SessionConfig(
@@ -310,9 +313,9 @@ class LearnCoreViewModel @Inject constructor(
                         
                         if (session.initialUserMessage.isNotBlank()) {
                             viewModelScope.launch {
-                                delay(200)
+                                delay(500) // ИСПРАВЛЕНИЕ: Даем сокету полсекунды на стабилизацию
                                 liveClient.sendText(session.initialUserMessage)
-                                liveClient.sendTurnComplete()
+                                // ИСПРАВЛЕНИЕ: Убрали sendTurnComplete(), который ломал генерацию!
                             }
                         }
                         if (!_state.value.isMicActive) startMic()
