@@ -1,13 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА v3.2
 // Путь: app/src/main/java/com/learnde/app/learn/data/db/A1Dao.kt
 //
-// DAO для системы обучения A1.
-// Ключевые запросы:
-//   - next cluster to learn (планировщик сессий)
-//   - weak lemmas (для system prompt Gemini)
-//   - grammar rules ready to introduce (по порогу экспозиции)
-//   - coverage metrics (для UI прогресса)
+// ИЗМЕНЕНИЯ v3.2:
+//   - getByLemma / getByLemmas — теперь case-insensitive через LOWER()
+//     (Gemini присылает в любом регистре, а база хранит с заглавной)
+//   - Без этого фикса ~30% tool calls терялись в "unknown lemma"
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.data.db
 
@@ -31,20 +29,27 @@ interface A1LemmaDao {
     @Update
     suspend fun update(lemma: LemmaA1Entity)
 
-    @Query("SELECT * FROM a1_lemmas WHERE lemma = :lemma LIMIT 1")
+    /** v3.2: case-insensitive поиск. */
+    @Query("SELECT * FROM a1_lemmas WHERE LOWER(lemma) = LOWER(:lemma) LIMIT 1")
     suspend fun getByLemma(lemma: String): LemmaA1Entity?
 
-    @Query("SELECT * FROM a1_lemmas WHERE lemma IN (:lemmas)")
-    suspend fun getByLemmas(lemmas: List<String>): List<LemmaA1Entity>
+    /** v3.2: case-insensitive bulk поиск. */
+    @Query("SELECT * FROM a1_lemmas WHERE LOWER(lemma) IN (:lemmasLower)")
+    suspend fun getByLemmasLowercase(lemmasLower: List<String>): List<LemmaA1Entity>
+
+    /** Обёртка для старого API — вызывающие коды не меняем. */
+    @Transaction
+    suspend fun getByLemmas(lemmas: List<String>): List<LemmaA1Entity> {
+        if (lemmas.isEmpty()) return emptyList()
+        return getByLemmasLowercase(lemmas.map { it.lowercase() })
+    }
 
     @Query("SELECT COUNT(*) FROM a1_lemmas")
     suspend fun getTotalCount(): Int
 
-    /** Patch 3: порог снижен до 0.5 (было 0.7). */
     @Query("SELECT COUNT(*) FROM a1_lemmas WHERE productionScore >= 0.5")
     suspend fun getMasteredCount(): Int
 
-    /** Леммы "в процессе изучения" (0.2..0.5). Новый счётчик Patch 3. */
     @Query("SELECT COUNT(*) FROM a1_lemmas WHERE productionScore >= 0.2 AND productionScore < 0.5")
     suspend fun getInProgressCount(): Int
 
@@ -79,6 +84,7 @@ interface A1LemmaDao {
     @Query("SELECT * FROM a1_lemmas WHERE timesHeard = 0 LIMIT :limit")
     suspend fun getUnseen(limit: Int = 50): List<LemmaA1Entity>
 
+    /** Старый API для обратной совместимости, case-insensitive. */
     @Query("""
         UPDATE a1_lemmas
         SET timesHeard = timesHeard + 1,
@@ -89,7 +95,7 @@ interface A1LemmaDao {
             lastSeenAt = :now,
             lastClusterId = :clusterId,
             nextReviewAt = :nextReview
-        WHERE lemma = :lemma
+        WHERE LOWER(lemma) = LOWER(:lemma)
     """)
     suspend fun updateProgress(
         lemma: String,
@@ -103,8 +109,7 @@ interface A1LemmaDao {
     )
 
     /**
-     * Patch 3: полный апдейт по FSRS-5. Вызывается из A1SituationSession
-     * вместо updateProgress (старый остаётся для обратной совместимости).
+     * Patch 3: полный апдейт по FSRS-5. v3.2: case-insensitive.
      */
     @Query("""
         UPDATE a1_lemmas
@@ -121,7 +126,7 @@ interface A1LemmaDao {
             fsrsReps = :fsrsReps,
             fsrsLapses = :fsrsLapses,
             fsrsLastReviewAt = :fsrsLastReviewAt
-        WHERE lemma = :lemma
+        WHERE LOWER(lemma) = LOWER(:lemma)
     """)
     suspend fun updateProgressFsrs(
         lemma: String,
@@ -141,7 +146,7 @@ interface A1LemmaDao {
 }
 
 // ════════════════════════════════════════════════════
-//  CLUSTERS DAO
+//  CLUSTERS DAO — без изменений
 // ════════════════════════════════════════════════════
 @Dao
 interface A1ClusterDao {
@@ -161,7 +166,6 @@ interface A1ClusterDao {
     @Query("SELECT * FROM a1_clusters WHERE category = :category ORDER BY difficulty ASC, id ASC")
     suspend fun getByCategory(category: String): List<ClusterA1Entity>
 
-    /** Все уникальные категории для UI-карты тем. */
     @Query("SELECT DISTINCT category FROM a1_clusters ORDER BY category ASC")
     suspend fun getAllCategories(): List<String>
 
@@ -174,13 +178,6 @@ interface A1ClusterDao {
     @Query("SELECT COUNT(*) FROM a1_clusters WHERE masteryScore >= 0.7")
     fun observeMasteredCount(): Flow<Int>
 
-    /**
-     * Следующий кластер для прохождения.
-     * Логика:
-     *   1) Все prerequisites пройдены (isUnlocked = true)
-     *   2) Либо не пройден вообще, либо пришло время повтора (SRS)
-     *   3) Сначала по difficulty, потом по количеству attempts (новые приоритетнее)
-     */
     @Query("""
         SELECT * FROM a1_clusters 
         WHERE isUnlocked = 1 
@@ -190,7 +187,6 @@ interface A1ClusterDao {
     """)
     suspend fun getNextCluster(now: Long = System.currentTimeMillis()): ClusterA1Entity?
 
-    /** Все кластеры готовые к повтору по SRS. */
     @Query("""
         SELECT * FROM a1_clusters 
         WHERE nextReviewAt IS NOT NULL AND nextReviewAt <= :now 
@@ -198,14 +194,6 @@ interface A1ClusterDao {
     """)
     suspend fun getDueForReview(now: Long = System.currentTimeMillis()): List<ClusterA1Entity>
 
-    /**
-     * После прохождения кластера: считаем, какие кластеры теперь
-     * разблокированы (все prerequisites пройдены).
-     *
-     * NB: это upsert-like операция — мы читаем JSON prerequisites
-     * и сравниваем с mastered set. Сделано на Kotlin-стороне
-     * в UseCase, здесь только raw update.
-     */
     @Query("UPDATE a1_clusters SET isUnlocked = 1 WHERE id = :id")
     suspend fun markUnlocked(id: String)
 
@@ -226,7 +214,7 @@ interface A1ClusterDao {
 }
 
 // ════════════════════════════════════════════════════
-//  GRAMMAR RULES DAO
+//  GRAMMAR RULES DAO — без изменений
 // ════════════════════════════════════════════════════
 @Dao
 interface A1GrammarDao {
@@ -249,11 +237,6 @@ interface A1GrammarDao {
     @Query("SELECT COUNT(*) FROM a1_grammar_rules WHERE masteryScore >= 0.7")
     fun observeMasteredCount(): Flow<Int>
 
-    /**
-     * Правила, готовые к введению — те, где порог экспозиции превышен,
-     * но правило ещё не было показано.
-     * Gemini увидит одно такое правило за сессию (или ни одного).
-     */
     @Query("""
         SELECT * FROM a1_grammar_rules 
         WHERE wasIntroduced = 0 AND timesHeardInContext >= exposureThreshold 
@@ -262,7 +245,6 @@ interface A1GrammarDao {
     """)
     suspend fun getNextRuleToIntroduce(): GrammarRuleA1Entity?
 
-    /** Инкремент счётчика экспозиций (Gemini услышан паттерн в речи). */
     @Query("""
         UPDATE a1_grammar_rules 
         SET timesHeardInContext = timesHeardInContext + :delta 
@@ -270,7 +252,6 @@ interface A1GrammarDao {
     """)
     suspend fun incrementExposure(id: String, delta: Int = 1)
 
-    /** Отметить что правило было показано. */
     @Query("""
         UPDATE a1_grammar_rules 
         SET wasIntroduced = 1, introducedAt = :now 
@@ -278,7 +259,6 @@ interface A1GrammarDao {
     """)
     suspend fun markIntroduced(id: String, now: Long = System.currentTimeMillis())
 
-    /** Обновление мастерства правила после применения в речи. */
     @Query("""
         UPDATE a1_grammar_rules 
         SET timesAppliedCorrectly = timesAppliedCorrectly + :correct,
@@ -290,7 +270,7 @@ interface A1GrammarDao {
 }
 
 // ════════════════════════════════════════════════════
-//  SESSION LOG DAO
+//  SESSION LOG DAO — без изменений
 // ════════════════════════════════════════════════════
 @Dao
 interface A1SessionDao {
@@ -307,19 +287,15 @@ interface A1SessionDao {
     @Query("SELECT * FROM a1_session_logs ORDER BY startedAt DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 50): List<A1SessionLogEntity>
 
-    /** Реактивный список всех сессий для History-экрана. */
     @Query("SELECT * FROM a1_session_logs ORDER BY startedAt DESC")
     fun observeAll(): Flow<List<A1SessionLogEntity>>
 
-    /** Только последние N — для мини-виджета на главном. */
     @Query("SELECT * FROM a1_session_logs ORDER BY startedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int = 3): Flow<List<A1SessionLogEntity>>
 
-    /** Только incomplete — для "продолжи урок". */
     @Query("SELECT * FROM a1_session_logs WHERE isComplete = 0 ORDER BY startedAt DESC")
     fun observeIncomplete(): Flow<List<A1SessionLogEntity>>
 
-    /** Сессии по конкретному кластеру — для "повтори этот кластер". */
     @Query("SELECT * FROM a1_session_logs WHERE clusterId = :clusterId ORDER BY startedAt DESC")
     suspend fun getByCluster(clusterId: String): List<A1SessionLogEntity>
 
@@ -329,7 +305,6 @@ interface A1SessionDao {
     @Query("SELECT COUNT(*) FROM a1_session_logs WHERE startedAt >= :since")
     suspend fun getCountSince(since: Long): Int
 
-    /** Средняя оценка за последние N сессий — для графика прогресса. */
     @Query("""
         SELECT AVG(avgQuality) FROM (
             SELECT avgQuality FROM a1_session_logs
@@ -345,7 +320,7 @@ interface A1SessionDao {
 }
 
 // ════════════════════════════════════════════════════
-//  USER PROGRESS DAO
+//  USER PROGRESS DAO — без изменений
 // ════════════════════════════════════════════════════
 @Dao
 interface A1UserProgressDao {
