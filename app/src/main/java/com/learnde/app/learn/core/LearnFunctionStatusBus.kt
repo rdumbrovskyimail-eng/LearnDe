@@ -1,20 +1,12 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА v3.2
 // Путь: app/src/main/java/com/learnde/app/learn/core/LearnFunctionStatusBus.kt
 //
-// Шина real-time статуса выполняемой функции Gemini.
-// Используется для «инфо-табло» внизу каждого экрана Learn-блока.
-//
-// Жизненный цикл статуса:
-//   IDLE
-//    └─> DETECTED(name)    ← как только парсер нашёл toolCall в WS-фрейме
-//          └─> EXECUTING(name)  ← handler начал работу
-//                └─> COMPLETED(name, success)  ← handler вернул результат
-//                      └─> IDLE (после FADE_TO_IDLE_MS)
-//
-// Для параллельных вызовов поддерживается очередь currentQueue:
-// несколько функций одновременно → UI покажет все, но главной
-// считается последняя DETECTED.
+// ИЗМЕНЕНИЯ v3.2:
+//   - Убран лишний Mutex — StateFlow.update атомарен (CAS)
+//   - Убрано scope.launch на каждый вызов (dispatch delay устранён)
+//   - Для pending используется ConcurrentHashMap.newKeySet (thread-safe)
+//   - Fade-таймер запускается через scope.launch только там где нужен delay
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.core
 
@@ -29,16 +21,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
 enum class FunctionPhase {
-    IDLE,        // ничего не происходит
-    DETECTED,    // toolCall пришёл, начинается обработка
-    EXECUTING,   // handler запущен
-    COMPLETED,   // handler завершился (+ success flag)
+    IDLE,
+    DETECTED,
+    EXECUTING,
+    COMPLETED,
 }
 
 data class FunctionStatus(
@@ -48,9 +40,7 @@ data class FunctionStatus(
     val success: Boolean = true,
     val startedAtMs: Long = 0L,
     val finishedAtMs: Long = 0L,
-    /** Сколько сейчас активных tool calls в очереди (для индикации параллелизма). */
     val concurrentCount: Int = 0,
-    /** Монотонный счётчик вызовов — UI использует для ключа анимаций. */
     val tick: Long = 0L,
 )
 
@@ -59,98 +49,90 @@ class LearnFunctionStatusBus @Inject constructor(
     private val logger: AppLogger
 ) {
     companion object {
-        /** Через сколько после COMPLETED статус вернётся в IDLE (для плавного затухания). */
         private const val FADE_TO_IDLE_MS = 1_200L
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val lock = Mutex()
 
     private val _status = MutableStateFlow(FunctionStatus())
     val status: StateFlow<FunctionStatus> = _status.asStateFlow()
 
-    /** Сколько сейчас in-flight вызовов. */
-    private val pending = mutableSetOf<String>()
-    private var fadeJob: Job? = null
-    private var tickCounter: Long = 0L
+    // v3.2: thread-safe set без необходимости в Mutex
+    private val pending = ConcurrentHashMap.newKeySet<String>()
+    private val tickCounter = AtomicLong(0L)
+
+    @Volatile private var fadeJob: Job? = null
 
     /** Детект toolCall в парсере WS — ДО запуска handler'а. */
     fun onDetected(functionName: String, callId: String) {
-        scope.launch {
-            lock.withLock {
-                pending.add(callId)
-                tickCounter++
-                _status.update {
-                    it.copy(
-                        phase = FunctionPhase.DETECTED,
-                        functionName = functionName,
-                        callId = callId,
-                        success = true,
-                        startedAtMs = System.currentTimeMillis(),
-                        finishedAtMs = 0L,
-                        concurrentCount = pending.size,
-                        tick = tickCounter
-                    )
-                }
-                fadeJob?.cancel()
-                logger.d("FnStatus: DETECTED $functionName (id=$callId, concurrent=${pending.size})")
-            }
+        pending.add(callId)
+        val currentTick = tickCounter.incrementAndGet()
+        val size = pending.size
+
+        _status.update {
+            it.copy(
+                phase = FunctionPhase.DETECTED,
+                functionName = functionName,
+                callId = callId,
+                success = true,
+                startedAtMs = System.currentTimeMillis(),
+                finishedAtMs = 0L,
+                concurrentCount = size,
+                tick = currentTick
+            )
         }
+        fadeJob?.cancel()
+        logger.d("FnStatus: DETECTED $functionName (id=$callId, concurrent=$size)")
     }
 
     /** Handler начал выполнение. */
     fun onExecuting(functionName: String, callId: String) {
-        scope.launch {
-            lock.withLock {
-                tickCounter++
-                _status.update {
-                    it.copy(
-                        phase = FunctionPhase.EXECUTING,
-                        functionName = functionName,
-                        callId = callId,
-                        concurrentCount = pending.size,
-                        tick = tickCounter
-                    )
-                }
-                logger.d("FnStatus: EXECUTING $functionName")
-            }
+        val currentTick = tickCounter.incrementAndGet()
+        val size = pending.size
+
+        _status.update {
+            it.copy(
+                phase = FunctionPhase.EXECUTING,
+                functionName = functionName,
+                callId = callId,
+                concurrentCount = size,
+                tick = currentTick
+            )
         }
+        logger.d("FnStatus: EXECUTING $functionName")
     }
 
     /** Handler завершился. */
     fun onCompleted(functionName: String, callId: String, success: Boolean) {
-        scope.launch {
-            lock.withLock {
-                pending.remove(callId)
-                tickCounter++
-                _status.update {
-                    it.copy(
-                        phase = FunctionPhase.COMPLETED,
-                        functionName = functionName,
-                        callId = callId,
-                        success = success,
-                        finishedAtMs = System.currentTimeMillis(),
-                        concurrentCount = pending.size,
-                        tick = tickCounter
-                    )
-                }
-                logger.d("FnStatus: COMPLETED $functionName (success=$success, remaining=${pending.size})")
-                // Fade в IDLE только если больше ничего не выполняется
+        pending.remove(callId)
+        val currentTick = tickCounter.incrementAndGet()
+        val size = pending.size
+
+        _status.update {
+            it.copy(
+                phase = FunctionPhase.COMPLETED,
+                functionName = functionName,
+                callId = callId,
+                success = success,
+                finishedAtMs = System.currentTimeMillis(),
+                concurrentCount = size,
+                tick = currentTick
+            )
+        }
+        logger.d("FnStatus: COMPLETED $functionName (success=$success, remaining=$size)")
+
+        // Fade в IDLE только если больше ничего не выполняется
+        if (size == 0) {
+            fadeJob?.cancel()
+            fadeJob = scope.launch {
+                delay(FADE_TO_IDLE_MS)
                 if (pending.isEmpty()) {
-                    fadeJob?.cancel()
-                    fadeJob = scope.launch {
-                        delay(FADE_TO_IDLE_MS)
-                        lock.withLock {
-                            if (pending.isEmpty()) {
-                                tickCounter++
-                                _status.update {
-                                    it.copy(
-                                        phase = FunctionPhase.IDLE,
-                                        tick = tickCounter
-                                    )
-                                }
-                            }
-                        }
+                    val fadeTick = tickCounter.incrementAndGet()
+                    _status.update {
+                        it.copy(
+                            phase = FunctionPhase.IDLE,
+                            tick = fadeTick
+                        )
                     }
                 }
             }
@@ -159,13 +141,9 @@ class LearnFunctionStatusBus @Inject constructor(
 
     /** Очистка при exit из Learn. */
     fun reset() {
-        scope.launch {
-            lock.withLock {
-                fadeJob?.cancel()
-                pending.clear()
-                tickCounter = 0L
-                _status.value = FunctionStatus()
-            }
-        }
+        fadeJob?.cancel()
+        pending.clear()
+        tickCounter.set(0L)
+        _status.value = FunctionStatus()
     }
 }
