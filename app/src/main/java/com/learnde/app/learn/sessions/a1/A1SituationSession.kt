@@ -323,29 +323,33 @@ class A1SituationSession @Inject constructor(
         val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
         val clusterId = currentContext?.cluster?.id ?: "unknown"
 
-        lemmaDao.updateProgressFsrs(
-            lemma = lemma,
-            produced = if (wasCorrect) 1 else 0,
-            failed = if (!wasCorrect) 1 else 0,
-            newProductionScore = newMastery,
-            recognitionDelta = recognitionDelta,
-            clusterId = clusterId,
-            nextReview = nextReviewAt,
-            fsrsDifficulty = newFsrsState.difficulty,
-            fsrsStability = newFsrsState.stability,
-            fsrsReps = newFsrsState.reps,
-            fsrsLapses = newFsrsState.lapses,
-            fsrsLastReviewAt = newFsrsState.lastReviewAt,
-        )
+        // Запускаем сохранение в фоне, чтобы ИИ не ждал
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            lemmaDao.updateProgressFsrs(
+                lemma = lemma,
+                produced = if (wasCorrect) 1 else 0,
+                failed = if (!wasCorrect) 1 else 0,
+                newProductionScore = newMastery,
+                recognitionDelta = recognitionDelta,
+                clusterId = clusterId,
+                nextReview = nextReviewAt,
+                fsrsDifficulty = newFsrsState.difficulty,
+                fsrsStability = newFsrsState.stability,
+                fsrsReps = newFsrsState.reps,
+                fsrsLapses = newFsrsState.lapses,
+                fsrsLastReviewAt = newFsrsState.lastReviewAt,
+            )
 
-        // v3.2: emitSuspend — критичное событие для UI
-        bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
-            lemma = lemma,
-            quality = quality,
-            diagnosis = diagnosis,
-            intervention = intervention,
-            feedback = feedback,
-        ))
+            bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
+                lemma = lemma,
+                quality = quality,
+                diagnosis = diagnosis,
+                intervention = intervention,
+                feedback = feedback,
+            ))
+        }
+        
+        // Мгновенный ответ ИИ, чтобы он продолжал работать
         return """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
     }
 
