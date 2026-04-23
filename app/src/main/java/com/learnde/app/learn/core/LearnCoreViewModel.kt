@@ -197,9 +197,9 @@ class LearnCoreViewModel @Inject constructor(
         // Test: короткие ответы, можно быстрее
         val (silenceMs, prefixMs, temp) = when (session.id) {
             "translator"    -> Triple(1200, 400, 0.3f)   // Очень длинные паузы, низкая temp
-            "a1_situation"  -> Triple(900, 350, cachedSettings.temperature)
-            "a1_review"     -> Triple(700, 300, cachedSettings.temperature)
-            else            -> Triple(800, 300, cachedSettings.temperature)   // Было 100/20 — ломало речь
+            "a1_situation"  -> Triple(500, 100, cachedSettings.temperature) // Ускорили реакцию!
+            "a1_review"     -> Triple(500, 100, cachedSettings.temperature)
+            else            -> Triple(500, 100, cachedSettings.temperature)   
         }
 
         // Если юзер в настройках явно задал vadSilenceTimeoutMs > 0 — уважаем его выбор,
