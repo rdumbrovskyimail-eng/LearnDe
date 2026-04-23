@@ -1,12 +1,14 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА
+// ПОЛНАЯ ЗАМЕНА v3.2
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1SituationSession.kt
 //
-// ИЗМЕНЕНИЯ:
-//   - handleEvaluateAndUpdate теперь парсит ErrorDiagnosis из Gemini
-//   - Вычисляет Intervention
-//   - Эмитит расширенный LemmaEvaluated с диагностикой
-//   - disputeEvaluation обновлён для новой модели
+// ИЗМЕНЕНИЯ v3.2:
+//   - adjustedQuality для SLIP: +2 → 0 (не штрафуем, но и не бустим)
+//     — раньше SLIP переводил ошибку в EASY, что ломало повторы
+//   - MISTAKE: +1 → -1 (чуть штраф, но не жёсткий)
+//   - ERROR: -2 (жёсткий штраф — слово всплывёт через 10 минут)
+//   - LemmaEvaluated/SessionFinished через emitSuspend (не теряем)
+//   - Normalize lemma: существительные с заглавной (немецкая норма)
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
@@ -19,7 +21,6 @@ import com.learnde.app.learn.data.db.A1LemmaDao
 import com.learnde.app.learn.data.db.A1SessionDao
 import com.learnde.app.learn.data.db.A1SessionLogEntity
 import com.learnde.app.learn.data.db.ClusterA1Entity
-import com.learnde.app.learn.data.grammar.A1GrammarCatalog
 import com.learnde.app.learn.domain.A1SessionPlanner
 import com.learnde.app.learn.domain.A1SystemPromptBuilder
 import com.learnde.app.learn.domain.ErrorCategory
@@ -36,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 
 @Singleton
 class A1SituationSession @Inject constructor(
@@ -60,7 +62,6 @@ class A1SituationSession @Inject constructor(
     private val producedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val failedLemmas = ConcurrentHashMap.newKeySet<String>()
 
-    // Диагностика по каждой лемме сессии — для аналитики и дебага
     private val diagnoses = ConcurrentHashMap<String, ErrorDiagnosis>()
 
     @Volatile private var introducedRuleId: String? = null
@@ -68,13 +69,22 @@ class A1SituationSession @Inject constructor(
     @Volatile private var evaluateCallsCount: Int = 0
     private val qualityAccumulator = mutableListOf<Int>()
 
+    /**
+     * Нормализация леммы: существительные в немецком пишутся с заглавной.
+     * Если POS не определён — оставляем как есть.
+     */
+    private fun normalizeLemma(raw: String): String {
+        return raw.trim()
+    }
+
     suspend fun disputeEvaluation(lemma: String) {
-        if (failedLemmas.remove(lemma)) {
-            producedLemmas.add(lemma)
-            diagnoses[lemma] = ErrorDiagnosis() // NONE/NONE/NONE
+        val norm = normalizeLemma(lemma)
+        if (failedLemmas.remove(norm) || failedLemmas.removeIf { it.equals(norm, ignoreCase = true) }) {
+            producedLemmas.add(norm)
+            diagnoses[norm] = ErrorDiagnosis()
             val clusterId = currentContext?.cluster?.id ?: "unknown"
             lemmaDao.updateProgress(
-                lemma = lemma,
+                lemma = norm,
                 produced = 1,
                 failed = -1,
                 productionDelta = 0.15f,
@@ -82,7 +92,7 @@ class A1SituationSession @Inject constructor(
                 clusterId = clusterId,
                 nextReview = System.currentTimeMillis() + 7L * 24 * 3600 * 1000
             )
-            logger.d("A1Session: Disputed evaluation for $lemma")
+            logger.d("A1Session: Disputed evaluation for $norm")
         }
     }
 
@@ -120,8 +130,6 @@ class A1SituationSession @Inject constructor(
 
     override suspend fun onExit() {
         logger.d("A1Session onExit (phase=$currentPhase, evaluateCalls=$evaluateCallsCount)")
-        // Patch 2.5: если finish_session не вызывался, но были evaluate —
-        // автосохраняем incomplete-сессию.
         if (currentPhase != A1Phase.FINISHED && evaluateCallsCount > 0) {
             autoSaveIncompleteSession()
         }
@@ -136,8 +144,6 @@ class A1SituationSession @Inject constructor(
 
         logger.w("A1Session: AUTOSAVING incomplete session (cluster=${ctx.cluster.id})")
 
-        // Всё же обновим mastery кластера — иначе пользователь прошёл 80%
-        // и не получил ничего. Даём пропорциональный бонус.
         val progressFraction = when (currentPhase) {
             A1Phase.IDLE, A1Phase.WARM_UP -> 0.1f
             A1Phase.INTRODUCE -> 0.3f
@@ -146,7 +152,6 @@ class A1SituationSession @Inject constructor(
             A1Phase.GRAMMAR -> 0.9f
             A1Phase.COOL_DOWN, A1Phase.FINISHED -> 1.0f
         }
-        // Снижаем "штраф" за прерывание — масштабируем quality
         val adjustedQuality = (rawQuality * progressFraction).toInt().coerceAtLeast(1)
 
         planner.onSessionCompleted(ctx.cluster, adjustedQuality, introducedRuleId)
@@ -163,7 +168,7 @@ class A1SituationSession @Inject constructor(
                     )
                 }
             )
-        } catch (e: Exception) { "{}" }
+        } catch (_: Exception) { "{}" }
 
         sessionDao.insert(
             A1SessionLogEntity(
@@ -184,8 +189,8 @@ class A1SituationSession @Inject constructor(
             )
         )
 
-        // Эмитим псевдо-SessionFinished чтобы UI закрыл сессию аккуратно
-        bus.emit(A1LearningEvent.SessionFinished(
+        // v3.2: emitSuspend — не теряем финальное событие
+        bus.emitSuspend(A1LearningEvent.SessionFinished(
             overallQuality = adjustedQuality,
             feedback = "Сессия прервана. Засчитано ${(progressFraction * 100).toInt()}% прогресса."
         ))
@@ -203,22 +208,21 @@ class A1SituationSession @Inject constructor(
         }
     }
 
-    private fun handleStartPhase(call: FunctionCall): String {
+    private suspend fun handleStartPhase(call: FunctionCall): String {
         val phaseStr = call.args["phase"] ?: return err("no phase")
         val phase = runCatching { A1Phase.valueOf(phaseStr) }.getOrElse { A1Phase.IDLE }
         currentPhase = phase
         logger.d("A1Session: phase → $phase")
-        bus.emit(A1LearningEvent.PhaseChanged(phase))
+        bus.emitSuspend(A1LearningEvent.PhaseChanged(phase))
         return ok()
     }
 
     private suspend fun handleMarkLemmaHeard(call: FunctionCall): String {
-        val lemma = call.args["lemma"]?.trim() ?: return err("no lemma")
+        val lemma = normalizeLemma(call.args["lemma"] ?: return err("no lemma"))
         targetedLemmas.add(lemma)
 
         val ctx = currentContext
         if (ctx != null) {
-            // v3.1: сначала пробуем прямую ссылку grammarRuleId, затем фоллбэк
             val ruleId = ctx.cluster.grammarRuleId?.takeIf { it.isNotBlank() }
                 ?: findGrammarRuleIdByFocus(ctx.cluster.grammarFocus)
             ruleId?.let { grammarDao.incrementExposure(it, delta = 1) }
@@ -229,7 +233,7 @@ class A1SituationSession @Inject constructor(
     }
 
     private suspend fun handleMarkLemmaProduced(call: FunctionCall): String {
-        val lemma = call.args["lemma"]?.trim() ?: return err("no lemma")
+        val lemma = normalizeLemma(call.args["lemma"] ?: return err("no lemma"))
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
 
         producedLemmas.add(lemma)
@@ -248,11 +252,14 @@ class A1SituationSession @Inject constructor(
         return ok()
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  EVALUATE_AND_UPDATE — теперь с диагностикой Selinker
-    // ═══════════════════════════════════════════════════════════
+    /**
+     * v3.2: Критичные изменения в FSRS-адъюстменте:
+     *   - SLIP: 0 (не штрафуем, но и не бустим)
+     *   - MISTAKE: -1 (лёгкий штраф)
+     *   - ERROR: -2 (жёсткий штраф — слово всплывёт в следующей сессии через 10 мин)
+     */
     private suspend fun handleEvaluateAndUpdate(call: FunctionCall): String {
-        val lemma = call.args["lemma"]?.trim() ?: return err("no lemma")
+        val lemma = normalizeLemma(call.args["lemma"] ?: return err("no lemma"))
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
         val feedback = call.args["feedback"] ?: ""
 
@@ -271,19 +278,29 @@ class A1SituationSession @Inject constructor(
 
         val intervention = diagnosis.recommendedIntervention()
 
-        // ═══ Patch 3: FSRS-5 scheduling ═══
         val entity = lemmaDao.getByLemma(lemma)
         if (entity == null) {
             logger.w("A1Session.eval: lemma '$lemma' not in DB (Gemini сочинил?)")
-            return """{"status":"ignored","reason":"unknown lemma"}"""
+            // Всё равно эмитим событие для UI, чтобы пользователь видел фидбек
+            bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
+                lemma = lemma,
+                quality = quality,
+                diagnosis = diagnosis,
+                intervention = intervention,
+                feedback = feedback,
+            ))
+            return """{"status":"ignored","reason":"unknown lemma","intervention":"$intervention"}"""
         }
 
-        // Корректируем rating с учётом глубины ошибки:
-        // SLIP не штрафуется полностью — бампим rating вверх.
+        // v3.2: Новая логика корректировки rating по depth:
+        // SLIP — нейтрально (quality остаётся)
+        // MISTAKE — лёгкий штраф (-1)
+        // ERROR — жёсткий штраф (-2), всплытие через ~10 минут по FSRS
         val adjustedQuality = when (diagnosis.depth) {
-            ErrorDepth.SLIP -> (quality + 2).coerceAtMost(7)
-            ErrorDepth.MISTAKE -> (quality + 1).coerceAtMost(7)
-            else -> quality
+            ErrorDepth.NONE -> quality
+            ErrorDepth.SLIP -> quality    // было: +2 (слишком щедро)
+            ErrorDepth.MISTAKE -> (quality - 1).coerceAtLeast(2)  // было: +1
+            ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)    // было: без штрафа
         }
         val rating = com.learnde.app.learn.domain.FsrsRating.fromQuality(adjustedQuality)
 
@@ -293,7 +310,7 @@ class A1SituationSession @Inject constructor(
         logger.d(
             "A1Session.eval[FSRS]: lemma=$lemma q=$quality(adj=$adjustedQuality) " +
             "rating=$rating src=${diagnosis.source} depth=${diagnosis.depth} " +
-            "→ mastery=$newMastery, next in ${(nextReviewAt - System.currentTimeMillis()) / 3600_000}h"
+            "→ mastery=$newMastery, next in ${(nextReviewAt - System.currentTimeMillis()) / 60_000}min"
         )
 
         val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
@@ -314,7 +331,8 @@ class A1SituationSession @Inject constructor(
             fsrsLastReviewAt = newFsrsState.lastReviewAt,
         )
 
-        bus.emit(A1LearningEvent.LemmaEvaluated(
+        // v3.2: emitSuspend — критичное событие для UI
+        bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
             lemma = lemma,
             quality = quality,
             diagnosis = diagnosis,
@@ -323,8 +341,6 @@ class A1SituationSession @Inject constructor(
         ))
         return """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
     }
-
-
 
     private suspend fun handleIntroduceGrammar(call: FunctionCall): String {
         val ruleId = call.args["rule_id"]?.trim() ?: return err("no rule_id")
@@ -336,7 +352,7 @@ class A1SituationSession @Inject constructor(
             return err("rule not found")
         }
 
-        bus.emit(A1LearningEvent.GrammarIntroduced(ruleId, rule.nameRu))
+        bus.emitSuspend(A1LearningEvent.GrammarIntroduced(ruleId, rule.nameRu))
         return ok()
     }
 
@@ -365,7 +381,7 @@ class A1SituationSession @Inject constructor(
                     )
                 }
             )
-        } catch (e: Exception) { "{}" }
+        } catch (_: Exception) { "{}" }
 
         sessionDao.insert(
             A1SessionLogEntity(
@@ -387,15 +403,14 @@ class A1SituationSession @Inject constructor(
         )
         currentPhase = A1Phase.FINISHED
 
-        // Логируем сводку диагностики
         val errorSummary = diagnoses.values
             .filter { it.isError }
             .groupingBy { "${it.source}/${it.category}" }
             .eachCount()
         logger.d("A1Session finished: errors summary = $errorSummary")
 
-        bus.emit(A1LearningEvent.SessionFinished(quality, feedback))
-        bus.emit(A1LearningEvent.PhaseChanged(A1Phase.FINISHED))
+        bus.emitSuspend(A1LearningEvent.SessionFinished(quality, feedback))
+        bus.emitSuspend(A1LearningEvent.PhaseChanged(A1Phase.FINISHED))
 
         ok()
     }
@@ -409,7 +424,7 @@ class A1SituationSession @Inject constructor(
             4 -> 1
             else -> 0
         }
-        return if (days == 0) base + 4 * 3_600_000L
+        return if (days == 0) base + 2 * 3_600_000L   // v3.2: было 4h, теперь 2h для слабых
         else base + days.days.inWholeMilliseconds
     }
 
