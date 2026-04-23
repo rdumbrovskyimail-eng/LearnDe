@@ -548,15 +548,18 @@ class LearnCoreViewModel @Inject constructor(
                         audioEngine.onTurnComplete()
                         _state.update { it.copy(isAiSpeaking = false) }
 
-                        // v3.2: Отправляем vocab violation ТЕПЕРЬ, когда Gemini завершил turn
                         flushPendingVocabViolation()
 
-                        // v3.2: Silence timer — но только с реальной проверкой
+                        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+                        // Сбрасываем таймер времени последнего ввода, чтобы дать ученику
+                        // честные 10 секунд ПОСЛЕ того, как ИИ закончил говорить.
+                        lastInputTs = System.currentTimeMillis() 
+
                         if (_state.value.isMicActive) {
                             silenceTimerJob?.cancel()
                             silenceTimerJob = viewModelScope.launch {
-                                delay(LEARNER_SILENCE_THRESHOLD_MS)
-                                // Проверяем: действительно ли юзер молчал всё это время
+                                delay(LEARNER_SILENCE_THRESHOLD_MS) // Ждем 10 секунд
+                                
                                 val sinceLastInput = System.currentTimeMillis() - lastInputTs
                                 if (sinceLastInput > SILENCE_CHECK_WINDOW_MS && liveClient.isReady) {
                                     logger.d("Learn: real silence detected (${sinceLastInput}ms), prompting AI")
@@ -564,6 +567,8 @@ class LearnCoreViewModel @Inject constructor(
                                         "[СИСТЕМА]: Ученик молчит. Коротко подбодри его по-русски, " +
                                         "дай подсказку или назови правильный ответ и попроси повторить."
                                     )
+                                    // Сбрасываем таймер еще раз, чтобы не было спам-петли
+                                    lastInputTs = System.currentTimeMillis()
                                 }
                             }
                         }
