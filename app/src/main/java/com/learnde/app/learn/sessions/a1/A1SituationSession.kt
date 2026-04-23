@@ -58,6 +58,8 @@ class A1SituationSession @Inject constructor(
 
     override val id: String = "a1_situation"
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     @Volatile private var currentContext: SessionContext? = null
     @Volatile private var sessionStartedAt: Long = 0L
 
