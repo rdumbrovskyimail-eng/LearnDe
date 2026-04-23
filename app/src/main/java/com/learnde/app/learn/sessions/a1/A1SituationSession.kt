@@ -249,8 +249,8 @@ class A1SituationSession @Inject constructor(
         val delta = (quality - 3).coerceIn(-2, 4) * 0.03f
         val clusterId = currentContext?.cluster?.id ?: "unknown"
         
-        // Запускаем в фоне
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        // Используем наш scope
+        scope.launch {
             lemmaDao.updateProgress(
                 lemma = lemma,
                 produced = 1,
@@ -262,7 +262,7 @@ class A1SituationSession @Inject constructor(
             )
             bus.emit(A1LearningEvent.LemmaProduced(lemma, quality))
         }
-        return ok() // Мгновенный ответ ИИ
+        return ok()
     }
 
     /**
