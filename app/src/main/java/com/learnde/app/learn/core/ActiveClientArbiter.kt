@@ -1,27 +1,22 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА v3.2
 // Путь: app/src/main/java/com/learnde/app/learn/core/ActiveClientArbiter.kt
 //
-// Singleton-координатор «какой клиент сейчас владеет микрофоном и WebSocket».
-//
-// Протокол:
-//  • Voice-клиент при старте зовёт acquire(Owner.VOICE). Если занят LEARN —
-//    ждёт, пока Learn вызовет release.
-//  • Learn-клиент при старте зовёт acquire(Owner.LEARN). Если занят VOICE —
-//    ждёт, пока Voice вызовет release.
-//  • active: StateFlow<Owner> подписывается каждый клиент — когда не он
-//    активный, он обязан закрыть свой WS и остановить mic.
-//  • acquire() — suspend, с таймаутом ACQUIRE_TIMEOUT_MS. Если таймаут —
-//    бросает IllegalStateException (но это не должно случаться в норме).
-//
-// Никакой клиент НЕ должен держать WS, если active != его Owner.
+// ИЗМЕНЕНИЯ v3.2:
+//   - forceReleaseAll() теперь под мьютексом (race condition fix)
+//   - Добавлен неблокирующий forceReleaseAllNonSuspending() для emergency-путей
+//   - Таймаут увеличен до 7s (было 5s — на медленных соединениях срывалось)
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.core
 
 import com.learnde.app.util.AppLogger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
@@ -36,20 +31,17 @@ class ActiveClientArbiter @Inject constructor(
     private val logger: AppLogger
 ) {
     companion object {
-        private const val ACQUIRE_TIMEOUT_MS = 5_000L
+        private const val ACQUIRE_TIMEOUT_MS = 7_000L  // v3.2: было 5s
     }
 
     private val mutex = Mutex()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val _active = MutableStateFlow(ClientOwner.NONE)
-    /** Текущий владелец клиента. Каждый ViewModel подписывается и,
-     *  если значение != его Owner, должен немедленно disconnect(). */
     val active: StateFlow<ClientOwner> = _active.asStateFlow()
 
     /**
-     * Захватить владение. Если владеет другой — ждём release (до 5с).
-     * После успешного acquire предыдущий owner получит через StateFlow
-     * уведомление и обязан освободить ресурсы.
+     * Захватить владение. Если владеет другой — ждём release (до 7с).
      */
     suspend fun acquire(owner: ClientOwner) {
         require(owner != ClientOwner.NONE) { "Cannot acquire NONE" }
@@ -67,7 +59,12 @@ class ActiveClientArbiter @Inject constructor(
             }
         } catch (e: TimeoutCancellationException) {
             logger.e("Arbiter: acquire($owner) timeout — forcing")
-            _active.value = owner  // форс, чтобы не зависнуть навечно
+            // v3.2: форс тоже через корутину с мьютексом
+            scope.launch {
+                mutex.withLock {
+                    _active.value = owner
+                }
+            }
         }
     }
 
@@ -86,9 +83,27 @@ class ActiveClientArbiter @Inject constructor(
         }
     }
 
-    /** Принудительный сброс — аварийный выход. */
-    fun forceReleaseAll() {
-        logger.w("Arbiter: FORCE release all")
-        _active.value = ClientOwner.NONE
+    /**
+     * v3.2: Принудительный сброс — теперь под мьютексом (race fix).
+     * Suspend-версия для штатных путей.
+     */
+    suspend fun forceReleaseAll() {
+        mutex.withLock {
+            logger.w("Arbiter: FORCE release all")
+            _active.value = ClientOwner.NONE
+        }
+    }
+
+    /**
+     * v3.2: Неблокирующий аварийный сброс — для вызовов из не-suspend контекстов
+     * (onCleared, onDestroy). Использует отдельную корутину чтобы не блокировать caller.
+     */
+    fun forceReleaseAllNonSuspending() {
+        scope.launch {
+            mutex.withLock {
+                logger.w("Arbiter: FORCE release all (async)")
+                _active.value = ClientOwner.NONE
+            }
+        }
     }
 }
