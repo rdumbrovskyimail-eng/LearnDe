@@ -222,14 +222,17 @@ class A1SituationSession @Inject constructor(
         targetedLemmas.add(lemma)
 
         val ctx = currentContext
-        if (ctx != null) {
-            val ruleId = ctx.cluster.grammarRuleId?.takeIf { it.isNotBlank() }
-                ?: findGrammarRuleIdByFocus(ctx.cluster.grammarFocus)
-            ruleId?.let { grammarDao.incrementExposure(it, delta = 1) }
+        // Запускаем в фоне, чтобы не блокировать WebSocket
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            if (ctx != null) {
+                val ruleId = ctx.cluster.grammarRuleId?.takeIf { it.isNotBlank() }
+                    ?: findGrammarRuleIdByFocus(ctx.cluster.grammarFocus)
+                ruleId?.let { grammarDao.incrementExposure(it, delta = 1) }
+            }
+            bus.emit(A1LearningEvent.LemmaHeard(lemma))
         }
-
-        bus.emit(A1LearningEvent.LemmaHeard(lemma))
-        return ok()
+        
+        return ok() // Мгновенный ответ ИИ
     }
 
     private suspend fun handleMarkLemmaProduced(call: FunctionCall): String {
