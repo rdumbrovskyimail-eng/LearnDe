@@ -29,6 +29,10 @@ import com.learnde.app.learn.domain.ErrorDiagnosis
 import com.learnde.app.learn.domain.ErrorSource
 import com.learnde.app.learn.domain.SessionContext
 import com.learnde.app.util.AppLogger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
