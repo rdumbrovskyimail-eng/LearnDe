@@ -1,26 +1,39 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v3.3
+// ПОЛНАЯ ЗАМЕНА v3.4
 // Путь: app/src/main/java/com/learnde/app/learn/core/LearnCoreViewModel.kt
 //
-// ЧТО ИСПРАВЛЕНО по сравнению с предыдущими версиями:
-//   1. Правильный первый ход (Gemini заговаривает первой):
-//      - sendText уже содержит turn_complete=true → НЕ вызываем sendTurnComplete() после
-//      - Микрофон включаем ТОЛЬКО после первого AudioChunk от модели
-//        (иначе VAD ловит тишину/шум и Interrupted глушит модель навсегда)
-//      - Fallback: если за 3 сек модель не ответила — всё равно включаем мик
-//   2. Отображение текста в чате:
-//      - ModelText теперь всегда пишем (без условия outputTranscription=false)
-//      - Дедупликация делается в flushPendingModelText, а не отбрасыванием событий
-//   3. Возвращена защита silence timer (подбадривание молчащего ученика)
-//   4. Возвращён FIFO-лимит транскрипта (MAX_TRANSCRIPT_SIZE)
-//   5. Специфичный catch ForegroundServiceStartNotAllowedException
-//   6. VAD настройки по типу сессии (translator длиннее, test короче)
+// КЛЮЧЕВАЯ ФИКСА v3.4 (Gemini молчит только до первой реплики юзера):
+//
+//   Native-audio модели (gemini-2.5-flash-native-audio-preview и др.)
+//   НЕ реагируют на голый sendText — их аудио-пайплайн "спит" пока через
+//   VAD не прошёл хотя бы один реальный аудио-чанк. Это подтверждено:
+//     - Twilio-интеграция шлёт sendText + сразу начинает стрим аудио линии
+//     - Форум Google: "Session established, ping 'Hello', and off you go"
+//       (но у репортёра мик уже включён с живым аудио-фидом)
+//
+//   Решение — связка из трёх шагов:
+//     1. Включить микрофон ПЕРВЫМ (до sendText). Реальное фоновое аудио
+//        раскачает VAD и активирует серверный пайплайн.
+//     2. Влить "warmup silence": 400 мс нулевого PCM прямо через
+//        liveClient.sendAudio(zeroBytes) — это будит серверный VAD
+//        без риска поймать Interrupted на случайном шуме.
+//     3. Затем sendText(initialUserMessage) — теперь модель точно ответит.
+//
+//   Fallback: если через 4 сек аудио от модели так и нет — повторяем
+//   sendText с более явной фразой.
+//
+// ЧТО ЕЩЁ исправлено по сравнению с 19-КБ версией:
+//   - sendText уже содержит turn_complete=true → не вызываем sendTurnComplete() после
+//   - ModelText пишется ВСЕГДА (дедупликация в flushPendingModelText через endsWith)
+//   - Возвращён silence timer (подбадривание молчащего ученика)
+//   - Возвращён FIFO-лимит транскрипта
+//   - Специфичный catch ForegroundServiceStartNotAllowedException
 //
 // ВАЖНО: В systemInstruction каждой сессии должна быть явная фраза:
 //   "Начни разговор первым. Тепло поприветствуй ученика по-русски.
 //    НЕ жди, пока ученик заговорит."
-// Без этого даже правильный протокольный вызов ничего не даст — модель
-// просто не знает, что от неё хотят услышать первое слово.
+// Без этого даже правильный протокол не поможет — модель не знает,
+// что именно говорить первой.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.core
 
@@ -91,9 +104,23 @@ class LearnCoreViewModel @Inject constructor(
         /** Короткая стабилизация WebSocket перед первым sendText. */
         private const val GREETING_WARMUP_MS = 150L
 
+        /** Длительность warmup-тишины для пробуждения серверного VAD (мс). */
+        private const val SILENCE_WARMUP_MS = 400L
+
+        /** Сколько мс реального/тихого аудио слать перед sendText. */
+        private const val MIC_PREWARM_MS = 200L
+
         /** Если за столько мс после sendText модель не начала говорить —
-         *  всё равно включаем мик, чтобы юзер не завис. */
-        private const val GREETING_FALLBACK_MS = 3_000L
+         *  пробуем ещё раз с более явной фразой. */
+        private const val GREETING_RETRY_MS = 4_000L
+
+        /** Если и после повторной попытки модель молчит — сдаёмся
+         *  и оставляем мик включённым. */
+        private const val GREETING_FINAL_MS = 8_000L
+
+        /** 16kHz mono 16-bit PCM — столько байт нужно на SILENCE_WARMUP_MS тишины.
+         *  2 байта/сэмпл × 16000 сэмплов/сек × (SILENCE_WARMUP_MS / 1000) */
+        private const val SILENCE_PCM_BYTES = (2 * 16000 * 400) / 1000 // = 12800
     }
 
     private val _state = MutableStateFlow(LearnCoreState())
@@ -487,14 +514,11 @@ class LearnCoreViewModel @Inject constructor(
                         // Первый аудио-чанк в этом турне → модель точно заговорила.
                         if (!modelStartedSpeakingThisTurn) {
                             modelStartedSpeakingThisTurn = true
-                            // Если мы ждали приветствие — можно смело включать мик,
-                            // потому что теперь Playback уже шумит и забьёт эхо мика
-                            // (а VAD с echo-cancellation отсечёт собственный голос модели).
+                            // Сбрасываем флаг ожидания приветствия и retry-таймер.
                             if (awaitingInitialGreeting) {
                                 awaitingInitialGreeting = false
                                 greetingFallbackJob?.cancel()
-                                logger.d("Learn: model started greeting → enabling mic")
-                                if (!_state.value.isMicActive) startMic()
+                                logger.d("Learn: model started greeting ✓")
                             }
                         }
                         _state.update { it.copy(isAiSpeaking = true, isPreparingSession = false) }
@@ -632,24 +656,29 @@ class LearnCoreViewModel @Inject constructor(
     }
 
     /**
-     * Сценарий первого хода (Gemini заговаривает первой).
+     * Сценарий первого хода v3.4 — гарантированно будим native-audio модель.
      *
-     * Согласно официальной документации Google Live API:
-     *   "Gemini Live API expects user input before it responds. To have
-     *    Gemini Live API initiate the conversation, include a prompt
-     *    asking it to greet the user or begin the conversation."
+     * ПОЧЕМУ НЕ РАБОТАЕТ ПРОСТОЙ sendText:
+     *   Native-audio модели (gemini-2.5-flash-native-audio-preview) имеют
+     *   аудио-пайплайн, который "спит" пока через VAD не прошёл хотя бы один
+     *   реальный аудио-чанк от клиента. sendText в таком состоянии просто
+     *   копится в буфере сессии и не триггерит генерацию — модель ждёт
+     *   аудио-активности, чтобы понять что сессия "живая".
      *
-     * Протокол:
-     *   1. Дожидаемся SetupComplete.
-     *   2. Короткая пауза для стабилизации WS (150 мс хватает).
-     *   3. Отправляем session.initialUserMessage через sendText —
-     *      этот метод внутри ставит turn_complete=true и просит ответ.
-     *      НЕ нужно вызывать sendTurnComplete() после — это сбивает модель.
-     *   4. Ставим awaitingInitialGreeting=true и НЕ включаем мик.
-     *      VAD при включённом мике в тишине даст Interrupted и замолчит модель.
-     *   5. Как только придёт первый AudioChunk — включаем мик.
-     *   6. Fallback: если за 3 сек аудио нет — включаем мик принудительно,
-     *      чтобы юзер не завис.
+     * ПРОТОКОЛ ПРОБУЖДЕНИЯ:
+     *   1. SetupComplete получен.
+     *   2. Включаем микрофон СРАЗУ. Даже в тишине комнаты через мик идёт
+     *      фоновый шум → VAD его регистрирует → серверный пайплайн оживает.
+     *   3. Ждём MIC_PREWARM_MS чтобы дать серверу понять что аудио-сессия
+     *      действительно началась.
+     *   4. Шлём SILENCE_WARMUP_MS нулевого PCM как гарантию что серверный
+     *      VAD увидит "окончание активности" (silence detected) и будет
+     *      готов начать новый turn.
+     *   5. Шлём sendText(initialUserMessage) — внутри он с turn_complete=true,
+     *      и теперь модель гарантированно ответит.
+     *   6. Если за GREETING_RETRY_MS ответа нет — повторяем sendText.
+     *   7. Если и это не помогло за GREETING_FINAL_MS — сдаёмся, мик
+     *      остаётся включён, юзер может говорить первым.
      */
     private fun handleSetupComplete() {
         _state.update { it.copy(connectionStatus = LearnConnectionStatus.Ready) }
@@ -665,30 +694,88 @@ class LearnCoreViewModel @Inject constructor(
                 return@launch
             }
 
-            if (session.initialUserMessage.isNotBlank()) {
-                logger.d("Learn: sending initial greeting trigger")
-                awaitingInitialGreeting = true
-                liveClient.sendText(session.initialUserMessage)
-                // ВАЖНО: sendTurnComplete() после sendText НЕ вызываем —
-                // sendText уже содержит turn_complete=true.
+            // Нет стартового сообщения — просто включаем мик и ждём юзера.
+            if (session.initialUserMessage.isBlank()) {
+                logger.d("Learn: no initial greeting → enabling mic only")
+                if (!_state.value.isMicActive) startMic()
+                return@launch
+            }
 
-                // Fallback: если модель так и не заговорит за 3 сек — включим мик сами.
-                greetingFallbackJob?.cancel()
-                greetingFallbackJob = viewModelScope.launch {
-                    delay(GREETING_FALLBACK_MS)
+            logger.d("Learn: starting greeting sequence (mic first → silence → text)")
+            awaitingInitialGreeting = true
+
+            // ── Шаг 1: Микрофон ПЕРВЫМ.
+            // Реальный фон от микрофона разбудит серверный VAD и активирует
+            // аудио-пайплайн. Это главное отличие от v3.3, где мик включался
+            // только после первого AudioChunk.
+            if (!_state.value.isMicActive) startMic()
+
+            // Даём микрофону подключиться и отправить несколько чанков.
+            delay(MIC_PREWARM_MS)
+
+            if (!liveClient.isReady) {
+                logger.w("Learn: WS died during mic prewarm")
+                awaitingInitialGreeting = false
+                return@launch
+            }
+
+            // ── Шаг 2: Гарантированный warmup тишины.
+            // Даже если мик не успел ничего передать — 400 мс нулевого PCM
+            // точно пройдут через серверный VAD и откроют turn.
+            runCatching { sendSilenceWarmup() }
+                .onFailure { logger.w("Learn: silence warmup failed: ${it.message}") }
+
+            // ── Шаг 3: Триггерный текст.
+            logger.d("Learn: sending initial greeting trigger")
+            liveClient.sendText(session.initialUserMessage)
+            // ВАЖНО: sendTurnComplete() после sendText НЕ вызываем —
+            // sendText уже содержит turn_complete=true.
+
+            // ── Шаг 4: Retry-логика, если модель всё ещё молчит.
+            greetingFallbackJob?.cancel()
+            greetingFallbackJob = viewModelScope.launch {
+                delay(GREETING_RETRY_MS)
+                if (awaitingInitialGreeting && liveClient.isReady) {
+                    logger.w("Learn: no audio from model in ${GREETING_RETRY_MS}ms — retrying")
+                    // Второй warmup + более настойчивая фраза.
+                    runCatching { sendSilenceWarmup() }
+                    liveClient.sendText(
+                        "Ты меня слышишь? Поприветствуй ученика сейчас по-русски и " +
+                            "задай первый вопрос."
+                    )
+
+                    delay(GREETING_FINAL_MS - GREETING_RETRY_MS)
                     if (awaitingInitialGreeting) {
+                        logger.w("Learn: model stayed silent, giving up greeting flow")
                         awaitingInitialGreeting = false
-                        logger.w("Learn: greeting fallback — no audio in ${GREETING_FALLBACK_MS}ms, enabling mic anyway")
-                        if (!_state.value.isMicActive) startMic()
+                        // Мик уже включён, юзер может заговорить первым.
                     }
                 }
-            } else {
-                // Нет стартового сообщения → включаем мик сразу.
-                if (!_state.value.isMicActive) {
-                    logger.d("Learn: no initial greeting → enabling mic")
-                    startMic()
-                }
             }
+        }
+    }
+
+    /**
+     * Отправляет SILENCE_WARMUP_MS мс нулевого 16-bit PCM audio чанка —
+     * пробуждает серверный VAD не рискуя триггером на реальном шуме.
+     *
+     * 16kHz × 2 байта × 0.4с = 12800 байт.
+     * Шлём одним куском через liveClient.sendAudio — LiveClient сам
+     * упакует в realtime_input audio blob с mime_type=audio/pcm;rate=16000.
+     */
+    private suspend fun sendSilenceWarmup() {
+        val silence = ByteArray(SILENCE_PCM_BYTES) // всё нули — идеальная тишина
+        logger.d("Learn: injecting ${SILENCE_PCM_BYTES}B of silence (${SILENCE_WARMUP_MS}ms)")
+        // Дробим на чанки по 40 мс (1280 байт) чтобы не превышать рекомендуемый
+        // размер чанков — Google советует 20-40 мс.
+        val chunkSize = 1280 // 40 мс при 16kHz/16-bit mono
+        var offset = 0
+        while (offset < silence.size) {
+            val end = minOf(offset + chunkSize, silence.size)
+            liveClient.sendAudio(silence.copyOfRange(offset, end))
+            offset = end
+            // Минимальная пауза между чанками, имитирующая реальный стриминг.
+            delay(5)
         }
     }
 
