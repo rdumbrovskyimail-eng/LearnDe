@@ -1,6 +1,13 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА
-// Путь: app/src/main/java/com/learnde/app/learn/data/domain/A1SessionPlanner.kt
+// ПОЛНАЯ ЗАМЕНА v3.2
+// Путь: app/src/main/java/com/learnde/app/learn/domain/A1SessionPlanner.kt
+//
+// ИЗМЕНЕНИЯ v3.2:
+//   - Увеличено количество review-лемм: 5 → 8 (больше повторов за сессию)
+//   - Сначала берём due-леммы (FSRS), сортируем по retrievability (забытые — первыми)
+//   - Добираем weakest если due-мало
+//   - Добавлен метод pickReviewSessionLemmas() для A1ReviewSession
+//   - Интервалы уменьшены для провалов (mastery < 0.3f) — 2h вместо 4h
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.domain
 
@@ -17,6 +24,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 
 @Singleton
 class A1SessionPlanner @Inject constructor(
@@ -31,7 +39,7 @@ class A1SessionPlanner @Inject constructor(
         val due = clusterDao.getDueForReview(now)
         if (due.isNotEmpty()) {
             val pick = due.first()
-            logger.d("Planner: review cluster ${pick.id} (was due ${(now - (pick.nextReviewAt ?: now)) / 60000}m)")
+            logger.d("Planner: review cluster ${pick.id} (was due ${(now - (pick.nextReviewAt ?: now)) / 60000}m ago)")
             return pick
         }
 
@@ -45,20 +53,82 @@ class A1SessionPlanner @Inject constructor(
         return null
     }
 
+    /**
+     * v3.2: Улучшенный выбор review-лемм.
+     * Приоритет: due по FSRS → сортировка по retrievability → weakest.
+     */
     suspend fun prepareSessionContext(cluster: ClusterA1Entity): SessionContext {
         val lemmaList = parseLemmas(cluster.lemmasJson)
         val clusterLemmas = lemmaDao.getByLemmas(lemmaList)
-        val weakLemmas = lemmaDao.getWeakestLemmas(limit = 5)
-            .filter { it.lemma !in lemmaList }
+
+        val now = System.currentTimeMillis()
+        val reviewLemmas = pickReviewLemmasForCluster(
+            excludeLemmas = lemmaList.toSet(),
+            limit = 8,
+            now = now
+        )
 
         val newRule = grammarDao.getNextRuleToIntroduce()
+
+        logger.d("Planner: cluster=${cluster.id}, ${clusterLemmas.size} primary + ${reviewLemmas.size} review, grammar=${newRule?.id}")
 
         return SessionContext(
             cluster = cluster,
             primaryLemmas = clusterLemmas,
-            reviewLemmas = weakLemmas,
+            reviewLemmas = reviewLemmas,
             grammarRuleToIntroduce = newRule,
         )
+    }
+
+    /**
+     * v3.2: Для A1ReviewSession — только слабые/забытые леммы без привязки к кластеру.
+     */
+    suspend fun pickReviewSessionLemmas(limit: Int = 15): List<LemmaA1Entity> {
+        val now = System.currentTimeMillis()
+        return pickReviewLemmasForCluster(
+            excludeLemmas = emptySet(),
+            limit = limit,
+            now = now
+        )
+    }
+
+    /**
+     * Приоритетная выборка лемм для повторения.
+     * 1. Due по FSRS (уже "должны" повториться) — сортировка по retrievability (забытые первыми)
+     * 2. Добор слабейшими, если due-список пуст/мал
+     */
+    private suspend fun pickReviewLemmasForCluster(
+        excludeLemmas: Set<String>,
+        limit: Int,
+        now: Long,
+    ): List<LemmaA1Entity> {
+        // 1. Due-леммы по FSRS — самый высокий приоритет
+        val dueForReview = lemmaDao.getDueForReview(now, limit = limit * 3)
+            .filter { it.lemma !in excludeLemmas }
+            .sortedBy { entity ->
+                // Retrievability: чем ниже — тем выше приоритет повторения
+                val state = entity.toFsrsState()
+                val elapsed = if (state.lastReviewAt > 0)
+                    (now - state.lastReviewAt) / 86_400_000.0
+                else 0.0
+                state.retrievabilityAt(elapsed)
+            }
+            .take(limit)
+
+        if (dueForReview.size >= limit) {
+            logger.d("Planner: review-mix = ${dueForReview.size} due-by-FSRS (no fill needed)")
+            return dueForReview
+        }
+
+        // 2. Добор слабейшими — те, что давно видели + низкий productionScore
+        val dueIds = dueForReview.map { it.lemma }.toSet()
+        val weakFill = lemmaDao.getWeakestLemmas(limit = limit * 2)
+            .filter { it.lemma !in excludeLemmas && it.lemma !in dueIds }
+            .take(limit - dueForReview.size)
+
+        val result = dueForReview + weakFill
+        logger.d("Planner: review-mix = ${dueForReview.size} due + ${weakFill.size} weak = ${result.size} total")
+        return result
     }
 
     suspend fun onSessionCompleted(
@@ -101,9 +171,14 @@ class A1SessionPlanner @Inject constructor(
         }
     }
 
+    /**
+     * v3.2: Более агрессивные повторы для провалов.
+     * < 0.3 mastery → 2 часа (было 4)
+     * < 0.5 → 12 часов (было 1 день)
+     */
     private fun computeNextReviewInterval(mastery: Float): Long = when {
-        mastery < 0.3f -> 4.hours.inWholeMilliseconds
-        mastery < 0.5f -> 1.days.inWholeMilliseconds
+        mastery < 0.3f -> 2.hours.inWholeMilliseconds
+        mastery < 0.5f -> 12.hours.inWholeMilliseconds
         mastery < 0.7f -> 3.days.inWholeMilliseconds
         mastery < 0.9f -> 7.days.inWholeMilliseconds
         else           -> 21.days.inWholeMilliseconds
