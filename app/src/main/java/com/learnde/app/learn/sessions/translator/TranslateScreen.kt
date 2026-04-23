@@ -14,8 +14,11 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -74,6 +77,7 @@ import com.learnde.app.domain.model.ConversationMessage
 import com.learnde.app.learn.core.LearnConnectionStatus
 import com.learnde.app.learn.core.LearnCoreIntent
 import com.learnde.app.learn.core.LearnCoreViewModel
+import com.learnde.app.presentation.learn.components.SessionLoadingOverlay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,11 +99,6 @@ fun TranslatorScreen(
         } else {
             Toast.makeText(context, "Для переводчика нужен микрофон", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    // Автоматически останавливаем сессию при выходе с экрана
-    LaunchedEffect(Unit) {
-        // Ничего на старт — ждём нажатия кнопки
     }
 
     Scaffold(
@@ -139,66 +138,78 @@ fun TranslatorScreen(
             )
         }
     ) { pad ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(pad)
-                .padding(horizontal = 16.dp)
-        ) {
-            Spacer(Modifier.height(8.dp))
-
-            // ═══ Верхняя подсказка ═══
-            LanguagePairBanner(isActive = isActive)
-
-            Spacer(Modifier.height(12.dp))
-
-            // ═══ Статус "кто говорит" ═══
-            SpeakerStatusIndicator(
-                isActive = isActive,
-                isAiSpeaking = learnState.isAiSpeaking,
-                isMicActive = learnState.isMicActive,
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // ═══ Транскрипт (весь оставшийся экран) ═══
-            Box(
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                    .padding(8.dp)
+                    .fillMaxSize()
+                    .padding(pad)
+                    .padding(horizontal = 16.dp)
             ) {
-                if (learnState.transcript.isEmpty()) {
-                    EmptyTranscriptHint(isActive = isActive)
-                } else {
-                    TranscriptList(messages = learnState.transcript)
+                Spacer(Modifier.height(8.dp))
+
+                // ═══ Верхняя подсказка ═══
+                LanguagePairBanner(isActive = isActive)
+
+                Spacer(Modifier.height(12.dp))
+
+                // ═══ Статус "кто говорит" ═══
+                SpeakerStatusIndicator(
+                    isActive = isActive,
+                    isAiSpeaking = learnState.isAiSpeaking,
+                    isMicActive = learnState.isMicActive,
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                // ═══ Транскрипт (весь оставшийся экран) ═══
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .padding(8.dp)
+                ) {
+                    if (learnState.transcript.isEmpty()) {
+                        EmptyTranscriptHint(isActive = isActive)
+                    } else {
+                        TranscriptList(messages = learnState.transcript)
+                    }
                 }
+
+                Spacer(Modifier.height(16.dp))
+
+                // ═══ Главная кнопка Start/Stop ═══
+                MainActionButton(
+                    isActive = isActive,
+                    connectionStatus = learnState.connectionStatus,
+                    onStart = {
+                        val hasMic = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.RECORD_AUDIO
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (hasMic) {
+                            learnCoreViewModel.onIntent(LearnCoreIntent.Start("translator"))
+                        } else {
+                            micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                    onStop = {
+                        learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
+                    }
+                )
+
+                Spacer(Modifier.height(16.dp))
             }
 
-            Spacer(Modifier.height(16.dp))
-
-            // ═══ Главная кнопка Start/Stop ═══
-            MainActionButton(
-                isActive = isActive,
-                connectionStatus = learnState.connectionStatus,
-                onStart = {
-                    val hasMic = ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (hasMic) {
-                        learnCoreViewModel.onIntent(LearnCoreIntent.Start("translator"))
-                    } else {
-                        micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                },
-                onStop = {
-                    learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
-                }
-            )
-
-            Spacer(Modifier.height(16.dp))
+            // ФИНАЛ: Анимация загрузки
+            AnimatedVisibility(
+                visible = learnState.isPreparingSession,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                SessionLoadingOverlay()
+            }
         }
     }
 }
