@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА
+// ПОЛНАЯ ЗАМЕНА v3.2
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1LearningViewModel.kt
 //
-// ИЗМЕНЕНИЯ:
-//   - LemmaEvaluated теперь берёт ErrorDiagnosis из event
-//   - DisputeEvaluation обновлён под новую LastEvaluation
+// ИЗМЕНЕНИЯ v3.2:
+//   - Поддержка StartReviewSession — подготавливает A1ReviewSession и стартует
+//   - Расчёт weakLemmasCount (лемм с productionScore < 0.5)
+//   - Флаг isReviewMode в state
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
@@ -39,6 +40,7 @@ class A1LearningViewModel @Inject constructor(
     private val grammarDao: A1GrammarDao,
     private val progressDao: A1UserProgressDao,
     private val session: A1SituationSession,
+    private val reviewSession: A1ReviewSession,    // v3.2: NEW
     private val bus: A1LearningBus,
     private val logger: AppLogger,
 ) : ViewModel() {
@@ -68,12 +70,16 @@ class A1LearningViewModel @Inject constructor(
             is A1LearningIntent.Refresh -> viewModelScope.launch { refresh() }
             is A1LearningIntent.StartNextCluster -> viewModelScope.launch { startNextCluster() }
             is A1LearningIntent.StartCluster -> viewModelScope.launch { startSpecificCluster(intent.clusterId) }
+            is A1LearningIntent.StartReviewSession -> viewModelScope.launch { startReviewSession() }
             is A1LearningIntent.StopSession -> {
                 _effects.tryEmit(A1LearningEffect.RequestStopSession)
-                _state.update { it.copy(sessionActive = false) }
+                _state.update { it.copy(sessionActive = false, isReviewMode = false) }
             }
             is A1LearningIntent.DisputeEvaluation -> viewModelScope.launch {
-                session.disputeEvaluation(intent.lemma)
+                // Для review — пропускаем, у неё своя логика (TODO если понадобится)
+                if (!_state.value.isReviewMode) {
+                    session.disputeEvaluation(intent.lemma)
+                }
                 _effects.tryEmit(A1LearningEffect.ShowToast("Оценка исправлена!"))
                 _state.update { s ->
                     val ev = s.lastEvaluation
@@ -87,7 +93,14 @@ class A1LearningViewModel @Inject constructor(
                 }
             }
             is A1LearningIntent.DismissFinalDialog -> {
-                _state.update { it.copy(sessionFinished = false, finalQuality = null, finalFeedback = null) }
+                _state.update {
+                    it.copy(
+                        sessionFinished = false,
+                        finalQuality = null,
+                        finalFeedback = null,
+                        isReviewMode = false,
+                    )
+                }
                 viewModelScope.launch { refresh() }
             }
         }
@@ -103,6 +116,10 @@ class A1LearningViewModel @Inject constructor(
         val next = planner.pickNextCluster()
         val userProgress = progressDao.get()
 
+        // v3.2: Посчитать weak lemmas для UI-бейджа "Повторить"
+        val weakCount = lemmaDao.getWeakestLemmas(limit = 50).size +
+                       lemmaDao.getDueForReview(limit = 50).size
+
         _state.update {
             it.copy(
                 loading = false,
@@ -114,6 +131,7 @@ class A1LearningViewModel @Inject constructor(
                 clustersMastered = clustersMastered,
                 currentCluster = next ?: it.currentCluster,
                 isA1Completed = userProgress?.isA1Completed ?: false,
+                weakLemmasCount = weakCount,
             )
         }
     }
@@ -149,6 +167,7 @@ class A1LearningViewModel @Inject constructor(
                 currentCluster = cluster,
                 sessionActive = true,
                 sessionFinished = false,
+                isReviewMode = false,
                 currentPhase = A1Phase.IDLE,
                 lemmasHeardThisSession = emptySet(),
                 lemmasProducedThisSession = emptySet(),
@@ -160,6 +179,39 @@ class A1LearningViewModel @Inject constructor(
             )
         }
         _effects.tryEmit(A1LearningEffect.RequestStartSession)
+    }
+
+    /**
+     * v3.2: Стартуем быструю review-сессию.
+     */
+    private suspend fun startReviewSession() {
+        val weakCount = _state.value.weakLemmasCount
+        if (weakCount == 0) {
+            _effects.tryEmit(A1LearningEffect.ShowToast(
+                "Нет слов для повторения — отличная работа!"
+            ))
+            return
+        }
+
+        // Подготавливаем леммы в самой сессии (вызывается до LearnCoreIntent.Start)
+        reviewSession.prepareLemmas(limit = 15)
+
+        _state.update {
+            it.copy(
+                sessionActive = true,
+                sessionFinished = false,
+                isReviewMode = true,
+                currentPhase = A1Phase.DRILL,
+                lemmasHeardThisSession = emptySet(),
+                lemmasProducedThisSession = emptySet(),
+                lemmasFailedThisSession = emptySet(),
+                lastEvaluation = null,
+                finalQuality = null,
+                finalFeedback = null,
+            )
+        }
+
+        _effects.tryEmit(A1LearningEffect.RequestStartReviewSession)
     }
 
     private fun observeBus() {
