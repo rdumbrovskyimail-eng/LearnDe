@@ -1,33 +1,23 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА v3.2
 // Путь: app/src/main/java/com/learnde/app/learn/core/LearnCoreViewModel.kt
 //
-// Автономный ViewModel учебного блока.
-//
-// АРХИТЕКТУРА:
-//  • Инжектит СВОИ @LearnScope инстансы LiveClient и AudioEngine
-//    (отдельный WebSocket, отдельный AudioRecord/AudioTrack).
-//  • Читает настройки и API-ключ из общего SettingsStore (DataStore).
-//    То есть юзер меняет voiceId/model в глобальных Settings — это сразу
-//    применяется и к Learn при следующем connect().
-//  • Подписан на ActiveClientArbiter: при Start() делает acquire(LEARN),
-//    при Stop() делает release(LEARN). Voice автоматически отпустит
-//    свой клиент через arbiter.active == LEARN → disconnect().
-//  • Делегирует toolCall в активную LearnSession. Публикует фазы
-//    (DETECTED/EXECUTING/COMPLETED) в LearnFunctionStatusBus для
-//    live-индикатора внизу экрана.
-//  • Никак не связан с VoiceViewModel — они существуют в разных
-//    инстансах, просто читают одни и те же Settings/Repository.
-//
-// ВАЖНО: Learn-транскрипт ведётся в отдельном in-memory потоке и НЕ
-// сохраняется в PersistentConversationRepository. Это специально — чтобы
-// учебные диалоги не засоряли историю голосового клиента.
+// ИЗМЕНЕНИЯ v3.2 (критичные фиксы тормозов и багов):
+//   1. vadSilenceDurationMs: 100 → 800 (было слишком агрессивно, резало речь)
+//   2. vadPrefixPaddingMs: 20 → 300 (начало речи терялось)
+//   3. silence timer: 6s → 10s + реальная проверка по lastInputTs
+//   4. transcript FIFO limit 150 сообщений (было - бесконечный рост)
+//   5. VocabularyViolation буферизуется до TurnComplete (не рвёт речь Gemini)
+//   6. ForegroundService: специфичный catch для ForegroundServiceStartNotAllowedException
+//   7. Для A1-сессии — особые VAD настройки (более длинные паузы для ученика)
+//   8. Для translator — ещё более длинные паузы
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.core
 
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.datastore.core.DataStore
 import androidx.lifecycle.ViewModel
@@ -40,6 +30,7 @@ import com.learnde.app.domain.model.ConversationMessage
 import com.learnde.app.domain.model.GeminiEvent
 import com.learnde.app.domain.model.LatencyProfile
 import com.learnde.app.domain.model.SessionConfig
+import com.learnde.app.learn.domain.VocabularyViolation
 import com.learnde.app.util.AppLogger
 import com.learnde.app.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -77,6 +68,20 @@ class LearnCoreViewModel @Inject constructor(
     private val vocabularyEnforcer: com.learnde.app.learn.domain.VocabularyEnforcer,
 ) : ViewModel() {
 
+    companion object {
+        /** FIFO-лимит транскрипта — защита от бесконечного роста в долгих сессиях. */
+        private const val MAX_TRANSCRIPT_SIZE = 150
+
+        /** Текст-флаш таймаут (для старых fallback-путей). */
+        private const val TEXT_FLUSH_TIMEOUT_MS = 2_000L
+
+        /** Реальный порог тишины ученика перед промптом Gemini (было 6s — мало). */
+        private const val LEARNER_SILENCE_THRESHOLD_MS = 10_000L
+
+        /** Минимальная пауза от последнего InputTranscript, чтобы считать тишиной. */
+        private const val SILENCE_CHECK_WINDOW_MS = 9_000L
+    }
+
     private val _state = MutableStateFlow(LearnCoreState())
     val state: StateFlow<LearnCoreState> = _state.asStateFlow()
 
@@ -85,10 +90,6 @@ class LearnCoreViewModel @Inject constructor(
 
     val audioPlaybackFlow get() = audioEngine.playbackSync
 
-    /**
-     * Live-статус выполняемой функции Gemini — проксируется из LearnFunctionStatusBus.
-     * Используется UI (CurrentFunctionBar) на всех экранах Learn-блока.
-     */
     val functionStatus: StateFlow<FunctionStatus> = statusBus.status
 
     @Volatile private var cachedSettings: AppSettings = AppSettings()
@@ -101,19 +102,20 @@ class LearnCoreViewModel @Inject constructor(
     private var micJob: Job? = null
     private var silenceTimerJob: Job? = null
 
-    // Dedup для транскрипта
     @Volatile private var lastInputTs: Long = 0L
     @Volatile private var lastInputText: String = ""
     @Volatile private var lastOutputTs: Long = 0L
     @Volatile private var lastOutputText: String = ""
 
-    // In-memory transcript (не сохраняется в БД — учебный режим)
+    // In-memory transcript with FIFO limit
     private val transcriptBuffer = mutableListOf<ConversationMessage>()
 
     private val pendingModelText = StringBuilder()
     private var audioReceivedThisTurn = false
     private var pendingFlushJob: Job? = null
-    private val TEXT_FLUSH_TIMEOUT_MS = 2_000L
+
+    // v3.2: Буфер для vocabulary violations — шлём после TurnComplete, не прерывая речь
+    @Volatile private var pendingVocabViolation: VocabularyViolation? = null
 
     init {
         observeSettings()
@@ -126,11 +128,11 @@ class LearnCoreViewModel @Inject constructor(
     private fun observeVocabularyViolations() {
         viewModelScope.launch {
             vocabularyEnforcer.violations.collect { violation ->
-                // Шлём скрытый промпт только если клиент готов и идёт A1-сессия
-                if (liveClient.isReady && activeSession?.id == "a1_situation") {
-                    val prompt = vocabularyEnforcer.buildCorrectionPrompt(violation)
-                    logger.d("Learn: injecting vocab correction (${violation.violatingWords})")
-                    liveClient.sendText(prompt)
+                // v3.2: Не шлём сразу, а буферизуем до TurnComplete
+                // (иначе прерываем текущую речь Gemini)
+                if (activeSession?.id == "a1_situation") {
+                    pendingVocabViolation = violation
+                    logger.d("Learn: vocab violation buffered (${violation.violatingWords})")
                 }
             }
         }
@@ -189,9 +191,26 @@ class LearnCoreViewModel @Inject constructor(
             session.systemInstruction
         }
 
+        // v3.2: VAD по типу сессии
+        // Translator: ученик может говорить длинными фразами с паузами
+        // Learn A1: ученик A1 думает долго между словами
+        // Test: короткие ответы, можно быстрее
+        val (silenceMs, prefixMs, temp) = when (session.id) {
+            "translator"    -> Triple(1200, 400, 0.3f)   // Очень длинные паузы, низкая temp
+            "a1_situation"  -> Triple(900, 350, cachedSettings.temperature)
+            "a1_review"     -> Triple(700, 300, cachedSettings.temperature)
+            else            -> Triple(800, 300, cachedSettings.temperature)   // Было 100/20 — ломало речь
+        }
+
+        // Если юзер в настройках явно задал vadSilenceTimeoutMs > 0 — уважаем его выбор,
+        // но не даём меньше минимального разумного значения (500ms).
+        val finalSilenceMs = if (cachedSettings.vadSilenceTimeoutMs > 0)
+            maxOf(cachedSettings.vadSilenceTimeoutMs, 500)
+        else silenceMs
+
         return SessionConfig(
             model = cachedSettings.model,
-            temperature = cachedSettings.temperature,
+            temperature = temp,
             topP = cachedSettings.topP,
             topK = cachedSettings.topK,
             maxOutputTokens = cachedSettings.maxOutputTokens,
@@ -205,19 +224,20 @@ class LearnCoreViewModel @Inject constructor(
                 "START_SENSITIVITY_HIGH" else "START_SENSITIVITY_LOW",
             vadEndSensitivity = if (cachedSettings.vadEndOfSpeechSensitivity > 0.5f)
                 "END_SENSITIVITY_HIGH" else "END_SENSITIVITY_LOW",
-            vadSilenceDurationMs = if (cachedSettings.vadSilenceTimeoutMs > 0)
-                cachedSettings.vadSilenceTimeoutMs else 100,
-            vadPrefixPaddingMs = 20,
+            vadSilenceDurationMs = finalSilenceMs,
+            vadPrefixPaddingMs = prefixMs,
             systemInstruction = finalSystemInstruction,
             inputTranscription = cachedSettings.inputTranscription,
             outputTranscription = cachedSettings.outputTranscription,
-            enableSessionResumption = false,    // Learn-сессии короткие, резюмирование не нужно
+            enableSessionResumption = false,
             sessionHandle = null,
             enableContextCompression = false,
-            enableGoogleSearch = false,         // В Learn отключено — чтобы не шумело
+            enableGoogleSearch = false,
             functionDeclarations = session.functionDeclarations,
             sendAudioStreamEnd = cachedSettings.sendAudioStreamEnd,
-        )
+        ).also {
+            logger.d("Learn: built config for ${session.id}: silence=${finalSilenceMs}ms, prefix=${prefixMs}ms, temp=$temp")
+        }
     }
 
     // ══════════════════════════════════════════════════════
@@ -229,7 +249,6 @@ class LearnCoreViewModel @Inject constructor(
             arbiter.active.collect { owner ->
                 val owned = owner == ClientOwner.LEARN
                 _state.update { it.copy(arbiterOwned = owned) }
-                // Если мы потеряли владение (например, Voice форсировал) — сворачиваемся
                 if (!owned && activeSession != null) {
                     logger.w("Learn: lost arbiter ownership → stopping")
                     handleStop()
@@ -258,25 +277,20 @@ class LearnCoreViewModel @Inject constructor(
 
                 logger.d("▶ Learn.handleStart(${session.id})")
 
-                // 1. Захватываем Arbiter — Voice отпустит свой клиент
                 arbiter.acquire(ClientOwner.LEARN)
-
-                // 2. На всякий — закрываем возможный старый WS нашего же клиента
                 runCatching { liveClient.disconnect() }
 
-                // 3. Сброс буферов
                 transcriptBuffer.clear()
                 pendingToolCalls.clear()
                 contextSeeded = false
                 statusBus.reset()
                 lastInputText = ""
                 lastOutputText = ""
+                pendingVocabViolation = null
 
-                // 4. onEnter у сессии
                 session.onEnter()
                 activeSession = session
-                // Patch 2: прогреваем Vocabulary Enforcer для A1-сессии
-                if (session.id == "a1_situation") {
+                if (session.id == "a1_situation" || session.id == "a1_review") {
                     vocabularyEnforcer.warmUp()
                 }
 
@@ -291,7 +305,6 @@ class LearnCoreViewModel @Inject constructor(
                     )
                 }
 
-                // 5. Connect
                 runCatching {
                     liveClient.connect(
                         apiKey = activeApiKey,
@@ -320,14 +333,10 @@ class LearnCoreViewModel @Inject constructor(
                 logger.d("▶ Learn.handleStop")
                 val session = activeSession
                 micJob?.cancel()
+                silenceTimerJob?.cancel()
                 audioEngine.stopCapture()
 
-                // 👇 ДОБАВЛЕНО: Остановка сервиса при выходе
-                try {
-                    appContext.startService(
-                        com.learnde.app.GeminiLiveForegroundService.stopIntent(appContext)
-                    )
-                } catch (_: Exception) {}
+                safeStopForegroundService()
 
                 runCatching { liveClient.disconnect() }
                 runCatching { session?.onExit() }
@@ -337,6 +346,7 @@ class LearnCoreViewModel @Inject constructor(
                 statusBus.reset()
                 vocabularyEnforcer.reset()
                 contextSeeded = false
+                pendingVocabViolation = null
 
                 _state.update {
                     it.copy(
@@ -347,7 +357,6 @@ class LearnCoreViewModel @Inject constructor(
                     )
                 }
 
-                // Освобождаем Arbiter — Voice сам подцепится при входе в VoiceScreen
                 arbiter.release(ClientOwner.LEARN)
                 logger.d("◀ Learn.handleStop — arbiter released")
             }
@@ -360,6 +369,7 @@ class LearnCoreViewModel @Inject constructor(
             startStopMutex.withLock {
                 logger.d("▶ Learn.handleRestart(${s.id})")
                 micJob?.cancel()
+                silenceTimerJob?.cancel()
                 audioEngine.stopCapture()
                 runCatching { liveClient.disconnect() }
                 runCatching { s.onExit() }
@@ -368,6 +378,8 @@ class LearnCoreViewModel @Inject constructor(
                 pendingToolCalls.clear()
                 statusBus.reset()
                 contextSeeded = false
+                pendingVocabViolation = null
+
                 _state.update {
                     it.copy(
                         transcript = emptyList(),
@@ -411,15 +423,13 @@ class LearnCoreViewModel @Inject constructor(
             return
         }
 
-        // 👇 ДОБАВЛЕНО: Запуск сервиса, который переключает звук на громкоговоритель
-        try {
-            appContext.startForegroundService(
-                com.learnde.app.GeminiLiveForegroundService.startIntent(
-                    appContext, cachedSettings.forceSpeakerOutput
-                )
-            )
-        } catch (e: Exception) {
-            logger.w("ForegroundService start failed in Learn: ${e.message}")
+        // v3.2: Специфичный catch вместо generic Exception
+        val fgsOk = safeStartForegroundService()
+        if (!fgsOk) {
+            _effects.tryEmit(LearnCoreEffect.ShowToast(
+                UiText.Plain("Запусти обучение когда приложение на переднем плане")
+            ))
+            // Продолжаем — мик всё равно может работать, просто без FGS
         }
 
         _state.update {
@@ -434,6 +444,7 @@ class LearnCoreViewModel @Inject constructor(
     private fun stopMic() {
         micJob?.cancel()
         micJob = null
+        silenceTimerJob?.cancel()
         viewModelScope.launch {
             audioEngine.stopCapture()
             if (cachedSettings.sendAudioStreamEnd) {
@@ -449,6 +460,37 @@ class LearnCoreViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /** v3.2: Безопасный запуск FGS с правильным catch. */
+    private fun safeStartForegroundService(): Boolean {
+        return try {
+            appContext.startForegroundService(
+                com.learnde.app.GeminiLiveForegroundService.startIntent(
+                    appContext, cachedSettings.forceSpeakerOutput
+                )
+            )
+            true
+        } catch (e: IllegalStateException) {
+            // На Android 12+ это будет ForegroundServiceStartNotAllowedException,
+            // который наследуется от IllegalStateException
+            logger.w("FGS not allowed (app in background?): ${e.javaClass.simpleName}: ${e.message}")
+            false
+        } catch (e: SecurityException) {
+            logger.e("FGS permission denied: ${e.message}")
+            false
+        } catch (e: Exception) {
+            logger.e("FGS start failed with unexpected error: ${e.message}", e)
+            false
+        }
+    }
+
+    private fun safeStopForegroundService() {
+        try {
+            appContext.startService(
+                com.learnde.app.GeminiLiveForegroundService.stopIntent(appContext)
+            )
+        } catch (_: Exception) { /* безопасно игнорируем — сервис мог быть уже остановлен */ }
     }
 
     // ══════════════════════════════════════════════════════
@@ -478,7 +520,6 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.AudioChunk -> {
                         _state.update { it.copy(isAiSpeaking = true) }
                         audioEngine.enqueuePlayback(event.pcmData)
-                        // v3.1.1: аудио пошло → коммитим накопленный текст
                         if (!audioReceivedThisTurn) {
                             audioReceivedThisTurn = true
                             if (pendingModelText.isNotEmpty()) {
@@ -497,7 +538,6 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.TurnComplete -> {
-                        // v3.1.1: граница turn — сливаем остаток и сбрасываем флаги
                         if (pendingModelText.isNotEmpty()) {
                             flushPendingModelText()
                         }
@@ -508,14 +548,23 @@ class LearnCoreViewModel @Inject constructor(
                         audioEngine.onTurnComplete()
                         _state.update { it.copy(isAiSpeaking = false) }
 
-                        // 👇 ДОБАВЛЕНО: Запускаем таймер молчания ученика
+                        // v3.2: Отправляем vocab violation ТЕПЕРЬ, когда Gemini завершил turn
+                        flushPendingVocabViolation()
+
+                        // v3.2: Silence timer — но только с реальной проверкой
                         if (_state.value.isMicActive) {
                             silenceTimerJob?.cancel()
                             silenceTimerJob = viewModelScope.launch {
-                                delay(6_000L) // Ждем 6 секунд
-                                // Если таймер не отменили, значит ученик молчит
-                                logger.d("Learn: Silence detected, prompting AI")
-                                liveClient.sendText("[СИСТЕМА]: Ученик молчит более 6 секунд. Подбодри его по-русски, дай подсказку или скажи правильный ответ и попроси повторить.")
+                                delay(LEARNER_SILENCE_THRESHOLD_MS)
+                                // Проверяем: действительно ли юзер молчал всё это время
+                                val sinceLastInput = System.currentTimeMillis() - lastInputTs
+                                if (sinceLastInput > SILENCE_CHECK_WINDOW_MS && liveClient.isReady) {
+                                    logger.d("Learn: real silence detected (${sinceLastInput}ms), prompting AI")
+                                    liveClient.sendText(
+                                        "[СИСТЕМА]: Ученик молчит. Коротко подбодри его по-русски, " +
+                                        "дай подсказку или назови правильный ответ и попроси повторить."
+                                    )
+                                }
                             }
                         }
                     }
@@ -525,7 +574,7 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.InputTranscript -> {
-                        // 👇 ДОБАВЛЕНО: Ученик начал говорить — отменяем таймер
+                        // Ученик говорит — отменяем silence timer
                         silenceTimerJob?.cancel()
 
                         val now = System.currentTimeMillis()
@@ -533,20 +582,24 @@ class LearnCoreViewModel @Inject constructor(
                             lastInputText = event.text
                             lastInputTs = now
                             appendTranscript(ConversationMessage.user(event.text))
+                        } else {
+                            lastInputTs = now  // Обновляем таймстамп даже для дублей
                         }
                     }
 
                     is GeminiEvent.OutputTranscript -> {
                         appendOrAppendToLastModel(event.text)
-
-                        // Patch 2: Vocabulary Enforcer — анализируем речь Gemini
-                        if (activeSession?.id == "a1_situation") {
+                        if (activeSession?.id == "a1_situation" || activeSession?.id == "a1_review") {
                             vocabularyEnforcer.analyze(event.text)
                         }
                     }
 
                     is GeminiEvent.ModelText -> {
-                        appendOrAppendToLastModel(event.text)
+                        // v3.2: Если outputTranscription включён — modelText дублирует.
+                        // Пропускаем, чтобы не было двойного текста.
+                        if (!cachedSettings.outputTranscription) {
+                            appendOrAppendToLastModel(event.text)
+                        }
                     }
 
                     is GeminiEvent.ToolCall -> handleToolCalls(event)
@@ -567,7 +620,7 @@ class LearnCoreViewModel @Inject constructor(
                         }
                         audioEngine.stopCapture()
                         pendingToolCalls.clear()
-                        // В Learn мы НЕ делаем auto-reconnect — юзер осознанно нажимает "Начать заново".
+                        silenceTimerJob?.cancel()
                         if (activeSession != null) {
                             _effects.tryEmit(
                                 LearnCoreEffect.ShowToast(
@@ -587,10 +640,10 @@ class LearnCoreViewModel @Inject constructor(
                         }
                         audioEngine.stopCapture()
                         pendingToolCalls.clear()
+                        silenceTimerJob?.cancel()
                         _effects.tryEmit(LearnCoreEffect.Error(UiText.Plain(event.message)))
                     }
 
-                    // Остальные события в Learn не используются
                     is GeminiEvent.SessionHandleUpdate,
                     is GeminiEvent.GoAway,
                     is GeminiEvent.UsageMetadata,
@@ -600,26 +653,35 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
+    /** v3.2: Отправляем буферизованное vocab-нарушение после TurnComplete. */
+    private fun flushPendingVocabViolation() {
+        val violation = pendingVocabViolation ?: return
+        pendingVocabViolation = null
+        if ((activeSession?.id == "a1_situation" || activeSession?.id == "a1_review") && liveClient.isReady) {
+            val prompt = vocabularyEnforcer.buildCorrectionPrompt(violation)
+            logger.d("Learn: sending buffered vocab correction (${violation.violatingWords})")
+            liveClient.sendText(prompt)
+        }
+    }
+
     private fun appendTranscript(msg: ConversationMessage) {
         transcriptBuffer.add(msg)
+        // v3.2: FIFO — не даём транскрипту расти бесконечно
+        while (transcriptBuffer.size > MAX_TRANSCRIPT_SIZE) {
+            transcriptBuffer.removeAt(0)
+        }
         _state.update { it.copy(transcript = transcriptBuffer.toList()) }
     }
 
-    /**
-     * Буферизованный вариант. Раньше мгновенно добавлял текст в transcript,
-     * теперь ждёт появления AudioChunk текущего turn или таймаута.
-     */
     private fun appendOrAppendToLastModel(text: String) {
         if (text.isEmpty()) return
         pendingModelText.append(text)
 
         if (audioReceivedThisTurn) {
-            // Аудио уже играет — можем безопасно показать текст.
             flushPendingModelText()
             return
         }
 
-        // Иначе — (пере)запускаем таймер force-flush
         pendingFlushJob?.cancel()
         pendingFlushJob = viewModelScope.launch {
             delay(TEXT_FLUSH_TIMEOUT_MS)
@@ -630,10 +692,6 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Переносим pendingModelText в transcript и чистим буфер.
-     * Поведение "append to last model" сохраняется.
-     */
     private fun flushPendingModelText() {
         if (pendingModelText.isEmpty()) return
         val text = pendingModelText.toString()
@@ -653,6 +711,10 @@ class LearnCoreViewModel @Inject constructor(
                     timestamp = System.currentTimeMillis()
                 )
             )
+            // FIFO проверка и здесь
+            while (transcriptBuffer.size > MAX_TRANSCRIPT_SIZE) {
+                transcriptBuffer.removeAt(0)
+            }
         }
         _state.update { it.copy(transcript = transcriptBuffer.toList()) }
     }
@@ -663,7 +725,6 @@ class LearnCoreViewModel @Inject constructor(
 
     private fun handleToolCalls(event: GeminiEvent.ToolCall) {
         viewModelScope.launch {
-            // 1. DETECTED — мгновенно, до выполнения
             for (call in event.calls) {
                 pendingToolCalls.add(call.id)
                 statusBus.onDetected(call.name, call.id)
@@ -672,7 +733,6 @@ class LearnCoreViewModel @Inject constructor(
             val responses = mutableListOf<ToolResponse>()
             val session = activeSession
 
-            // 2. EXECUTING → COMPLETED параллельно
             for (call in event.calls) {
                 if (call.id !in pendingToolCalls) continue
                 statusBus.onExecuting(call.name, call.id)
@@ -701,18 +761,12 @@ class LearnCoreViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         micJob?.cancel()
+        silenceTimerJob?.cancel()
         pendingFlushJob?.cancel()
         pendingModelText.clear()
 
-        // 👇 ДОБАВЛЕНО: Защитная остановка сервиса при уничтожении ViewModel
-        try {
-            appContext.startService(
-                com.learnde.app.GeminiLiveForegroundService.stopIntent(appContext)
-            )
-        } catch (_: Exception) {}
+        safeStopForegroundService()
 
-        // НЕ освобождаем audio/liveClient синхронно — дадим завершиться
-        // в background (как в VoiceViewModel).
         GlobalScope.launch(Dispatchers.IO + NonCancellable) {
             runCatching { audioEngine.releaseAll() }
             runCatching { liveClient.disconnect() }
