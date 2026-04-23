@@ -550,10 +550,9 @@ class LearnCoreViewModel @Inject constructor(
 
                         flushPendingVocabViolation()
 
-                        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
                         // Сбрасываем таймер времени последнего ввода, чтобы дать ученику
                         // честные 10 секунд ПОСЛЕ того, как ИИ закончил говорить.
-                        lastInputTs = System.currentTimeMillis() 
+                        lastInputTs = System.currentTimeMillis()
 
                         if (_state.value.isMicActive) {
                             silenceTimerJob?.cancel()
