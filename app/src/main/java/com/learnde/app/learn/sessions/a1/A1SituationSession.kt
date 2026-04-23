@@ -1,15 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v3.2
-// Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1SituationSession.kt
-//
-// ИЗМЕНЕНИЯ v3.2:
-//   - adjustedQuality для SLIP: +2 → 0 (не штрафуем, но и не бустим)
-//     — раньше SLIP переводил ошибку в EASY, что ломало повторы
-//   - MISTAKE: +1 → -1 (чуть штраф, но не жёсткий)
-//   - ERROR: -2 (жёсткий штраф — слово всплывёт через 10 минут)
-//   - LemmaEvaluated/SessionFinished через emitSuspend (не теряем)
-//   - Normalize lemma: существительные с заглавной (немецкая норма)
-// ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
 import com.learnde.app.domain.model.FunctionCall
@@ -38,10 +26,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.time.Duration.Companion.days
-import kotlin.time.Duration.Companion.hours
 
 @Singleton
 class A1SituationSession @Inject constructor(
@@ -73,12 +61,10 @@ class A1SituationSession @Inject constructor(
     @Volatile private var introducedRuleId: String? = null
     @Volatile private var currentPhase: A1Phase = A1Phase.IDLE
     @Volatile private var evaluateCallsCount: Int = 0
-    private val qualityAccumulator = mutableListOf<Int>()
+    
+    // ФИНАЛ: Потокобезопасный список для предотвращения крашей
+    private val qualityAccumulator = CopyOnWriteArrayList<Int>()
 
-    /**
-     * Нормализация леммы: существительные в немецком пишутся с заглавной.
-     * Если POS не определён — оставляем как есть.
-     */
     private fun normalizeLemma(raw: String): String {
         return raw.trim()
     }
@@ -195,7 +181,6 @@ class A1SituationSession @Inject constructor(
             )
         )
 
-        // v3.2: emitSuspend — не теряем финальное событие
         bus.emitSuspend(A1LearningEvent.SessionFinished(
             overallQuality = adjustedQuality,
             feedback = "Сессия прервана. Засчитано ${(progressFraction * 100).toInt()}% прогресса."
@@ -228,7 +213,6 @@ class A1SituationSession @Inject constructor(
         targetedLemmas.add(lemma)
 
         val ctx = currentContext
-        // Используем наш scope
         scope.launch {
             if (ctx != null) {
                 val ruleId = ctx.cluster.grammarRuleId?.takeIf { it.isNotBlank() }
@@ -249,7 +233,6 @@ class A1SituationSession @Inject constructor(
         val delta = (quality - 3).coerceIn(-2, 4) * 0.03f
         val clusterId = currentContext?.cluster?.id ?: "unknown"
         
-        // Используем наш scope
         scope.launch {
             lemmaDao.updateProgress(
                 lemma = lemma,
@@ -265,12 +248,6 @@ class A1SituationSession @Inject constructor(
         return ok()
     }
 
-    /**
-     * v3.2: Критичные изменения в FSRS-адъюстменте:
-     *   - SLIP: 0 (не штрафуем, но и не бустим)
-     *   - MISTAKE: -1 (лёгкий штраф)
-     *   - ERROR: -2 (жёсткий штраф — слово всплывёт в следующей сессии через 10 мин)
-     */
     private suspend fun handleEvaluateAndUpdate(call: FunctionCall): String {
         val lemma = normalizeLemma(call.args["lemma"] ?: return err("no lemma"))
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
@@ -294,7 +271,6 @@ class A1SituationSession @Inject constructor(
         val entity = lemmaDao.getByLemma(lemma)
         if (entity == null) {
             logger.w("A1Session.eval: lemma '$lemma' not in DB (Gemini сочинил?)")
-            // Всё равно эмитим событие для UI, чтобы пользователь видел фидбек
             bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
                 lemma = lemma,
                 quality = quality,
@@ -305,15 +281,11 @@ class A1SituationSession @Inject constructor(
             return """{"status":"ignored","reason":"unknown lemma","intervention":"$intervention"}"""
         }
 
-        // v3.2: Новая логика корректировки rating по depth:
-        // SLIP — нейтрально (quality остаётся)
-        // MISTAKE — лёгкий штраф (-1)
-        // ERROR — жёсткий штраф (-2), всплытие через ~10 минут по FSRS
         val adjustedQuality = when (diagnosis.depth) {
             ErrorDepth.NONE -> quality
-            ErrorDepth.SLIP -> quality    // было: +2 (слишком щедро)
-            ErrorDepth.MISTAKE -> (quality - 1).coerceAtLeast(2)  // было: +1
-            ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)    // было: без штрафа
+            ErrorDepth.SLIP -> quality    
+            ErrorDepth.MISTAKE -> (quality - 1).coerceAtLeast(2)  
+            ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)    
         }
         val rating = com.learnde.app.learn.domain.FsrsRating.fromQuality(adjustedQuality)
 
@@ -329,7 +301,6 @@ class A1SituationSession @Inject constructor(
         val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
         val clusterId = currentContext?.cluster?.id ?: "unknown"
 
-        // Используем наш scope
         scope.launch {
             lemmaDao.updateProgressFsrs(
                 lemma = lemma,
@@ -419,12 +390,6 @@ class A1SituationSession @Inject constructor(
         )
         currentPhase = A1Phase.FINISHED
 
-        val errorSummary = diagnoses.values
-            .filter { it.isError }
-            .groupingBy { "${it.source}/${it.category}" }
-            .eachCount()
-        logger.d("A1Session finished: errors summary = $errorSummary")
-
         bus.emitSuspend(A1LearningEvent.SessionFinished(quality, feedback))
         bus.emitSuspend(A1LearningEvent.PhaseChanged(A1Phase.FINISHED))
 
@@ -440,7 +405,7 @@ class A1SituationSession @Inject constructor(
             4 -> 1
             else -> 0
         }
-        return if (days == 0) base + 2 * 3_600_000L   // v3.2: было 4h, теперь 2h для слабых
+        return if (days == 0) base + 2 * 3_600_000L
         else base + days.days.inWholeMilliseconds
     }
 
@@ -475,9 +440,6 @@ class A1SituationSession @Inject constructor(
             "höflichkeit" in f || "soziale" in f -> "g00_greetings"
             "verb-konjugation" in f || "präsens" in f -> "g04_regulaere_verben"
             else -> null
-        }
-        if (ruleId == null) {
-            logger.d("findGrammarRuleIdByFocus: no match for '$focus'")
         }
         return ruleId
     }
