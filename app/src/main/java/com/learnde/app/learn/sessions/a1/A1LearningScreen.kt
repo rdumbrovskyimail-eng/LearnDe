@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -163,8 +164,8 @@ fun A1LearningScreen(
                     Spacer(Modifier.height(8.dp))
                     Text("Субтитры:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Box(modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(8.dp)) {
+                        val messages = remember(learnState.transcript) { learnState.transcript.reversed().filter { it.role == com.learnde.app.domain.model.ConversationMessage.ROLE_MODEL } }
                         LazyColumn(modifier = Modifier.fillMaxSize(), reverseLayout = true) {
-                            val messages = remember(learnState.transcript) { learnState.transcript.reversed().filter { it.role == com.learnde.app.domain.model.ConversationMessage.ROLE_MODEL } }
                             items(messages) { msg ->
                                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.CenterStart) {
                                     Text(msg.text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).padding(8.dp))
