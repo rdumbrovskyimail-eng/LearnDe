@@ -138,14 +138,11 @@ class LearnCoreViewModel @Inject constructor(
         }
         val finalSystemInstruction = if (userInfo.isNotBlank()) "${session.systemInstruction}\n\n[ДАННЫЕ ПОЛЬЗОВАТЕЛЯ]:\n$userInfo" else session.systemInstruction
 
-        // ИСПРАВЛЕНИЕ: Возвращаем стабильные настройки VAD. 
-        // 800мс тишины достаточно для быстрого отклика, но не обрезает слова.
-        // 300мс префикса не перегружает буфер.
         val (silenceMs, prefixMs, temp) = when (session.id) {
-            "translator"    -> Triple(1000, 300, 0.3f)
-            "a1_situation"  -> Triple(800, 300, cachedSettings.temperature)
-            "a1_review"     -> Triple(800, 300, cachedSettings.temperature)
-            else            -> Triple(1000, 300, cachedSettings.temperature)
+            "translator"    -> Triple(800, 1000, 0.3f)
+            "a1_situation"  -> Triple(600, 1000, cachedSettings.temperature)
+            "a1_review"     -> Triple(400, 1000, cachedSettings.temperature)
+            else            -> Triple(800, 1000, cachedSettings.temperature)
         }
 
         return SessionConfig(
@@ -160,8 +157,9 @@ class LearnCoreViewModel @Inject constructor(
             languageCode = cachedSettings.languageCode,
             latencyProfile = profile,
             autoActivityDetection = cachedSettings.enableServerVad,
-            vadStartSensitivity = "START_SENSITIVITY_HIGH",
-            vadEndSensitivity = "END_SENSITIVITY_HIGH",
+            // Возвращаем уважение к настройкам пользователя для VAD
+            vadStartSensitivity = if (cachedSettings.vadStartOfSpeechSensitivity > 0.5f) "START_SENSITIVITY_HIGH" else "START_SENSITIVITY_LOW",
+            vadEndSensitivity = if (cachedSettings.vadEndOfSpeechSensitivity > 0.5f) "END_SENSITIVITY_HIGH" else "END_SENSITIVITY_LOW",
             vadSilenceDurationMs = silenceMs,
             vadPrefixPaddingMs = prefixMs,
             systemInstruction = finalSystemInstruction,
@@ -311,14 +309,23 @@ class LearnCoreViewModel @Inject constructor(
                         val session = activeSession ?: return@collect
                         contextSeeded = true
                         
-                        if (session.initialUserMessage.isNotBlank()) {
-                            viewModelScope.launch {
-                                delay(500) // ИСПРАВЛЕНИЕ: Даем сокету полсекунды на стабилизацию
+                        viewModelScope.launch {
+                            if (session.initialUserMessage.isNotBlank()) {
+                                // 1. Ждем стабилизации сокета
+                                delay(300) 
+                                // 2. Отправляем стартовый текст
                                 liveClient.sendText(session.initialUserMessage)
-                                // ИСПРАВЛЕНИЕ: Убрали sendTurnComplete(), который ломал генерацию!
+                                // 3. ИДЕАЛЬНАЯ ЗАДЕРЖКА: даем серверу проглотить текст
+                                delay(400) 
+                                // 4. Закрываем ход, заставляя Gemini ответить немедленно
+                                liveClient.sendTurnComplete() 
+                            }
+                            
+                            // 5. Только теперь включаем микрофон
+                            if (!_state.value.isMicActive) {
+                                startMic()
                             }
                         }
-                        if (!_state.value.isMicActive) startMic()
                     }
 
                     is GeminiEvent.AudioChunk -> {
