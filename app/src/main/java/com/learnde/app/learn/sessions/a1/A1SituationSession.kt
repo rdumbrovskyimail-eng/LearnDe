@@ -329,8 +329,8 @@ class A1SituationSession @Inject constructor(
         val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
         val clusterId = currentContext?.cluster?.id ?: "unknown"
 
-        // Запускаем сохранение в фоне, чтобы ИИ не ждал
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        // Используем наш scope
+        scope.launch {
             lemmaDao.updateProgressFsrs(
                 lemma = lemma,
                 produced = if (wasCorrect) 1 else 0,
@@ -355,7 +355,6 @@ class A1SituationSession @Inject constructor(
             ))
         }
         
-        // Мгновенный ответ ИИ, чтобы он продолжал работать
         return """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
     }
 
