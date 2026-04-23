@@ -1,15 +1,12 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА v3.2
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1LearningScreen.kt
 //
-// Главный экран обучения A1. 
-// Показывает:
-//   - Большие прогресс-кольца (леммы + кластеры + грамматика)
-//   - Название текущего кластера + превью лемм
-//   - Индикатор фазы во время сессии
-//   - Live-лента оценок лемм
-//   - Кнопка "Начать" / "Стоп"
-//   - Диалог по завершении сессии
+// ИЗМЕНЕНИЯ v3.2:
+//   - Добавлена кнопка "Повторить слабые" (с бейджем weakLemmasCount)
+//   - Обработка A1LearningEffect.RequestStartReviewSession → стартует a1_review
+//   - Шапка сессии показывает "Повторение" для review-режима
+//   - Карточка кластера скрыта в review-режиме
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
@@ -51,15 +48,19 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -72,7 +73,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -91,7 +91,6 @@ import com.learnde.app.learn.core.LearnConnectionStatus
 import com.learnde.app.learn.core.LearnCoreIntent
 import com.learnde.app.learn.core.LearnCoreViewModel
 import com.learnde.app.presentation.learn.components.CurrentFunctionBar
-import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,13 +110,14 @@ fun A1LearningScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            learnCoreViewModel.onIntent(LearnCoreIntent.Start("a1_situation"))
+            // В review-режиме стартуем a1_review, иначе a1_situation
+            val sessionId = if (state.isReviewMode) "a1_review" else "a1_situation"
+            learnCoreViewModel.onIntent(LearnCoreIntent.Start(sessionId))
         } else {
             Toast.makeText(context, "Для обучения нужен микрофон", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Подписка на эффекты ViewModel
     LaunchedEffect(Unit) {
         vm.effects.collect { effect ->
             when (effect) {
@@ -127,6 +127,16 @@ fun A1LearningScreen(
                     ) == PackageManager.PERMISSION_GRANTED
                     if (hasMic) {
                         learnCoreViewModel.onIntent(LearnCoreIntent.Start("a1_situation"))
+                    } else {
+                        micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                }
+                is A1LearningEffect.RequestStartReviewSession -> {
+                    val hasMic = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (hasMic) {
+                        learnCoreViewModel.onIntent(LearnCoreIntent.Start("a1_review"))
                     } else {
                         micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
@@ -152,10 +162,20 @@ fun A1LearningScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.School, null, tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp))
+                        Icon(
+                            if (state.isReviewMode) Icons.Filled.Refresh else Icons.Filled.School,
+                            null,
+                            tint = if (state.isReviewMode) Color(0xFF7B1FA2)
+                                   else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Text("Обучение A1", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (state.isReviewMode) "Повторение слабых"
+                            else "Обучение A1",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 },
                 navigationIcon = {
@@ -211,27 +231,32 @@ fun A1LearningScreen(
             // ═══ Верхний блок: общий прогресс (кольца) ═══
             ProgressSummary(state)
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // ═══ Карточка текущего кластера ═══
-            state.currentCluster?.let { cluster ->
-                CurrentClusterCard(
-                    titleRu = cluster.titleRu,
-                    titleDe = cluster.titleDe,
-                    scenario = cluster.scenarioHint,
-                    grammarFocus = cluster.grammarFocus,
-                    difficulty = cluster.difficulty,
-                    isActive = state.sessionActive,
-                )
-            } ?: run {
-                Text("Все кластеры пройдены!", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            // ═══ Карточка текущего кластера (только если НЕ review) ═══
+            if (!state.isReviewMode) {
+                state.currentCluster?.let { cluster ->
+                    CurrentClusterCard(
+                        titleRu = cluster.titleRu,
+                        titleDe = cluster.titleDe,
+                        scenario = cluster.scenarioHint,
+                        grammarFocus = cluster.grammarFocus,
+                        difficulty = cluster.difficulty,
+                        isActive = state.sessionActive,
+                    )
+                } ?: run {
+                    Text("Все кластеры пройдены!", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                // v3.2: карточка review-режима
+                ReviewSessionCard(weakCount = state.weakLemmasCount)
             }
 
             Spacer(Modifier.height(12.dp))
 
-            // ═══ Фаза сессии (только если активна) ═══
+            // ═══ Фаза сессии ═══
             AnimatedVisibility(
-                visible = state.sessionActive,
+                visible = state.sessionActive && !state.isReviewMode,
                 enter = fadeIn() + slideInVertically { -it/2 },
                 exit = fadeOut() + slideOutVertically { -it/2 }
             ) {
@@ -246,11 +271,11 @@ fun A1LearningScreen(
                 enter = fadeIn() + slideInVertically { it/2 },
                 exit = fadeOut()
             ) {
-                state.lastEvaluation?.let { ev -> 
+                state.lastEvaluation?.let { ev ->
                     LemmaEvaluationCard(
                         ev = ev,
                         onDispute = { vm.onIntent(A1LearningIntent.DisputeEvaluation(ev.lemma)) }
-                    ) 
+                    )
                 }
             }
 
@@ -267,8 +292,8 @@ fun A1LearningScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
-            // ═══ Грамматические бейджи ═══
-            if (!state.sessionActive) {
+            // ═══ Грамматические бейджи (только не в review) ═══
+            if (!state.sessionActive && !state.isReviewMode) {
                 GrammarProgressRow(
                     introduced = state.grammarIntroduced,
                     total = state.grammarTotal
@@ -276,7 +301,7 @@ fun A1LearningScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
-            // ═══ Транскрипт (Субтитры) ═══
+            // ═══ Транскрипт ═══
             if (state.sessionActive && learnState.transcript.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Text("Субтитры:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -296,9 +321,9 @@ fun A1LearningScreen(
                         items(messages) { msg ->
                             val isAi = msg.role == com.learnde.app.domain.model.ConversationMessage.ROLE_MODEL
                             val align = if (isAi) Alignment.CenterStart else Alignment.CenterEnd
-                            val bgColor = if (isAi) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) 
+                            val bgColor = if (isAi) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                                           else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.1f)
-                            
+
                             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = align) {
                                 Text(
                                     text = msg.text,
@@ -331,11 +356,11 @@ fun A1LearningScreen(
             feedback = state.finalFeedback ?: "",
             lemmasProduced = state.lemmasProducedThisSession.size,
             lemmasFailed = state.lemmasFailedThisSession.size,
+            isReviewMode = state.isReviewMode,
             onContinue = { vm.onIntent(A1LearningIntent.DismissFinalDialog) },
         )
     }
 
-    // ═══ Поздравление при завершении A1 ═══
     if (state.isA1Completed && state.currentCluster == null) {
         A1CompletedDialog(onClose = onBack)
     }
@@ -379,7 +404,7 @@ private fun ProgressSummary(state: A1LearningState) {
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                 modifier = Modifier.fillMaxWidth(),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -496,6 +521,42 @@ private fun CurrentClusterCard(
     }
 }
 
+/** v3.2: Карточка review-режима — вместо карточки кластера. */
+@Composable
+private fun ReviewSessionCard(weakCount: Int) {
+    val purple = Color(0xFF7B1FA2)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .shadow(2.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(purple.copy(alpha = 0.12f))
+            .padding(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Refresh, null, tint = purple,
+                modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Быстрое повторение", fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold, color = purple)
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Сейчас у тебя $weakCount слов, которые стоит повторить.",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            lineHeight = 18.sp,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Сессия займёт 5-7 минут. Только drill — без новых слов и грамматики.",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            lineHeight = 15.sp,
+        )
+    }
+}
+
 @Composable
 private fun PhaseIndicator(phase: A1Phase) {
     val (label, color) = when (phase) {
@@ -562,7 +623,6 @@ private fun LemmaEvaluationCard(ev: LastEvaluation, onDispute: () -> Unit) {
             }
         }
 
-        // ─── Patch 2: диагностика Selinker ───
         if (ev.diagnosis.isError) {
             Spacer(Modifier.height(8.dp))
             DiagnosisChips(ev)
@@ -713,6 +773,13 @@ private fun GrammarProgressRow(introduced: Int, total: Int) {
     }
 }
 
+/**
+ * v3.2: Нижняя панель кнопок. Учитывает:
+ *   - active + review-mode → красный "Стоп"
+ *   - active + normal → красный "Стоп"
+ *   - idle + есть слабые → две кнопки: "Начать урок" и "Повторить слабые" (с бейджем)
+ *   - idle + нет кластеров → поздравление
+ */
 @Composable
 private fun BottomActionButton(
     state: A1LearningState,
@@ -728,17 +795,74 @@ private fun BottomActionButton(
             ) {
                 Icon(Icons.Filled.Stop, null, tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text("Остановить сессию", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (state.isReviewMode) "Остановить повторение" else "Остановить сессию",
+                    color = Color.White, fontWeight = FontWeight.SemiBold
+                )
             }
         }
         state.currentCluster != null -> {
+            Column(Modifier.fillMaxWidth()) {
+                // Основная кнопка — начать урок
+                Button(
+                    onClick = { vm.onIntent(A1LearningIntent.StartNextCluster) },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                ) {
+                    Icon(Icons.Filled.PlayArrow, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Начать урок", color = Color.White, fontWeight = FontWeight.SemiBold)
+                }
+
+                // v3.2: Кнопка повторения, только если есть слабые леммы
+                if (state.weakLemmasCount > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    val purple = Color(0xFF7B1FA2)
+                    OutlinedButton(
+                        onClick = { vm.onIntent(A1LearningIntent.StartReviewSession) },
+                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = purple
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.5.dp, purple.copy(alpha = 0.6f)
+                        )
+                    ) {
+                        Icon(Icons.Filled.Refresh, null,
+                            tint = purple, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Повторить слабые слова",
+                            color = purple, fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(purple)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                "${state.weakLemmasCount}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        state.weakLemmasCount > 0 -> {
+            // Все кластеры пройдены, но есть слабые леммы — только review
+            val purple = Color(0xFF7B1FA2)
             Button(
-                onClick = { vm.onIntent(A1LearningIntent.StartNextCluster) },
+                onClick = { vm.onIntent(A1LearningIntent.StartReviewSession) },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = purple)
             ) {
-                Icon(Icons.Filled.PlayArrow, null, tint = Color.White)
+                Icon(Icons.Filled.Refresh, null, tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text("Начать урок", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Повторить ${state.weakLemmasCount} слов",
+                    color = Color.White, fontWeight = FontWeight.SemiBold)
             }
         }
         else -> {
@@ -757,6 +881,7 @@ private fun SessionFinishedDialog(
     feedback: String,
     lemmasProduced: Int,
     lemmasFailed: Int,
+    isReviewMode: Boolean,
     onContinue: () -> Unit,
 ) {
     val color = if (quality >= 5) Color(0xFF43A047) else Color(0xFFFB8C00)
@@ -772,7 +897,10 @@ private fun SessionFinishedDialog(
                     Text("$quality", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
                 Spacer(Modifier.height(12.dp))
-                Text("Сессия завершена", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (isReviewMode) "Повторение завершено" else "Сессия завершена",
+                    fontSize = 18.sp, fontWeight = FontWeight.Bold
+                )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("✓ $lemmasProduced", color = Color(0xFF43A047), fontWeight = FontWeight.Bold)
