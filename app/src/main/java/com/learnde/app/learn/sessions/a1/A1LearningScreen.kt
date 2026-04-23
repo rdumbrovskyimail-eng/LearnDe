@@ -317,7 +317,10 @@ fun A1LearningScreen(
                         modifier = Modifier.fillMaxSize(),
                         reverseLayout = true
                     ) {
-                        val messages = learnState.transcript.reversed()
+                        // Показываем только текст от ИИ, скрываем кривое распознавание голоса пользователя
+                        val messages = learnState.transcript.reversed().filter { 
+                            it.role == com.learnde.app.domain.model.ConversationMessage.ROLE_MODEL 
+                        }
                         items(messages) { msg ->
                             val isAi = msg.role == com.learnde.app.domain.model.ConversationMessage.ROLE_MODEL
                             val align = if (isAi) Alignment.CenterStart else Alignment.CenterEnd
