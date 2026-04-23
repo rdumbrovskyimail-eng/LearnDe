@@ -50,8 +50,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.learnde.app.learn.core.LearnCoreIntent
 import com.learnde.app.learn.core.LearnCoreViewModel
 import com.learnde.app.presentation.learn.components.CurrentFunctionBar
+import com.learnde.app.presentation.learn.components.SessionLoadingOverlay
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.max
@@ -98,6 +98,7 @@ fun A0a1TestScreen(
     viewModel: A0a1TestViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val learnState by learnCoreViewModel.state.collectAsStateWithLifecycle()
     val fnStatus by learnCoreViewModel.functionStatus.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
@@ -266,6 +267,16 @@ fun A0a1TestScreen(
                     .fillMaxWidth()
                     .padding(vertical = 6.dp)
             )
+        }
+
+        // ФИНАЛ: Анимация загрузки
+        AnimatedVisibility(
+            visible = learnState.isPreparingSession,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            SessionLoadingOverlay()
         }
     }
 }
