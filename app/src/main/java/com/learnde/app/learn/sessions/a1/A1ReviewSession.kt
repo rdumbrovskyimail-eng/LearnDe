@@ -1,20 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ v3.2
-// Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1ReviewSession.kt
-//
-// НАЗНАЧЕНИЕ:
-//   Быстрая сессия повторения слабых/забытых слов.
-//   5 минут, 15-20 слов, максимум drill, никакой grammar/scenario.
-//
-//   Использует FSRS для выбора слов с самой низкой retrievability
-//   (те, которые пользователь забыл или скоро забудет).
-//
-// ОТЛИЧИЯ ОТ A1SituationSession:
-//   - Нет фаз WARM_UP/INTRODUCE/GRAMMAR/COOL_DOWN
-//   - Только DRILL-формат: "Как по-немецки X?" → ответ → evaluate
-//   - Быстрый темп: 15-20 вопросов за 5 минут
-//   - Оценивает через evaluate_and_update_lemma (та же диагностика Selinker)
-// ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
 import com.learnde.app.domain.model.FunctionCall
@@ -39,6 +22,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -63,7 +47,9 @@ class A1ReviewSession @Inject constructor(
     private val producedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val failedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val diagnoses = ConcurrentHashMap<String, ErrorDiagnosis>()
-    private val qualityAccumulator = mutableListOf<Int>()
+    
+    // ФИНАЛ: Потокобезопасный список
+    private val qualityAccumulator = CopyOnWriteArrayList<Int>()
 
     @Volatile private var evaluateCallsCount: Int = 0
 
@@ -79,10 +65,6 @@ class A1ReviewSession @Inject constructor(
     override val initialUserMessage: String =
         "[СИСТЕМА]: Ученик готов к быстрому повторению. Начинай сразу с первого слова."
 
-    /**
-     * Подготовка перед входом в сессию.
-     * Вызывается из ViewModel ДО LearnCoreIntent.Start.
-     */
     suspend fun prepareLemmas(limit: Int = 15) {
         reviewLemmas = planner.pickReviewSessionLemmas(limit)
         logger.d("A1ReviewSession: prepared ${reviewLemmas.size} lemmas for review")
@@ -92,8 +74,7 @@ class A1ReviewSession @Inject constructor(
         if (reviewLemmas.isEmpty()) {
             return """
                 Ты — репетитор A1. Список слов для повторения пуст.
-                Скажи по-русски: "Отличная работа! Сейчас нет слов для повторения. 
-                Возвращайся позже или пройди новый урок."
+                Скажи по-русски: "Отличная работа! Сейчас нет слов для повторения. Возвращайся позже."
                 Сразу вызови finish_session(overall_quality=7, feedback="Нет слов для повторения").
             """.trimIndent()
         }
@@ -107,78 +88,31 @@ class A1ReviewSession @Inject constructor(
 
         return """
 ════════════════════════════════════════════════════════════
-РОЛЬ: Ты — русскоязычный репетитор немецкого A1.
-РЕЖИМ: БЫСТРОЕ ПОВТОРЕНИЕ СЛАБЫХ СЛОВ.
+РОЛЬ: Русскоязычный репетитор немецкого A1.
+РЕЖИМ: БЛИЦ-ОПРОС (БЫСТРОЕ ПОВТОРЕНИЕ).
 ════════════════════════════════════════════════════════════
 
-🚨🚨🚨 КРИТИЧЕСКИЕ ПРАВИЛА 🚨🚨🚨
+🚨🚨🚨 ПРАВИЛА БЛИЦ-ОПРОСА (СКОРОСТЬ — ГЛАВНОЕ) 🚨🚨🚨
 
-ПРАВИЛО №1: ВСЁ ЧТО ПИШЕШЬ — ОЗВУЧИВАЙ одновременно. Никаких молчаливых сообщений.
-
-ПРАВИЛО №2: КРАТКО. Одна мысль = одна реплика = 1 предложение.
-
-ПРАВИЛО №3: function call ВСЕГДА ПЕРЕД речью.
-
-════════════════════════════════════════════════════════════
-📋 ФОРМАТ СЕССИИ (5-7 минут, ${reviewLemmas.size} слов):
-════════════════════════════════════════════════════════════
-
-1. КРАТКОЕ ПРИВЕТСТВИЕ (1 фраза):
-   "Повторяем слова, которые ты учил. Начнём."
-
-2. ДЛЯ КАЖДОГО СЛОВА ПО ОЧЕРЕДИ:
-   a) Задай вопрос на русском, например:
-      • "Как по-немецки 'дом'?"
-      • "Что означает 'Kaffee'?"
-      • "Переведи: 'я хочу воду'"
-   b) ЖДИ ответа (не говори сам за ученика)
-   c) ОБЯЗАТЕЛЬНО вызови evaluate_and_update_lemma со ВСЕМИ 5 полями диагностики
-   d) Дай короткий фидбек (1 фраза) — либо похвали, либо правильный вариант
-   e) Сразу следующее слово. НЕ затягивай.
-
-3. В КОНЦЕ:
-   Вызови finish_session(overall_quality=N, feedback="Повторил X слов. ...")
+1. МГНОВЕННЫЙ СТАРТ: Получив системное сообщение, СРАЗУ скажи: "Повторяем слова. Начнём!" и задай первый вопрос.
+2. ПУЛЕМЕТНЫЙ ТЕМП: 1 короткий вопрос → ответ ученика → 1 короткая реакция (Верно/Неверно + правильный ответ) → СРАЗУ следующий вопрос.
+3. БЕЗ БОЛТОВНИ: Запрещено хвалить длинными фразами. Запрещено объяснять грамматику. Только перевод слов или коротких фраз.
+4. СНАЧАЛА ГОЛОС: Сначала произнеси реакцию и следующий вопрос вслух, и ТОЛЬКО ПОТОМ вызывай `evaluate_and_update_lemma`.
 
 ════════════════════════════════════════════════════════════
-📚 СЛОВА ДЛЯ ПОВТОРЕНИЯ (порядок свободный):
-════════════════════════════════════════════════════════════
+📚 СЛОВА ДЛЯ ПОВТОРЕНИЯ (${reviewLemmas.size} слов):
 $wordList
 
-🔒 Используй ТОЛЬКО эти слова + базовый A1. Не вводи новую лексику.
-Allowed: $allowedLemmas
-
-════════════════════════════════════════════════════════════
-🔬 ДИАГНОСТИКА (обязательно в каждом evaluate_and_update_lemma):
+🔒 ИСПОЛЬЗУЙ ТОЛЬКО ЭТИ СЛОВА!
 ════════════════════════════════════════════════════════════
 
-error_source:
-  • NONE — правильно
-  • L1_TRANSFER — влияние русского (артикль пропущен, падеж не согласован)
-  • OVERGENERALIZATION — применил правило слишком широко
-  • SIMPLIFICATION — упростил форму
-  • COMMUNICATION_STRATEGY — перефразировал
+🔬 ДИАГНОСТИКА:
+После каждого ответа ученика ОБЯЗАТЕЛЬНО вызывай `evaluate_and_update_lemma` со всеми 5 полями (error_source, error_depth, error_category, specifics, feedback).
 
-error_depth:
-  • NONE — правильно
-  • SLIP — знает, оговорился
-  • MISTAKE — неуверен
-  • ERROR — не знает
+ФИНАЛ:
+Когда спросишь все слова из списка, скажи 1 фразу итога и вызови `finish_session(overall_quality=N, feedback="...")`.
 
-error_category:
-  NONE, GENDER, CASE, WORD_ORDER, LEXICAL, PHONOLOGY,
-  PRAGMATICS, CONJUGATION, NEGATION, PLURAL, PREPOSITION
-
-error_specifics: конкретика на русском, 1 фраза.
-
-════════════════════════════════════════════════════════════
-🚫 ЗАПРЕЩЕНО:
-════════════════════════════════════════════════════════════
-❌ Объяснять грамматические правила (нет фазы GRAMMAR в review)
-❌ Вводить новые слова вне списка
-❌ Делать долгие паузы — темп быстрый
-❌ Пропускать evaluate_and_update_lemma после ответа
-
-НАЧНИ ПРЯМО СЕЙЧАС с приветствия и первого слова.
+ЖДИ СИСТЕМНОГО СООБЩЕНИЯ И СТАРТУЙ!
         """.trimIndent()
     }
 
@@ -238,7 +172,6 @@ error_specifics: конкретика на русском, 1 фраза.
             return """{"status":"ignored","reason":"unknown lemma"}"""
         }
 
-        // Та же логика адъюстмента что в A1SituationSession
         val adjustedQuality = when (diagnosis.depth) {
             ErrorDepth.NONE -> quality
             ErrorDepth.SLIP -> quality
