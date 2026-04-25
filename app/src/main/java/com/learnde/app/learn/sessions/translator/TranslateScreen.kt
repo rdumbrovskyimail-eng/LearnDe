@@ -135,6 +135,12 @@ fun TranslatorScreen(
 
     val showInlineLoader = learnState.isPreparingSession && learnState.transcript.isEmpty()
 
+    // ФИКС: Гарантируем остановку сессии при системном жесте "Назад"
+    androidx.activity.compose.BackHandler {
+        if (isActive) learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
+        onBack()
+    }
+
     Scaffold(
         containerColor = colors.bg,
         topBar = {
