@@ -195,7 +195,7 @@ private fun SessionSummaryCard(state: SessionDetailsState) {
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "${formatFullDate(session.startedAt)} · ${session.durationMinutes} мин",
+                    "${com.learnde.app.learn.sessions.a1.util.A1DateFormatters.formatFullDate(session.startedAt)} · ${session.durationMinutes} мин",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -379,5 +379,3 @@ private fun categoryLabel(c: ErrorCategory): String? = when (c) {
     ErrorCategory.NONE -> null
 }
 
-private fun formatFullDate(ts: Long): String =
-    SimpleDateFormat("d MMM yyyy, HH:mm", Locale("ru")).format(Date(ts))
