@@ -17,6 +17,7 @@ data class AppSettings(
     val learningGoals: String = "",
     val learningTopics: String = "",
     val a1DataImported: Boolean = false,
+    val a1DataVersion: Int = 0,
 
     // ═══════════════════ 1. AUTH ═══════════════════
     val apiKey: String = "",
