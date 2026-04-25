@@ -203,6 +203,17 @@ class LearnCoreViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            // Если ИИ говорит, ждём окончания его реплики, чтобы не вызвать
+            // обрыв воспроизведения и глитч-эффект.
+            if (_state.value.isAiSpeaking) {
+                logger.d("Learn.sendSystemText: AI is speaking, deferring")
+                var waited = 0L
+                val maxWaitMs = 4_000L
+                while (_state.value.isAiSpeaking && waited < maxWaitMs) {
+                    delay(120)
+                    waited += 120
+                }
+            }
             runCatching { liveClient.sendText(text) }
                 .onFailure { logger.e("Learn.sendSystemText failed: ${it.message}") }
         }
