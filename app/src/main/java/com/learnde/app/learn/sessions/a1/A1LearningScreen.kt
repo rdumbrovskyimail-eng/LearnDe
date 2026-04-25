@@ -246,7 +246,8 @@ fun A1LearningScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(pad)
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 16.dp)
+                    .imePadding(),
             ) {
                 if (state.loading) {
                     LoadingSection()
