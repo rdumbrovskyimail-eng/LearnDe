@@ -1042,7 +1042,10 @@ private fun ChatSection(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(transcript, key = { it.timestamp }) { msg ->
+                items(
+                    transcript,
+                    key = { msg -> "${msg.timestamp}_${msg.role}_${msg.text.length}" }
+                ) { msg ->
                     ChatBubble(msg)
                 }
             }
