@@ -1,3 +1,11 @@
+// ═══════════════════════════════════════════════════════════
+// ПОЛНАЯ ЗАМЕНА v5.0
+// Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/vocabulary/A1VocabularyViewModel.kt
+//
+// КРИТИЧНЫЙ ФИКС: использует getAllLemmas() вместо getDueForReview(5000) —
+// раньше при пустой БД (новые леммы без nextReviewAt) словарь оставался
+// пустым.
+// ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1.vocabulary
 
 import androidx.lifecycle.ViewModel
@@ -34,16 +42,14 @@ sealed class A1VocabIntent {
 class A1VocabularyViewModel @Inject constructor(
     private val lemmaDao: A1LemmaDao,
 ) : ViewModel() {
-    
+
     private val _state = MutableStateFlow(A1VocabState())
     val state: StateFlow<A1VocabState> = _state.asStateFlow()
-    
+
     init {
-        viewModelScope.launch {
-            loadAll()
-        }
+        viewModelScope.launch { loadAll() }
     }
-    
+
     fun onIntent(intent: A1VocabIntent) {
         when (intent) {
             is A1VocabIntent.UpdateQuery -> {
@@ -55,36 +61,39 @@ class A1VocabularyViewModel @Inject constructor(
                 applyFilter()
             }
             is A1VocabIntent.ToggleExpand -> {
-                _state.update { 
-                    it.copy(expandedLemma = if (it.expandedLemma == intent.lemma) null else intent.lemma) 
+                _state.update {
+                    it.copy(expandedLemma = if (it.expandedLemma == intent.lemma) null else intent.lemma)
                 }
             }
         }
     }
-    
+
     private suspend fun loadAll() = withContext(Dispatchers.IO) {
-        // Загружаем все леммы. Если нужен метод getAll() — добавить в DAO.
-        val total = lemmaDao.getTotalCount()
-        // Используем getByLemmas с пустым списком? Лучше добавить getAll() в DAO.
-        // Workaround: используем getDueForReview с большим limit.
-        val all = lemmaDao.getDueForReview(limit = 5000)  // FIXME: заменить на getAll()
-        _state.update { it.copy(all = all, total = total, loading = false) }
+        // ФИКС: getAllLemmas() возвращает ВСЕ слова, включая новые (timesHeard==0).
+        val all = lemmaDao.getAll()
+        _state.update {
+            it.copy(
+                all = all,
+                total = all.size,
+                loading = false,
+            )
+        }
         applyFilter()
     }
-    
+
     private fun applyFilter() {
         val s = _state.value
         val now = System.currentTimeMillis()
         val byFilter = when (s.filter) {
             VocabFilter.ALL -> s.all
             VocabFilter.MASTERED -> s.all.filter { it.masteryScore >= 0.7f }
-            VocabFilter.IN_PROGRESS -> s.all.filter { it.masteryScore in 0.3f..0.7f }
+            VocabFilter.IN_PROGRESS -> s.all.filter { it.masteryScore in 0.3f..0.7f && it.timesHeard > 0 }
             VocabFilter.WEAK -> s.all.filter { it.timesHeard > 0 && it.masteryScore < 0.3f }
             VocabFilter.NEW -> s.all.filter { it.timesHeard == 0 }
-            VocabFilter.DUE -> s.all.filter { it.nextReviewAt != null && it.nextReviewAt!! <= now }
+            VocabFilter.DUE -> s.all.filter { it.nextReviewAt != null && (it.nextReviewAt ?: 0L) <= now }
         }
         val byQuery = if (s.query.isBlank()) byFilter
-            else byFilter.filter { it.lemma.contains(s.query, ignoreCase = true) }
+        else byFilter.filter { it.lemma.contains(s.query, ignoreCase = true) }
         _state.update { it.copy(filtered = byQuery) }
     }
 }
