@@ -226,7 +226,7 @@ fun TranslatorScreen(
                     isActive = isActive,
                     isAiSpeaking = learnState.isAiSpeaking,
                     isMicActive = learnState.isMicActive,
-                    rmsIntensity = learnState.currentRms,
+                    rmsIntensity = if (learnState.isMicActive || learnState.isAiSpeaking) 0.7f else 0f,
                 )
 
                 Spacer(Modifier.height(12.dp))
