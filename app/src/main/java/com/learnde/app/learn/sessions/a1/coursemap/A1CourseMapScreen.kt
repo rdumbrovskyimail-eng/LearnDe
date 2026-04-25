@@ -121,32 +121,28 @@ fun A1CourseMapScreen(
                     .padding(horizontal = LearnTokens.PaddingMd),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                .padding(pad)
-                .padding(horizontal = LearnTokens.PaddingMd),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            state.byCategory.forEach { (category, clusters) ->
-                item(key = "header_$category") {
-                    Spacer(Modifier.height(LearnTokens.PaddingMd))
-                    Text(
-                        category,
-                        fontSize = LearnTokens.FontSizeCaption,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.textMid,
-                        letterSpacing = LearnTokens.CapsLetterSpacing,
-                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp),
-                    )
+                state.byCategory.forEach { (category, clusters) ->
+                    item(key = "header_$category") {
+                        Spacer(Modifier.height(LearnTokens.PaddingMd))
+                        Text(
+                            category,
+                            fontSize = LearnTokens.FontSizeCaption,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textMid,
+                            letterSpacing = LearnTokens.CapsLetterSpacing,
+                            modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp),
+                        )
+                    }
+                    items(clusters, key = { it.id }) { cluster ->
+                        ClusterMapCard(
+                            cluster = cluster,
+                            isCurrent = state.currentClusterId == cluster.id,
+                            onClick = { onClusterClick(cluster.id) },
+                        )
+                    }
                 }
-                items(clusters, key = { it.id }) { cluster ->
-                    ClusterMapCard(
-                        cluster = cluster,
-                        isCurrent = state.currentClusterId == cluster.id,
-                        onClick = { onClusterClick(cluster.id) },
-                    )
-                }
+                item { Spacer(Modifier.height(LearnTokens.PaddingLg)) }
             }
-            item { Spacer(Modifier.height(LearnTokens.PaddingLg)) }
-        }
         }
     }
 }
