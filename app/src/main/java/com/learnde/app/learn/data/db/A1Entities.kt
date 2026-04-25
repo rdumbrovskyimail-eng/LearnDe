@@ -44,17 +44,11 @@ data class LemmaA1Entity(
 ) {
     /** 
      * Индекс освоения. 
-     * - Если FSRS уже пересчитал productionScore (fsrsReps > 0), используем его напрямую.
-     * - Иначе — старая формула 0.3 recognition + 0.7 production для совместимости.
+     * Смешиваем пассивное узнавание (30%) и активное использование (70%).
+     * В режиме FSRS поле productionScore содержит вычисленный mastery от FsrsScheduler.
      */
     val masteryScore: Float
-        get() = if (fsrsReps > 0) {
-            // FSRS-режим: productionScore уже содержит вычисленный mastery от FsrsScheduler.
-            productionScore.coerceIn(0f, 1f)
-        } else {
-            // Legacy-режим (до первого FSRS-вычисления).
-            (recognitionScore * 0.3f + productionScore * 0.7f).coerceIn(0f, 1f)
-        }
+        get() = (recognitionScore * 0.3f + productionScore * 0.7f).coerceIn(0f, 1f)
 
     fun isDueForReview(now: Long = System.currentTimeMillis()): Boolean =
         nextReviewAt?.let { it <= now } ?: true
