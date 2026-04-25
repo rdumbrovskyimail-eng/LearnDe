@@ -99,13 +99,33 @@ fun A1LearningScreen(
     val fnStatus by learnCoreViewModel.functionStatus.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    val activity = context as? android.app.Activity
+    var showRationaleDialog by remember { mutableStateOf(false) }
+    var rationaleIsPermanent by remember { mutableStateOf(false) }
+
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             val sessionId = if (state.isReviewMode) "a1_review" else "a1_situation"
             learnCoreViewModel.onIntent(LearnCoreIntent.Start(sessionId))
         } else {
-            Toast.makeText(context, "Для обучения нужен микрофон", Toast.LENGTH_SHORT).show()
+            rationaleIsPermanent = activity == null ||
+                !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                    activity, android.Manifest.permission.RECORD_AUDIO
+                )
+            showRationaleDialog = true
         }
+    }
+
+    if (showRationaleDialog) {
+        com.learnde.app.presentation.learn.components.MicPermissionRationaleDialog(
+            showSettingsButton = rationaleIsPermanent,
+            onDismiss = { showRationaleDialog = false },
+            onRequestAgain = {
+                showRationaleDialog = false
+                micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+            },
+            context = context,
+        )
     }
 
     LaunchedEffect(Unit) {
