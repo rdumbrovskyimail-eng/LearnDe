@@ -1,16 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v2.0
+// ПОЛНАЯ ЗАМЕНА v5.1 (Voice-First Minimalism)
 // Путь: app/src/main/java/com/learnde/app/presentation/learn/StudyScreen.kt
-//
-// ИЗМЕНЕНИЯ v2.0:
-//   - Убрана плоская заглушка
-//   - Premium-поздравление с уровнем
-//   - 2 большие кнопки навигации: "Свободный диалог" и "В Хаб"
-//   - Подготовка под будущий импорт A2/B1/B2 (структура унифицирована)
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.learn
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -20,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.*
@@ -29,31 +23,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.learnde.app.presentation.learn.theme.LearnTokens
+import com.learnde.app.presentation.learn.theme.learnColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudyScreen(
     level: String,
     onBack: () -> Unit,
-    onOpenTranslator: () -> Unit = {},   // навигация в Переводчик (A2-B2 могут использовать)
-    onOpenFreeDialog: () -> Unit = {},   // навигация в Свободный диалог (когда появится)
+    onOpenTranslator: () -> Unit = {},
+    onOpenFreeDialog: () -> Unit = {},
 ) {
-    val accentColor = when (level.uppercase()) {
-        "A2" -> Color(0xFF1E88E5)
-        "B1" -> Color(0xFFFB8C00)
-        "B2" -> Color(0xFF7B1FA2)
-        else -> Color(0xFF43A047)
-    }
-    val accentLight = accentColor.copy(alpha = 0.6f)
+    val colors = learnColors()
     
-    // Pulsing animation for trophy
     val pulse = rememberInfiniteTransition(label = "trophy")
     val pulseScale by pulse.animateFloat(
         initialValue = 1f,
@@ -66,15 +52,15 @@ fun StudyScreen(
     )
     
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = colors.bg,
         topBar = {
             TopAppBar(
                 title = { 
                     Text(
                         "Уровень $level", 
-                        fontSize = 16.sp, 
+                        fontSize = LearnTokens.FontSizeTitle, 
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        color = colors.textHi,
                     ) 
                 },
                 navigationIcon = {
@@ -82,12 +68,12 @@ fun StudyScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack, 
                             "Назад",
-                            tint = MaterialTheme.colorScheme.onBackground,
+                            tint = colors.textHi,
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = colors.bg
                 )
             )
         }
@@ -96,56 +82,47 @@ fun StudyScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(pad)
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = LearnTokens.PaddingLg),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.weight(0.5f))
             
             // ═══ Hero: Trophy ═══
             Box(
-                modifier = Modifier.size(220.dp).scale(pulseScale),
+                modifier = Modifier.size(180.dp).scale(pulseScale),
                 contentAlignment = Alignment.Center,
             ) {
-                // Glow — без clip, чтобы радиальный градиент плавно "затухал" в фоне.
                 Box(
                     modifier = Modifier
-                        .size(220.dp)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    accentColor.copy(alpha = 0.35f),
-                                    accentColor.copy(alpha = 0.12f),
-                                    accentColor.copy(alpha = 0f),
-                                ),
-                                radius = 280f,
-                            )
-                        )
+                        .size(180.dp)
+                        .clip(CircleShape)
+                        .background(colors.accentSoft)
                 )
                 Box(
                     modifier = Modifier
                         .size(96.dp)
                         .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.2f))
-                        .border(2.dp, accentColor, CircleShape),
+                        .background(colors.accent.copy(alpha = 0.1f))
+                        .border(LearnTokens.BorderMedium, colors.accent, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Filled.EmojiEvents,
                         contentDescription = null,
-                        tint = accentColor,
+                        tint = colors.accent,
                         modifier = Modifier.size(52.dp),
                     )
                 }
             }
             
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(LearnTokens.PaddingXl))
             
             // ═══ Заголовок ═══
             Text(
                 text = "Поздравляем!",
-                fontSize = 26.sp,
+                fontSize = LearnTokens.FontSizeTitleLg,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = colors.textHi,
                 textAlign = TextAlign.Center,
             )
             
@@ -153,33 +130,33 @@ fun StudyScreen(
             
             Text(
                 text = "Ваш уровень: $level",
-                fontSize = 18.sp,
+                fontSize = LearnTokens.FontSizeTitle,
                 fontWeight = FontWeight.SemiBold,
-                color = accentColor,
+                color = colors.accent,
                 textAlign = TextAlign.Center,
             )
             
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(LearnTokens.PaddingXl))
             
             // ═══ Описание ═══
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                    .clip(RoundedCornerShape(LearnTokens.RadiusMd))
+                    .background(colors.surface)
                     .border(
-                        1.dp,
-                        accentColor.copy(alpha = 0.2f),
-                        RoundedCornerShape(14.dp)
+                        LearnTokens.BorderThin,
+                        colors.stroke,
+                        RoundedCornerShape(LearnTokens.RadiusMd)
                     )
-                    .padding(16.dp),
+                    .padding(LearnTokens.PaddingLg),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Filled.AutoAwesome,
                         null,
-                        tint = accentColor,
+                        tint = colors.accent,
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(Modifier.width(6.dp))
@@ -187,34 +164,33 @@ fun StudyScreen(
                         "СТРУКТУРИРОВАННЫЕ УРОКИ",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = accentColor,
-                        letterSpacing = 1.5.sp,
-                        fontFamily = FontFamily.Monospace,
+                        color = colors.accent,
+                        letterSpacing = LearnTokens.CapsLetterSpacing,
                     )
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(LearnTokens.PaddingSm))
                 Text(
                     "Уроки для уровня $level в активной разработке. " +
                     "Сейчас вы можете практиковаться в свободном диалоге или " +
                     "использовать переводчик в реальном времени.",
-                    fontSize = 13.sp,
+                    fontSize = LearnTokens.FontSizeBody,
                     lineHeight = 19.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = colors.textMid,
                     textAlign = TextAlign.Center,
                 )
             }
             
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(32.dp))
             
-            // ═══ Кнопка 1: Переводчик (Free Dialog заменяем на доступный сейчас) ═══
+            // ═══ Кнопка 1: Переводчик ═══
             Button(
                 onClick = onOpenTranslator,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(14.dp),
+                    .height(LearnTokens.ButtonHeightMd),
+                shape = RoundedCornerShape(LearnTokens.RadiusSm),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = accentColor,
+                    containerColor = colors.accent,
                     contentColor = Color.White,
                 ),
             ) {
@@ -222,37 +198,37 @@ fun StudyScreen(
                 Spacer(Modifier.width(10.dp))
                 Text(
                     "Переводчик Live",
-                    fontSize = 15.sp,
+                    fontSize = LearnTokens.FontSizeBodyLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
             
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(LearnTokens.PaddingMd))
             
             // ═══ Кнопка 2: В Хаб ═══
             OutlinedButton(
                 onClick = onBack,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.5.dp, 
-                    accentColor.copy(alpha = 0.5f)
+                    .height(LearnTokens.ButtonHeightMd),
+                shape = RoundedCornerShape(LearnTokens.RadiusSm),
+                border = BorderStroke(
+                    LearnTokens.BorderMedium, 
+                    colors.strokeStrong
                 ),
             ) {
                 Icon(
                     Icons.Filled.Home, 
                     null,
-                    tint = accentColor,
+                    tint = colors.textHi,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
                     "Вернуться в Хаб",
-                    fontSize = 14.sp,
+                    fontSize = LearnTokens.FontSizeBodyLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = accentColor,
+                    color = colors.textHi,
                 )
             }
             
