@@ -65,4 +65,10 @@ class A1LearningBus @Inject constructor() {
     suspend fun emitSuspend(event: A1LearningEvent) {
         _events.emit(event)
     }
+
+    fun reset() {
+        // Если используется SharedFlow с replay > 0 или StateFlow — здесь сбрасывать состояние.
+        // Для MutableSharedFlow с replay=0 ничего делать не надо, но логируем явно.
+        // logger.d("A1LearningBus: reset")
+    }
 }
