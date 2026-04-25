@@ -152,16 +152,21 @@ private fun ClusterMapCard(
         else -> ClusterStatusStyle(Icons.Filled.Lock, colors.textLow)
     }
 
-    val pulse = rememberInfiniteTransition(label = "currentPulse")
-    val pulseScale by pulse.animateFloat(
-        initialValue = 1f,
-        targetValue = if (isCurrent) 1.02f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "pulse",
-    )
+    // Анимация запускается ТОЛЬКО для текущего урока — для остальных 140 карточек
+    // бесконечный transition не создаётся вообще, экономим ~140 RAF-таймеров.
+    val pulseScale: Float = if (isCurrent) {
+        val pulse = rememberInfiniteTransition(label = "currentPulse")
+        val v by pulse.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.02f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1400, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "pulse",
+        )
+        v
+    } else 1f
 
     Row(
         modifier = Modifier
