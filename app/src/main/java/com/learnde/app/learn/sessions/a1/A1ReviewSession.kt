@@ -44,6 +44,10 @@ class A1ReviewSession @Inject constructor(
     @Volatile private var sessionStartedAt: Long = 0L
 
     private val mutex = Mutex()
+    private val perLemmaLocks = ConcurrentHashMap<String, Mutex>()
+    private fun lemmaLock(lemma: String): Mutex =
+        perLemmaLocks.getOrPut(lemma) { Mutex() }
+
     private val producedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val failedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val diagnoses = ConcurrentHashMap<String, ErrorDiagnosis>()
@@ -164,48 +168,50 @@ $wordList
 
         val intervention = diagnosis.recommendedIntervention()
 
-        val entity = lemmaDao.getByLemma(lemma)
-        if (entity == null) {
-            logger.w("A1ReviewSession.eval: unknown lemma '$lemma'")
+        return lemmaLock(lemma).withLock {
+            val entity = lemmaDao.getByLemma(lemma)
+            if (entity == null) {
+                logger.w("A1ReviewSession.eval: unknown lemma '$lemma'")
+                bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
+                    lemma = lemma, quality = quality,
+                    diagnosis = diagnosis, intervention = intervention, feedback = feedback,
+                ))
+                return@withLock """{"status":"ignored","reason":"unknown lemma"}"""
+            }
+
+            val adjustedQuality = when (diagnosis.depth) {
+                ErrorDepth.NONE -> quality
+                ErrorDepth.SLIP -> quality
+                ErrorDepth.MISTAKE -> (quality - 1).coerceAtLeast(2)
+                ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)
+            }
+            val rating = FsrsRating.fromQuality(adjustedQuality)
+
+            val (newState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
+            val newMastery = fsrs.masteryScore(newState)
+
+            lemmaDao.updateProgressFsrs(
+                lemma = lemma,
+                produced = if (wasCorrect) 1 else 0,
+                failed = if (!wasCorrect) 1 else 0,
+                newProductionScore = newMastery,
+                recognitionDelta = if (quality >= 4) 0.08f else 0.02f,
+                clusterId = "review",
+                nextReview = nextReviewAt,
+                fsrsDifficulty = newState.difficulty,
+                fsrsStability = newState.stability,
+                fsrsReps = newState.reps,
+                fsrsLapses = newState.lapses,
+                fsrsLastReviewAt = newState.lastReviewAt,
+            )
+
             bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
                 lemma = lemma, quality = quality,
                 diagnosis = diagnosis, intervention = intervention, feedback = feedback,
             ))
-            return """{"status":"ignored","reason":"unknown lemma"}"""
+
+            """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
         }
-
-        val adjustedQuality = when (diagnosis.depth) {
-            ErrorDepth.NONE -> quality
-            ErrorDepth.SLIP -> quality
-            ErrorDepth.MISTAKE -> (quality - 1).coerceAtLeast(2)
-            ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)
-        }
-        val rating = FsrsRating.fromQuality(adjustedQuality)
-
-        val (newState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
-        val newMastery = fsrs.masteryScore(newState)
-
-        lemmaDao.updateProgressFsrs(
-            lemma = lemma,
-            produced = if (wasCorrect) 1 else 0,
-            failed = if (!wasCorrect) 1 else 0,
-            newProductionScore = newMastery,
-            recognitionDelta = if (quality >= 4) 0.08f else 0.02f,
-            clusterId = "review",
-            nextReview = nextReviewAt,
-            fsrsDifficulty = newState.difficulty,
-            fsrsStability = newState.stability,
-            fsrsReps = newState.reps,
-            fsrsLapses = newState.lapses,
-            fsrsLastReviewAt = newState.lastReviewAt,
-        )
-
-        bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
-            lemma = lemma, quality = quality,
-            diagnosis = diagnosis, intervention = intervention, feedback = feedback,
-        ))
-
-        return """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
     }
 
     private suspend fun handleFinish(call: FunctionCall): String = mutex.withLock {
