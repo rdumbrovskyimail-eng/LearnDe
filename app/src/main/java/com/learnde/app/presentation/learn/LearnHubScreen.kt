@@ -87,6 +87,7 @@ fun LearnHubScreen(
     onOpenA0a1Test: () -> Unit,
     onOpenA1Learning: () -> Unit,
     onOpenVoiceClient: () -> Unit,
+    onOpenDebugLogs: () -> Unit = {},
     learnCoreViewModel: LearnCoreViewModel,
 ) {
     val hubVm: LearnHubViewModel = hiltViewModel()
@@ -132,7 +133,7 @@ fun LearnHubScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { hubVm.onIntent(LearnHubIntent.OpenDebugLogs) }) {
+                    IconButton(onClick = onOpenDebugLogs) {
                         Icon(
                             Icons.Filled.BugReport,
                             contentDescription = "Журнал",
