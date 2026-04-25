@@ -88,6 +88,7 @@ data class ClusterA1Entity(
     val anchorLemma: String,
 
     /** v3.1.1: ПРЯМАЯ ссылка на правило из A1GrammarCatalog. */
+    @androidx.room.ColumnInfo(defaultValue = "NULL") // ФИКС: Синхронизация схемы с MIGRATION_3_4
     val grammarRuleId: String? = null,
 
     /** Грамматический фокус, который всплывает в ситуации. */
