@@ -161,6 +161,29 @@ fun LearnHubScreen(
                     }
                 },
                 actions = {
+                    // Стрик-индикатор (если > 0)
+                    if (state.currentStreakDays > 0) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFFFB8C00).copy(alpha = 0.15f))
+                                .border(1.dp, Color(0xFFFB8C00).copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Text("🔥", fontSize = 14.sp)
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                "${state.currentStreakDays}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFB8C00),
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                    }
+
                     // ФИКС: Премиум-кнопка "Свободный диалог" в TopAppBar.
                     Box(
                         modifier = Modifier
