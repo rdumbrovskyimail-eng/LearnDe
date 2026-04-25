@@ -139,6 +139,7 @@ class LearnCoreViewModel @Inject constructor(
 
     private val pendingToolCalls = ConcurrentHashMap.newKeySet<String>()
     private val startStopMutex = Mutex()
+    private val micOperationMutex = Mutex()
     private var micJob: Job? = null
     private var silenceTimerJob: Job? = null
     private var greetingFallbackJob: Job? = null
@@ -459,8 +460,11 @@ class LearnCoreViewModel @Inject constructor(
             it.copy(isMicActive = true, connectionStatus = LearnConnectionStatus.Recording)
         }
         micJob = viewModelScope.launch {
-            launch { audioEngine.micOutput.collect { chunk -> liveClient.sendAudio(chunk) } }
-            audioEngine.startCapture()
+            // ФИКС: Mutex защищает от race condition при быстрых toggle.
+            micOperationMutex.withLock {
+                launch { audioEngine.micOutput.collect { chunk -> liveClient.sendAudio(chunk) } }
+                audioEngine.startCapture()
+            }
         }
     }
 
@@ -469,7 +473,10 @@ class LearnCoreViewModel @Inject constructor(
         micJob = null
         silenceTimerJob?.cancel()
         viewModelScope.launch {
-            audioEngine.stopCapture()
+            // ФИКС: Тот же mutex — startCapture не выполнится раньше stopCapture.
+            micOperationMutex.withLock {
+                audioEngine.stopCapture()
+            }
             if (cachedSettings.sendAudioStreamEnd) {
                 liveClient.sendAudioStreamEnd()
             } else if (!cachedSettings.enableServerVad) {
