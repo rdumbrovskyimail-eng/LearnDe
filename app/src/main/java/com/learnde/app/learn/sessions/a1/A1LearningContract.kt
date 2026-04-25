@@ -17,11 +17,11 @@ data class A1LearningState(
     val loading: Boolean = true,
     val error: String? = null,
 
-    val totalLemmas: Int = 835,
+    val totalLemmas: Int = 824,
     val lemmasSeen: Int = 0,
     val lemmasMastered: Int = 0,
     val lemmasInProgress: Int = 0,
-    val totalClusters: Int = 194,
+    val totalClusters: Int = 141,
     val clustersMastered: Int = 0,
     val grammarIntroduced: Int = 0,
     val grammarTotal: Int = 22,
