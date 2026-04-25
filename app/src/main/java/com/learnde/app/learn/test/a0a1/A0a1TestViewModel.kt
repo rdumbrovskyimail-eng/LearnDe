@@ -113,7 +113,6 @@ class A0a1TestViewModel @Inject constructor(
         if (_state.value.finished) return
         autoFinishJob?.cancel()
         autoFinishJob = viewModelScope.launch {
-            // Даём 1.2 сек на опоздавшие оценки, которые могли прилететь сразу за finish_test.
             delay(1200)
             if (_state.value.finished) return@launch
             val passed = _state.value.isPassed
@@ -122,6 +121,8 @@ class A0a1TestViewModel @Inject constructor(
             if (passed) {
                 runCatching { settingsStore.updateData { it.copy(testPassed = true) } }
             }
+        }
+    }
         }
     }
 
