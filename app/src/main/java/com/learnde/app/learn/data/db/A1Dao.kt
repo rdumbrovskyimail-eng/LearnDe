@@ -394,6 +394,9 @@ interface A1SessionDao {
     @Query("SELECT COUNT(*) FROM a1_session_logs WHERE startedAt >= :since")
     suspend fun getCountSince(since: Long): Int
 
+    @Query("SELECT startedAt FROM a1_session_logs ORDER BY startedAt DESC")
+    suspend fun getAllStartedTimestamps(): List<Long>
+
     @Query("""
         SELECT AVG(avgQuality) FROM (
             SELECT avgQuality FROM a1_session_logs
