@@ -138,18 +138,22 @@ class VocabularyEnforcer @Inject constructor(
     fun analyze(utterance: String) {
         if (!loaded || utterance.isBlank()) return
 
-        // Простая токенизация: буквы + умлауты + ß
+        // ФИКС: Оставляем кириллицу, чтобы честно считать общее количество слов во фразе
         val words = utterance
             .lowercase()
-            .replace(Regex("[^a-zäöüß ]"), " ")
+            .replace(Regex("[^a-zäöüßа-яё ]"), " ")
             .split(Regex("\\s+"))
-            .filter { it.length >= 3 }  // служебные "in", "zu" не трогаем
+            .filter { it.isNotBlank() }
 
         if (words.size < MIN_WORDS_TO_ANALYZE) return
 
+        val cyrillicRegex = Regex("[а-яё]")
         val violators = words.filter { word ->
-            // Лемматизация беднячка: Häuser → häuser (whitelist хранит lowercase)
-            // Для честного stemming нужен отдельный модуль — это Patch 5+.
+            // Игнорируем русские слова (они не являются сложной немецкой лексикой)
+            if (word.contains(cyrillicRegex)) return@filter false
+            // Игнорируем короткие слова, чтобы не штрафовать за междометия
+            if (word.length < 3 && word !in ALWAYS_ALLOWED) return@filter false
+            
             word !in whitelist && !wordMatchesAnyLemmaForm(word) && !isCompoundOfWhitelist(word)
         }
 
@@ -178,9 +182,10 @@ class VocabularyEnforcer @Inject constructor(
     private fun wordMatchesAnyLemmaForm(word: String): Boolean {
         val normalized = word
             .replace("ä", "a").replace("ö", "o").replace("ü", "u").replace("ß", "ss")
-        // Отрезаем типичные окончания
+        
         val stems = listOfNotNull(
             word,
+            word.removeSuffix("st"),
             word.removeSuffix("en"),
             word.removeSuffix("er"),
             word.removeSuffix("e"),
@@ -189,7 +194,14 @@ class VocabularyEnforcer @Inject constructor(
             normalized,
         ).filter { it.length >= 3 }
 
-        return stems.any { stem -> whitelist.any { it.startsWith(stem) || stem.startsWith(it) } }
+        // ФИКС: Используем точное совпадение вместо startsWith, 
+        // чтобы короткие леммы (in, zu) не пропускали сложные слова (innerhalb, zusammen)
+        return stems.any { stem -> 
+            whitelist.contains(stem) || 
+            whitelist.contains("${stem}en") || 
+            whitelist.contains("${stem}n") || 
+            whitelist.contains("${stem}e")
+        }
     }
 
     /**
