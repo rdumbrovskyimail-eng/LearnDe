@@ -391,8 +391,11 @@ fun A1LearningScreen(
 
             // ─── ЧАТ ─── (главный элемент, weight=1f)
             if (learnState.error != null) {
-                // Безопасное извлечение строки или фоллбэк
-                ErrorSection("Ошибка связи с сервером") 
+                // Пытаемся достать текст ошибки, иначе показываем дефолтный
+                val errorText = (learnState.error as? com.learnde.app.util.UiText.Plain)?.value 
+                    ?: "Ошибка связи с сервером. Проверьте API-ключ."
+                
+                ErrorSection(errorText) 
                 Spacer(Modifier.height(LearnTokens.PaddingSm))
             }
             if (state.sessionActive && learnState.transcript.isNotEmpty()) {
