@@ -532,8 +532,7 @@ fun SettingsScreen(
                 onClick = onStartSession,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(26.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = accent),
-                enabled = s.apiKey.length >= 20
+                colors = ButtonDefaults.buttonColors(containerColor = accent)
             ) {
                 Text("Перейти к обучению", fontSize = 16.sp, color = MaterialTheme.colorScheme.onPrimary)
             }
