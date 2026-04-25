@@ -139,7 +139,7 @@ class A1DataImporter @Inject constructor(
                 hidx = dto.hidx,
             )
         }
-        lemmaDao.insertAllIgnore(entities)
+        lemmaDao.insertAll(entities)
         logger.d("A1Importer: imported ${entities.size} lemmas (deduped from ${dtos.size})")
     }
 
