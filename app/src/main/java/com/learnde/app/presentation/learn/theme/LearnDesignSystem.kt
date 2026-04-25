@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА v5.1
 // Путь: app/src/main/java/com/learnde/app/presentation/learn/theme/LearnDesignSystem.kt
 //
-// Единая дизайн-система Learn блока — Voice-First Minimalism.
-// Тёплый монохром + один accent. Без эмодзи-флагов как UI.
-// Weight-контраст вместо цветового.
+// ИЗМЕНЕНИЯ:
+//   - Добавлен токен RadiusXxs (4.dp)
+//   - Добавлены токены ButtonHeightSm, ButtonHeightMd, ButtonHeightLg
+//   - Добавлена функция плюрализации Plural.day()
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.learn.theme
 
@@ -134,6 +135,7 @@ fun learnColors(): LearnColors {
 
 /** Единые радиусы / отступы. */
 object LearnTokens {
+    val RadiusXxs   = 4.dp
     val RadiusXs    = 8.dp
     val RadiusSm    = 12.dp
     val RadiusMd    = 14.dp
@@ -149,6 +151,11 @@ object LearnTokens {
     val BorderThin   = 1.dp
     val BorderMedium = 1.5.dp
 
+    // ── Buttons ──
+    val ButtonHeightSm = 40.dp
+    val ButtonHeightMd = 48.dp
+    val ButtonHeightLg = 56.dp
+
     // ── Typography ──
     val FontSizeMicro     = 9.sp
     val FontSizeCaption   = 11.sp
@@ -162,7 +169,7 @@ object LearnTokens {
     val CapsLetterSpacing = 1.4.sp
 }
 
-/** Утилиты для русской плюрализации (1 слово / 2 слова / 5 слов). */
+/** Утилиты для русской плюрализации. */
 object Plural {
     fun word(n: Int): String {
         val mod10 = n % 10
@@ -227,6 +234,17 @@ object Plural {
             mod10 == 1 -> "попытка"
             mod10 in 2..4 -> "попытки"
             else -> "попыток"
+        }
+    }
+
+    fun day(n: Int): String {
+        val mod10 = n % 10
+        val mod100 = n % 100
+        return when {
+            mod100 in 11..14 -> "дней"
+            mod10 == 1 -> "день"
+            mod10 in 2..4 -> "дня"
+            else -> "дней"
         }
     }
 }
