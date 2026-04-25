@@ -36,7 +36,10 @@ class LearnHubViewModel @Inject constructor(
     private val _state = MutableStateFlow(LearnHubState())
     val state: StateFlow<LearnHubState> = _state.asStateFlow()
 
-    private val _effects = MutableSharedFlow<LearnHubEffect>(extraBufferCapacity = 8)
+    private val _effects = MutableSharedFlow<LearnHubEffect>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
     val effects: SharedFlow<LearnHubEffect> = _effects.asSharedFlow()
 
     init {
