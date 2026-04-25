@@ -62,8 +62,8 @@ class A1SituationSession @Inject constructor(
     @Volatile private var currentPhase: A1Phase = A1Phase.IDLE
     @Volatile private var evaluateCallsCount: Int = 0
     
-    // ФИНАЛ: Потокобезопасный список для предотвращения крашей
-    private val qualityAccumulator = CopyOnWriteArrayList<Int>()
+    // Заменяем CopyOnWriteArrayList на структуру с поддержкой замены последнего значения леммы.
+    private val qualityAccumulator = CopyOnWriteArrayList<Pair<String, Int>>() // lemma to quality
 
     private fun normalizeLemma(raw: String): String {
         return raw.trim()
@@ -71,21 +71,51 @@ class A1SituationSession @Inject constructor(
 
     suspend fun disputeEvaluation(lemma: String) {
         val norm = normalizeLemma(lemma)
-        if (failedLemmas.remove(norm) || failedLemmas.removeIf { it.equals(norm, ignoreCase = true) }) {
-            producedLemmas.add(norm)
-            diagnoses[norm] = ErrorDiagnosis()
-            val clusterId = currentContext?.cluster?.id ?: "unknown"
-            lemmaDao.updateProgress(
+        val wasFailed = failedLemmas.remove(norm) || 
+                        failedLemmas.removeIf { it.equals(norm, ignoreCase = true) }
+        if (!wasFailed) {
+            logger.d("A1Session: dispute for '$norm' but it wasn't in failedLemmas")
+            return
+        }
+        
+        producedLemmas.add(norm)
+        diagnoses[norm] = ErrorDiagnosis()
+        
+        // ФИКС: Заменяем последнюю оценку этой леммы в qualityAccumulator на 7.
+        val lastIdx = qualityAccumulator.indexOfLast { 
+            it.first.equals(norm, ignoreCase = true) 
+        }
+        if (lastIdx >= 0) {
+            qualityAccumulator[lastIdx] = norm to 7
+            logger.d("A1Session: dispute updated quality for '$norm' to 7 (was ${qualityAccumulator[lastIdx].second})")
+        }
+        
+        val clusterId = currentContext?.cluster?.id ?: "unknown"
+        
+        // ФИКС: Используем FSRS вместо хардкода +7 дней (соблюдаем интервалы).
+        val entity = lemmaDao.getByLemma(norm)
+        if (entity != null) {
+            val rating = com.learnde.app.learn.domain.FsrsRating.fromQuality(7)
+            val (newState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
+            val newMastery = fsrs.masteryScore(newState)
+            
+            lemmaDao.updateProgressFsrs(
                 lemma = norm,
                 produced = 1,
-                failed = -1,
-                productionDelta = 0.15f,
+                failed = -1, // вычитаем ошибку (но в SQL MIN(1.0, ...) защитит от выхода за границы)
+                newProductionScore = newMastery,
                 recognitionDelta = 0.05f,
                 clusterId = clusterId,
-                nextReview = System.currentTimeMillis() + 7L * 24 * 3600 * 1000
+                nextReview = nextReviewAt,
+                fsrsDifficulty = newState.difficulty,
+                fsrsStability = newState.stability,
+                fsrsReps = newState.reps,
+                fsrsLapses = newState.lapses,
+                fsrsLastReviewAt = newState.lastReviewAt,
             )
-            logger.d("A1Session: Disputed evaluation for $norm")
         }
+        
+        logger.d("A1Session: Disputed evaluation for $norm")
     }
 
     suspend fun prepareForCluster(cluster: ClusterA1Entity) {
@@ -131,7 +161,7 @@ class A1SituationSession @Inject constructor(
         val ctx = currentContext ?: return
         val endedAt = System.currentTimeMillis()
         val avgQ = if (qualityAccumulator.isEmpty()) 0f
-                   else qualityAccumulator.average().toFloat()
+                   else qualityAccumulator.map { it.second }.average().toFloat()
         val rawQuality = avgQ.toInt().coerceIn(1, 7)
 
         logger.w("A1Session: AUTOSAVING incomplete session (cluster=${ctx.cluster.id})")
@@ -266,7 +296,7 @@ class A1SituationSession @Inject constructor(
         )
         diagnoses[lemma] = diagnosis
         evaluateCallsCount++
-        qualityAccumulator.add(quality)
+        qualityAccumulator.add(lemma to quality)
 
         val wasCorrect = !diagnosis.isError
         if (wasCorrect) producedLemmas.add(lemma) else failedLemmas.add(lemma)
@@ -361,7 +391,7 @@ class A1SituationSession @Inject constructor(
             Json.encodeToString(list.toList())
         }
         val avgQ = if (qualityAccumulator.isEmpty()) quality.toFloat()
-                   else qualityAccumulator.average().toFloat()
+                   else qualityAccumulator.map { it.second }.average().toFloat()
         val diagnosesJson = try {
             Json.encodeToString(
                 diagnoses.mapValues { (_, d) ->
