@@ -433,7 +433,16 @@ fun A1LearningScreen(
             }
 
             // ─── Кнопка действий ─── (всегда внизу)
-            BottomActionButton(state, vm, learnState.connectionStatus, learnCoreViewModel)
+            BottomActionButton(
+                state = state,
+                vm = vm,
+                conn = learnState.connectionStatus,
+                learnCoreViewModel = learnCoreViewModel,
+                isAiSpeaking = learnState.isAiSpeaking,
+                onShowToast = { msg ->
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                },
+            )
             Spacer(Modifier.height(LearnTokens.PaddingSm))
         }
     }
@@ -1236,6 +1245,8 @@ private fun BottomActionButton(
     vm: A1LearningViewModel,
     conn: LearnConnectionStatus,
     learnCoreViewModel: LearnCoreViewModel,
+    isAiSpeaking: Boolean,
+    onShowToast: (String) -> Unit,
 ) {
     val colors = learnColors()
     when {
@@ -1243,8 +1254,8 @@ private fun BottomActionButton(
             Row(modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
                     onClick = {
-                        if (learnState.isAiSpeaking) {
-                            Toast.makeText(context, "Подождите, ИИ ещё говорит…", Toast.LENGTH_SHORT).show()
+                        if (isAiSpeaking) {
+                            onShowToast("Подождите, ИИ ещё говорит…")
                         } else {
                             learnCoreViewModel.sendSystemText(
                                 "[СИСТЕМА]: Ученик нажал кнопку 'Не знаю'. " +
