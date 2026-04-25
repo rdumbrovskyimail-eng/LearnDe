@@ -259,8 +259,8 @@ class A1SituationSession @Inject constructor(
             lemmaDao.incrementTimesHeard(lemma)
             
             if (ctx != null) {
+                // ФИКС: Полагаемся строго на связь в БД. Убираем опасный хардкод-fallback.
                 val ruleId = ctx.cluster.grammarRuleId?.takeIf { it.isNotBlank() }
-                    ?: findGrammarRuleIdByFocus(ctx.cluster.grammarFocus)
                 ruleId?.let { grammarDao.incrementExposure(it, delta = 1) }
             }
             bus.emit(A1LearningEvent.LemmaHeard(lemma))
@@ -429,40 +429,6 @@ class A1SituationSession @Inject constructor(
         ok()
     }
 
-    private suspend fun findGrammarRuleIdByFocus(focus: String): String? {
-        if (focus.isBlank()) return null
-        val f = focus.lowercase()
-        val ruleId = when {
-            "akkusativ" in f && ("präposition" in f || "für" in f || "ohne" in f || "gegen" in f) -> "g21_praeposition_akkusativ"
-            "akkusativ" in f -> "g08_akkusativ"
-            "dativ" in f || "mit " in f || " zu" in f || " bei" in f -> "g14_praeposition_dativ"
-            "trennbar" in f || "aufstehen" in f || "anrufen" in f -> "g13_trennbare_verben"
-            "modal" in f || "können" in f || "möchten" in f -> "g12_modalverben"
-            "plural" in f -> "g11_plural"
-            "possessiv" in f -> "g10_possessiv"
-            "negation" in f || "nicht" in f || "kein" in f -> "g09_negation"
-            "artikel" in f -> "g07_artikel_nominativ"
-            "uhr" in f || "zeit" in f -> "g15_uhrzeit"
-            "datum" in f || "monat" in f -> "g16_datum"
-            "satzbau" in f || "position" in f -> "g16_satzbau"
-            "imperativ" in f || "komm!" in f -> "g17_imperativ"
-            "gern" in f || "lieber" in f -> "g18_gern_lieber"
-            "weil" in f -> "g19_weil"
-            "perfekt" in f -> "g20_perfekt_basics"
-            "adjektiv" in f && "prädikat" in f -> "g22_adjektiv_nach_sein"
-            "pronomen" in f && ("mich" in f || "dich" in f) -> "g23_pronomen_akk"
-            "personalpronomen" in f -> "g01_personalpronomen_nom"
-            "sein-konjugation" in f || "sein " in f -> "g02_sein_praesens"
-            "haben" in f -> "g03_haben_praesens"
-            "w-frage" in f || "wer" in f || "wo" in f -> "g05_w_fragen"
-            "zahl" in f || "kardinal" in f -> "g06_zahlen_basis"
-            "alphabet" in f -> "g00_alphabet"
-            "höflichkeit" in f || "soziale" in f -> "g00_greetings"
-            "verb-konjugation" in f || "präsens" in f -> "g04_regulaere_verben"
-            else -> null
-        }
-        return ruleId
-    }
 
     private fun ok() = """{"status":"ok"}"""
     private fun err(msg: String) = """{"error":"$msg"}"""
