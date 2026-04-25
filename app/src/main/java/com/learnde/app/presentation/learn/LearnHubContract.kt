@@ -71,6 +71,16 @@ data class LearnHubState(
                 ),
                 implemented = true,
             ),
+            LearnHubItem(
+                id = "grammar_book",
+                title = "Грамматика A1",
+                subtitle = "Все правила · вне диалога",
+                badge = "REFERENCE",
+                iconKey = "Book",
+                accentKey = "Accent",
+                detailStats = emptyList(),
+                implemented = true,
+            ),
         )
     }
 }
