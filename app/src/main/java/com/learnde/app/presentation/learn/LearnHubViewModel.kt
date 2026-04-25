@@ -31,6 +31,7 @@ import javax.inject.Inject
 @HiltViewModel
 class LearnHubViewModel @Inject constructor(
     private val settingsStore: DataStore<AppSettings>,
+    private val sessionDao: com.learnde.app.learn.data.db.A1SessionDao,
     private val logger: AppLogger,
 ) : ViewModel() {
 
@@ -42,6 +43,30 @@ class LearnHubViewModel @Inject constructor(
 
     init {
         observeSettings()
+        observeAdaptiveOrder()
+    }
+
+    private fun observeAdaptiveOrder() {
+        viewModelScope.launch {
+            sessionDao.observeTotal().collect { totalSessions ->
+                if (totalSessions > 0) {
+                    _state.update { s ->
+                        val items = LearnHubState.DEFAULT_ITEMS.toMutableList()
+                        val a1 = items.find { it.id == "a1_learning" }
+                        val test = items.find { it.id == "a0a1_test" }
+                        if (a1 != null && test != null) {
+                            val translator = items.find { it.id == "translator" }
+                            val updatedTest = test.copy(
+                                subtitle = "Пройти заново · переоценка уровня",
+                                badge = "REPLAY",
+                            )
+                            val newItems = listOfNotNull(a1, updatedTest, translator)
+                            s.copy(items = newItems)
+                        } else s
+                    }
+                }
+            }
+        }
     }
 
     private fun observeSettings() {
