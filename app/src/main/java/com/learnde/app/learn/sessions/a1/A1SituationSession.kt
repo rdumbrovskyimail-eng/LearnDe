@@ -312,9 +312,9 @@ class A1SituationSession @Inject constructor(
 
         return lemmaLock(lemma).withLock {
             val entity = lemmaDao.getByLemma(lemma)
+            val intervention = diagnosis.recommendedIntervention()
             if (entity == null) {
                 logger.w("A1Session.eval: lemma '$lemma' not in DB (Gemini сочинил?)")
-                val intervention = diagnosis.recommendedIntervention()
                 bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
                     lemma = lemma, quality = quality, diagnosis = diagnosis,
                     intervention = intervention, feedback = feedback,
@@ -334,7 +334,6 @@ class A1SituationSession @Inject constructor(
             val newMastery = fsrs.masteryScore(newFsrsState)
             val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
             val clusterId = currentContext?.cluster?.id ?: "unknown"
-            val intervention = diagnosis.recommendedIntervention()
 
             lemmaDao.updateProgressFsrs(
                 lemma = lemma,
