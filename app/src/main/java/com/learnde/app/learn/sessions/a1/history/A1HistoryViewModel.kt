@@ -71,7 +71,7 @@ class A1HistoryViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             sessionDao.observeAll().collect { entities ->
                 // ОДИН запрос вместо N
-                val clusterMap = clusterDao.getAll().associateBy { it.id }
+                val clusterMap = clusterDao.getAllOrdered().associateBy { it.id }
                 val items = entities.map { entity ->
                     val cluster = clusterMap[entity.clusterId]
                     SessionHistoryItem(
