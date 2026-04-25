@@ -44,6 +44,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,7 +73,7 @@ fun A1HistoryScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var sessionToDelete by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Long?>(null) }
+    var sessionToDelete by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(Unit) {
         vm.effects.collect { effect ->
