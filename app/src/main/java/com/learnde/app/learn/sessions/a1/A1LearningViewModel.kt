@@ -48,7 +48,10 @@ class A1LearningViewModel @Inject constructor(
     private val _state = MutableStateFlow(A1LearningState())
     val state: StateFlow<A1LearningState> = _state.asStateFlow()
 
-    private val _effects = MutableSharedFlow<A1LearningEffect>(extraBufferCapacity = 8)
+    private val _effects = MutableSharedFlow<A1LearningEffect>(
+        extraBufferCapacity = 32,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
     val effects: SharedFlow<A1LearningEffect> = _effects.asSharedFlow()
 
     init {
