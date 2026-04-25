@@ -288,7 +288,11 @@ class LearnCoreViewModel @Inject constructor(
             arbiter.active.collect { owner ->
                 val owned = owner == ClientOwner.LEARN
                 _state.update { it.copy(arbiterOwned = owned) }
-                if (!owned && activeSession != null) {
+                
+                // ФИКС: Проверяем connectionStatus, чтобы избежать двойного вызова handleStop,
+                // так как activeSession может обнулиться с задержкой из-за многопоточности.
+                val isConnected = _state.value.connectionStatus != LearnConnectionStatus.Disconnected
+                if (!owned && activeSession != null && isConnected) {
                     logger.w("Learn: lost arbiter ownership → stopping")
                     handleStop()
                 }
