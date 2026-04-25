@@ -306,7 +306,13 @@ fun AppNavGraph(
                 val level = entry.arguments?.getString("level") ?: "A0"
                 com.learnde.app.presentation.learn.StudyScreen(
                     level = level,
-                    onBack = { navController.popBackStack(Routes.LEARN_HUB, inclusive = false) }
+                    onBack = { navController.popBackStack(Routes.LEARN_HUB, inclusive = false) },
+                    onOpenTranslator = {
+                        navController.navigate(Routes.LEARN_TRANSLATOR) { launchSingleTop = true }
+                    },
+                    onOpenFreeDialog = {
+                        navController.navigate(Routes.VOICE) { launchSingleTop = true }
+                    }
                 )
             }
         }
