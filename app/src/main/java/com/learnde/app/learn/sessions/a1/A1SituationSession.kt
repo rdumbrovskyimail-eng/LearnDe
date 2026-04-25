@@ -66,6 +66,9 @@ class A1SituationSession @Inject constructor(
     @Volatile private var currentPhase: A1Phase = A1Phase.IDLE
     @Volatile private var evaluateCallsCount: Int = 0
     
+    /** Снапшоты FSRS-состояний "до" последней оценки — для отката при dispute. */
+    private val preEvalSnapshots = ConcurrentHashMap<String, com.learnde.app.domain.model.FsrsState>()
+    
     // Заменяем CopyOnWriteArrayList на структуру с поддержкой замены последнего значения леммы.
     private val qualityAccumulator = CopyOnWriteArrayList<Pair<String, Int>>() // lemma to quality
 
@@ -96,17 +99,16 @@ class A1SituationSession @Inject constructor(
         
         val clusterId = currentContext?.cluster?.id ?: "unknown"
         
-        // ФИКС: Используем FSRS вместо хардкода +7 дней (соблюдаем интервалы).
-        val entity = lemmaDao.getByLemma(norm)
-        if (entity != null) {
+        val snapshot = preEvalSnapshots[norm]
+        if (snapshot != null) {
+            // Откатываемся на состояние ДО ошибочной оценки и применяем оценку GOOD от него.
             val rating = com.learnde.app.learn.domain.FsrsRating.fromQuality(7)
-            val (newState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
+            val (newState, nextReviewAt) = fsrs.schedule(snapshot, rating)
             val newMastery = fsrs.masteryScore(newState)
-            
             lemmaDao.updateProgressFsrs(
                 lemma = norm,
                 produced = 1,
-                failed = -1, // вычитаем ошибку (но в SQL MIN(1.0, ...) защитит от выхода за границы)
+                failed = -1,
                 newProductionScore = newMastery,
                 recognitionDelta = 0.05f,
                 clusterId = clusterId,
@@ -117,6 +119,9 @@ class A1SituationSession @Inject constructor(
                 fsrsLapses = newState.lapses,
                 fsrsLastReviewAt = newState.lastReviewAt,
             )
+            preEvalSnapshots.remove(norm)
+        } else {
+            logger.w("A1Session: dispute for '$norm' — no snapshot available, skipping FSRS rollback")
         }
         
         logger.d("A1Session: Disputed evaluation for $norm")
@@ -325,6 +330,7 @@ class A1SituationSession @Inject constructor(
                 ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)
             }
             val rating = com.learnde.app.learn.domain.FsrsRating.fromQuality(adjustedQuality)
+            preEvalSnapshots[lemma] = entity.toFsrsState()
             val (newFsrsState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
             val newMastery = fsrs.masteryScore(newFsrsState)
 
