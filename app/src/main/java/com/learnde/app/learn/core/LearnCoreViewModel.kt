@@ -660,22 +660,26 @@ class LearnCoreViewModel @Inject constructor(
 
                     is GeminiEvent.Disconnected -> {
                         greetingFallbackJob?.cancel()
+                        
+                        // Если код закрытия не 1000 (Normal) и не 1001 (Going Away) — это ошибка (например, неверный ключ)
+                        val isAbnormal = event.code != 1000 && event.code != 1001
+                        val errorMsg = if (isAbnormal) "Соединение закрыто: ${event.reason} (Код: ${event.code}). Проверьте API-ключ." else null
+
                         _state.update {
                             it.copy(
                                 connectionStatus = LearnConnectionStatus.Disconnected,
                                 isMicActive = false,
                                 isPreparingSession = false,
+                                // Записываем ошибку в стейт, чтобы UI её увидел
+                                error = if (isAbnormal) UiText.Plain(errorMsg!!) else it.error
                             )
                         }
                         audioEngine.stopCapture()
                         pendingToolCalls.clear()
                         silenceTimerJob?.cancel()
-                        if (activeSession != null) {
-                            _effects.tryEmit(
-                                LearnCoreEffect.ShowToast(
-                                    UiText.Plain("WS closed: ${event.code} ${event.reason}")
-                                )
-                            )
+                        
+                        if (isAbnormal && activeSession != null) {
+                            _effects.tryEmit(LearnCoreEffect.Error(UiText.Plain(errorMsg!!)))
                         }
                     }
 
