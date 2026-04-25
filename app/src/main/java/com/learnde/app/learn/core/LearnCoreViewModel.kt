@@ -864,7 +864,10 @@ class LearnCoreViewModel @Inject constructor(
         pendingModelText.append(text)
 
         if (audioReceivedThisTurn) {
-            viewModelScope.launch { flushPendingModelText() }
+            // ФИКС: Предотвращаем каскадный запуск корутин. Если джоб уже работает,
+            // он сам заберет накопившийся текст, так как чтение буфера теперь под мьютексом.
+            if (pendingFlushJob?.isActive == true) return
+            pendingFlushJob = viewModelScope.launch { flushPendingModelText() }
             return
         }
 
@@ -879,13 +882,16 @@ class LearnCoreViewModel @Inject constructor(
     }
 
     private suspend fun flushPendingModelText() {
-        if (pendingModelText.isEmpty()) return
-        val text = pendingModelText.toString()
-        pendingModelText.clear()
-        pendingFlushJob?.cancel()
-        pendingFlushJob = null
-
         transcriptMutex.withLock {
+            // ФИКС: Читаем и очищаем буфер строго внутри мьютекса, чтобы не потерять текст при отмене корутины
+            if (pendingModelText.isEmpty()) {
+                pendingFlushJob = null
+                return@withLock
+            }
+            val text = pendingModelText.toString()
+            pendingModelText.clear()
+            pendingFlushJob = null
+
             val last = transcriptBuffer.lastOrNull()
             if (last != null && last.role == ConversationMessage.ROLE_MODEL) {
                 // ФИКС: Умная дедупликация для фрагментированных чанков.
@@ -904,7 +910,7 @@ class LearnCoreViewModel @Inject constructor(
                         transcriptBuffer = next
                         _state.update { it.copy(transcript = next) }
                     }
-                    return
+                    return@withLock
                 }
                 
                 val updated = last.copy(text = last.text + text)
