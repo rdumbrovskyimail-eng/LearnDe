@@ -47,7 +47,7 @@ class LearnHubViewModel @Inject constructor(
     private fun observeSettings() {
         viewModelScope.launch {
             settingsStore.data.collect { settings ->
-                val passed = settings.a0a1TestPassed
+                val passed = settings.testPassed
                 val items = LearnHubState.DEFAULT_ITEMS.map {
                     if (it.id == "a0a1_test" && passed) it.copy(
                         badge = "REPLAY",
@@ -121,6 +121,7 @@ class LearnHubViewModel @Inject constructor(
                     "a0a1_test" -> "learn/a0a1"
                     "a1_learning" -> "learn/a1"
                     "translator" -> "learn/translator"
+                    "grammar_book" -> "learn/a1/grammar"
                     else -> return
                 }
                 viewModelScope.launch {
