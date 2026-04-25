@@ -56,9 +56,9 @@ interface A1LemmaDao {
     @Query("SELECT * FROM a1_lemmas WHERE LOWER(lemma) = LOWER(:lemma) LIMIT 1")
     suspend fun getByLemma(lemma: String): LemmaA1Entity?
 
-    /** v3.2: case-insensitive bulk поиск. */
+    /** Внутренний метод. Не использовать напрямую из-за лимита SQLite в 999 переменных. */
     @Query("SELECT * FROM a1_lemmas WHERE LOWER(lemma) IN (:lemmasLower)")
-    suspend fun getByLemmasLowercase(lemmasLower: List<String>): List<LemmaA1Entity>
+    suspend fun getByLemmasLowercaseInternal(lemmasLower: List<String>): List<LemmaA1Entity>
 
     @Query("SELECT * FROM a1_lemmas ORDER BY lemma ASC")
     suspend fun getAll(): List<LemmaA1Entity>
@@ -80,11 +80,18 @@ interface A1LemmaDao {
     @Query("UPDATE a1_lemmas SET timesFailed = MAX(0, timesFailed - 1) WHERE LOWER(lemma) = LOWER(:lemma)")
     suspend fun decrementTimesFailed(lemma: String)
 
-    /** Обёртка для старого API — вызывающие коды не меняем. */
+    /** Обёртка для старого API — вызывающие коды не меняем. Защита от лимита SQLite (999). */
     @Transaction
     suspend fun getByLemmas(lemmas: List<String>): List<LemmaA1Entity> {
         if (lemmas.isEmpty()) return emptyList()
-        return getByLemmasLowercase(lemmas.map { it.lowercase() })
+        val lowerLemmas = lemmas.map { it.lowercase() }
+        val result = mutableListOf<LemmaA1Entity>()
+        
+        // ФИКС: Разбиваем на чанки по 900 элементов, чтобы не превысить лимит SQLite
+        for (chunk in lowerLemmas.chunked(900)) {
+            result.addAll(getByLemmasLowercaseInternal(chunk))
+        }
+        return result
     }
 
     @Query("SELECT COUNT(*) FROM a1_lemmas")
