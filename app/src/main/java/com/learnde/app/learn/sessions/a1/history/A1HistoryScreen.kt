@@ -374,9 +374,9 @@ private fun SessionCard(
             }
             Spacer(Modifier.height(3.dp))
             Row {
-                MiniStat("✓", entity.lemmasProducedJson.lemmaCount(), colors.success)
+                MiniStat(Icons.Filled.CheckCircle, entity.lemmasProducedJson.lemmaCount(), colors.success)
                 Spacer(Modifier.width(LearnTokens.PaddingSm))
-                MiniStat("✗", entity.lemmasFailedJson.lemmaCount(), colors.error)
+                MiniStat(Icons.Filled.WarningAmber, entity.lemmasFailedJson.lemmaCount(), colors.error)
                 if (!entity.isComplete) {
                     Spacer(Modifier.width(LearnTokens.PaddingSm))
                     Text(
@@ -409,13 +409,22 @@ private fun SessionCard(
 }
 
 @Composable
-private fun MiniStat(symbol: String, count: Int, color: Color) {
-    Text(
-        "$symbol $count",
-        fontSize = LearnTokens.FontSizeCaption,
-        fontWeight = FontWeight.Medium,
-        color = color,
-    )
+private fun MiniStat(icon: ImageVector, count: Int, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            icon, 
+            contentDescription = null, 
+            tint = color, 
+            modifier = Modifier.size(12.dp)
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            "$count",
+            fontSize = LearnTokens.FontSizeCaption,
+            fontWeight = FontWeight.Medium,
+            color = color,
+        )
+    }
 }
 
 @Composable
