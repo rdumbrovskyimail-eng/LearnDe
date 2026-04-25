@@ -45,6 +45,7 @@ data class A1LearningState(
     val finalFeedback: String? = null,
 
     val isA1Completed: Boolean = false,
+    val a1Completed: Boolean = false,
 )
 
 data class LastEvaluation(
@@ -65,6 +66,8 @@ sealed class A1LearningIntent {
     data object StopSession : A1LearningIntent()
     data class DisputeEvaluation(val lemma: String) : A1LearningIntent()
     data object DismissFinalDialog : A1LearningIntent()
+    data object AcknowledgeSessionFinished : A1LearningIntent()
+    data object AcknowledgeA1Completed : A1LearningIntent()
 }
 
 sealed class A1LearningEffect {
