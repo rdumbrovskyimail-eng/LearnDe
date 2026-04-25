@@ -18,6 +18,3 @@ import javax.inject.Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class LearnScope
 
-@Qualifier
-@Retention(AnnotationRetention.BINARY)
-annotation class VoiceScope
