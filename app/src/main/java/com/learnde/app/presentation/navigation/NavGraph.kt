@@ -221,9 +221,13 @@ fun AppNavGraph(
                 val a1Vm: com.learnde.app.learn.sessions.a1.A1LearningViewModel =
                     hiltViewModel(entry)
 
-                // Если пришёл clusterId из History — автозапуск
+                // SavedStateHandle хранит признак "уже стартовали этот кластер",
+                // чтобы поворот экрана / смена темы не перезапускали активную сессию.
+                val handle = entry.savedStateHandle
                 LaunchedEffect(clusterId) {
-                    if (!clusterId.isNullOrBlank()) {
+                    val alreadyStarted = handle.get<String>("startedClusterId") == clusterId
+                    if (!clusterId.isNullOrBlank() && !alreadyStarted) {
+                        handle["startedClusterId"] = clusterId
                         a1Vm.onIntent(
                             com.learnde.app.learn.sessions.a1.A1LearningIntent.StartCluster(clusterId)
                         )
