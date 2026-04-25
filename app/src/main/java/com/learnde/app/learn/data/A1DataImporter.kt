@@ -77,7 +77,11 @@ class A1DataImporter @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true }
 
     companion object {
-        const val CURRENT_DATA_VERSION = 1
+        // КРИТИЧНО: при ЛЮБОМ изменении JSON-ассетов или миграциях БД, затрагивающих
+        // импортируемые поля (например, MIGRATION_3_4 добавила grammarRuleId в кластеры),
+        // эту константу ОБЯЗАТЕЛЬНО инкрементировать. Иначе у существующих юзеров
+        // колонка останется пустой и кластеры не свяжутся с грамматикой.
+        const val CURRENT_DATA_VERSION = 2
     }
 
     /**
