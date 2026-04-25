@@ -42,6 +42,7 @@ class A1SituationSession @Inject constructor(
     private val bus: A1LearningBus,
     private val logger: AppLogger,
     private val fsrs: com.learnde.app.learn.domain.FsrsScheduler,
+    private val evaluator: com.learnde.app.learn.domain.A1LemmaEvaluator,
 ) : LearnSession {
 
     override val id: String = "a1_situation"
@@ -310,12 +311,11 @@ class A1SituationSession @Inject constructor(
         val wasCorrect = !diagnosis.isError
         if (wasCorrect) producedLemmas.add(lemma) else failedLemmas.add(lemma)
 
-        val intervention = diagnosis.recommendedIntervention()
-
         return lemmaLock(lemma).withLock {
             val entity = lemmaDao.getByLemma(lemma)
             if (entity == null) {
                 logger.w("A1Session.eval: lemma '$lemma' not in DB (Gemini сочинил?)")
+                val intervention = diagnosis.recommendedIntervention()
                 bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
                     lemma = lemma, quality = quality, diagnosis = diagnosis,
                     intervention = intervention, feedback = feedback,
@@ -323,40 +323,21 @@ class A1SituationSession @Inject constructor(
                 return@withLock """{"status":"ignored","reason":"unknown lemma","intervention":"$intervention"}"""
             }
 
-            val adjustedQuality = when (diagnosis.depth) {
-                ErrorDepth.NONE -> quality
-                ErrorDepth.SLIP -> quality
-                ErrorDepth.MISTAKE -> (quality - 1).coerceAtLeast(2)
-                ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)
-            }
-            val rating = com.learnde.app.learn.domain.FsrsRating.fromQuality(adjustedQuality)
             preEvalSnapshots[lemma] = entity.toFsrsState()
-            val (newFsrsState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
-            val newMastery = fsrs.masteryScore(newFsrsState)
-
-            val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
             val clusterId = currentContext?.cluster?.id ?: "unknown"
-
-            // СИНХРОННЫЙ апдейт под локом — никаких scope.launch здесь.
-            lemmaDao.updateProgressFsrs(
-                lemma = lemma,
-                produced = if (wasCorrect) 1 else 0,
-                failed = if (!wasCorrect) 1 else 0,
-                newProductionScore = newMastery,
-                recognitionDelta = recognitionDelta,
-                clusterId = clusterId,
-                nextReview = nextReviewAt,
-                fsrsDifficulty = newFsrsState.difficulty,
-                fsrsStability = newFsrsState.stability,
-                fsrsReps = newFsrsState.reps,
-                fsrsLapses = newFsrsState.lapses,
-                fsrsLastReviewAt = newFsrsState.lastReviewAt,
+            
+            val result = evaluator.evaluate(
+                entity = entity,
+                quality = quality,
+                diagnosis = diagnosis,
+                clusterId = clusterId
             )
+
             bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
                 lemma = lemma, quality = quality, diagnosis = diagnosis,
-                intervention = intervention, feedback = feedback,
+                intervention = result.intervention, feedback = feedback,
             ))
-            """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
+            """{"status":"ok","intervention":"${result.intervention}","mastery":"${result.newMastery}"}"""
         }
     }
 
