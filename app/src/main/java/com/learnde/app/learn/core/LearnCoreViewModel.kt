@@ -178,7 +178,8 @@ class LearnCoreViewModel @Inject constructor(
     private fun observeVocabularyViolations() {
         viewModelScope.launch {
             vocabularyEnforcer.violations.collect { violation ->
-                if (activeSession?.id == "a1_situation") {
+                // ФИКС: Буферизуем нарушения лексики и для режима обучения, и для режима повторения
+                if (activeSession?.id == "a1_situation" || activeSession?.id == "a1_review") {
                     pendingVocabViolation = violation
                     logger.d("Learn: vocab violation buffered (${violation.violatingWords})")
                 }
