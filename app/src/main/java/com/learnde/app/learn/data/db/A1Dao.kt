@@ -142,6 +142,27 @@ interface A1LemmaDao {
         nextReview: Long,
     )
 
+    @Query("""
+        UPDATE a1_lemmas
+        SET timesHeard = timesHeard + 1,
+            timesProduced = timesProduced + :produced,
+            timesFailed = timesFailed + :failed,
+            productionScore = MIN(1.0, productionScore + :productionDelta),
+            recognitionScore = MIN(1.0, recognitionScore + :recognitionDelta),
+            lastSeenAt = :now,
+            lastClusterId = :clusterId
+        WHERE LOWER(lemma) = LOWER(:lemma)
+    """)
+    suspend fun updateProgressNoReschedule(
+        lemma: String,
+        produced: Int,
+        failed: Int,
+        productionDelta: Float,
+        recognitionDelta: Float,
+        clusterId: String,
+        now: Long = System.currentTimeMillis(),
+    )
+
     /**
      * Patch 3: полный апдейт по FSRS-5. v3.2: case-insensitive.
      */
