@@ -49,6 +49,7 @@ object Routes {
     const val LEARN_A1      = "learn/a1"
     const val LEARN_A1_WITH_CLUSTER = "learn/a1?clusterId={clusterId}"
     const val LEARN_A1_HISTORY = "learn/a1/history"
+    const val LEARN_A1_VOCABULARY = "learn/a1/vocabulary"
     const val LEARN_A1_SESSION_DETAILS = "learn/a1/session/{sessionId}"
     const val DEBUG_LOGS = "debug/logs"
 }
