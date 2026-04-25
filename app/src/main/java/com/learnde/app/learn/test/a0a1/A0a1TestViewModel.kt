@@ -108,27 +108,32 @@ class A0a1TestViewModel @Inject constructor(
         _state.update { it.copy(verdict = verdict, finished = true) }
     }
 
-    fun advanceToNextPhase(): String? {
+    sealed class TestNextStep {
+        data class StartSession(val sessionId: String) : TestNextStep()
+        data class NavigateRoute(val route: String) : TestNextStep()
+        object Graduated : TestNextStep()
+    }
+
+    fun advanceToNextPhase(): TestNextStep {
         autoFinishJob?.cancel()
         bus.reset()
 
-        val nextPhase = when (_state.value.phase) {
+        val current = _state.value.phase
+        val nextPhase = when (current) {
             TestPhase.A0 -> TestPhase.A1
             TestPhase.A1 -> TestPhase.A2
             TestPhase.A2 -> TestPhase.B1
             TestPhase.B1 -> TestPhase.B2
             TestPhase.B2 -> null
-        }
+        } ?: return TestNextStep.Graduated
 
-        if (nextPhase != null) {
-            _state.value = A0a1TestUiState(phase = nextPhase)
-            return if (nextPhase == TestPhase.A1 && _state.value.phase == TestPhase.A0) {
-                "learn/a1"
-            } else {
-                "${nextPhase.name.lowercase()}_test"
-            }
+        _state.value = A0a1TestUiState(phase = nextPhase)
+
+        // A0 пройден → выходим из теста и идём в основное обучение A1 (НЕ запускаем Live-сессию с этим ID).
+        if (current == TestPhase.A0 && nextPhase == TestPhase.A1) {
+            return TestNextStep.NavigateRoute("learn/a1")
         }
-        return null
+        return TestNextStep.StartSession("${nextPhase.name.lowercase()}_test")
     }
 
     fun resetUiState() {
