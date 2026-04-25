@@ -608,8 +608,16 @@ private fun GoalChip(threshold: Int, points: Int) {
                     fontSize = LearnTokens.FontSizeTitle,
                     fontWeight = FontWeight.Bold,
                 )
+
+                val pointsStr = when {
+                    threshold % 100 in 11..14 -> "баллов"
+                    threshold % 10 == 1 -> "балл"
+                    threshold % 10 in 2..4 -> "балла"
+                    else -> "баллов"
+                }
+
                 Text(
-                    " ${Plural.word(threshold).replace("слов", "балл").let { "балл" + if (threshold % 10 == 1 && threshold % 100 != 11) "" else if (threshold % 10 in 2..4 && threshold % 100 !in 12..14) "а" else "ов" }}",
+                    " $pointsStr",
                     color = colors.textMid,
                     fontSize = LearnTokens.FontSizeCaption,
                     fontWeight = FontWeight.Medium,
