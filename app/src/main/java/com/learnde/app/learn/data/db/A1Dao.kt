@@ -77,6 +77,12 @@ interface A1LemmaDao {
         now: Long = System.currentTimeMillis(),
     )
 
+    @Query("UPDATE a1_lemmas SET timesProduced = MAX(0, timesProduced - 1) WHERE LOWER(lemma) = LOWER(:lemma)")
+    suspend fun decrementTimesProduced(lemma: String)
+
+    @Query("UPDATE a1_lemmas SET timesFailed = MAX(0, timesFailed - 1) WHERE LOWER(lemma) = LOWER(:lemma)")
+    suspend fun decrementTimesFailed(lemma: String)
+
     /** Обёртка для старого API — вызывающие коды не меняем. */
     @Transaction
     suspend fun getByLemmas(lemmas: List<String>): List<LemmaA1Entity> {
