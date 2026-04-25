@@ -629,9 +629,7 @@ private fun CompactClusterCard(
                 Spacer(Modifier.height(LearnTokens.PaddingSm))
                 Text(
                     text = cluster.scenarioHint,
-                    modifier = Modifier
-                        .heightIn(max = 140.dp)
-                        .verticalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     fontSize = 13.sp,
                     lineHeight = 17.sp,
                     color = colors.textMid,
