@@ -92,6 +92,7 @@ fun A1LearningScreen(
     onOpenHistory: () -> Unit,
     onOpenVocabulary: () -> Unit,
     onOpenDebugLogs: () -> Unit,
+    onOpenCourseMap: () -> Unit,
     learnCoreViewModel: LearnCoreViewModel,
     vm: A1LearningViewModel = hiltViewModel(),
 ) {
@@ -202,6 +203,13 @@ fun A1LearningScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenCourseMap) {
+                        Icon(
+                            Icons.Filled.Map,
+                            "Карта курса",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     IconButton(onClick = onOpenDebugLogs) {
                         Icon(
                             Icons.Filled.BugReport,
