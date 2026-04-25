@@ -195,7 +195,6 @@ class LearnCoreViewModel @Inject constructor(
         when (intent) {
             is LearnCoreIntent.Start     -> handleStart(intent.sessionId)
             is LearnCoreIntent.Stop      -> handleStop()
-            is LearnCoreIntent.Restart   -> handleRestart()
             is LearnCoreIntent.ToggleMic -> handleToggleMic()
             is LearnCoreIntent.ClearError -> _state.update { it.copy(error = null) }
         }
@@ -434,15 +433,6 @@ class LearnCoreViewModel @Inject constructor(
     private fun handleStop() {
         viewModelScope.launch {
             stopInternal()
-        }
-    }
-
-    private fun handleRestart() {
-        val s = activeSession ?: return
-        viewModelScope.launch {
-            stopInternal()
-            delay(150)
-            startInternal(s.id)
         }
     }
 
