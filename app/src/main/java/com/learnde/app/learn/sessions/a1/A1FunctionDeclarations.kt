@@ -115,7 +115,7 @@ object A1FunctionDeclarations {
             )
         ),
         required = listOf(
-            "lemma", "quality", "error_source", "error_depth", "error_category"
+            "lemma", "quality"
         )
     )
 
