@@ -104,6 +104,8 @@ fun A0a1TestScreen(
         onBack()
     }
 
+    androidx.activity.compose.BackHandler(onBack = exitAndBack)
+
     val activity = context as? android.app.Activity
     var showRationaleDialog by remember { mutableStateOf(false) }
     var rationaleIsPermanent by remember { mutableStateOf(false) }
