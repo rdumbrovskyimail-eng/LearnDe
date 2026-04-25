@@ -61,6 +61,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.learnde.app.learn.data.db.LemmaA1Entity
 import com.learnde.app.presentation.learn.theme.LearnTokens
+import com.learnde.app.presentation.learn.theme.Plural
 import com.learnde.app.presentation.learn.theme.learnColors
 
 enum class VocabFilter(val label: String) {
