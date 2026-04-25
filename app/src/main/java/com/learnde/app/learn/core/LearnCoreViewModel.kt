@@ -907,25 +907,36 @@ class LearnCoreViewModel @Inject constructor(
         val session = activeSession
         val responses = java.util.concurrent.ConcurrentLinkedQueue<ToolResponse>()
 
-        // Регистрируем все id СРАЗУ, до запуска корутин (защита от ToolCallCancellation,
-        // прилетевшего в той же микросекунде, что и ToolCall).
+        // Регистрируем все id СРАЗУ, до запуска корутин
         for (call in event.calls) {
             pendingToolCalls.add(call.id)
             statusBus.onDetected(call.name, call.id)
         }
 
-        // По одной независимой child-Job на каждый вызов — отмена одного НЕ отменит других.
         val children = event.calls.map { call ->
             viewModelScope.launch {
                 try {
-                    if (call.id !in pendingToolCalls) return@launch
+                    // ФИКС: Если вызов отменен до старта корутины, обязательно отправляем ответ-заглушку
+                    if (call.id !in pendingToolCalls) {
+                        responses.add(ToolResponse(call.name, call.id, """{"status":"cancelled"}"""))
+                        return@launch
+                    }
+                    
                     statusBus.onExecuting(call.name, call.id)
-                    val result = runCatching {
+                    
+                    // ФИКС: Правильная обработка исключений без проглатывания CancellationException
+                    val result = try {
                         session?.handleToolCall(call) ?: """{"error":"no active session"}"""
-                    }.getOrElse { e ->
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) {
+                            // Прокидываем отмену дальше, но сначала фиксируем ответ для сервера
+                            responses.add(ToolResponse(call.name, call.id, """{"status":"cancelled"}"""))
+                            throw e
+                        }
                         logger.e("Learn.toolCall threw: ${e.message}", e)
                         """{"error":"${e.message?.replace("\"", "'")}"}"""
                     }
+                    
                     val success = !result.contains("\"error\"")
                     statusBus.onCompleted(call.name, call.id, success)
                     responses.add(ToolResponse(call.name, call.id, result))
