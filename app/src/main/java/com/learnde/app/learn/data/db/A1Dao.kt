@@ -1,11 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v3.2
+// ПОЛНАЯ ЗАМЕНА v3.2.1 (Патч: декремент счетчиков)
 // Путь: app/src/main/java/com/learnde/app/learn/data/db/A1Dao.kt
-//
-// ИЗМЕНЕНИЯ v3.2:
-//   - getByLemma / getByLemmas — теперь case-insensitive через LOWER()
-//     (Gemini присылает в любом регистре, а база хранит с заглавной)
-//   - Без этого фикса ~30% tool calls терялись в "unknown lemma"
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.data.db
 
@@ -82,6 +77,12 @@ interface A1LemmaDao {
 
     @Query("UPDATE a1_lemmas SET timesFailed = MAX(0, timesFailed - 1) WHERE LOWER(lemma) = LOWER(:lemma)")
     suspend fun decrementTimesFailed(lemma: String)
+
+    @Query("UPDATE a1_lemmas SET timesProduced = MAX(0, timesProduced - 1) WHERE LOWER(lemma) = LOWER(:lemma)")
+    suspend fun decrementTimesProducedLegacy(lemma: String)
+
+    @Query("UPDATE a1_lemmas SET timesFailed = MAX(0, timesFailed - 1) WHERE LOWER(lemma) = LOWER(:lemma)")
+    suspend fun decrementTimesFailedLegacy(lemma: String)
 
     /** Обёртка для старого API — вызывающие коды не меняем. */
     @Transaction
@@ -213,7 +214,7 @@ interface A1LemmaDao {
 }
 
 // ════════════════════════════════════════════════════
-//  CLUSTERS DAO — без изменений
+//  CLUSTERS DAO
 // ════════════════════════════════════════════════════
 @Dao
 interface A1ClusterDao {
@@ -309,7 +310,7 @@ interface A1ClusterDao {
 }
 
 // ════════════════════════════════════════════════════
-//  GRAMMAR RULES DAO — без изменений
+//  GRAMMAR RULES DAO
 // ════════════════════════════════════════════════════
 @Dao
 interface A1GrammarDao {
@@ -365,7 +366,7 @@ interface A1GrammarDao {
 }
 
 // ════════════════════════════════════════════════════
-//  SESSION LOG DAO — без изменений
+//  SESSION LOG DAO
 // ════════════════════════════════════════════════════
 @Dao
 interface A1SessionDao {
@@ -418,7 +419,7 @@ interface A1SessionDao {
 }
 
 // ════════════════════════════════════════════════════
-//  USER PROGRESS DAO — без изменений
+//  USER PROGRESS DAO
 // ════════════════════════════════════════════════════
 @Dao
 interface A1UserProgressDao {
