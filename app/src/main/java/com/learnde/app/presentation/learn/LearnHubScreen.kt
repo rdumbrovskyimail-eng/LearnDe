@@ -41,6 +41,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.School
@@ -76,6 +77,7 @@ private fun iconFor(key: String): ImageVector = when (key) {
     "Quiz" -> Icons.Filled.Quiz
     "School" -> Icons.Filled.School
     "Translate" -> Icons.Filled.Translate
+    "Book" -> Icons.Filled.MenuBook
     else -> Icons.Filled.AutoAwesome
 }
 
@@ -87,6 +89,7 @@ fun LearnHubScreen(
     onOpenA0a1Test: () -> Unit,
     onOpenA1Learning: () -> Unit,
     onOpenVoiceClient: () -> Unit,
+    onOpenGrammar: () -> Unit = {},
     onOpenDebugLogs: () -> Unit = {},
     learnCoreViewModel: LearnCoreViewModel,
 ) {
@@ -105,6 +108,7 @@ fun LearnHubScreen(
                     "learn/translator" -> onOpenTranslator()
                     "learn/a0a1" -> onOpenA0a1Test()
                     "learn/a1" -> onOpenA1Learning()
+                    "learn/a1/grammar" -> onOpenGrammar()
                 }
             }
         }
@@ -133,16 +137,16 @@ fun LearnHubScreen(
                     }
                 },
                 actions = {
+                    if (state.currentStreakDays > 0) {
+                        StreakChip(state.currentStreakDays)
+                        Spacer(Modifier.width(LearnTokens.PaddingMd))
+                    }
                     IconButton(onClick = onOpenDebugLogs) {
                         Icon(
                             Icons.Filled.BugReport,
                             contentDescription = "Журнал",
                             tint = colors.textMid,
                         )
-                    }
-                    if (state.currentStreakDays > 0) {
-                        StreakChip(state.currentStreakDays)
-                        Spacer(Modifier.width(LearnTokens.PaddingMd))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bg),
