@@ -69,7 +69,17 @@ class A0a1TestViewModel @Inject constructor(
 
     private fun onAward(payload: AwardPayload) {
         val cur = _state.value
-        if (cur.answeredCount >= cur.totalQuestions) return
+        // Защита от ДУБЛИРОВАНИЯ начисления, но НЕ от опоздавшей оценки за последний вопрос.
+        // Если finish_test уже пришёл, мы всё ещё можем принять оценку, если по индексу
+        // вопроса это последний неоценённый.
+        if (cur.answeredCount >= cur.totalQuestions && cur.finished) {
+            // Тест уже завершён И оценок ровно столько, сколько вопросов — игнор.
+            return
+        }
+        if (cur.answeredCount >= cur.totalQuestions) {
+            // Все вопросы оценены, но finalize ещё не отработал — игнор.
+            return
+        }
 
         val newAnswered = cur.answeredCount + 1
         val newTotal = cur.totalPoints + payload.points
@@ -101,11 +111,14 @@ class A0a1TestViewModel @Inject constructor(
     private fun finalizeVerdict() {
         if (_state.value.finished) return
         autoFinishJob?.cancel()
-        autoFinishJob = null
-
-        val passed = _state.value.isPassed
-        val verdict = if (passed) TestVerdict.PASSED else TestVerdict.FAILED
-        _state.update { it.copy(verdict = verdict, finished = true) }
+        autoFinishJob = viewModelScope.launch {
+            // Даём 1.2 сек на опоздавшие оценки, которые могли прилететь сразу за finish_test.
+            delay(1200)
+            if (_state.value.finished) return@launch
+            val passed = _state.value.isPassed
+            val verdict = if (passed) TestVerdict.PASSED else TestVerdict.FAILED
+            _state.update { it.copy(verdict = verdict, finished = true) }
+        }
     }
 
     sealed class TestNextStep {
