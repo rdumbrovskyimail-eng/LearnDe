@@ -60,6 +60,17 @@ interface A1LemmaDao {
     @Query("SELECT * FROM a1_lemmas WHERE LOWER(lemma) IN (:lemmasLower)")
     suspend fun getByLemmasLowercase(lemmasLower: List<String>): List<LemmaA1Entity>
 
+    @Query("""
+        UPDATE a1_lemmas
+        SET timesHeard = timesHeard + 1,
+            lastSeenAt = :now
+        WHERE LOWER(lemma) = LOWER(:lemma)
+    """)
+    suspend fun incrementTimesHeard(
+        lemma: String,
+        now: Long = System.currentTimeMillis(),
+    )
+
     /** Обёртка для старого API — вызывающие коды не меняем. */
     @Transaction
     suspend fun getByLemmas(lemmas: List<String>): List<LemmaA1Entity> {
