@@ -67,6 +67,10 @@ class SessionDetailsViewModel @Inject constructor(
                 }
 
                 val cluster = clusterDao.getById(session.clusterId)
+                val clusterTitleRu = cluster?.titleRu ?: when (session.clusterId) {
+                    "review", "a1_review" -> "Повторение слабых слов"
+                    else -> session.clusterId
+                }
 
                 val targeted = parseList(session.lemmasTargetedJson)
                 val produced = parseList(session.lemmasProducedJson).toSet()
