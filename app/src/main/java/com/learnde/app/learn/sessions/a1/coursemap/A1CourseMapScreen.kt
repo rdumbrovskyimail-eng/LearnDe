@@ -100,9 +100,27 @@ fun A1CourseMapScreen(
             )
         },
     ) { pad ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
+        Column(modifier = Modifier.padding(pad)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = LearnTokens.PaddingMd, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val total = state.clusters.size
+                val completed = state.clusters.count { it.completed }
+                val pct = if (total == 0) 0 else (completed * 100 / total)
+
+                StatChip("Всего", total.toString(), Modifier.weight(1f))
+                StatChip("Пройдено", completed.toString(), Modifier.weight(1f))
+                StatChip("Прогресс", "$pct%", Modifier.weight(1f))
+            }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = LearnTokens.PaddingMd),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 .padding(pad)
                 .padding(horizontal = LearnTokens.PaddingMd),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -129,6 +147,22 @@ fun A1CourseMapScreen(
             }
             item { Spacer(Modifier.height(LearnTokens.PaddingLg)) }
         }
+        }
+    }
+}
+
+@Composable
+private fun StatChip(label: String, value: String, modifier: Modifier = Modifier) {
+    val colors = learnColors()
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(LearnTokens.RadiusSm))
+            .background(colors.surface)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(label, fontSize = 9.sp, color = colors.textLow)
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.textHi)
     }
 }
 
