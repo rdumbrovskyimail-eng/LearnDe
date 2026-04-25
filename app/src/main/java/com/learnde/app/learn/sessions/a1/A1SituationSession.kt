@@ -73,7 +73,8 @@ class A1SituationSession @Inject constructor(
     private val qualityAccumulator = CopyOnWriteArrayList<Pair<String, Int>>() // lemma to quality
 
     private fun normalizeLemma(raw: String): String {
-        return raw.trim()
+        // ФИКС: Приводим к нижнему регистру, чтобы избежать дубликатов (Haus и haus) в статистике сессии
+        return raw.trim().lowercase()
     }
 
     suspend fun disputeEvaluation(lemma: String) {
@@ -110,7 +111,8 @@ class A1SituationSession @Inject constructor(
                 produced = 1,
                 failed = -1,
                 newProductionScore = newMastery,
-                recognitionDelta = 0.05f,
+                // ФИКС: Добавляем ровно 0.06f, так как 0.02f уже были начислены при первоначальной (ошибочной) оценке (0.08 - 0.02 = 0.06)
+                recognitionDelta = 0.06f,
                 clusterId = clusterId,
                 nextReview = nextReviewAt,
                 fsrsDifficulty = newState.difficulty,
