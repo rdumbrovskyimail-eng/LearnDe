@@ -1,115 +1,154 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА v5.0
 // Путь: app/src/main/java/com/learnde/app/presentation/learn/LearnHubViewModel.kt
 //
-// ViewModel главного экрана Learn-блока.
-// Содержит список доступных тестов/уроков и реагирует на выбор пункта.
-//
-// ВАЖНО: этот VM НЕ владеет Gemini-сессией. Он только решает,
-// на какой экран навигировать. Запуск сессии делает конкретный экран
-// (например A0a1TestScreen) через LearnCoreViewModel.
+// ИЗМЕНЕНИЯ v5.0:
+//   - Считает streak (по дням с уроками)
+//   - Понимает testWasPassed → меняет бейдж на REPLAY и подзаголовок
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.learn
 
-import androidx.datastore.core.DataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.learnde.app.data.settings.AppSettings
-import com.learnde.app.util.AppLogger
+import com.learnde.app.learn.data.db.A1SessionDao
+import androidx.datastore.core.DataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Calendar
 import javax.inject.Inject
 
 @HiltViewModel
 class LearnHubViewModel @Inject constructor(
     private val settingsStore: DataStore<AppSettings>,
-    private val sessionDao: com.learnde.app.learn.data.db.A1SessionDao,
-    private val logger: AppLogger,
+    private val sessionDao: A1SessionDao,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LearnHubState())
     val state: StateFlow<LearnHubState> = _state.asStateFlow()
 
-    private val _effects = MutableSharedFlow<LearnHubEffect>(extraBufferCapacity = 4)
+    private val _effects = MutableSharedFlow<LearnHubEffect>(extraBufferCapacity = 8)
     val effects: SharedFlow<LearnHubEffect> = _effects.asSharedFlow()
 
     init {
         observeSettings()
-        observeAdaptiveOrder()
-    }
-
-    private fun observeAdaptiveOrder() {
-        viewModelScope.launch {
-            sessionDao.observeTotal().collect { totalSessions ->
-                if (totalSessions > 0) {
-                    _state.update { s ->
-                        val items = LearnHubState.DEFAULT_ITEMS.toMutableList()
-                        val a1 = items.find { it.id == "a1_learning" }
-                        val test = items.find { it.id == "a0a1_test" }
-                        if (a1 != null && test != null) {
-                            val translator = items.find { it.id == "translator" }
-                            val updatedTest = test.copy(
-                                subtitle = "Пройти заново · переоценка уровня",
-                                badge = "REPLAY",
-                            )
-                            val newItems = listOfNotNull(a1, updatedTest, translator)
-                            s.copy(items = newItems)
-                        } else s
-                    }
-                }
-            }
-        }
+        viewModelScope.launch { recalcStreak() }
     }
 
     private fun observeSettings() {
         viewModelScope.launch {
-            settingsStore.data
-                .catch { e ->
-                    logger.e("LearnHub: settings read error: ${e.message}")
-                    emit(AppSettings())
+            settingsStore.data.collect { settings ->
+                val passed = settings.testPassed
+                val items = LearnHubState.DEFAULT_ITEMS.map {
+                    if (it.id == "a0a1_test" && passed) it.copy(
+                        badge = "REPLAY",
+                        subtitle = "Пройти заново · переоценка уровня",
+                    ) else it
                 }
-                .collect { s ->
-                    _state.update { it.copy(apiKeySet = s.apiKey.isNotEmpty()) }
+                _state.update {
+                    it.copy(
+                        apiKeySet = settings.apiKey.isNotEmpty(),
+                        items = items,
+                        testWasPassed = passed,
+                    )
                 }
+            }
         }
+    }
+
+    /**
+     * Считает streak — количество последовательных дней с хотя бы одной сессией.
+     * Сегодня учитывается только если уже была сессия.
+     */
+    private suspend fun recalcStreak() = withContext(Dispatchers.IO) {
+        val all = sessionDao.getAllStartedTimestamps()  // List<Long>, отсортирован desc
+        if (all.isEmpty()) {
+            _state.update { it.copy(currentStreakDays = 0) }
+            return@withContext
+        }
+        val days = all.map { ts ->
+            val cal = Calendar.getInstance().apply {
+                timeInMillis = ts
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            cal.timeInMillis
+        }.toSortedSet().reversed().toList()
+
+        if (days.isEmpty()) {
+            _state.update { it.copy(currentStreakDays = 0) }
+            return@withContext
+        }
+
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val ONE_DAY = 24L * 3600L * 1000L
+        var streak = 0
+        var expected = today
+        for (d in days) {
+            when {
+                d == expected -> {
+                    streak++
+                    expected -= ONE_DAY
+                }
+                d == expected + ONE_DAY -> {
+                    // last session was yesterday — счётчик идёт от вчера
+                    streak++
+                    expected = d - ONE_DAY
+                }
+                d < expected -> {
+                    // gap — стрик прервался
+                    break
+                }
+                else -> { /* дубль одного и того же дня — пропускаем */ }
+            }
+        }
+        _state.update { it.copy(currentStreakDays = streak) }
     }
 
     fun onIntent(intent: LearnHubIntent) {
         when (intent) {
-            is LearnHubIntent.OpenItem -> handleOpenItem(intent.itemId)
-            is LearnHubIntent.Back     -> { /* UI handles navigation */ }
-        }
-    }
-
-    private fun handleOpenItem(itemId: String) {
-        val item = _state.value.items.firstOrNull { it.id == itemId } ?: return
-        if (!item.implemented) {
-            _effects.tryEmit(LearnHubEffect.ShowToast("Модуль «${item.title}» скоро появится"))
-            return
-        }
-        if (!_state.value.apiKeySet) {
-            _effects.tryEmit(LearnHubEffect.ShowToast("Сначала задайте API-ключ в Настройках"))
-            return
-        }
-
-        // Маршрут определяется по id — см. Routes в NavGraph
-        val route = when (itemId) {
-            "translator" -> "learn/translator"
-            "a0a1_test" -> "learn/a0a1"
-            "a1_learning" -> "learn/a1"
-            else -> {
-                logger.w("LearnHub: no route for itemId=$itemId")
-                return
+            is LearnHubIntent.OpenItem -> {
+                val item = _state.value.items.firstOrNull { it.id == intent.itemId }
+                if (item == null || !item.implemented) {
+                    viewModelScope.launch {
+                        _effects.emit(LearnHubEffect.ShowToast("Скоро будет доступно"))
+                    }
+                    return
+                }
+                if (!_state.value.apiKeySet) {
+                    viewModelScope.launch {
+                        _effects.emit(LearnHubEffect.ShowToast("Сначала задайте API-ключ в настройках"))
+                    }
+                    return
+                }
+                val route = when (intent.itemId) {
+                    "a0a1_test" -> "learn/a0a1"
+                    "a1_learning" -> "learn/a1"
+                    "translator" -> "learn/translator"
+                    else -> return
+                }
+                viewModelScope.launch {
+                    _effects.emit(LearnHubEffect.NavigateToItem(route))
+                }
             }
+            is LearnHubIntent.Back -> Unit
         }
-        _effects.tryEmit(LearnHubEffect.NavigateToItem(route))
     }
 }
