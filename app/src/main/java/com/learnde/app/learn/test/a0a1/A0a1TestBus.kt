@@ -53,20 +53,21 @@ class A0a1TestBus @Inject constructor() {
     val finished: SharedFlow<Unit> = _finished.asSharedFlow()
 
     // ───── Dedup по callId ─────
-    private val processedIds = ConcurrentHashMap.newKeySet<String>()
     private val maxProcessed = 512
+    
+    // ФИКС: Используем LinkedHashMap для гарантированного удаления самых старых записей (FIFO)
+    private val processedIds = java.util.Collections.synchronizedMap(
+        object : java.util.LinkedHashMap<String, Boolean>(maxProcessed, 0.75f, false) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean {
+                return size > maxProcessed
+            }
+        }
+    )
 
     fun tryConsume(id: String): Boolean {
         if (id.isBlank()) return true
-        val added = processedIds.add(id)
-        if (processedIds.size > maxProcessed) {
-            val iter = processedIds.iterator()
-            if (iter.hasNext()) {
-                iter.next()
-                iter.remove()
-            }
-        }
-        return added
+        // putIfAbsent возвращает null, если ключа не было (то есть вызов обрабатывается впервые)
+        return processedIds.putIfAbsent(id, true) == null
     }
 
     fun reset() {
