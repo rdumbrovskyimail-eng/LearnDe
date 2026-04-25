@@ -596,7 +596,9 @@ class LearnCoreViewModel @Inject constructor(
                             silenceTimerJob = viewModelScope.launch {
                                 delay(LEARNER_SILENCE_THRESHOLD_MS)
                                 val quietFor = System.currentTimeMillis() - lastInputTs
-                                if (quietFor > SILENCE_CHECK_WINDOW_MS && liveClient.isReady) {
+                                // ФИКС: Повторно проверяем isMicActive после delay, 
+                                // так как пользователь мог выключить микрофон за эти 10 секунд.
+                                if (quietFor > SILENCE_CHECK_WINDOW_MS && liveClient.isReady && _state.value.isMicActive) {
                                     logger.d("Learn: silence detected (${quietFor}ms), prompting AI")
                                     liveClient.sendText(
                                         "[СИСТЕМА]: Ученик молчит. Коротко подбодри его по-русски, " +
