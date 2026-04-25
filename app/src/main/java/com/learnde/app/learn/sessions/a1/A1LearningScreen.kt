@@ -123,6 +123,9 @@ fun A1LearningScreen(
                 }
                 is A1LearningEffect.RequestStopSession -> learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
                 is A1LearningEffect.ShowToast -> Toast.makeText(context, effect.msg, Toast.LENGTH_SHORT).show()
+                is A1LearningEffect.SendSystemTextToGemini -> {
+                    learnCoreViewModel.sendSystemText(effect.text)
+                }
             }
         }
     }
