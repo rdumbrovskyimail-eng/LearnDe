@@ -177,6 +177,9 @@ fun AppNavGraph(
                     onOpenVoiceClient = {
                         navController.navigate(Routes.VOICE) { launchSingleTop = true }
                     },
+                    onOpenGrammar = {
+                        navController.navigate(Routes.LEARN_A1_GRAMMAR) { launchSingleTop = true }
+                    },
                     onOpenDebugLogs = {
                         navController.navigate(Routes.DEBUG_LOGS) { launchSingleTop = true }
                     },
