@@ -219,7 +219,7 @@ private fun SessionSummaryCard(state: SessionDetailsState) {
                 Spacer(Modifier.height(4.dp))
                 val mins = session.durationMinutes
                 val dateStr = com.learnde.app.learn.sessions.a1.util.A1DateFormatters.formatFullDate(session.startedAt)
-                val timeStr = com.learnde.app.learn.sessions.a1.util.A1DateFormatters.formatTime(session.startedAt)
+                val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale("ru")).format(java.util.Date(session.startedAt))
                 Column {
                     Text(
                         "$dateStr · $timeStr",
