@@ -47,8 +47,7 @@ class LearnHubViewModel @Inject constructor(
     private fun observeSettings() {
         viewModelScope.launch {
             settingsStore.data.collect { settings ->
-                // TODO: Заменить заглушку на реальный статус из A1UserProgressDao
-                val passed = false 
+                val passed = settings.a0a1TestPassed
                 val items = LearnHubState.DEFAULT_ITEMS.map {
                     if (it.id == "a0a1_test" && passed) it.copy(
                         badge = "REPLAY",
