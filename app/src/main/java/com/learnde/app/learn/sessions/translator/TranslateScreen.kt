@@ -598,10 +598,41 @@ private fun MainMicButton(
     }
 }
 
+private val GERMAN_FUNCTION_WORDS = setOf(
+    "der","die","das","den","dem","des","ein","eine","einen","einem","einer","eines",
+    "ich","du","er","sie","es","wir","ihr","mich","dich","ihn","uns","euch","ihnen",
+    "und","oder","aber","weil","wenn","dass","ob","sondern","denn","doch",
+    "ist","sind","war","waren","habe","hat","haben","wird","werden",
+    "nicht","kein","keine","mit","ohne","für","gegen","über","unter","auf","aus",
+    "bei","nach","seit","vor","durch","zu","in","an","im","am","ins","ans",
+    "ja","nein","auch","schon","noch","mehr","sehr","gut","heute","morgen","gestern"
+)
+private val ENGLISH_FUNCTION_WORDS = setOf(
+    "the","a","an","is","are","was","were","i","you","he","she","it","we","they",
+    "have","has","had","do","does","did","not","and","or","but","if","when","that",
+    "this","these","those","with","without","for","from","to","in","on","at","by",
+    "yes","no","ok","what","why","how","who","where"
+)
+
 private fun detectIsGerman(text: String): Boolean {
     if (text.isBlank()) return false
+    // 1) Кириллица — точно русский.
+    if (text.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' }) return false
+    // 2) Умлауты/ß — точно немецкий.
     if (text.any { it in "äöüßÄÖÜ" }) return true
-    if (text.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' || it == 'і' || it == 'ї' || it == 'є' }) return false
-    if (text.any { it in 'a'..'z' || it in 'A'..'Z' }) return true
-    return false
+    // 3) Дискриминатор по служебным словам.
+    val tokens = text.lowercase()
+        .replace(Regex("[^a-z ]"), " ")
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+    if (tokens.isEmpty()) return false
+    val deHits = tokens.count { it in GERMAN_FUNCTION_WORDS }
+    val enHits = tokens.count { it in ENGLISH_FUNCTION_WORDS }
+    return when {
+        deHits > enHits -> true
+        enHits > deHits -> false
+        // Ничья — латиница без явных признаков → не показываем флаг "DE",
+        // считаем "не определено" (= не немецкий, чтобы не дезинформировать).
+        else -> false
+    }
 }
