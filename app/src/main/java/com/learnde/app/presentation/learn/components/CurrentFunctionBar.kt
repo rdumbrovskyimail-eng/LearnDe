@@ -174,7 +174,7 @@ fun CurrentFunctionBar(
                 ) {
                     Text(
                         "×${status.concurrentCount}",
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = fg,
                         fontWeight = FontWeight.Bold
                     )
