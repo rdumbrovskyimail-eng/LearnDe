@@ -296,6 +296,12 @@ fun AppNavGraph(
                 )
             }
 
+            composable("learn/a1/grammar") {
+                com.learnde.app.learn.sessions.a1.grammar.GrammarSheet(
+                    onClose = { navController.popBackStack() }
+                )
+            }
+
             composable("learn/a1/coursemap") {
                 com.learnde.app.learn.sessions.a1.coursemap.A1CourseMapScreen(
                     onBack = { navController.popBackStack() },
