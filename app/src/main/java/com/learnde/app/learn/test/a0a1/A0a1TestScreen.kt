@@ -89,6 +89,7 @@ import kotlinx.coroutines.delay
 fun A0a1TestScreen(
     onBack: () -> Unit,
     onNavigateToStudy: (String) -> Unit,
+    onNavigateToRoute: (String) -> Unit,
     learnCoreViewModel: LearnCoreViewModel,
     viewModel: A0a1TestViewModel = hiltViewModel(),
 ) {
@@ -148,13 +149,19 @@ fun A0a1TestScreen(
         if (state.finished && state.verdict != TestVerdict.NONE) {
             delay(1800)
             if (state.verdict == TestVerdict.PASSED) {
-                val nextSessionId = viewModel.advanceToNextPhase()
-                if (nextSessionId != null) {
-                    learnCoreViewModel.onIntent(LearnCoreIntent.Start(nextSessionId))
-                } else {
-                    onNavigateToStudy("B2_GRADUATE")
+                // Перед любой навигацией останавливаем текущую Live-сессию,
+                // иначе мик/арбитр останутся захваченными.
+                learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
+                when (val step = viewModel.advanceToNextPhase()) {
+                    is com.learnde.app.learn.test.a0a1.TestNextStep.StartSession ->
+                        learnCoreViewModel.onIntent(LearnCoreIntent.Start(step.sessionId))
+                    is com.learnde.app.learn.test.a0a1.TestNextStep.NavigateRoute ->
+                        onNavigateToRoute(step.route)
+                    com.learnde.app.learn.test.a0a1.TestNextStep.Graduated ->
+                        onNavigateToStudy("B2_GRADUATE")
                 }
             } else {
+                learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
                 onNavigateToStudy(state.phase.name)
             }
         }
