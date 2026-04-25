@@ -72,4 +72,5 @@ sealed class A1LearningEffect {
     data object RequestStartReviewSession : A1LearningEffect()   // v3.2: NEW
     data object RequestStopSession : A1LearningEffect()
     data class ShowToast(val msg: String) : A1LearningEffect()
+    data class SendSystemTextToGemini(val text: String) : A1LearningEffect()
 }
