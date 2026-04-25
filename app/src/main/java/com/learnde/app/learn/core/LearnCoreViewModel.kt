@@ -962,9 +962,11 @@ class LearnCoreViewModel @Inject constructor(
         setupJob?.cancel()
         pendingFlushJob?.cancel()
         pendingModelText.clear()
+        statusBus.reset()
         safeStopForegroundService()
 
         GlobalScope.launch(Dispatchers.IO + NonCancellable) {
+            runCatching { transcriptBuffer = emptyList() }
             runCatching { audioEngine.releaseAll() }
             runCatching { liveClient.disconnect() }
             runCatching { arbiter.release(ClientOwner.LEARN) }
