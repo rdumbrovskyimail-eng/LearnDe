@@ -145,8 +145,6 @@ class A1DataImporter @Inject constructor(
         }
         // 1) INSERT IGNORE для новых лемм (прогресс существующих НЕ затирается).
         lemmaDao.insertAll(entities)
-        // 2) UPDATE статических полей для уже существующих (например, если в JSON
-        //    обновили перевод, артикль или part-of-speech). Прогресс остаётся.
         for (dto in dedupedDtos) {
             lemmaDao.updateStaticFields(
                 lemma = dto.lemma,
@@ -185,7 +183,21 @@ class A1DataImporter @Inject constructor(
             )
         }
         clusterDao.insertAll(entities)
-        entities.forEach { clusterDao.updateStaticFields(it) }
+        for (dto in root.clusters) {
+            clusterDao.updateStaticFields(
+                id = dto.id,
+                titleDe = dto.title_de,
+                titleRu = dto.title_ru,
+                lemmasJson = Json.encodeToString(dto.lemmas),
+                anchorLemma = dto.anchor_lemma,
+                grammarRuleId = dto.grammar_rule_id,
+                grammarFocus = dto.grammar_focus,
+                scenarioHint = dto.scenario_hint,
+                category = dto.category,
+                difficulty = dto.difficulty,
+                prerequisitesJson = Json.encodeToString(dto.prerequisites),
+            )
+        }
 
         val unlockedCount = entities.count { it.isUnlocked }
         logger.d("A1Importer: imported ${entities.size} clusters, $unlockedCount unlocked immediately")
