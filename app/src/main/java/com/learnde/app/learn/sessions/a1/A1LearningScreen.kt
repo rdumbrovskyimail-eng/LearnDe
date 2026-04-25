@@ -90,6 +90,7 @@ private object LearnTheme {
 fun A1LearningScreen(
     onBack: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenVocabulary: () -> Unit,
     onOpenDebugLogs: () -> Unit,
     learnCoreViewModel: LearnCoreViewModel,
     vm: A1LearningViewModel = hiltViewModel(),
@@ -205,6 +206,13 @@ fun A1LearningScreen(
                         Icon(
                             Icons.Filled.BugReport,
                             "Логи",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = onOpenVocabulary) {
+                        Icon(
+                            Icons.Filled.MenuBook,
+                            "Словарь",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
