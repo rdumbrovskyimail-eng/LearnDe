@@ -72,9 +72,10 @@ class A1HistoryViewModel @Inject constructor(
 
     private fun observeSessions() {
         viewModelScope.launch(Dispatchers.IO) {
+            // ФИКС: Загружаем справочник кластеров ОДИН раз, а не при каждом чихе БД
+            val clusterMap = clusterDao.getAllOrdered().associateBy { it.id }
+
             sessionDao.observeAll().collect { entities ->
-                // ОДИН запрос вместо N
-                val clusterMap = clusterDao.getAllOrdered().associateBy { it.id }
                 val items = entities.map { entity ->
                     val cluster = clusterMap[entity.clusterId]
                     SessionHistoryItem(
