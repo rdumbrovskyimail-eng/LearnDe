@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -1508,7 +1509,8 @@ private fun SessionFinishedDialog(
 ) {
     val color = com.learnde.app.learn.sessions.a1.util.LearnUiUtils.qualityColor(quality)
     AlertDialog(
-        onDismissRequest = {},
+        onDismissRequest = { onContinue() },
+        properties = DialogProperties(dismissOnClickOutside = false),
         title = null,
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
