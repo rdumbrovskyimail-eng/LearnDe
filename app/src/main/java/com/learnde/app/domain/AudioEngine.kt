@@ -19,7 +19,6 @@ interface AudioEngine {
     val micOutput: Flow<ByteArray>
     val isCapturing: Boolean
     val isPlaying: Boolean
-    val playbackSync: Flow<ByteArray>
 
     suspend fun startCapture()
     suspend fun stopCapture()
@@ -34,6 +33,9 @@ interface AudioEngine {
      * Вызывать при изменении настроек (не требует перезапуска).
      */
     fun updateJitterConfig(preBufferChunks: Int, timeoutMs: Long, queueCapacity: Int)
+
+    /** Поток для синхронизации визуализации с реальным воспроизведением. */
+    val playbackSync: Flow<ByteArray>
 
     /** Программная громкость воспроизведения (0.0 .. 1.0). */
     fun setPlaybackVolume(gain: Float)
