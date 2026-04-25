@@ -430,7 +430,7 @@ fun A1LearningScreen(
 
     if (showGrammarSheet) {
         com.learnde.app.learn.sessions.a1.grammar.GrammarSheet(
-            onClose = { showGrammarSheet = false },
+            onDismiss = { showGrammarSheet = false },
         )
     }
 
@@ -575,7 +575,7 @@ private fun CompactProgressItem(label: String, current: Int, total: Int) {
 // ═══════════════════════════════════════════════════════════
 @Composable
 private fun CompactClusterCard(
-    cluster: A1ClusterUi,
+    cluster: com.learnde.app.learn.data.db.ClusterA1Entity,
     sessionActive: Boolean,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
