@@ -462,7 +462,7 @@ private fun TranscriptList(messages: List<ConversationMessage>) {
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        items(messages, key = { it.timestamp }) { msg ->
+        items(messages, key = { msg -> "${msg.timestamp}_${msg.role}_${msg.text.length}" }) { msg ->
             TranscriptBubble(message = msg)
         }
     }
