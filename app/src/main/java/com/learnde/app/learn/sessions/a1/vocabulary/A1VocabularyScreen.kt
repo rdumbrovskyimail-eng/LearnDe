@@ -154,7 +154,7 @@ fun A1VocabularyScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(VocabFilter.values().toList()) { filter ->
+                items(VocabFilter.entries.toList()) { filter ->
                     FilterChip(
                         text = filter.label,
                         selected = state.filter == filter,
@@ -237,12 +237,6 @@ private fun LemmaCard(
         mastery >= 0.3f -> colors.warn to "в процессе"
         else -> colors.error to "слабое"
     }
-    val articleColor = when (lemma.article) {
-        "der" -> colors.accent           // m → синий
-        "die" -> colors.error            // f → красный
-        "das" -> colors.success          // n → зелёный
-        else -> colors.textMid
-    }
 
     Column(
         modifier = Modifier
@@ -269,10 +263,10 @@ private fun LemmaCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (lemma.article != null) {
                         Text(
-                            "${lemma.article}",
+                            lemma.article,
                             fontSize = LearnTokens.FontSizeBodyLarge,
                             fontWeight = FontWeight.Normal,
-                            color = articleColor,
+                            color = colors.accent,
                         )
                         Spacer(Modifier.width(4.dp))
                     }
@@ -320,7 +314,7 @@ private fun LemmaCard(
                     val text = when {
                         daysUntil <= 0 -> "сейчас"
                         daysUntil == 1 -> "завтра"
-                        else -> "через $daysUntil дн."
+                        else -> "через $daysUntil ${Plural.day(daysUntil)}"
                     }
                     StatRow("Следующее повторение", text)
                 }
