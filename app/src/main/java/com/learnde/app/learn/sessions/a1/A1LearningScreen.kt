@@ -1239,14 +1239,16 @@ private fun SpeakingIndicator(isAiSpeaking: Boolean, isMicActive: Boolean) {
         isMicActive -> Triple("слушаю вас", LearnTheme.UserBubble, Icons.Filled.Mic)
         else -> Triple("пауза", MaterialTheme.colorScheme.onSurfaceVariant, Icons.Filled.PauseCircleOutline)
     }
-    val pulse = rememberInfiniteTransition(label = "sIndicator")
-    val alpha by pulse.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+    val active = isAiSpeaking || isMicActive
+    val alpha by animateFloatAsState(
+        targetValue = if (active) 0.5f else 1f,
+        animationSpec = if (active) {
+            infiniteRepeatable(tween(700), RepeatMode.Reverse)
+        } else {
+            tween(300)
+        },
         label = "sa"
     )
-    val active = isAiSpeaking || isMicActive
     val effAlpha = if (active) alpha else 1f
 
     Row(
