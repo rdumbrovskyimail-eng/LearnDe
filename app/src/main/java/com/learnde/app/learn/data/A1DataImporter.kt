@@ -7,6 +7,8 @@ package com.learnde.app.learn.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import com.learnde.app.data.settings.AppSettings
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.learnde.app.learn.data.db.A1ClusterDao
 import com.learnde.app.learn.data.db.A1GrammarDao
 import com.learnde.app.learn.data.db.A1LemmaDao
@@ -74,18 +76,23 @@ class A1DataImporter @Inject constructor(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
+    companion object {
+        const val CURRENT_DATA_VERSION = 1
+    }
+
     /**
      * Проверяет настройку и при необходимости импортирует всё.
      * Идемпотентно: повторный вызов безопасен.
      */
-    suspend fun importIfNeeded() {
+    suspend fun importIfNeeded() = withContext(Dispatchers.IO) {
         val settings = settingsStore.data.first()
-        if (settings.a1DataImported) {
-            logger.d("A1Importer: already imported, skip")
-            return
+        val currentVersion = settings.a1DataVersion
+        if (currentVersion >= CURRENT_DATA_VERSION) {
+            logger.d("A1Importer: data version $currentVersion is current, skip")
+            return@withContext
         }
 
-        logger.d("A1Importer: starting import...")
+        logger.d("A1Importer: starting import (from v$currentVersion to v$CURRENT_DATA_VERSION)...")
         val start = System.currentTimeMillis()
 
         try {
@@ -94,8 +101,9 @@ class A1DataImporter @Inject constructor(
             importGrammar()
             ensureUserProgress()
 
-            // Сохраняем флаг — больше не импортируем
-            settingsStore.updateData { it.copy(a1DataImported = true) }
+            settingsStore.updateData { 
+                it.copy(a1DataImported = true, a1DataVersion = CURRENT_DATA_VERSION) 
+            }
 
             val elapsed = System.currentTimeMillis() - start
             logger.d("A1Importer: DONE in ${elapsed}ms")
@@ -106,7 +114,7 @@ class A1DataImporter @Inject constructor(
     }
 
     // ────────── Леммы ──────────
-    private suspend fun importLemmas() {
+    private suspend fun importLemmas() = withContext(Dispatchers.IO) {
         val raw = ctx.assets.open("a1/clean_a1_lemmas.json")
             .bufferedReader().use { it.readText() }
         val dtos = json.decodeFromString<List<LemmaDto>>(raw)
@@ -136,7 +144,7 @@ class A1DataImporter @Inject constructor(
     }
 
     // ────────── Кластеры ──────────
-    private suspend fun importClusters() {
+    private suspend fun importClusters() = withContext(Dispatchers.IO) {
         val raw = ctx.assets.open("a1/a1_clusters.json")
             .bufferedReader().use { it.readText() }
         val root = json.decodeFromString<ClustersRoot>(raw)
@@ -165,7 +173,7 @@ class A1DataImporter @Inject constructor(
     }
 
     // ────────── Грамматика ──────────
-    private suspend fun importGrammar() {
+    private suspend fun importGrammar() = withContext(Dispatchers.IO) {
         grammarDao.insertAll(A1GrammarCatalog.RULES)
         logger.d("A1Importer: imported ${A1GrammarCatalog.RULES.size} grammar rules")
     }
