@@ -10,6 +10,7 @@ import com.learnde.app.learn.data.db.A1ClusterDao
 import com.learnde.app.learn.data.db.A1SessionDao
 import com.learnde.app.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -54,10 +55,12 @@ class A1HistoryViewModel @Inject constructor(
     }
 
     private fun observeSessions() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             sessionDao.observeAll().collect { entities ->
+                // ОДИН запрос вместо N
+                val clusterMap = clusterDao.getAll().associateBy { it.id }
                 val items = entities.map { entity ->
-                    val cluster = clusterDao.getById(entity.clusterId)
+                    val cluster = clusterMap[entity.clusterId]
                     SessionHistoryItem(
                         entity = entity,
                         clusterTitleRu = cluster?.titleRu ?: when (entity.clusterId) {
