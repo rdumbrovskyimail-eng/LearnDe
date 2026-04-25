@@ -1,19 +1,29 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА v5.0 (Voice-First Minimalism)
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/coursemap/A1CourseMapScreen.kt
-//
-// Карта всех 194 кластеров A1 с группировкой по category.
-// Пройденные — зелёные с галочкой
-// Текущий — пульсирует
-// Заблокированные — серые с замком
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1.coursemap
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -23,20 +33,30 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.learnde.app.learn.data.db.ClusterA1Entity
+import com.learnde.app.presentation.learn.theme.LearnTokens
+import com.learnde.app.presentation.learn.theme.Plural
+import com.learnde.app.presentation.learn.theme.learnColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,46 +66,56 @@ fun A1CourseMapScreen(
     vm: A1CourseMapViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    
+    val colors = learnColors()
+
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = colors.bg,
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Карта курса A1", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         Text(
-                            "${state.masteredCount}/${state.totalCount} уроков пройдено",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            "Карта курса A1",
+                            fontSize = LearnTokens.FontSizeTitle,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textHi,
+                        )
+                        Text(
+                            "${state.masteredCount} из ${state.totalCount} ${Plural.lesson(state.totalCount)} пройдено",
+                            fontSize = LearnTokens.FontSizeMicro,
+                            color = colors.textLow,
                         )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            "Назад",
+                            tint = colors.textHi,
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bg),
             )
-        }
+        },
     ) { pad ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 12.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .padding(horizontal = LearnTokens.PaddingMd),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             state.byCategory.forEach { (category, clusters) ->
                 item(key = "header_$category") {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(LearnTokens.PaddingMd))
                     Text(
                         category,
-                        fontSize = 13.sp,
+                        fontSize = LearnTokens.FontSizeCaption,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.5.sp,
+                        color = colors.textMid,
+                        letterSpacing = LearnTokens.CapsLetterSpacing,
                         modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp),
                     )
                 }
@@ -93,14 +123,19 @@ fun A1CourseMapScreen(
                     ClusterMapCard(
                         cluster = cluster,
                         isCurrent = state.currentClusterId == cluster.id,
-                        onClick = { onClusterClick(cluster.id) }
+                        onClick = { onClusterClick(cluster.id) },
                     )
                 }
             }
-            item { Spacer(Modifier.height(20.dp)) }
+            item { Spacer(Modifier.height(LearnTokens.PaddingLg)) }
         }
     }
 }
+
+private data class ClusterStatusStyle(
+    val icon: ImageVector,
+    val color: Color,
+)
 
 @Composable
 private fun ClusterMapCard(
@@ -108,84 +143,83 @@ private fun ClusterMapCard(
     isCurrent: Boolean,
     onClick: () -> Unit,
 ) {
+    val colors = learnColors()
     val mastery = cluster.masteryScore
-    val (status, color, iconType) = when {
-        cluster.isMastered -> Triple("освоен", Color(0xFF43A047), 0)  // 0 = check
-        isCurrent -> Triple("текущий", Color(0xFF1E88E5), 1)  // 1 = play
-        cluster.isUnlocked -> Triple("доступен", Color(0xFFFB8C00), 1)
-        else -> Triple("заблокирован", Color(0xFF9E9E9E), 2)  // 2 = lock
+    val status: ClusterStatusStyle = when {
+        cluster.isMastered -> ClusterStatusStyle(Icons.Filled.CheckCircle, colors.success)
+        isCurrent -> ClusterStatusStyle(Icons.Filled.PlayArrow, colors.accent)
+        cluster.isUnlocked -> ClusterStatusStyle(Icons.Filled.PlayArrow, colors.textMid)
+        else -> ClusterStatusStyle(Icons.Filled.Lock, colors.textLow)
     }
-    
+
     val pulse = rememberInfiniteTransition(label = "currentPulse")
     val pulseScale by pulse.animateFloat(
         initialValue = 1f,
-        targetValue = if (isCurrent) 1.05f else 1f,
+        targetValue = if (isCurrent) 1.02f else 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
+            animation = tween(1400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
-        label = "pulse"
+        label = "pulse",
     )
-    
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .scale(pulseScale)
-            .clip(RoundedCornerShape(12.dp))
-            .background(color.copy(alpha = if (cluster.isUnlocked) 0.1f else 0.05f))
+            .clip(RoundedCornerShape(LearnTokens.RadiusSm))
+            .background(colors.surface)
             .border(
-                width = if (isCurrent) 2.dp else 1.dp,
-                color = color.copy(alpha = if (isCurrent) 0.6f else 0.25f),
-                shape = RoundedCornerShape(12.dp),
+                width = if (isCurrent) LearnTokens.BorderMedium else LearnTokens.BorderThin,
+                color = if (isCurrent) colors.accent.copy(alpha = 0.4f) else colors.stroke,
+                shape = RoundedCornerShape(LearnTokens.RadiusSm),
             )
             .clickable(enabled = cluster.isUnlocked) { onClick() }
-            .padding(12.dp),
+            .padding(LearnTokens.PaddingMd),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(32.dp)
                 .clip(CircleShape)
-                .background(color.copy(alpha = 0.2f))
-                .border(1.dp, color.copy(alpha = 0.5f), CircleShape),
+                .background(status.color.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
-            when (iconType) {
-                0 -> Icon(Icons.Filled.CheckCircle, null, tint = color, modifier = Modifier.size(20.dp))
-                1 -> Icon(Icons.Filled.PlayArrow, null, tint = color, modifier = Modifier.size(20.dp))
-                else -> Icon(Icons.Filled.Lock, null, tint = color, modifier = Modifier.size(18.dp))
-            }
+            Icon(
+                status.icon,
+                null,
+                tint = status.color,
+                modifier = Modifier.size(if (status.icon == Icons.Filled.Lock) 14.dp else 16.dp),
+            )
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(LearnTokens.PaddingMd))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 cluster.titleRu,
-                fontSize = 14.sp,
+                fontSize = LearnTokens.FontSizeBody,
                 fontWeight = FontWeight.SemiBold,
-                color = if (cluster.isUnlocked) MaterialTheme.colorScheme.onSurface 
-                       else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (cluster.isUnlocked) colors.textHi else colors.textLow,
             )
             Text(
                 cluster.titleDe,
                 fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontFamily = FontFamily.Serif,
+                color = colors.textLow,
+                fontWeight = FontWeight.Normal,
             )
         }
         if (cluster.attempts > 0 || mastery > 0) {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     "${(mastery * 100).toInt()}%",
-                    fontSize = 13.sp,
+                    fontSize = LearnTokens.FontSizeBody,
                     fontWeight = FontWeight.Bold,
-                    color = color,
-                    fontFamily = FontFamily.Monospace,
+                    color = status.color,
                 )
                 if (cluster.attempts > 0) {
                     Text(
-                        "${cluster.attempts}× попыток",
+                        "${cluster.attempts} ${Plural.attempt(cluster.attempts)}",
                         fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = colors.textLow,
                     )
                 }
             }
