@@ -292,6 +292,11 @@ fun AppNavGraph(
                         navController.navigate("learn/a1?clusterId=$clusterId") {
                             popUpTo(Routes.LEARN_A1_HISTORY) { inclusive = true }
                         }
+                    },
+                    onStartNewReview = {
+                        navController.navigate(Routes.LEARN_A1) {
+                            launchSingleTop = true
+                        }
                     }
                 )
             }
