@@ -305,127 +305,129 @@ class LearnCoreViewModel @Inject constructor(
     //  START / STOP / RESTART
     // ══════════════════════════════════════════════════════
 
+    private suspend fun stopInternal() = startStopMutex.withLock {
+        logger.d("▶ Learn.stopInternal")
+        val session = activeSession
+        micJob?.cancel()
+        silenceTimerJob?.cancel()
+        greetingFallbackJob?.cancel()
+        audioEngine.stopCapture()
+        safeStopForegroundService()
+
+        runCatching { liveClient.disconnect() }
+        runCatching { session?.onExit() }
+
+        activeSession = null
+        pendingToolCalls.clear()
+        statusBus.reset()
+        vocabularyEnforcer.reset()
+        contextSeeded = false
+        pendingVocabViolation = null
+        pendingModelText.clear()
+        pendingFlushJob?.cancel()
+        pendingFlushJob = null
+        modelStartedSpeakingThisTurn = false
+        awaitingInitialGreeting = false
+
+        _state.update {
+            it.copy(
+                sessionId = null,
+                connectionStatus = LearnConnectionStatus.Disconnected,
+                isMicActive = false,
+                isAiSpeaking = false,
+                isPreparingSession = false,
+            )
+        }
+        arbiter.release(ClientOwner.LEARN)
+        logger.d("◀ Learn.stopInternal — arbiter released")
+    }
+
+    private suspend fun startInternal(sessionId: String) = startStopMutex.withLock {
+        val session = registry.get(sessionId) ?: run {
+            logger.e("Learn: unknown session id: $sessionId")
+            _effects.tryEmit(LearnCoreEffect.Error(UiText.Plain("Unknown session: $sessionId")))
+            return@withLock
+        }
+        if (activeApiKey.isEmpty()) {
+            _state.update { it.copy(error = UiText.Plain("API ключ не задан. Задайте его в Настройках.")) }
+            return@withLock
+        }
+
+        logger.d("▶ Learn.startInternal(${session.id})")
+
+        arbiter.acquire(ClientOwner.LEARN)
+        runCatching { liveClient.disconnect() }
+
+        pendingToolCalls.clear()
+        contextSeeded = false
+        statusBus.reset()
+        lastInputText = ""
+        pendingVocabViolation = null
+        pendingModelText.clear()
+        pendingFlushJob?.cancel()
+        pendingFlushJob = null
+        modelStartedSpeakingThisTurn = false
+        awaitingInitialGreeting = false
+        greetingFallbackJob?.cancel()
+
+        session.onEnter()
+        activeSession = session
+        if (session.id == "a1_situation" || session.id == "a1_review") {
+            vocabularyEnforcer.warmUp()
+        }
+
+        _state.update {
+            it.copy(
+                sessionId = session.id,
+                connectionStatus = LearnConnectionStatus.Connecting,
+                error = null,
+                isMicActive = false,
+                isAiSpeaking = false,
+                isPreparingSession = true,
+            )
+        }
+
+        runCatching {
+            liveClient.connect(
+                apiKey = activeApiKey,
+                config = buildLearnSessionConfig(session),
+                logRaw = cachedSettings.logRawWebSocketFrames
+            )
+        }.onFailure { e ->
+            logger.e("Learn: connect failed: ${e.message}", e)
+            _state.update {
+                it.copy(
+                    connectionStatus = LearnConnectionStatus.Disconnected,
+                    isPreparingSession = false,
+                    error = UiText.Plain("Не удалось подключиться: ${e.message}")
+                )
+            }
+            arbiter.release(ClientOwner.LEARN)
+            activeSession = null
+        }
+        logger.d("◀ Learn.startInternal — awaiting SetupComplete")
+    }
+
     private fun handleStart(sessionId: String) {
         viewModelScope.launch {
-            startStopMutex.withLock {
-                val session = registry.get(sessionId) ?: run {
-                    logger.e("Learn: unknown session id: $sessionId")
-                    _effects.tryEmit(LearnCoreEffect.Error(UiText.Plain("Unknown session: $sessionId")))
-                    return@withLock
-                }
-                if (activeApiKey.isEmpty()) {
-                    _state.update { it.copy(error = UiText.Plain("API ключ не задан. Задайте его в Настройках.")) }
-                    return@withLock
-                }
-
-                logger.d("▶ Learn.handleStart(${session.id})")
-
-                arbiter.acquire(ClientOwner.LEARN)
-                runCatching { liveClient.disconnect() }
-
-                transcriptBuffer.clear()
-                pendingToolCalls.clear()
-                contextSeeded = false
-                statusBus.reset()
-                lastInputText = ""
-                pendingVocabViolation = null
-                pendingModelText.clear()
-                pendingFlushJob?.cancel()
-                pendingFlushJob = null
-                modelStartedSpeakingThisTurn = false
-                awaitingInitialGreeting = false
-                greetingFallbackJob?.cancel()
-
-                session.onEnter()
-                activeSession = session
-                if (session.id == "a1_situation" || session.id == "a1_review") {
-                    vocabularyEnforcer.warmUp()
-                }
-
-                _state.update {
-                    it.copy(
-                        sessionId = session.id,
-                        connectionStatus = LearnConnectionStatus.Connecting,
-                        transcript = emptyList(),
-                        error = null,
-                        isMicActive = false,
-                        isAiSpeaking = false,
-                        isPreparingSession = true,
-                    )
-                }
-
-                runCatching {
-                    liveClient.connect(
-                        apiKey = activeApiKey,
-                        config = buildLearnSessionConfig(session),
-                        logRaw = cachedSettings.logRawWebSocketFrames
-                    )
-                }.onFailure { e ->
-                    logger.e("Learn: connect failed: ${e.message}", e)
-                    _state.update {
-                        it.copy(
-                            connectionStatus = LearnConnectionStatus.Disconnected,
-                            isPreparingSession = false,
-                            error = UiText.Plain("Не удалось подключиться: ${e.message}")
-                        )
-                    }
-                    arbiter.release(ClientOwner.LEARN)
-                    activeSession = null
-                }
-                logger.d("◀ Learn.handleStart — awaiting SetupComplete")
-            }
+            transcriptBuffer.clear()
+            _state.update { it.copy(transcript = emptyList()) }
+            startInternal(sessionId)
         }
     }
 
     private fun handleStop() {
         viewModelScope.launch {
-            startStopMutex.withLock {
-                logger.d("▶ Learn.handleStop")
-                val session = activeSession
-                micJob?.cancel()
-                silenceTimerJob?.cancel()
-                greetingFallbackJob?.cancel()
-                audioEngine.stopCapture()
-                safeStopForegroundService()
-
-                runCatching { liveClient.disconnect() }
-                runCatching { session?.onExit() }
-
-                activeSession = null
-                pendingToolCalls.clear()
-                statusBus.reset()
-                vocabularyEnforcer.reset()
-                contextSeeded = false
-                pendingVocabViolation = null
-                pendingModelText.clear()
-                pendingFlushJob?.cancel()
-                pendingFlushJob = null
-                modelStartedSpeakingThisTurn = false
-                awaitingInitialGreeting = false
-
-                _state.update {
-                    it.copy(
-                        sessionId = null,
-                        connectionStatus = LearnConnectionStatus.Disconnected,
-                        isMicActive = false,
-                        isAiSpeaking = false,
-                        isPreparingSession = false,
-                    )
-                }
-                arbiter.release(ClientOwner.LEARN)
-                logger.d("◀ Learn.handleStop — arbiter released")
-            }
+            stopInternal()
         }
     }
 
     private fun handleRestart() {
         val s = activeSession ?: return
         viewModelScope.launch {
-            // handleStop()/handleStart(s.id) через внутренние лямбды — mutex там свой.
-            handleStop()
-            // Маленькая пауза, чтобы WS действительно закрылся до нового connect.
+            stopInternal()
             delay(150)
-            handleStart(s.id)
+            startInternal(s.id)
         }
     }
 
