@@ -138,6 +138,7 @@ class LearnCoreViewModel @Inject constructor(
     @Volatile private var contextSeeded = false
 
     private val pendingToolCalls = ConcurrentHashMap.newKeySet<String>()
+    private val toolCallJobs = ConcurrentHashMap<String, Job>()
     private val startStopMutex = Mutex()
     private val micOperationMutex = Mutex()
     private var micJob: Job? = null
@@ -629,6 +630,8 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.ToolCallCancellation -> {
                         for (id in event.ids) {
                             pendingToolCalls.remove(id)
+                            // ФИКС: Реально отменяем job, чтобы тяжёлая логика не дописывалась.
+                            toolCallJobs.remove(id)?.cancel()
                             statusBus.onCompleted("<cancelled>", id, success = false)
                         }
                     }
@@ -870,11 +873,12 @@ class LearnCoreViewModel @Inject constructor(
     }
 
     private fun handleToolCalls(event: GeminiEvent.ToolCall) {
-        viewModelScope.launch {
-            for (call in event.calls) {
-                pendingToolCalls.add(call.id)
-                statusBus.onDetected(call.name, call.id)
-            }
+        for (call in event.calls) {
+            pendingToolCalls.add(call.id)
+            statusBus.onDetected(call.name, call.id)
+        }
+
+        val job = viewModelScope.launch {
             val responses = mutableListOf<ToolResponse>()
             val session = activeSession
 
@@ -895,6 +899,16 @@ class LearnCoreViewModel @Inject constructor(
             if (responses.isNotEmpty() && liveClient.isReady) {
                 liveClient.sendToolResponse(responses)
             }
+        }
+
+        // ФИКС: Регистрируем job по каждому ID, чтобы Cancellation мог его отменить.
+        for (call in event.calls) {
+            toolCallJobs[call.id] = job
+        }
+
+        // Очищаем после завершения.
+        job.invokeOnCompletion {
+            for (call in event.calls) toolCallJobs.remove(call.id)
         }
     }
 
