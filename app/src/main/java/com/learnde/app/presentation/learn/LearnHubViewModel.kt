@@ -65,58 +65,37 @@ class LearnHubViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Считает streak — количество последовательных дней с хотя бы одной сессией.
-     * Сегодня учитывается только если уже была сессия.
-     */
     private suspend fun recalcStreak() = withContext(Dispatchers.IO) {
-        val all = sessionDao.getAllStartedTimestamps()  // List<Long>, отсортирован desc
+        val all = sessionDao.getAllStartedTimestamps()
         if (all.isEmpty()) {
             _state.update { it.copy(currentStreakDays = 0) }
             return@withContext
         }
-        val days = all.map { ts ->
-            val cal = Calendar.getInstance().apply {
-                timeInMillis = ts
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }
-            cal.timeInMillis
-        }.toSortedSet().reversed().toList()
-
+        val zone = java.time.ZoneId.systemDefault()
+        val days = all.asSequence()
+            .map { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+            .toSortedSet(reverseOrder())
+            .toList()
         if (days.isEmpty()) {
             _state.update { it.copy(currentStreakDays = 0) }
             return@withContext
         }
-
-        val today = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-
-        val ONE_DAY = 24L * 3600L * 1000L
+        val today = java.time.LocalDate.now(zone)
         var streak = 0
         var expected = today
         for (d in days) {
             when {
                 d == expected -> {
                     streak++
-                    expected -= ONE_DAY
+                    expected = expected.minusDays(1)
                 }
-                d == expected + ONE_DAY -> {
-                    // last session was yesterday — счётчик идёт от вчера
+                // Первая запись — вчера, сегодня ещё не учились — считаем от вчера.
+                streak == 0 && d == today.minusDays(1) -> {
                     streak++
-                    expected = d - ONE_DAY
+                    expected = d.minusDays(1)
                 }
-                d < expected -> {
-                    // gap — стрик прервался
-                    break
-                }
-                else -> { /* дубль одного и того же дня — пропускаем */ }
+                d.isBefore(expected) -> break
+                else -> { /* дубль того же дня — пропускаем */ }
             }
         }
         _state.update { it.copy(currentStreakDays = streak) }
