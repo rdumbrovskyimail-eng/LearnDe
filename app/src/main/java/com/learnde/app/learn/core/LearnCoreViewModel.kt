@@ -311,7 +311,13 @@ class LearnCoreViewModel @Inject constructor(
         micJob?.cancel()
         silenceTimerJob?.cancel()
         greetingFallbackJob?.cancel()
-        audioEngine.stopCapture()
+
+        // ФИКС: Останавливаем запись строго под мьютексом, чтобы избежать гонки со startMic.
+        // Это гарантирует, что releaseAll() не будет вызван при активном микрофоне.
+        micOperationMutex.withLock {
+            audioEngine.stopCapture()
+        }
+
         safeStopForegroundService()
 
         runCatching { liveClient.disconnect() }
