@@ -46,6 +46,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.School
@@ -157,6 +158,43 @@ fun LearnHubScreen(
                             contentDescription = "Назад",
                             tint = MaterialTheme.colorScheme.onBackground
                         )
+                    }
+                },
+                actions = {
+                    // ФИКС: Премиум-кнопка "Свободный диалог" в TopAppBar.
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFF8A7CFF),
+                                        Color(0xFF2EE6D6),
+                                    )
+                                )
+                            )
+                            .clickable { onOpenVoiceClient() }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Filled.GraphicEq,
+                                contentDescription = "Свободный диалог",
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "ДИАЛОГ",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 1.sp,
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
