@@ -1,13 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
+// ПОЛНАЯ ЗАМЕНА v5.1
 // Путь: app/src/main/java/com/learnde/app/presentation/learn/components/InlineLoadingBar.kt
-//
-// Компактный inline-индикатор подготовки сессии.
-// Заменяет fullscreen SessionLoadingOverlay (который был в обучении / тесте /
-// переводчике) на минималистичный бар сверху экрана.
-//
-// Появляется при isPreparingSession=true, исчезает с fadeOut при появлении
-// первого аудио-чанка от модели.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.learn.components
 
@@ -53,9 +46,6 @@ import kotlinx.coroutines.delay
 /**
  * Компактный inline-loader без затемнения.
  * Высота 36dp, полная ширина (управляется через Modifier).
- *
- * @param visible когда true — показан, когда false — Composable должен быть
- *   завернут в AnimatedVisibility снаружи.
  */
 @Composable
 fun InlineLoadingBar(
@@ -64,16 +54,16 @@ fun InlineLoadingBar(
     val colors = learnColors()
 
     val texts = listOf(
-        "Подключение к Gemini…",
-        "Загрузка промптов…",
+        "Генерация ситуаций…",
+        "Загрузка инструментов…",
         "Подготовка сценария…",
-        "Ожидание ответа…",
+        "Подключение к Gemini…",
     )
 
     var idx by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(1100)
+            delay(1400)
             idx = (idx + 1) % texts.size
         }
     }
@@ -123,7 +113,7 @@ fun InlineLoadingBar(
         AnimatedContent(
             targetState = texts[idx],
             transitionSpec = {
-                fadeIn(tween(350)) togetherWith fadeOut(tween(250))
+                fadeIn(tween(450)) togetherWith fadeOut(tween(350))
             },
             label = "loaderText",
         ) { txt ->
