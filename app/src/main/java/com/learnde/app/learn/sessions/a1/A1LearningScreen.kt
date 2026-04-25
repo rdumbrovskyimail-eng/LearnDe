@@ -358,6 +358,7 @@ fun A1LearningScreen(
                     // Сессия идёт, но пока нет сообщений — placeholder
                     EmptyChatPlaceholder(
                         isMicActive = learnState.isMicActive,
+                        scenario = state.currentCluster?.scenarioHint,
                         modifier = Modifier.weight(1f),
                     )
                     Spacer(Modifier.height(12.dp))
@@ -1292,27 +1293,50 @@ private fun SpeakingIndicator(isAiSpeaking: Boolean, isMicActive: Boolean) {
 }
 
 @Composable
-private fun EmptyChatPlaceholder(isMicActive: Boolean, modifier: Modifier = Modifier) {
-    Box(
+private fun EmptyChatPlaceholder(
+    isMicActive: Boolean,
+    scenario: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-        contentAlignment = Alignment.Center,
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                if (isMicActive) Icons.Filled.Mic else Icons.Filled.HourglassEmpty,
-                null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
-                modifier = Modifier.size(44.dp),
-            )
-            Spacer(Modifier.height(10.dp))
+        Icon(
+            Icons.Filled.Forum,
+            null,
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+            modifier = Modifier.size(40.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            if (isMicActive) "Слушаем вас…" else "Gemini начнёт первым…",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        if (!scenario.isNullOrBlank()) {
+            Spacer(Modifier.height(12.dp))
             Text(
-                if (isMicActive) "Gemini начнёт первым…" else "Ожидание…",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                fontWeight = FontWeight.Medium,
+                "Сценарий:",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = LearnTheme.Primary,
+                letterSpacing = 1.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                scenario,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
         }
     }
