@@ -60,7 +60,10 @@ class A1HistoryViewModel @Inject constructor(
                     val cluster = clusterDao.getById(entity.clusterId)
                     SessionHistoryItem(
                         entity = entity,
-                        clusterTitleRu = cluster?.titleRu ?: entity.clusterId,
+                        clusterTitleRu = cluster?.titleRu ?: when (entity.clusterId) {
+                            "review", "a1_review" -> "Повторение слабых слов"
+                            else -> entity.clusterId
+                        },
                         clusterTitleDe = cluster?.titleDe ?: "",
                     )
                 }
