@@ -754,16 +754,22 @@ class LearnCoreViewModel @Inject constructor(
                 return@launch
             }
 
-            logger.d("Learn: starting greeting sequence (mic first → silence → text)")
+            logger.d("Learn: starting greeting sequence (silence-first → mic → text)")
             awaitingInitialGreeting = true
 
-            // ── Шаг 1: Микрофон ПЕРВЫМ.
-            // Реальный фон от микрофона разбудит серверный VAD и активирует
-            // аудио-пайплайн. Это главное отличие от v3.3, где мик включался
-            // только после первого AudioChunk.
-            if (!_state.value.isMicActive) startMic()
+            // ── Шаг 1: Сначала чистый warmup-силенс (без живого микрофона).
+            // Так серверный VAD не ловит смешанный поток "реальный фон + нули".
+            runCatching { sendSilenceWarmup() }
+                .onFailure { logger.w("Learn: silence warmup failed: ${it.message}") }
 
-            // Даём микрофону подключиться и отправить несколько чанков.
+            if (!liveClient.isReady) {
+                logger.w("Learn: WS died during silence warmup")
+                awaitingInitialGreeting = false
+                return@launch
+            }
+
+            // ── Шаг 2: Теперь включаем реальный микрофон.
+            if (!_state.value.isMicActive) startMic()
             delay(MIC_PREWARM_MS)
 
             if (!liveClient.isReady) {
@@ -771,12 +777,6 @@ class LearnCoreViewModel @Inject constructor(
                 awaitingInitialGreeting = false
                 return@launch
             }
-
-            // ── Шаг 2: Гарантированный warmup тишины.
-            // Даже если мик не успел ничего передать — 400 мс нулевого PCM
-            // точно пройдут через серверный VAD и откроют turn.
-            runCatching { sendSilenceWarmup() }
-                .onFailure { logger.w("Learn: silence warmup failed: ${it.message}") }
 
             // ── Шаг 3: Триггерный текст.
             logger.d("Learn: sending initial greeting trigger")
