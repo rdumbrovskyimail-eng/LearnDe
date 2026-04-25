@@ -23,8 +23,10 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -313,7 +315,7 @@ fun A1LearningScreen(
                         },
                         modifier = Modifier.weight(1f),
                         label = "loaderAnim"
-                    ) { isLoaderVisible ->
+                    ) { isLoaderVisible: Boolean ->
                         if (isLoaderVisible) {
                             InlineLoadingBar(modifier = Modifier.fillMaxWidth())
                         } else {
