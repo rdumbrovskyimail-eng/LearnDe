@@ -214,6 +214,9 @@ class A1SituationSession @Inject constructor(
 
         val ctx = currentContext
         scope.launch {
+            // ФИКС: Инкрементируем timesHeard в БД.
+            lemmaDao.incrementTimesHeard(lemma)
+            
             if (ctx != null) {
                 val ruleId = ctx.cluster.grammarRuleId?.takeIf { it.isNotBlank() }
                     ?: findGrammarRuleIdByFocus(ctx.cluster.grammarFocus)
