@@ -237,6 +237,8 @@ fun AppNavGraph(
                             launchSingleTop = true
                         }
                     },
+                    onOpenVocabulary = { navController.navigate("learn/a1/vocabulary") },
+                    onOpenCourseMap = { navController.navigate("learn/a1/coursemap") },
                     learnCoreViewModel = learnCoreVm,
                     vm = a1Vm,
                 )
@@ -257,6 +259,8 @@ fun AppNavGraph(
                             launchSingleTop = true
                         }
                     },
+                    onOpenVocabulary = { navController.navigate("learn/a1/vocabulary") },
+                    onOpenCourseMap = { navController.navigate("learn/a1/coursemap") },
                     learnCoreViewModel = learnCoreVm,
                 )
             }
