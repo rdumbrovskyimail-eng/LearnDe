@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ (Patch 4)
+// ПОЛНАЯ ЗАМЕНА v5.0 (Voice-First Minimalism)
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/history/SessionDetailsScreen.kt
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1.history
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,7 +31,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -42,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,8 +51,9 @@ import com.learnde.app.learn.domain.ErrorCategory
 import com.learnde.app.learn.domain.ErrorDepth
 import com.learnde.app.learn.domain.ErrorDiagnosis
 import com.learnde.app.learn.domain.ErrorSource
-import java.text.SimpleDateFormat
-import java.util.Date
+import com.learnde.app.presentation.learn.theme.LearnTokens
+import com.learnde.app.presentation.learn.theme.Plural
+import com.learnde.app.presentation.learn.theme.learnColors
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,91 +66,99 @@ fun SessionDetailsScreen(
     vm: SessionDetailsViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val colors = learnColors()
 
     LaunchedEffect(sessionId) { vm.load(sessionId) }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = colors.bg,
         topBar = {
             TopAppBar(
-                title = { Text("Детали урока", fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold) },
+                title = {
+                    Text(
+                        "Детали урока",
+                        fontSize = LearnTokens.FontSizeTitle,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textHi,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            "Назад",
+                            tint = colors.textHi,
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bg),
             )
-        }
+        },
     ) { pad ->
         Column(
-            Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp)
+            Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .padding(horizontal = LearnTokens.PaddingMd),
         ) {
             when {
-                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Загрузка...", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                state.error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Ошибка: ${state.error}", color = Color(0xFFE53935))
-                }
+                state.loading ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Загрузка…", color = colors.textLow)
+                    }
+                state.error != null ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Ошибка: ${state.error}", color = colors.error)
+                    }
                 state.session != null -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(LearnTokens.PaddingMd),
                     ) {
                         item { SessionSummaryCard(state) }
                         item { StatsCard(state) }
                         if (state.lemmas.isNotEmpty()) {
                             item {
-                                Text("Леммы этой сессии",
-                                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 4.dp))
+                                Text(
+                                    "Леммы этой сессии",
+                                    fontSize = LearnTokens.FontSizeBody,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.textMid,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
                             }
                             items(state.lemmas, key = { it.lemma }) { item ->
                                 LemmaDetailCard(item)
                             }
                         }
-                        if (!state.session!!.feedbackText.isBlank()) {
+                        if (state.session?.feedbackText?.isNotBlank() == true) {
                             item { FeedbackCard(state.session!!.feedbackText) }
                         }
                         item {
                             val isReviewSession = state.session!!.clusterId == "review"
-                            if (isReviewSession) {
-                                Button(
-                                    onClick = { onStartNewReview() },
-                                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF7B1FA2),
-                                    ),
-                                ) {
-                                    Icon(Icons.Filled.PlayArrow, null, tint = Color.White)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        "Начать новое повторение",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                }
-                            } else {
-                                Button(
-                                    onClick = { onRepeatCluster(state.session!!.clusterId) },
-                                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                                ) {
-                                    Icon(Icons.Filled.PlayArrow, null, tint = Color.White)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        "Повторить этот урок",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                }
+                            Button(
+                                onClick = {
+                                    if (isReviewSession) onStartNewReview()
+                                    else onRepeatCluster(state.session!!.clusterId)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(46.dp),
+                                shape = RoundedCornerShape(LearnTokens.RadiusSm),
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
+                            ) {
+                                Icon(Icons.Filled.PlayArrow, null, tint = Color.White,
+                                    modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    if (isReviewSession) "Начать новое повторение"
+                                    else "Повторить этот урок",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
                             }
                         }
-                        item { Spacer(Modifier.height(16.dp)) }
+                        item { Spacer(Modifier.height(LearnTokens.PaddingMd)) }
                     }
                 }
             }
@@ -160,59 +168,77 @@ fun SessionDetailsScreen(
 
 @Composable
 private fun SessionSummaryCard(state: SessionDetailsState) {
+    val colors = learnColors()
     val session = state.session ?: return
     val cluster = state.cluster
-
-    val completeColor = if (session.isComplete) Color(0xFF43A047) else Color(0xFFFB8C00)
-    val qualityColor = com.learnde.app.learn.sessions.a1.util.LearnUiUtils.qualityColor(session.overallQuality)
+    val completeColor = if (session.isComplete) colors.success else colors.warn
+    val qualityColor = when {
+        session.overallQuality >= 6 -> colors.success
+        session.overallQuality >= 4 -> colors.warn
+        else -> colors.error
+    }
 
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(14.dp)
+            .clip(RoundedCornerShape(LearnTokens.RadiusMd))
+            .background(colors.surface)
+            .border(LearnTokens.BorderThin, colors.stroke, RoundedCornerShape(LearnTokens.RadiusMd))
+            .padding(LearnTokens.PaddingMd),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(54.dp).clip(CircleShape).background(qualityColor),
-                contentAlignment = Alignment.Center
+                Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(qualityColor),
+                contentAlignment = Alignment.Center,
             ) {
-                Text("${session.overallQuality}", color = Color.White,
-                    fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+                Text(
+                    "${session.overallQuality}",
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = LearnTokens.FontSizeTitle,
+                )
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(LearnTokens.PaddingMd))
             Column(Modifier.weight(1f)) {
-                Text(cluster?.titleRu ?: session.clusterId,
-                    fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    cluster?.titleRu ?: session.clusterId.ifBlank { "Сессия" },
+                    fontSize = LearnTokens.FontSizeBodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textHi,
+                )
                 cluster?.titleDe?.let {
-                    Text(it, fontSize = 12.sp, fontFamily = FontFamily.Serif,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        it,
+                        fontSize = LearnTokens.FontSizeCaption,
+                        color = colors.textMid,
+                    )
                 }
                 Spacer(Modifier.height(4.dp))
+                val mins = session.durationMinutes
                 Text(
-                    "${com.learnde.app.learn.sessions.a1.util.A1DateFormatters.formatFullDate(session.startedAt)} · ${session.durationMinutes} мин",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    "${com.learnde.app.learn.sessions.a1.util.A1DateFormatters.formatFullDate(session.startedAt)} · " +
+                        if (mins == 0) "<1 мин" else "$mins ${Plural.minute(mins)}",
+                    fontSize = LearnTokens.FontSizeMicro,
+                    color = colors.textLow,
                 )
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(LearnTokens.PaddingSm))
         Row {
             StatusBadge(
                 text = if (session.isComplete) "Завершена" else "Прервана",
                 color = completeColor,
             )
             Spacer(Modifier.width(6.dp))
-            StatusBadge(
-                text = "Фаза: ${session.phaseReached}",
-                color = MaterialTheme.colorScheme.primary,
-            )
+            StatusBadge(text = "Фаза: ${session.phaseReached}", color = colors.accent)
             if (session.avgQuality > 0) {
                 Spacer(Modifier.width(6.dp))
                 StatusBadge(
                     text = "Ø ${String.format(Locale.ROOT, "%.1f", session.avgQuality)}",
-                    color = Color(0xFF7B1FA2),
+                    color = colors.textMid,
                 )
             }
         }
@@ -223,17 +249,22 @@ private fun SessionSummaryCard(state: SessionDetailsState) {
 private fun StatusBadge(text: String, color: Color) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(color.copy(alpha = 0.15f))
-            .padding(horizontal = 8.dp, vertical = 3.dp)
+            .clip(RoundedCornerShape(LearnTokens.RadiusXs))
+            .background(color.copy(alpha = 0.13f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
-        Text(text, fontSize = 10.sp, color = color, fontWeight = FontWeight.SemiBold,
-            fontFamily = FontFamily.Monospace)
+        Text(
+            text,
+            fontSize = LearnTokens.FontSizeMicro,
+            color = color,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
 @Composable
 private fun StatsCard(state: SessionDetailsState) {
+    val colors = learnColors()
     val session = state.session ?: return
     val produced = state.lemmas.count { it.wasProduced && !it.wasFailed }
     val failed = state.lemmas.count { it.wasFailed }
@@ -241,67 +272,77 @@ private fun StatsCard(state: SessionDetailsState) {
 
     Row(
         Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(LearnTokens.PaddingSm),
     ) {
-        StatBox("Целевых", "$targeted", Color(0xFF64B5F6))
-        StatBox("Освоено", "$produced", Color(0xFF43A047))
-        StatBox("Ошибок", "$failed", Color(0xFFE53935))
-        StatBox("Оценок", "${session.evaluateCallsCount}", Color(0xFFFB8C00))
+        StatBox("Целевых", "$targeted", colors.accent, Modifier.weight(1f))
+        StatBox("Освоено", "$produced", colors.success, Modifier.weight(1f))
+        StatBox("Ошибок", "$failed", colors.error, Modifier.weight(1f))
+        StatBox("Оценок", "${session.evaluateCallsCount}", colors.warn, Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun StatBox(label: String, value: String, color: Color) {
+private fun StatBox(label: String, value: String, valueColor: Color, modifier: Modifier = Modifier) {
+    val colors = learnColors()
     Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+        modifier = modifier
+            .clip(RoundedCornerShape(LearnTokens.RadiusXs))
+            .background(colors.surface)
+            .border(LearnTokens.BorderThin, colors.stroke, RoundedCornerShape(LearnTokens.RadiusXs))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color)
-        Text(label, fontSize = 9.sp, color = color.copy(alpha = 0.8f),
-            fontWeight = FontWeight.Medium)
+        Text(value, fontSize = LearnTokens.FontSizeBodyLarge, fontWeight = FontWeight.Bold, color = valueColor)
+        Text(label, fontSize = 9.sp, color = colors.textLow, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 private fun LemmaDetailCard(item: LemmaDetailItem) {
+    val colors = learnColors()
     val (bgColor, borderColor) = when {
-        item.wasFailed -> Color(0xFFE53935).copy(alpha = 0.08f) to Color(0xFFE53935)
-        item.wasProduced -> Color(0xFF43A047).copy(alpha = 0.08f) to Color(0xFF43A047)
-        else -> MaterialTheme.colorScheme.surfaceVariant to Color.Transparent
+        item.wasFailed -> colors.errorSoft to colors.error.copy(alpha = 0.3f)
+        item.wasProduced -> colors.successSoft to colors.success.copy(alpha = 0.3f)
+        else -> colors.surface to colors.stroke
     }
 
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(LearnTokens.RadiusXs))
             .background(bgColor)
-            .padding(10.dp)
+            .border(LearnTokens.BorderThin, borderColor, RoundedCornerShape(LearnTokens.RadiusXs))
+            .padding(LearnTokens.PaddingSm),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val statusIcon = when {
-                item.wasProduced && !item.wasFailed -> Icons.Filled.CheckCircle to Color(0xFF43A047)
-                item.wasFailed -> Icons.Filled.Close to Color(0xFFE53935)
+                item.wasProduced && !item.wasFailed -> Icons.Filled.CheckCircle to colors.success
+                item.wasFailed -> Icons.Filled.Close to colors.error
                 else -> null
             }
             statusIcon?.let { (icon, color) ->
-                Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
+                Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
             }
             val articlePrefix = item.article?.let { "$it " } ?: ""
-            Text("$articlePrefix${item.lemma}",
-                fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                "$articlePrefix${item.lemma}",
+                fontSize = LearnTokens.FontSizeBody,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textHi,
+            )
         }
 
         if (item.diagnosis != null && item.diagnosis.isError) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             DiagnosisRow(item.diagnosis)
             if (item.diagnosis.specifics.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text("💡 ${item.diagnosis.specifics}",
-                    fontSize = 11.sp, lineHeight = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    item.diagnosis.specifics,
+                    fontSize = LearnTokens.FontSizeCaption,
+                    lineHeight = 15.sp,
+                    color = colors.textMid,
+                )
             }
         }
     }
@@ -309,10 +350,11 @@ private fun LemmaDetailCard(item: LemmaDetailItem) {
 
 @Composable
 private fun DiagnosisRow(diagnosis: ErrorDiagnosis) {
+    val colors = learnColors()
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        sourceLabel(diagnosis.source)?.let { MiniChip(it, Color(0xFFFB8C00)) }
-        depthLabel(diagnosis.depth)?.let { (label, color) -> MiniChip(label, color) }
-        categoryLabel(diagnosis.category)?.let { MiniChip(it, Color(0xFF7B1FA2)) }
+        sourceLabel(diagnosis.source)?.let { MiniChip(it, colors.warn) }
+        depthLabel(diagnosis.depth)?.let { (label, _) -> MiniChip(label, colors.textMid) }
+        categoryLabel(diagnosis.category)?.let { MiniChip(it, colors.accent) }
     }
 }
 
@@ -320,44 +362,48 @@ private fun DiagnosisRow(diagnosis: ErrorDiagnosis) {
 private fun MiniChip(text: String, color: Color) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(5.dp))
-            .background(color.copy(alpha = 0.2f))
-            .padding(horizontal = 5.dp, vertical = 1.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(color.copy(alpha = 0.15f))
+            .padding(horizontal = 5.dp, vertical = 1.dp),
     ) {
-        Text(text, fontSize = 9.sp, color = color,
-            fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace)
+        Text(text, fontSize = 9.sp, color = color, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
 private fun FeedbackCard(text: String) {
+    val colors = learnColors()
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
-            .padding(12.dp)
+            .clip(RoundedCornerShape(LearnTokens.RadiusSm))
+            .background(colors.accentSoft)
+            .padding(LearnTokens.PaddingMd),
     ) {
-        Text("Обратная связь", fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            fontFamily = FontFamily.Monospace)
+        Text(
+            "Обратная связь",
+            fontSize = LearnTokens.FontSizeMicro,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.accent,
+            letterSpacing = LearnTokens.CapsLetterSpacing,
+        )
         Spacer(Modifier.height(4.dp))
-        Text(text, fontSize = 13.sp, lineHeight = 18.sp)
+        Text(text, fontSize = LearnTokens.FontSizeBody, lineHeight = 18.sp, color = colors.textHi)
     }
 }
 
 private fun sourceLabel(s: ErrorSource): String? = when (s) {
-    ErrorSource.L1_TRANSFER -> "Русский→немецкий"
-    ErrorSource.OVERGENERALIZATION -> "Широкое правило"
-    ErrorSource.SIMPLIFICATION -> "Упрощение"
-    ErrorSource.COMMUNICATION_STRATEGY -> "Обход"
+    ErrorSource.L1_TRANSFER -> "русский → немецкий"
+    ErrorSource.OVERGENERALIZATION -> "широкое правило"
+    ErrorSource.SIMPLIFICATION -> "упрощение"
+    ErrorSource.COMMUNICATION_STRATEGY -> "обход"
     ErrorSource.NONE -> null
 }
 
 private fun depthLabel(d: ErrorDepth): Pair<String, Color>? = when (d) {
-    ErrorDepth.SLIP -> "оговорка" to Color(0xFF43A047)
-    ErrorDepth.MISTAKE -> "неуверенность" to Color(0xFFFDD835)
-    ErrorDepth.ERROR -> "не знал" to Color(0xFFE53935)
+    ErrorDepth.SLIP -> "оговорка" to Color.Unspecified
+    ErrorDepth.MISTAKE -> "неуверенность" to Color.Unspecified
+    ErrorDepth.ERROR -> "не знал" to Color.Unspecified
     ErrorDepth.NONE -> null
 }
 
@@ -374,4 +420,3 @@ private fun categoryLabel(c: ErrorCategory): String? = when (c) {
     ErrorCategory.PREPOSITION -> "предлог"
     ErrorCategory.NONE -> null
 }
-
