@@ -7,6 +7,7 @@ package com.learnde.app.learn.sessions.a1.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.learnde.app.learn.data.db.A1ClusterDao
+import com.learnde.app.learn.data.db.A1LemmaDao
 import com.learnde.app.learn.data.db.A1SessionDao
 import com.learnde.app.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +26,7 @@ import javax.inject.Inject
 class A1HistoryViewModel @Inject constructor(
     private val sessionDao: A1SessionDao,
     private val clusterDao: A1ClusterDao,
+    private val lemmaDao: A1LemmaDao,
     private val logger: AppLogger,
 ) : ViewModel() {
 
@@ -47,8 +49,19 @@ class A1HistoryViewModel @Inject constructor(
                 _effects.tryEmit(A1HistoryEffect.NavigateToCluster(intent.clusterId))
             is A1HistoryIntent.OpenDetails ->
                 _effects.tryEmit(A1HistoryEffect.NavigateToDetails(intent.id))
-            is A1HistoryIntent.DeleteSession -> viewModelScope.launch {
+            is A1HistoryIntent.DeleteSession -> viewModelScope.launch(Dispatchers.IO) {
+                val session = sessionDao.getById(intent.id)
                 sessionDao.deleteById(intent.id)
+                if (session != null) {
+                    val produced = runCatching {
+                        kotlinx.serialization.json.Json.decodeFromString<List<String>>(session.lemmasProducedJson)
+                    }.getOrDefault(emptyList())
+                    val failed = runCatching {
+                        kotlinx.serialization.json.Json.decodeFromString<List<String>>(session.lemmasFailedJson)
+                    }.getOrDefault(emptyList())
+                    produced.forEach { lemmaDao.decrementTimesProduced(it) }
+                    failed.forEach { lemmaDao.decrementTimesFailed(it) }
+                }
                 _effects.tryEmit(A1HistoryEffect.ShowToast("Сессия удалена"))
             }
         }
