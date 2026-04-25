@@ -33,7 +33,10 @@ class A1HistoryViewModel @Inject constructor(
     private val _state = MutableStateFlow(A1HistoryState())
     val state: StateFlow<A1HistoryState> = _state.asStateFlow()
 
-    private val _effects = MutableSharedFlow<A1HistoryEffect>(extraBufferCapacity = 4)
+    private val _effects = MutableSharedFlow<A1HistoryEffect>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
     val effects: SharedFlow<A1HistoryEffect> = _effects.asSharedFlow()
 
     init {
