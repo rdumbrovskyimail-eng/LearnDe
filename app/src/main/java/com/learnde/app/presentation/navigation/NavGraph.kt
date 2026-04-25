@@ -51,9 +51,9 @@ object Routes {
     const val LEARN_A1_HISTORY = "learn/a1/history"
     const val LEARN_A1_VOCABULARY = "learn/a1/vocabulary"
     const val LEARN_A1_SESSION_DETAILS = "learn/a1/session/{sessionId}"
+    const val DEBUG_LOGS = "debug/logs"
     const val LEARN_A1_COURSE_MAP = "learn/a1/coursemap"
     const val LEARN_A1_GRAMMAR = "learn/a1/grammar"
-    const val DEBUG_LOGS = "debug/logs"
 }
 
 object VoiceGender {
@@ -177,6 +177,9 @@ fun AppNavGraph(
                     onOpenVoiceClient = {
                         navController.navigate(Routes.VOICE) { launchSingleTop = true }
                     },
+                    onOpenDebugLogs = {
+                        navController.navigate(Routes.DEBUG_LOGS) { launchSingleTop = true }
+                    },
                     learnCoreViewModel = learnCoreVm,
                 )
             }
@@ -255,8 +258,7 @@ fun AppNavGraph(
                 )
             }
 
-            // Alias без аргументов — редирект на основной маршрут с null clusterId,
-            // чтобы избежать дублирования двух destination'ов и потери SavedStateHandle.
+            // Alias без аргументов → редирект на основной маршрут с пустым clusterId.
             composable(Routes.LEARN_A1) {
                 LaunchedEffect(Unit) {
                     navController.navigate("learn/a1?clusterId=") {
@@ -289,9 +291,15 @@ fun AppNavGraph(
             }
 
             composable(Routes.LEARN_A1_GRAMMAR) {
-                com.learnde.app.learn.sessions.a1.grammar.GrammarSheet(
-                    onClose = { navController.popBackStack() }
-                )
+                androidx.compose.foundation.layout.Box(
+                    modifier = androidx.compose.ui.Modifier
+                        .fillMaxSize()
+                        .background(com.learnde.app.presentation.learn.theme.learnColors().bg)
+                ) {
+                    com.learnde.app.learn.sessions.a1.grammar.GrammarSheet(
+                        onDismiss = { navController.popBackStack() }
+                    )
+                }
             }
 
             composable(Routes.LEARN_A1_COURSE_MAP) {
