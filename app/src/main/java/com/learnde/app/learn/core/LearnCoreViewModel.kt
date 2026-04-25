@@ -63,6 +63,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -890,42 +891,44 @@ class LearnCoreViewModel @Inject constructor(
     }
 
     private fun handleToolCalls(event: GeminiEvent.ToolCall) {
+        val session = activeSession
+        val responses = java.util.concurrent.ConcurrentLinkedQueue<ToolResponse>()
+
+        // Регистрируем все id СРАЗУ, до запуска корутин (защита от ToolCallCancellation,
+        // прилетевшего в той же микросекунде, что и ToolCall).
         for (call in event.calls) {
             pendingToolCalls.add(call.id)
             statusBus.onDetected(call.name, call.id)
         }
 
-        val job = viewModelScope.launch {
-            val responses = mutableListOf<ToolResponse>()
-            val session = activeSession
-
-            for (call in event.calls) {
-                if (call.id !in pendingToolCalls) continue
-                statusBus.onExecuting(call.name, call.id)
-                val result = runCatching {
-                    session?.handleToolCall(call) ?: """{"error":"no active session"}"""
-                }.getOrElse { e ->
-                    logger.e("Learn.toolCall threw: ${e.message}", e)
-                    """{"error":"${e.message?.replace("\"", "'")}"}"""
+        // По одной независимой child-Job на каждый вызов — отмена одного НЕ отменит других.
+        val children = event.calls.map { call ->
+            viewModelScope.launch {
+                try {
+                    if (call.id !in pendingToolCalls) return@launch
+                    statusBus.onExecuting(call.name, call.id)
+                    val result = runCatching {
+                        session?.handleToolCall(call) ?: """{"error":"no active session"}"""
+                    }.getOrElse { e ->
+                        logger.e("Learn.toolCall threw: ${e.message}", e)
+                        """{"error":"${e.message?.replace("\"", "'")}"}"""
+                    }
+                    val success = !result.contains("\"error\"")
+                    statusBus.onCompleted(call.name, call.id, success)
+                    responses.add(ToolResponse(call.name, call.id, result))
+                } finally {
+                    pendingToolCalls.remove(call.id)
+                    toolCallJobs.remove(call.id)
                 }
-                val success = !result.contains("\"error\"")
-                pendingToolCalls.remove(call.id)
-                statusBus.onCompleted(call.name, call.id, success)
-                responses.add(ToolResponse(call.name, call.id, result))
-            }
+            }.also { toolCallJobs[call.id] = it }
+        }
+
+        // Координирующая корутина: дождётся всех детей и одним батчем отправит ответ.
+        viewModelScope.launch {
+            children.joinAll()
             if (responses.isNotEmpty() && liveClient.isReady) {
-                liveClient.sendToolResponse(responses)
+                liveClient.sendToolResponse(responses.toList())
             }
-        }
-
-        // ФИКС: Регистрируем job по каждому ID, чтобы Cancellation мог его отменить.
-        for (call in event.calls) {
-            toolCallJobs[call.id] = job
-        }
-
-        // Очищаем после завершения.
-        job.invokeOnCompletion {
-            for (call in event.calls) toolCallJobs.remove(call.id)
         }
     }
 
