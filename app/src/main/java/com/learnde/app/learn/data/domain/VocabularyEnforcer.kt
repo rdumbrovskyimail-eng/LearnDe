@@ -80,12 +80,40 @@ class VocabularyEnforcer @Inject constructor(
     suspend fun warmUp() {
         lock.withLock {
             if (loaded) return
-            // Берём всё из БД A1 и кладём в нижнем регистре
-            val all = lemmaDao.getUnseen(limit = 2000) +
-                      lemmaDao.getWeakestLemmas(limit = 2000)
+            // КРИТИЧНО: грузим ВСЕ леммы A1, иначе выученные слова ИИ
+            // будут классифицироваться как "сложные" и ученик получит штрафной prompt
+            // каждый раз, когда модель скажет уже выученное слово.
+            val all = lemmaDao.getAll()
             val set = mutableSetOf<String>()
             all.forEach { set.add(it.lemma.lowercase()) }
             set.addAll(ALWAYS_ALLOWED)
+            // A1-strong-verb forms, которые "стеммер бедняка" не свяжет с инфинитивом
+            set.addAll(listOf(
+                "war", "warst", "waren", "wart",                  // sein
+                "hatte", "hattest", "hatten", "hattet",           // haben
+                "ging", "gingst", "gingen", "gingt",              // gehen
+                "kam", "kamst", "kamen", "kamt",                  // kommen
+                "sah", "sahst", "sahen", "saht",                  // sehen
+                "sprach", "sprachst", "sprachen", "spracht",      // sprechen
+                "aß", "aßt", "aßen",                              // essen
+                "trank", "tranken",                               // trinken
+                "fuhr", "fuhren",                                 // fahren
+                "schlief", "schliefen",                           // schlafen
+                "las", "lasen",                                   // lesen
+                "schrieb", "schrieben",                           // schreiben
+                "blieb", "blieben",                               // bleiben
+                "fand", "fanden",                                 // finden
+                "wurde", "wurdest", "wurden", "wurdet",           // werden
+                "musste", "mussten", "konnte", "konnten",         // modal Praeteritum
+                "wollte", "wollten", "sollte", "sollten",
+                "durfte", "durften", "mochte", "mochten",
+                // Partizip II частотные
+                "gewesen", "gehabt", "gegangen", "gekommen", "gesehen",
+                "gesprochen", "gegessen", "getrunken", "gefahren",
+                "geschlafen", "gelesen", "geschrieben", "geblieben",
+                "gefunden", "geworden", "gemacht", "gearbeitet",
+                "gelernt", "gewohnt", "gespielt", "gekauft",
+            ))
             whitelist = set
             loaded = true
             logger.d("VocabEnforcer: loaded ${whitelist.size} A1 lemmas into whitelist")
