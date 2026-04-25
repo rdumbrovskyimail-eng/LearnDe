@@ -889,10 +889,25 @@ class LearnCoreViewModel @Inject constructor(
         transcriptMutex.withLock {
             val last = transcriptBuffer.lastOrNull()
             if (last != null && last.role == ConversationMessage.ROLE_MODEL) {
-                if (last.text.endsWith(text)) {
+                // ФИКС: Умная дедупликация для фрагментированных чанков.
+                // Проверяем, не является ли новый текст подстрокой конца текущего,
+                // или не является ли текущий текст началом нового.
+                val trimmedLast = last.text.trimEnd()
+                val trimmedNew = text.trimStart()
+                
+                if (trimmedLast.endsWith(trimmedNew) || trimmedNew.startsWith(trimmedLast)) {
                     logger.d("Learn: suppressing duplicate ModelText/OutputTranscript")
+                    // Если новый текст длиннее (содержит больше данных), обновляем до него
+                    if (trimmedNew.length > trimmedLast.length) {
+                        val updated = last.copy(text = text)
+                        val next = transcriptBuffer.toMutableList()
+                        next[next.size - 1] = updated
+                        transcriptBuffer = next
+                        _state.update { it.copy(transcript = next) }
+                    }
                     return
                 }
+                
                 val updated = last.copy(text = last.text + text)
                 val next = transcriptBuffer.toMutableList()
                 next[next.size - 1] = updated
