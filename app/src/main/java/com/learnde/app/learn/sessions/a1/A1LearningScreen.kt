@@ -430,7 +430,7 @@ fun A1LearningScreen(
 
     if (showGrammarSheet) {
         com.learnde.app.learn.sessions.a1.grammar.GrammarSheet(
-            onDismiss = { showGrammarSheet = false },
+            onClose = { showGrammarSheet = false },
         )
     }
 
