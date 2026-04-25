@@ -145,6 +145,7 @@ class LearnCoreViewModel @Inject constructor(
     private var micJob: Job? = null
     private var silenceTimerJob: Job? = null
     private var greetingFallbackJob: Job? = null
+    private var setupJob: Job? = null
 
     @Volatile private var lastInputTs: Long = 0L
     @Volatile private var lastInputText: String = ""
@@ -331,6 +332,8 @@ class LearnCoreViewModel @Inject constructor(
         pendingFlushJob = null
         modelStartedSpeakingThisTurn = false
         awaitingInitialGreeting = false
+        setupJob?.cancel()
+        setupJob = null
 
         _state.update {
             it.copy(
@@ -372,6 +375,8 @@ class LearnCoreViewModel @Inject constructor(
         modelStartedSpeakingThisTurn = false
         awaitingInitialGreeting = false
         greetingFallbackJob?.cancel()
+        setupJob?.cancel()
+        setupJob = null
 
         session.onEnter()
         activeSession = session
@@ -739,7 +744,8 @@ class LearnCoreViewModel @Inject constructor(
         contextSeeded = true
         modelStartedSpeakingThisTurn = false
 
-        viewModelScope.launch {
+        setupJob?.cancel()
+        setupJob = viewModelScope.launch {
             delay(GREETING_WARMUP_MS)
 
             if (!liveClient.isReady) {
@@ -946,6 +952,7 @@ class LearnCoreViewModel @Inject constructor(
         micJob?.cancel()
         silenceTimerJob?.cancel()
         greetingFallbackJob?.cancel()
+        setupJob?.cancel()
         pendingFlushJob?.cancel()
         pendingModelText.clear()
         safeStopForegroundService()
