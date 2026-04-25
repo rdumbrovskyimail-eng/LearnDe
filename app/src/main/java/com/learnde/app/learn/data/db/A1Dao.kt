@@ -23,8 +23,31 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface A1LemmaDao {
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(lemmas: List<LemmaA1Entity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAllIgnoreConflicts(lemmas: List<LemmaA1Entity>)
+
+    /** Старый API для обратной совместимости. Внутри использует IGNORE. */
+    @Transaction
+    suspend fun insertAll(lemmas: List<LemmaA1Entity>) {
+        insertAllIgnoreConflicts(lemmas)
+    }
+
+    /** Обновляет ТОЛЬКО статические поля леммы без затирания прогресса. */
+    @Query("""
+        UPDATE a1_lemmas 
+        SET pos = :pos, article = :article, articlesAll = :articlesAll, 
+            genus = :genus, urlDwds = :urlDwds, hidx = :hidx
+        WHERE LOWER(lemma) = LOWER(:lemma)
+    """)
+    suspend fun updateStaticFields(
+        lemma: String,
+        pos: String,
+        article: String?,
+        articlesAll: String,
+        genus: String?,
+        urlDwds: String,
+        hidx: String?,
+    )
 
     @Update
     suspend fun update(lemma: LemmaA1Entity)
@@ -151,8 +174,36 @@ interface A1LemmaDao {
 @Dao
 interface A1ClusterDao {
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(clusters: List<ClusterA1Entity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAllIgnoreConflicts(clusters: List<ClusterA1Entity>)
+
+    @Transaction
+    suspend fun insertAll(clusters: List<ClusterA1Entity>) {
+        insertAllIgnoreConflicts(clusters)
+    }
+
+    @Query("""
+        UPDATE a1_clusters
+        SET titleDe = :titleDe, titleRu = :titleRu, lemmasJson = :lemmasJson,
+            anchorLemma = :anchorLemma, grammarRuleId = :grammarRuleId,
+            grammarFocus = :grammarFocus, scenarioHint = :scenarioHint,
+            category = :category, difficulty = :difficulty, 
+            prerequisitesJson = :prerequisitesJson
+        WHERE id = :id
+    """)
+    suspend fun updateStaticFields(
+        id: String,
+        titleDe: String,
+        titleRu: String,
+        lemmasJson: String,
+        anchorLemma: String,
+        grammarRuleId: String?,
+        grammarFocus: String,
+        scenarioHint: String,
+        category: String,
+        difficulty: Int,
+        prerequisitesJson: String,
+    )
 
     @Update
     suspend fun update(cluster: ClusterA1Entity)
