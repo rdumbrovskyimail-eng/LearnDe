@@ -42,7 +42,6 @@ class A1SituationSession @Inject constructor(
     private val bus: A1LearningBus,
     private val logger: AppLogger,
     private val fsrs: com.learnde.app.learn.domain.FsrsScheduler,
-    private val evaluator: com.learnde.app.learn.domain.A1LemmaEvaluator,
 ) : LearnSession {
 
     override val id: String = "a1_situation"
@@ -68,7 +67,7 @@ class A1SituationSession @Inject constructor(
     @Volatile private var evaluateCallsCount: Int = 0
     
     /** Снапшоты FSRS-состояний "до" последней оценки — для отката при dispute. */
-    private val preEvalSnapshots = ConcurrentHashMap<String, com.learnde.app.domain.model.FsrsState>()
+    private val preEvalSnapshots = ConcurrentHashMap<String, com.learnde.app.learn.domain.FsrsState>()
     
     // Заменяем CopyOnWriteArrayList на структуру с поддержкой замены последнего значения леммы.
     private val qualityAccumulator = CopyOnWriteArrayList<Pair<String, Int>>() // lemma to quality
@@ -324,20 +323,38 @@ class A1SituationSession @Inject constructor(
             }
 
             preEvalSnapshots[lemma] = entity.toFsrsState()
-            val clusterId = currentContext?.cluster?.id ?: "unknown"
-            
-            val result = evaluator.evaluate(
-                entity = entity,
-                quality = quality,
-                diagnosis = diagnosis,
-                clusterId = clusterId
-            )
 
+            val adjustedQuality = when (diagnosis.depth) {
+                ErrorDepth.NONE, ErrorDepth.SLIP -> quality
+                ErrorDepth.MISTAKE -> (quality - 1).coerceAtLeast(2)
+                ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)
+            }
+            val rating = com.learnde.app.learn.domain.FsrsRating.fromQuality(adjustedQuality)
+            val (newFsrsState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
+            val newMastery = fsrs.masteryScore(newFsrsState)
+            val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
+            val clusterId = currentContext?.cluster?.id ?: "unknown"
+            val intervention = diagnosis.recommendedIntervention()
+
+            lemmaDao.updateProgressFsrs(
+                lemma = lemma,
+                produced = if (wasCorrect) 1 else 0,
+                failed = if (!wasCorrect) 1 else 0,
+                newProductionScore = newMastery,
+                recognitionDelta = recognitionDelta,
+                clusterId = clusterId,
+                nextReview = nextReviewAt,
+                fsrsDifficulty = newFsrsState.difficulty,
+                fsrsStability = newFsrsState.stability,
+                fsrsReps = newFsrsState.reps,
+                fsrsLapses = newFsrsState.lapses,
+                fsrsLastReviewAt = newFsrsState.lastReviewAt,
+            )
             bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
                 lemma = lemma, quality = quality, diagnosis = diagnosis,
-                intervention = result.intervention, feedback = feedback,
+                intervention = intervention, feedback = feedback,
             ))
-            """{"status":"ok","intervention":"${result.intervention}","mastery":"${result.newMastery}"}"""
+            """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
         }
     }
 
