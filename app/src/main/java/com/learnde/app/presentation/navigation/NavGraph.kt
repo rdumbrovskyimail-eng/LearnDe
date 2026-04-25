@@ -281,6 +281,22 @@ fun AppNavGraph(
                 )
             }
 
+            composable("learn/a1/vocabulary") {
+                com.learnde.app.learn.sessions.a1.vocabulary.A1VocabularyScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable("learn/a1/coursemap") {
+                com.learnde.app.learn.sessions.a1.coursemap.A1CourseMapScreen(
+                    onBack = { navController.popBackStack() },
+                    onClusterClick = { clusterId ->
+                        navController.popBackStack()
+                        // TODO: передать clusterId в A1LearningViewModel через savedStateHandle
+                    }
+                )
+            }
+
             composable(
                 route = Routes.LEARN_A1_SESSION_DETAILS,
                 arguments = listOf(
