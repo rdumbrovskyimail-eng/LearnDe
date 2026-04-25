@@ -313,6 +313,7 @@ fun A1LearningScreen(
                 }
 
                 // ─── КОГДА СЕССИЯ НЕ ИДЁТ: GRAMMAR PROGRESS ───
+                var showGrammarSheet by remember { mutableStateOf(false) }
                 AnimatedVisibility(
                     visible = !state.sessionActive && !state.isReviewMode,
                     enter = fadeIn(),
@@ -320,9 +321,18 @@ fun A1LearningScreen(
                 ) {
                     Column {
                         Spacer(Modifier.height(6.dp))
-                        GrammarProgressRow(state.grammarIntroduced, state.grammarTotal)
+                        GrammarProgressRow(
+                            state.grammarIntroduced,
+                            state.grammarTotal,
+                            onClick = { showGrammarSheet = true }
+                        )
                         Spacer(Modifier.height(8.dp))
                     }
+                }
+                if (showGrammarSheet) {
+                    com.learnde.app.learn.sessions.a1.grammar.GrammarSheet(
+                        onDismiss = { showGrammarSheet = false }
+                    )
                 }
 
                 // ═══════════════════════════════════════════════════════
@@ -1030,8 +1040,12 @@ private fun StatChip(emoji: String, value: String, label: String, color: Color, 
 // GRAMMAR PROGRESS ROW
 // ═══════════════════════════════════════════════════════════
 @Composable
-private fun GrammarProgressRow(introduced: Int, total: Int) {
-    Column(Modifier.fillMaxWidth()) {
+private fun GrammarProgressRow(introduced: Int, total: Int, onClick: () -> Unit = {}) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 Icons.Filled.MenuBook,
