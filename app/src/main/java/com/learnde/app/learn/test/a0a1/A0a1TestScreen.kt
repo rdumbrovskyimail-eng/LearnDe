@@ -149,15 +149,14 @@ fun A0a1TestScreen(
         if (state.finished && state.verdict != TestVerdict.NONE) {
             delay(1800)
             if (state.verdict == TestVerdict.PASSED) {
-                // Перед любой навигацией останавливаем текущую Live-сессию,
-                // иначе мик/арбитр останутся захваченными.
                 learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
+                kotlinx.coroutines.delay(400)
                 when (val step = viewModel.advanceToNextPhase()) {
-                    is com.learnde.app.learn.test.a0a1.TestNextStep.StartSession ->
+                    is A0a1TestViewModel.TestNextStep.StartSession ->
                         learnCoreViewModel.onIntent(LearnCoreIntent.Start(step.sessionId))
-                    is com.learnde.app.learn.test.a0a1.TestNextStep.NavigateRoute ->
+                    is A0a1TestViewModel.TestNextStep.NavigateRoute ->
                         onNavigateToRoute(step.route)
-                    com.learnde.app.learn.test.a0a1.TestNextStep.Graduated ->
+                    A0a1TestViewModel.TestNextStep.Graduated ->
                         onNavigateToStudy("B2_GRADUATE")
                 }
             } else {
