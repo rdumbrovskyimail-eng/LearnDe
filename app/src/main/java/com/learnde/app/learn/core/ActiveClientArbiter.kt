@@ -58,12 +58,14 @@ class ActiveClientArbiter @Inject constructor(
                 }
             }
         } catch (e: TimeoutCancellationException) {
-            logger.e("Arbiter: acquire($owner) timeout — forcing")
-            // v3.2: форс тоже через корутину с мьютексом
-            scope.launch {
-                mutex.withLock {
-                    _active.value = owner
-                }
+            logger.e("Arbiter: acquire($owner) timeout — force-stealing ownership")
+            // Принудительный СИНХРОННЫЙ захват: мьютекс не отдают, но владельцу нужен сейчас.
+            if (mutex.tryLock()) {
+                try { _active.value = owner } finally { mutex.unlock() }
+            } else {
+                // Мьютекс намертво залип — обходим его. Это аварийная ветка.
+                _active.value = owner
+                logger.w("Arbiter: mutex was stuck, bypassed (owner=$owner)")
             }
         }
     }
@@ -94,16 +96,16 @@ class ActiveClientArbiter @Inject constructor(
         }
     }
 
-    /**
-     * v3.2: Неблокирующий аварийный сброс — для вызовов из не-suspend контекстов
-     * (onCleared, onDestroy). Использует отдельную корутину чтобы не блокировать caller.
-     */
     fun forceReleaseAllNonSuspending() {
-        scope.launch {
-            mutex.withLock {
-                logger.w("Arbiter: FORCE release all (async)")
+        if (mutex.tryLock()) {
+            try {
+                logger.w("Arbiter: FORCE release all (sync)")
                 _active.value = ClientOwner.NONE
-            }
+            } finally { mutex.unlock() }
+        } else {
+            // Мьютекс залип в аварийной ситуации — всё равно обнуляем владельца.
+            _active.value = ClientOwner.NONE
+            logger.w("Arbiter: FORCE release all (bypassed stuck mutex)")
         }
     }
 }
