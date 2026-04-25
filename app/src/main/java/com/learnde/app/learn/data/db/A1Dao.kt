@@ -60,6 +60,9 @@ interface A1LemmaDao {
     @Query("SELECT * FROM a1_lemmas WHERE LOWER(lemma) IN (:lemmasLower)")
     suspend fun getByLemmasLowercase(lemmasLower: List<String>): List<LemmaA1Entity>
 
+    @Query("SELECT * FROM a1_lemmas ORDER BY lemma ASC")
+    suspend fun getAll(): List<LemmaA1Entity>
+
     @Query("""
         UPDATE a1_lemmas
         SET timesHeard = timesHeard + 1,
