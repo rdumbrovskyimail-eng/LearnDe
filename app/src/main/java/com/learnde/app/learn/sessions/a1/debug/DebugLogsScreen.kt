@@ -90,7 +90,10 @@ class DebugLogsViewModel @Inject constructor(
     }
 
     /** Возвращает текст или пустую строку при ошибке. */
-    fun export(): String = runCatching { buffer.exportAsText() }.getOrDefault("")
+    // ФИКС: Переносим тяжелую операцию склейки строк в фоновый поток
+    suspend fun export(): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching { buffer.exportAsText() }.getOrDefault("")
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,6 +104,7 @@ fun DebugLogsScreen(
 ) {
     val colors = learnColors()
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope() // ФИКС: Scope для запуска фоновых задач из UI
 
     // ФИКС: используем lifecycle-aware collect с явным initialValue (пустой список)
     val allEntries by vm.entries.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -156,12 +160,15 @@ fun DebugLogsScreen(
                         )
                     }
                     IconButton(onClick = {
-                        val text = vm.export()
-                        if (text.isNotEmpty()) {
-                            copyToClipboard(context, text)
-                            Toast.makeText(context, "Скопировано", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Нет логов для копирования", Toast.LENGTH_SHORT).show()
+                        // ФИКС: Запускаем suspend-функцию экспорта не блокируя UI
+                        scope.launch {
+                            val text = vm.export()
+                            if (text.isNotEmpty()) {
+                                copyToClipboard(context, text)
+                                Toast.makeText(context, "Скопировано", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Нет логов для копирования", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }) {
                         Icon(
