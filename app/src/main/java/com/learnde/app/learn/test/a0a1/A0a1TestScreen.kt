@@ -150,7 +150,12 @@ fun A0a1TestScreen(
             delay(1800)
             if (state.verdict == TestVerdict.PASSED) {
                 learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
-                kotlinx.coroutines.delay(400)
+
+                // ФИКС: Ждем фактического отключения вместо хардкодного delay(400),
+                // чтобы избежать гонки (race condition) между Stop и Start.
+                androidx.compose.runtime.snapshotFlow { learnCoreViewModel.state.value.connectionStatus }
+                    .kotlinx.coroutines.flow.first { it == com.learnde.app.learn.core.LearnConnectionStatus.Disconnected }
+
                 when (val step = viewModel.advanceToNextPhase()) {
                     is A0a1TestViewModel.TestNextStep.StartSession ->
                         learnCoreViewModel.onIntent(LearnCoreIntent.Start(step.sessionId))
