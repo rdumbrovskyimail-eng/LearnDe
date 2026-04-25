@@ -92,6 +92,9 @@ class LearnCoreViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
+        /** Выделенный scope для безопасной очистки ресурсов при уничтожении ViewModel */
+        private val cleanupScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
         /** FIFO-лимит транскрипта в памяти (защита от OOM в долгих сессиях). */
         private const val MAX_TRANSCRIPT_SIZE = 150
 
@@ -963,7 +966,6 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
     override fun onCleared() {
         super.onCleared()
         micJob?.cancel()
@@ -975,11 +977,12 @@ class LearnCoreViewModel @Inject constructor(
         statusBus.reset()
         safeStopForegroundService()
 
-        GlobalScope.launch(Dispatchers.IO + NonCancellable) {
-            runCatching { transcriptBuffer = emptyList() }
+        // Используем выделенный scope вместо опасного GlobalScope
+        cleanupScope.launch {
+            // stopInternal() безопасно закроет сокеты и освободит Arbiter под мьютексом
+            runCatching { stopInternal() }
+            runCatching { transcriptMutex.withLock { transcriptBuffer = emptyList() } }
             runCatching { audioEngine.releaseAll() }
-            runCatching { liveClient.disconnect() }
-            runCatching { arbiter.release(ClientOwner.LEARN) }
             logger.d("LearnCoreViewModel cleanup complete")
         }
     }
