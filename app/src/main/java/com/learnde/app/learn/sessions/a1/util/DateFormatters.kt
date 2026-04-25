@@ -23,4 +23,11 @@ object A1DateFormatters {
     fun formatShortDate(ts: Long): String = shortDate.format(Date(ts))
     fun formatFullDate(ts: Long): String = fullDate.format(Date(ts))
     fun formatTimeOnly(ts: Long): String = timeOnly.format(Date(ts))
+
+    /** Двухстрочное представление: дата сверху, время снизу. Не обрезается на 360dp экранах. */
+    fun formatTwoLine(timestampMs: Long): Pair<String, String> {
+        val date = java.text.SimpleDateFormat("d MMM yyyy", ruLocale).format(Date(timestampMs))
+        val time = java.text.SimpleDateFormat("HH:mm", ruLocale).format(Date(timestampMs))
+        return date to time
+    }
 }
