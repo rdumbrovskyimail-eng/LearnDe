@@ -247,6 +247,8 @@ $wordList
         sessionDao.insert(
             A1SessionLogEntity(
                 clusterId = "review",
+                clusterTitleRu = "Повторение слабых слов",
+                clusterTitleDe = "Wortschatz-Wiederholung",
                 startedAt = sessionStartedAt,
                 endedAt = endedAt,
                 lemmasTargetedJson = jsonList(reviewLemmas.map { it.lemma }),
