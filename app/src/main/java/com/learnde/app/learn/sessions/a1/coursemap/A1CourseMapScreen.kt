@@ -107,8 +107,9 @@ fun A1CourseMapScreen(
                     .padding(horizontal = LearnTokens.PaddingMd, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                val total = state.clusters.size
-                val completed = state.clusters.count { it.completed }
+                val all = state.byCategory.values.flatten()
+                val total = all.size
+                val completed = all.count { it.isMastered }
                 val pct = if (total == 0) 0 else (completed * 100 / total)
 
                 StatChip("Всего", total.toString(), Modifier.weight(1f))
