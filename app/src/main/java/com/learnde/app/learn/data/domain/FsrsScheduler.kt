@@ -74,7 +74,7 @@ class FsrsScheduler @Inject constructor() {
     ): Pair<FsrsState, Long> {
         val isFirst = prior.reps == 0 || prior.stability <= 0.0
         val elapsedDays = if (prior.lastReviewAt == 0L) 0.0
-            else (nowMs - prior.lastReviewAt) / MS_PER_DAY
+            else ((nowMs - prior.lastReviewAt) / MS_PER_DAY).coerceAtLeast(0.0)
 
         // ── Difficulty ──
         val newD = if (isFirst) {
@@ -114,7 +114,7 @@ class FsrsScheduler @Inject constructor() {
                         1.5)
                 }
             }
-        }.coerceIn(0.01, 36500.0)
+        }.coerceIn(0.01, 36500.0).let { if (it.isFinite()) it else initialStabilities[rating.value - 1] }
 
         val newReps = prior.reps + 1
         val newLapses = prior.lapses + if (rating == FsrsRating.AGAIN) 1 else 0
@@ -155,7 +155,7 @@ class FsrsScheduler @Inject constructor() {
      */
     fun masteryScore(state: FsrsState, nowMs: Long = System.currentTimeMillis()): Float {
         if (state.reps == 0) return 0f
-        val elapsed = (nowMs - state.lastReviewAt) / MS_PER_DAY
+        val elapsed = ((nowMs - state.lastReviewAt) / MS_PER_DAY).coerceAtLeast(0.0)
         val r = state.retrievabilityAt(elapsed)
         val reliabilityBonus = (state.reps - state.lapses).coerceAtLeast(0).toDouble() /
             max(state.reps.toDouble(), 1.0)
