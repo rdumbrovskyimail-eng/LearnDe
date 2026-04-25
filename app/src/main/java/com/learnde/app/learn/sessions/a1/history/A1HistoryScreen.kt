@@ -268,11 +268,7 @@ private fun SessionCard(
 ) {
     val entity = item.entity
     val completeColor = if (entity.isComplete) Color(0xFF43A047) else Color(0xFFFB8C00)
-    val qualityColor = when (entity.overallQuality) {
-        in 6..7 -> Color(0xFF43A047)
-        in 4..5 -> Color(0xFFFB8C00)
-        else -> Color(0xFFE53935)
-    }
+    val qualityColor = com.learnde.app.learn.sessions.a1.util.LearnUiUtils.qualityColor(entity.overallQuality)
 
     Row(
         modifier = Modifier
