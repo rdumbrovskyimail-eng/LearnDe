@@ -81,7 +81,9 @@ class A1DataImporter @Inject constructor(
         // импортируемые поля (например, MIGRATION_3_4 добавила grammarRuleId в кластеры),
         // эту константу ОБЯЗАТЕЛЬНО инкрементировать. Иначе у существующих юзеров
         // колонка останется пустой и кластеры не свяжутся с грамматикой.
-        const val CURRENT_DATA_VERSION = 2
+
+        // ФИКС: Синхронизировано с A1Database version = 4
+        const val CURRENT_DATA_VERSION = 4
     }
 
     /**
