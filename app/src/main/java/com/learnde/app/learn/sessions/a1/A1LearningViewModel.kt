@@ -99,6 +99,12 @@ class A1LearningViewModel @Inject constructor(
                     } else s
                 }
             }
+            is A1LearningIntent.AcknowledgeSessionFinished -> {
+                _state.update { it.copy(sessionFinished = false, finalQuality = null, finalFeedback = null) }
+            }
+            is A1LearningIntent.AcknowledgeA1Completed -> {
+                _state.update { it.copy(isA1Completed = false) }
+            }
             is A1LearningIntent.DismissFinalDialog -> {
                 _state.update {
                     it.copy(
