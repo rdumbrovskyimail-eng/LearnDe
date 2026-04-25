@@ -51,6 +51,8 @@ object Routes {
     const val LEARN_A1_HISTORY = "learn/a1/history"
     const val LEARN_A1_VOCABULARY = "learn/a1/vocabulary"
     const val LEARN_A1_SESSION_DETAILS = "learn/a1/session/{sessionId}"
+    const val LEARN_A1_COURSE_MAP = "learn/a1/coursemap"
+    const val LEARN_A1_GRAMMAR = "learn/a1/grammar"
     const val DEBUG_LOGS = "debug/logs"
 }
 
@@ -246,32 +248,22 @@ fun AppNavGraph(
                             launchSingleTop = true
                         }
                     },
-                    onOpenVocabulary = { navController.navigate("learn/a1/vocabulary") },
-                    onOpenCourseMap = { navController.navigate("learn/a1/coursemap") },
+                    onOpenVocabulary = { navController.navigate(Routes.LEARN_A1_VOCABULARY) },
+                    onOpenCourseMap = { navController.navigate(Routes.LEARN_A1_COURSE_MAP) },
                     learnCoreViewModel = learnCoreVm,
                     vm = a1Vm,
                 )
             }
 
-            // Простой alias без аргументов — перенаправляет в основной маршрут
-            composable(Routes.LEARN_A1) { entry ->
-                val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
-                com.learnde.app.learn.sessions.a1.A1LearningScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenHistory = {
-                        navController.navigate(Routes.LEARN_A1_HISTORY) {
-                            launchSingleTop = true
-                        }
-                    },
-                    onOpenDebugLogs = {
-                        navController.navigate(Routes.DEBUG_LOGS) {
-                            launchSingleTop = true
-                        }
-                    },
-                    onOpenVocabulary = { navController.navigate("learn/a1/vocabulary") },
-                    onOpenCourseMap = { navController.navigate("learn/a1/coursemap") },
-                    learnCoreViewModel = learnCoreVm,
-                )
+            // Alias без аргументов — редирект на основной маршрут с null clusterId,
+            // чтобы избежать дублирования двух destination'ов и потери SavedStateHandle.
+            composable(Routes.LEARN_A1) {
+                LaunchedEffect(Unit) {
+                    navController.navigate("learn/a1?clusterId=") {
+                        popUpTo(Routes.LEARN_A1) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             }
 
             composable(Routes.LEARN_A1_HISTORY) {
@@ -290,19 +282,19 @@ fun AppNavGraph(
                 )
             }
 
-            composable("learn/a1/vocabulary") {
+            composable(Routes.LEARN_A1_VOCABULARY) {
                 com.learnde.app.learn.sessions.a1.vocabulary.A1VocabularyScreen(
                     onBack = { navController.popBackStack() }
                 )
             }
 
-            composable("learn/a1/grammar") {
+            composable(Routes.LEARN_A1_GRAMMAR) {
                 com.learnde.app.learn.sessions.a1.grammar.GrammarSheet(
                     onClose = { navController.popBackStack() }
                 )
             }
 
-            composable("learn/a1/coursemap") {
+            composable(Routes.LEARN_A1_COURSE_MAP) {
                 com.learnde.app.learn.sessions.a1.coursemap.A1CourseMapScreen(
                     onBack = { navController.popBackStack() },
                     onClusterClick = { clusterId ->
