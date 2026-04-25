@@ -180,9 +180,6 @@ fun A1LearningScreen(
         onBack()
     }
 
-    // ─── Inline-loader виден до прихода первого аудио ───
-    val showInlineLoader = learnState.isPreparingSession && learnState.transcript.isEmpty()
-
     Scaffold(
         containerColor = colors.bg,
         topBar = {
@@ -280,12 +277,11 @@ fun A1LearningScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(pad)
-                .padding(horizontal = LearnTokens.PaddingLg)
-                .imePadding(),
+                .padding(horizontal = LearnTokens.PaddingLg),
         ) {
-            // ─── Inline loader + AudioParticleBox (правая часть) ───
+            // ─── Inline loader + AudioParticleBox ───
             AnimatedVisibility(
-                visible = showInlineLoader,
+                visible = learnState.isPreparingSession && learnState.transcript.isEmpty(),
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically(),
             ) {
@@ -296,7 +292,11 @@ fun A1LearningScreen(
                         .padding(top = LearnTokens.PaddingSm, bottom = LearnTokens.PaddingMd),
                 ) {
                     InlineLoadingBar(modifier = Modifier.weight(1f))
-                    Spacer(Modifier.width(LearnTokens.PaddingSm))
+                }
+            }
+
+            AnimatedVisibility(visible = state.sessionActive) {
+                Box(Modifier.fillMaxWidth().padding(vertical = LearnTokens.PaddingSm), contentAlignment = Alignment.Center) {
                     AudioParticleBox(
                         playbackSync = learnCoreViewModel.audioPlaybackFlow,
                         size = 36.dp,
@@ -377,6 +377,10 @@ fun A1LearningScreen(
             }
 
             // ─── ЧАТ ─── (главный элемент, weight=1f)
+            if (learnState.error != null) {
+                ErrorSection(learnState.error ?: "Ошибка связи")
+                Spacer(Modifier.height(LearnTokens.PaddingSm))
+            }
             if (state.sessionActive && learnState.transcript.isNotEmpty()) {
                 ChatSection(
                     transcript = learnState.transcript,
@@ -415,12 +419,12 @@ fun A1LearningScreen(
             lemmasProduced = state.lemmasProducedThisSession.size,
             lemmasFailed = state.lemmasFailedThisSession.size,
             isReviewMode = state.isReviewMode,
-            onContinue = { vm.onIntent(A1LearningIntent.AcknowledgeSessionFinished) },
+            onContinue = { vm.onIntent(A1LearningIntent.DismissFinalDialog) },
         )
     }
 
-    if (state.a1Completed) {
-        A1CompletedDialog(onClose = { vm.onIntent(A1LearningIntent.AcknowledgeA1Completed) })
+    if (state.isA1Completed) {
+        A1CompletedDialog(onClose = { vm.onIntent(A1LearningIntent.DismissFinalDialog) })
     }
 }
 
@@ -728,10 +732,10 @@ private fun CompactReviewCard(weakCount: Int) {
 private fun PhaseTimeline(current: A1Phase) {
     val colors = learnColors()
     val phases = listOf(
-        A1Phase.WARM_UP, A1Phase.INTRODUCE, A1Phase.DRILL,
-        A1Phase.APPLY, A1Phase.GRAMMAR, A1Phase.COOL_DOWN,
+        A1Phase.IDLE, A1Phase.WARM_UP, A1Phase.INTRODUCE, A1Phase.DRILL,
+        A1Phase.APPLY, A1Phase.GRAMMAR, A1Phase.COOL_DOWN, A1Phase.FINISHED,
     )
-    val labels = listOf("Разминка", "Новое", "Тренаж", "Применяй", "Правило", "Итог")
+    val labels = listOf("", "Разминка", "Новое", "Тренаж", "Применяй", "Правило", "Итог", "Готово")
     val currentIndex = phases.indexOfFirst { it == current }
 
     Column(modifier = Modifier.fillMaxWidth()) {
