@@ -385,29 +385,12 @@ private fun SpeakerStatusIndicator(
         else -> Triple("Подключение…", TrTheme.Orange, null)
     }
 
-    val isPulsing = isActive && (isAiSpeaking || isMicActive)
-
-    val pulseAlpha by animateFloatAsState(
-        targetValue = if (isPulsing) 0.7f else 1f,
-        animationSpec = if (isPulsing) {
-            infiniteRepeatable(
-                animation = tween(800, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse,
-            )
-        } else {
-            tween(300)
-        },
-        label = "pulseAlpha"
-    )
-
-    val effAlpha = if (isPulsing) pulseAlpha else 1f
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(color.copy(alpha = 0.12f * effAlpha))
-            .border(1.dp, color.copy(alpha = 0.25f * effAlpha), RoundedCornerShape(14.dp))
+            .background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
@@ -416,44 +399,39 @@ private fun SpeakerStatusIndicator(
             Icon(
                 icon,
                 contentDescription = null,
-                tint = color.copy(alpha = effAlpha),
+                tint = color,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
             // Waveform
-            WaveformBars(color = color, intensity = effAlpha)
+            WaveformBars(color = color, intensity = learnState.currentRms)
             Spacer(Modifier.width(10.dp))
         }
         Text(
             label,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            color = color.copy(alpha = effAlpha),
+            color = color,
         )
     }
 }
 
 @Composable
 private fun WaveformBars(color: Color, intensity: Float) {
-    val inf = rememberInfiniteTransition(label = "wave")
-    val bars = listOf(
-        inf.animateFloat(0.3f, 1f, infiniteRepeatable(tween(500), RepeatMode.Reverse), label = "b1"),
-        inf.animateFloat(0.6f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "b2"),
-        inf.animateFloat(0.4f, 1f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "b3"),
-        inf.animateFloat(0.7f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "b4"),
-    )
+    val targetIntensity = intensity.coerceIn(0f, 1f)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        bars.forEach { animated ->
-            val h = (6 + 12 * animated.value * intensity).dp
+        val barHeights = listOf(0.4f, 0.8f, 0.5f, 0.9f)
+        barHeights.forEach { factor ->
+            val h = (6 + 18 * factor * targetIntensity).dp
             Box(
                 modifier = Modifier
                     .width(2.5.dp)
                     .height(h)
                     .clip(RoundedCornerShape(1.5.dp))
-                    .background(color.copy(alpha = 0.8f * intensity))
+                    .background(color.copy(alpha = 0.8f))
             )
         }
     }
