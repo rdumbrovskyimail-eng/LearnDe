@@ -234,14 +234,16 @@ class A1SituationSession @Inject constructor(
         val clusterId = currentContext?.cluster?.id ?: "unknown"
         
         scope.launch {
-            lemmaDao.updateProgress(
+            // КРИТИЧНО: Используем updateProgressNoReschedule чтобы НЕ ломать FSRS-расписание.
+            // mark_lemma_produced — это лёгкое подтверждение использования слова в речи,
+            // оно НЕ должно перезаписывать интервалы повторения, рассчитанные FSRS.
+            lemmaDao.updateProgressNoReschedule(
                 lemma = lemma,
                 produced = 1,
                 failed = 0,
                 productionDelta = delta,
                 recognitionDelta = 0.02f,
                 clusterId = clusterId,
-                nextReview = computeNextReviewForLemma(quality),
             )
             bus.emit(A1LearningEvent.LemmaProduced(lemma, quality))
         }
@@ -394,19 +396,6 @@ class A1SituationSession @Inject constructor(
         bus.emitSuspend(A1LearningEvent.PhaseChanged(A1Phase.FINISHED))
 
         ok()
-    }
-
-    private fun computeNextReviewForLemma(quality: Int): Long {
-        val base = System.currentTimeMillis()
-        val days = when (quality) {
-            7 -> 7
-            6 -> 3
-            5 -> 1
-            4 -> 1
-            else -> 0
-        }
-        return if (days == 0) base + 2 * 3_600_000L
-        else base + days.days.inWholeMilliseconds
     }
 
     private suspend fun findGrammarRuleIdByFocus(focus: String): String? {
