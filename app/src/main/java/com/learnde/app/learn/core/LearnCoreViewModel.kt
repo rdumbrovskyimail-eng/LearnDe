@@ -663,10 +663,9 @@ class LearnCoreViewModel @Inject constructor(
 
                     is GeminiEvent.ToolCallCancellation -> {
                         for (id in event.ids) {
-                            pendingToolCalls.remove(id)
-                            // ФИКС: Реально отменяем job, чтобы тяжёлая логика не дописывалась.
-                            toolCallJobs.remove(id)?.cancel()
-                            statusBus.onCompleted("<cancelled>", id, success = false)
+                            // ФИКС: Только отменяем Job. Удаление из pendingToolCalls и вызов 
+                            // statusBus.onCompleted произойдут в блоке finally самой корутины.
+                            toolCallJobs[id]?.cancel()
                         }
                     }
 
@@ -960,9 +959,12 @@ class LearnCoreViewModel @Inject constructor(
                     }
                     
                     val success = !result.contains("\"error\"")
-                    statusBus.onCompleted(call.name, call.id, success)
                     responses.add(ToolResponse(call.name, call.id, result))
                 } finally {
+                    // ФИКС: Гарантированный единичный вызов onCompleted при любом исходе (успех, ошибка, отмена)
+                    val wasCancelled = call.id !in pendingToolCalls || toolCallJobs[call.id]?.isCancelled == true
+                    statusBus.onCompleted(call.name, call.id, success = !wasCancelled)
+                    
                     pendingToolCalls.remove(call.id)
                     toolCallJobs.remove(call.id)
                 }
