@@ -38,6 +38,7 @@ data class LearnHubItem(
 data class LearnHubState(
     val items: List<LearnHubItem> = DEFAULT_ITEMS,
     val apiKeySet: Boolean = false,
+    val currentStreakDays: Int = 0,
 ) {
     companion object {
         /**
