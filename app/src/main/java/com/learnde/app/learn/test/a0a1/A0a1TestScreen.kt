@@ -28,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -371,52 +372,43 @@ private fun SerpentineField(
         )
     }
 
-    Canvas(modifier = modifier) {
+    Box(modifier = modifier.drawWithCache {
         val w = size.width
         val h = size.height
-
-        // Амплитуда: базовая ~1.2% h, при intensity=1 → ~4% h * breathe
         val amp = h * (0.012f + intensity * 0.028f) * breathe
 
-        snakes.forEach { s ->
-            val baseStrokePx = (1.2f + s.thickness * 1.4f) * widthMul
-            val glowStrokePx = baseStrokePx * 3.6f
+        val paths = snakes.map { s ->
             val driftPx = h * 0.012f * drift * s.thickness
-            val y0 = h * s.yPct + driftPx
-
-            val path = buildSerpentinePath(
-                y0 = y0,
+            buildSerpentinePath(
+                y0 = h * s.yPct + driftPx,
                 wavelen = s.wavelen,
                 phase = phase * speed * s.speedMul + s.phaseOffset,
                 amp = amp * s.thickness,
                 w = w
             )
+        }
 
-            // Glow-фантом (ярче когда Gemini говорит)
-            if (intensity > 0.05f) {
+        onDrawBehind {
+            snakes.forEachIndexed { i, s ->
+                val baseStrokePx = (1.2f + s.thickness * 1.4f) * widthMul
+                val glowStrokePx = baseStrokePx * 3.6f
+                val path = paths[i]
+
+                if (intensity > 0.05f) {
+                    drawPath(
+                        path = path,
+                        color = s.color.copy(alpha = 0.10f + intensity * 0.18f),
+                        style = Stroke(width = glowStrokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    )
+                }
                 drawPath(
                     path = path,
-                    color = s.color.copy(alpha = 0.10f + intensity * 0.18f),
-                    style = Stroke(
-                        width = glowStrokePx,
-                        cap = StrokeCap.Round,
-                        join = StrokeJoin.Round
-                    )
+                    color = s.color.copy(alpha = 0.55f + intensity * 0.30f),
+                    style = Stroke(width = baseStrokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
             }
-
-            // Основная линия
-            drawPath(
-                path = path,
-                color = s.color.copy(alpha = 0.55f + intensity * 0.30f),
-                style = Stroke(
-                    width = baseStrokePx,
-                    cap = StrokeCap.Round,
-                    join = StrokeJoin.Round
-                )
-            )
         }
-    }
+    })
 }
 
 private data class Snake(
