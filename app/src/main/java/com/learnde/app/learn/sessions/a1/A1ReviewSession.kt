@@ -48,8 +48,8 @@ class A1ReviewSession @Inject constructor(
     private val failedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val diagnoses = ConcurrentHashMap<String, ErrorDiagnosis>()
     
-    // ФИНАЛ: Потокобезопасный список
-    private val qualityAccumulator = CopyOnWriteArrayList<Int>()
+    private val qualitySum = java.util.concurrent.atomic.AtomicInteger(0)
+    private val qualityCount = java.util.concurrent.atomic.AtomicInteger(0)
 
     @Volatile private var evaluateCallsCount: Int = 0
 
@@ -121,7 +121,8 @@ $wordList
         producedLemmas.clear()
         failedLemmas.clear()
         diagnoses.clear()
-        qualityAccumulator.clear()
+        qualitySum.set(0)
+        qualityCount.set(0)
         evaluateCallsCount = 0
         logger.d("A1ReviewSession onEnter: ${reviewLemmas.size} lemmas to review")
         bus.emit(A1LearningEvent.PhaseChanged(A1Phase.DRILL))
@@ -155,7 +156,8 @@ $wordList
         )
         diagnoses[lemma] = diagnosis
         evaluateCallsCount++
-        qualityAccumulator.add(quality)
+        qualitySum.addAndGet(quality)
+        qualityCount.incrementAndGet()
 
         val wasCorrect = !diagnosis.isError
         if (wasCorrect) producedLemmas.add(lemma) else failedLemmas.add(lemma)
@@ -223,8 +225,8 @@ $wordList
         finalFeedback: String? = null,
     ) {
         val endedAt = System.currentTimeMillis()
-        val avgQ = if (qualityAccumulator.isEmpty()) 0f
-                   else qualityAccumulator.average().toFloat()
+        val avgQ = if (qualityCount.get() == 0) 0f 
+                   else qualitySum.get().toFloat() / qualityCount.get()
         val qualityValue = finalQuality ?: avgQ.toInt().coerceIn(1, 7)
         val feedbackValue = finalFeedback ?: "Повторено ${producedLemmas.size + failedLemmas.size} слов."
 
