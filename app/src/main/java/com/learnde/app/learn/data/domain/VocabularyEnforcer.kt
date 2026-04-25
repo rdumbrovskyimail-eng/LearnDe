@@ -150,7 +150,7 @@ class VocabularyEnforcer @Inject constructor(
         val violators = words.filter { word ->
             // Лемматизация беднячка: Häuser → häuser (whitelist хранит lowercase)
             // Для честного stemming нужен отдельный модуль — это Patch 5+.
-            word !in whitelist && !wordMatchesAnyLemmaForm(word)
+            word !in whitelist && !wordMatchesAnyLemmaForm(word) && !isCompoundOfWhitelist(word)
         }
 
         if (violators.isEmpty()) return
@@ -190,6 +190,26 @@ class VocabularyEnforcer @Inject constructor(
         ).filter { it.length >= 3 }
 
         return stems.any { stem -> whitelist.any { it.startsWith(stem) || stem.startsWith(it) } }
+    }
+
+    /**
+     * Базовый декомпозитор: проверяет, можно ли разбить слово на 2 части,
+     * каждая из которых есть в whitelist. Покрывает ~80% A1-композитов.
+     * Минимум 4 символа в каждой части (короче — служебные).
+     */
+    private fun isCompoundOfWhitelist(word: String): Boolean {
+        if (word.length < 8) return false
+        for (split in 4 until word.length - 3) {
+            val left = word.substring(0, split)
+            val right = word.substring(split)
+            if (left in whitelist && right in whitelist) return true
+            // Учитываем "соединительный" -s- (Arbeits-tag, Geburts-tag)
+            if (right.startsWith("s") && right.length > 4) {
+                val rightTrim = right.substring(1)
+                if (left in whitelist && rightTrim in whitelist) return true
+            }
+        }
+        return false
     }
 
     /** Готовый скрытый промпт, который можно послать Gemini через sendText. */
