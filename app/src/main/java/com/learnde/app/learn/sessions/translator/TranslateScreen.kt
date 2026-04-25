@@ -385,17 +385,21 @@ private fun SpeakerStatusIndicator(
         else -> Triple("Подключение…", TrTheme.Orange, null)
     }
 
-    val pulse = rememberInfiniteTransition(label = "speakerPulse")
-    val pulseAlpha by pulse.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
+    val isPulsing = isActive && (isAiSpeaking || isMicActive)
+
+    val pulseAlpha by animateFloatAsState(
+        targetValue = if (isPulsing) 0.7f else 1f,
+        animationSpec = if (isPulsing) {
+            infiniteRepeatable(
+                animation = tween(800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            )
+        } else {
+            tween(300)
+        },
         label = "pulseAlpha"
     )
-    val isPulsing = isActive && (isAiSpeaking || isMicActive)
+
     val effAlpha = if (isPulsing) pulseAlpha else 1f
 
     Row(
