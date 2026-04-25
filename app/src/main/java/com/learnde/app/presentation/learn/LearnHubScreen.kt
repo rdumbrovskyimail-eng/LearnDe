@@ -71,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.learnde.app.learn.core.LearnCoreViewModel
 import com.learnde.app.presentation.learn.components.CurrentFunctionBar
 import com.learnde.app.presentation.learn.theme.LearnTokens
+import com.learnde.app.presentation.learn.theme.Plural
 import com.learnde.app.presentation.learn.theme.learnColors
 
 private fun iconFor(key: String): ImageVector = when (key) {
