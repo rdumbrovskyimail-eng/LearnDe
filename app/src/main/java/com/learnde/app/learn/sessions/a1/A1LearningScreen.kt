@@ -369,26 +369,7 @@ fun A1LearningScreen(
                 }
             }
 
-            state.lastVocabViolation?.let { word ->
-                AnimatedVisibility(
-                    visible = true,
-                    enter = fadeIn() + slideInVertically(),
-                    exit = fadeOut(),
-                ) {
-                    Text(
-                        text = "ИИ переключился на проще слова (заменил: $word)",
-                        fontSize = 11.sp,
-                        color = colors.textLow,
-                        modifier = Modifier.padding(8.dp)
-                    )
-                }
-            }
-            LaunchedEffect(state.lastVocabViolation) {
-                if (state.lastVocabViolation != null) {
-                    kotlinx.coroutines.delay(3500)
-                    learnCoreViewModel.clearVocabViolation()
-                }
-            }
+
 
             // ─── SessionLiveStats только во время сессии ───
             AnimatedVisibility(
