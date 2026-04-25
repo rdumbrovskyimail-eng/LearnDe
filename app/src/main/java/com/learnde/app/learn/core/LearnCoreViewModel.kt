@@ -611,6 +611,11 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.OutputTranscript -> {
+                        if (awaitingInitialGreeting) {
+                            awaitingInitialGreeting = false
+                            greetingFallbackJob?.cancel()
+                            logger.d("Learn: model started OutputTranscript — clearing greeting wait")
+                        }
                         appendOrAppendToLastModel(event.text)
                         if (activeSession?.id == "a1_situation" || activeSession?.id == "a1_review") {
                             vocabularyEnforcer.analyze(event.text)
@@ -618,6 +623,11 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.ModelText -> {
+                        if (awaitingInitialGreeting) {
+                            awaitingInitialGreeting = false
+                            greetingFallbackJob?.cancel()
+                            logger.d("Learn: model started ModelText — clearing greeting wait")
+                        }
                         // Всегда пишем ModelText. Дедупликация с OutputTranscript
                         // делается в appendOrAppendToLastModel (по содержимому).
                         // Если включён outputTranscription — сервер чаще шлёт именно
@@ -625,7 +635,14 @@ class LearnCoreViewModel @Inject constructor(
                         appendOrAppendToLastModel(event.text)
                     }
 
-                    is GeminiEvent.ToolCall -> handleToolCalls(event)
+                    is GeminiEvent.ToolCall -> {
+                        if (awaitingInitialGreeting) {
+                            awaitingInitialGreeting = false
+                            greetingFallbackJob?.cancel()
+                            logger.d("Learn: model started ToolCall — clearing greeting wait")
+                        }
+                        handleToolCalls(event)
+                    }
 
                     is GeminiEvent.ToolCallCancellation -> {
                         for (id in event.ids) {
