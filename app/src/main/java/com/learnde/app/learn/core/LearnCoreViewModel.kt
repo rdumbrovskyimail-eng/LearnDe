@@ -193,31 +193,7 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Публичный API для отправки системного текста в активную сессию Gemini.
-     * Используется для синхронизации UI-действий (Dispute, "Не знаю", и т.д.) с AI.
-     */
-    fun sendSystemText(text: String) {
-        if (!liveClient.isReady) {
-            logger.w("Learn.sendSystemText: liveClient not ready, dropping: $text")
-            return
-        }
-        viewModelScope.launch {
-            // Если ИИ говорит, ждём окончания его реплики, чтобы не вызвать
-            // обрыв воспроизведения и глитч-эффект.
-            if (_state.value.isAiSpeaking) {
-                logger.d("Learn.sendSystemText: AI is speaking, deferring")
-                var waited = 0L
-                val maxWaitMs = 4_000L
-                while (_state.value.isAiSpeaking && waited < maxWaitMs) {
-                    delay(120)
-                    waited += 120
-                }
-            }
-            runCatching { liveClient.sendText(text) }
-                .onFailure { logger.e("Learn.sendSystemText failed: ${it.message}") }
-        }
-    }
+
 
     private fun observeSettings() {
         viewModelScope.launch {
