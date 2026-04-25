@@ -236,17 +236,19 @@ $wordList
         val feedbackValue = finalFeedback ?: "Повторено ${producedLemmas.size + failedLemmas.size} слов."
 
         val jsonList = { list: Collection<String> -> Json.encodeToString(list.toList()) }
+        // ФИКС: Явное построение JsonObject защищает от крашей при обфускации R8 в релизе
         val diagnosesJson = try {
-            Json.encodeToString(
-                diagnoses.mapValues { (_, d) ->
-                    mapOf(
-                        "source" to d.source.name,
-                        "depth" to d.depth.name,
-                        "category" to d.category.name,
-                        "specifics" to d.specifics,
-                    )
+            val jsonObject = kotlinx.serialization.json.buildJsonObject {
+                diagnoses.forEach { (lemma, d) ->
+                    put(lemma, kotlinx.serialization.json.buildJsonObject {
+                        put("source", kotlinx.serialization.json.JsonPrimitive(d.source.name))
+                        put("depth", kotlinx.serialization.json.JsonPrimitive(d.depth.name))
+                        put("category", kotlinx.serialization.json.JsonPrimitive(d.category.name))
+                        put("specifics", kotlinx.serialization.json.JsonPrimitive(d.specifics))
+                    })
                 }
-            )
+            }
+            jsonObject.toString()
         } catch (_: Exception) { "{}" }
 
         sessionDao.insert(
