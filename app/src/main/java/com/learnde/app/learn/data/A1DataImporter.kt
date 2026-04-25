@@ -143,8 +143,22 @@ class A1DataImporter @Inject constructor(
                 hidx = dto.hidx,
             )
         }
+        // 1) INSERT IGNORE для новых лемм (прогресс существующих НЕ затирается).
         lemmaDao.insertAll(entities)
-        logger.d("A1Importer: imported ${entities.size} lemmas (deduped from ${dtos.size})")
+        // 2) UPDATE статических полей для уже существующих (например, если в JSON
+        //    обновили перевод, артикль или part-of-speech). Прогресс остаётся.
+        for (dto in dedupedDtos) {
+            lemmaDao.updateStaticFields(
+                lemma = dto.lemma,
+                pos = dto.pos,
+                article = dto.article,
+                articlesAll = dto.articles_all.joinToString(","),
+                genus = dto.genus,
+                urlDwds = dto.url_dwds,
+                hidx = dto.hidx,
+            )
+        }
+        logger.d("A1Importer: synced ${entities.size} lemmas (deduped from ${dtos.size})")
     }
 
     // ────────── Кластеры ──────────
@@ -171,6 +185,7 @@ class A1DataImporter @Inject constructor(
             )
         }
         clusterDao.insertAll(entities)
+        entities.forEach { clusterDao.updateStaticFields(it) }
 
         val unlockedCount = entities.count { it.isUnlocked }
         logger.d("A1Importer: imported ${entities.size} clusters, $unlockedCount unlocked immediately")
