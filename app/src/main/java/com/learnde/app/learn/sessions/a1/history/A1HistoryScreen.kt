@@ -29,7 +29,9 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -68,6 +70,7 @@ fun A1HistoryScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var sessionToDelete by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Long?>(null) }
 
     LaunchedEffect(Unit) {
         vm.effects.collect { effect ->
@@ -145,13 +148,58 @@ fun A1HistoryScreen(
                         SessionCard(
                             item = item,
                             onRepeat = { vm.onIntent(A1HistoryIntent.RepeatCluster(item.entity.clusterId)) },
-                            onDelete = { vm.onIntent(A1HistoryIntent.DeleteSession(item.entity.id)) },
+                            onDelete = { sessionToDelete = item.entity.id },
                             onClick = { vm.onIntent(A1HistoryIntent.OpenDetails(item.entity.id)) },
                         )
                     }
                 }
             }
         }
+    }
+
+    if (sessionToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { sessionToDelete = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Warning,
+                        null,
+                        tint = Color(0xFFFB8C00),
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Удалить запись?", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text(
+                    "Это удалит запись из истории. " +
+                    "ВНИМАНИЕ: прогресс по словам и грамматике, полученный в этой сессии, " +
+                    "сохранится — алгоритм FSRS не откатывает интервалы повторения.",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val id = sessionToDelete
+                        sessionToDelete = null
+                        if (id != null) {
+                            vm.onIntent(A1HistoryIntent.DeleteSession(id))
+                        }
+                    }
+                ) {
+                    Text("Удалить", color = Color(0xFFE53935), fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionToDelete = null }) {
+                    Text("Отмена")
+                }
+            }
+        )
     }
 }
 
