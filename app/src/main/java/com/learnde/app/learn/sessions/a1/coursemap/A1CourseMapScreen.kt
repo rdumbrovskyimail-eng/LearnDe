@@ -148,6 +148,27 @@ fun A1CourseMapScreen(
     }
 }
 
+/**
+ * Изолированная Composable-функция для безопасного запуска анимации.
+ * Сохраняет оптимизацию: таймер создается только для 1 активного элемента из 140.
+ */
+@Composable
+private fun PulsingScale(isCurrent: Boolean): Float {
+    if (!isCurrent) return 1f
+    
+    val pulse = rememberInfiniteTransition(label = "currentPulse")
+    val scale by pulse.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "pulse",
+    )
+    return scale
+}
+
 @Composable
 private fun StatChip(label: String, value: String, modifier: Modifier = Modifier) {
     val colors = learnColors()
@@ -183,21 +204,9 @@ private fun ClusterMapCard(
         else -> ClusterStatusStyle(Icons.Filled.Lock, colors.textLow)
     }
 
-    // Анимация запускается ТОЛЬКО для текущего урока — для остальных 140 карточек
-    // бесконечный transition не создаётся вообще, экономим ~140 RAF-таймеров.
-    val pulseScale: Float = if (isCurrent) {
-        val pulse = rememberInfiniteTransition(label = "currentPulse")
-        val v by pulse.animateFloat(
-            initialValue = 1f,
-            targetValue = 1.02f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1400, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "pulse",
-        )
-        v
-    } else 1f
+    // БЕЗОПАСНОЕ получение scale: анимация создается только в ветке, где isCurrent == true,
+    // не ломая дерево композиции основной карточки.
+    val pulseScale = PulsingScale(isCurrent = isCurrent)
 
     Row(
         modifier = Modifier
