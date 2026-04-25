@@ -807,7 +807,7 @@ private fun PhaseTimeline(current: A1Phase) {
 // ═══════════════════════════════════════════════════════════
 @Composable
 private fun LemmaEvaluationCard(ev: LastEvaluation, onDispute: () -> Unit) {
-    val color = qualityColor(ev.quality)
+    val color = com.learnde.app.learn.sessions.a1.util.LearnUiUtils.qualityColor(ev.quality)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -899,15 +899,7 @@ private fun LemmaEvaluationCard(ev: LastEvaluation, onDispute: () -> Unit) {
     }
 }
 
-private fun qualityColor(q: Int): Color = when (q) {
-    7 -> Color(0xFF2E7D32)
-    6 -> Color(0xFF43A047)
-    5 -> Color(0xFF7CB342)
-    4 -> Color(0xFFFDD835)
-    3 -> Color(0xFFFB8C00)
-    2 -> Color(0xFFF4511E)
-    else -> Color(0xFFE53935)
-}
+
 
 @Composable
 private fun DiagnosisChips(ev: LastEvaluation) {
@@ -1462,7 +1454,7 @@ private fun SessionFinishedDialog(
     isReviewMode: Boolean,
     onContinue: () -> Unit,
 ) {
-    val color = qualityColor(quality)
+    val color = com.learnde.app.learn.sessions.a1.util.LearnUiUtils.qualityColor(quality)
     AlertDialog(
         onDismissRequest = {},
         title = null,
