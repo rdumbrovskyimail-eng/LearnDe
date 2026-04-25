@@ -234,7 +234,7 @@ private fun StreakChip(days: Int) {
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            "$days дн.",
+            "$days ${Plural.day(days)}",
             fontSize = LearnTokens.FontSizeCaption,
             fontWeight = FontWeight.SemiBold,
             color = colors.warn,
