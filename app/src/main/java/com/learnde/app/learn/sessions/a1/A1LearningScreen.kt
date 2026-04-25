@@ -191,6 +191,8 @@ fun A1LearningScreen(
         onBack()
     }
 
+    androidx.activity.compose.BackHandler(onBack = exitAndBack)
+
     Scaffold(
         containerColor = colors.bg,
         topBar = {
