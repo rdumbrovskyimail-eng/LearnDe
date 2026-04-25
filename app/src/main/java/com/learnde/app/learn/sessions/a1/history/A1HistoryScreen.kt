@@ -316,7 +316,7 @@ private fun SessionCard(
             }
             Spacer(Modifier.height(3.dp))
             Row {
-                Text(formatDate(entity.startedAt), fontSize = 10.sp,
+                Text(com.learnde.app.learn.sessions.a1.util.A1DateFormatters.formatShortDate(entity.startedAt), fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(" · ", fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -378,17 +378,7 @@ private fun EmptyState(filter: HistoryFilter) {
     }
 }
 
-private fun formatDate(ts: Long): String {
-    val now = System.currentTimeMillis()
-    val diff = now - ts
-    return when {
-        diff < 60_000 -> "только что"
-        diff < 3_600_000 -> "${diff / 60_000} мин назад"
-        diff < 86_400_000 -> "${diff / 3_600_000} ч назад"
-        diff < 7 * 86_400_000L -> "${diff / 86_400_000} дн назад"
-        else -> SimpleDateFormat("d MMM", Locale("ru")).format(Date(ts))
-    }
-}
+
 
 /** Количество лемм в JSON-массиве без полной десериализации. */
 private fun String.lemmaCount(): Int =
