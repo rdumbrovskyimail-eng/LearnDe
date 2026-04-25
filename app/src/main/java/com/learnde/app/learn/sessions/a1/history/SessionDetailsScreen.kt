@@ -218,12 +218,20 @@ private fun SessionSummaryCard(state: SessionDetailsState) {
                 }
                 Spacer(Modifier.height(4.dp))
                 val mins = session.durationMinutes
-                Text(
-                    "${com.learnde.app.learn.sessions.a1.util.A1DateFormatters.formatFullDate(session.startedAt)} · " +
+                val dateStr = com.learnde.app.learn.sessions.a1.util.A1DateFormatters.formatFullDate(session.startedAt)
+                val timeStr = com.learnde.app.learn.sessions.a1.util.A1DateFormatters.formatTime(session.startedAt)
+                Column {
+                    Text(
+                        "$dateStr · $timeStr",
+                        fontSize = LearnTokens.FontSizeMicro,
+                        color = colors.textLow,
+                    )
+                    Text(
                         if (mins == 0) "<1 мин" else "$mins ${Plural.minute(mins)}",
-                    fontSize = LearnTokens.FontSizeMicro,
-                    color = colors.textLow,
-                )
+                        fontSize = LearnTokens.FontSizeMicro,
+                        color = colors.textLow,
+                    )
+                }
             }
         }
         Spacer(Modifier.height(LearnTokens.PaddingSm))
