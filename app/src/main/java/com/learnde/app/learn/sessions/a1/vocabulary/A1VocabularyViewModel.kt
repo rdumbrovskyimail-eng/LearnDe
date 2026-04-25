@@ -86,8 +86,8 @@ class A1VocabularyViewModel @Inject constructor(
         val now = System.currentTimeMillis()
         val byFilter = when (s.filter) {
             VocabFilter.ALL -> s.all
-            VocabFilter.MASTERED -> s.all.filter { it.masteryScore >= 0.7f }
-            VocabFilter.IN_PROGRESS -> s.all.filter { it.masteryScore in 0.3f..0.7f && it.timesHeard > 0 }
+            VocabFilter.MASTERED -> s.all.filter { it.timesHeard > 0 && it.masteryScore >= 0.7f }
+            VocabFilter.IN_PROGRESS -> s.all.filter { it.timesHeard > 0 && it.masteryScore >= 0.3f && it.masteryScore < 0.7f }
             VocabFilter.WEAK -> s.all.filter { it.timesHeard > 0 && it.masteryScore < 0.3f }
             VocabFilter.NEW -> s.all.filter { it.timesHeard == 0 }
             VocabFilter.DUE -> s.all.filter { it.nextReviewAt != null && (it.nextReviewAt ?: 0L) <= now }
