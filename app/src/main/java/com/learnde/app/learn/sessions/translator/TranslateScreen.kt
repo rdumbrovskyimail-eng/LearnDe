@@ -117,14 +117,34 @@ fun TranslatorScreen(
     val isActive = learnState.sessionId == "translator" &&
             learnState.connectionStatus != LearnConnectionStatus.Disconnected
 
+    val activity = context as? android.app.Activity
+    var showRationaleDialog by androidx.compose.runtime.mutableStateOf(false)
+    var rationaleIsPermanent by androidx.compose.runtime.mutableStateOf(false)
+
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
             learnCoreViewModel.onIntent(LearnCoreIntent.Start("translator"))
         } else {
-            Toast.makeText(context, "Для переводчика нужен микрофон", Toast.LENGTH_SHORT).show()
+            rationaleIsPermanent = activity == null ||
+                    !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                        activity, android.Manifest.permission.RECORD_AUDIO
+                    )
+            showRationaleDialog = true
         }
+    }
+
+    if (showRationaleDialog) {
+        com.learnde.app.presentation.learn.components.MicPermissionRationaleDialog(
+            showSettingsButton = rationaleIsPermanent,
+            onDismiss = { showRationaleDialog = false },
+            onRequestAgain = {
+                showRationaleDialog = false
+                micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+            },
+            context = context,
+        )
     }
 
     Scaffold(
