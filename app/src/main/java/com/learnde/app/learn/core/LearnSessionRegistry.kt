@@ -14,6 +14,7 @@ import com.learnde.app.learn.sessions.a0a1.B1LearnSession
 import com.learnde.app.learn.sessions.a0a1.B2LearnSession
 import com.learnde.app.learn.sessions.a1.A1ReviewSession
 import com.learnde.app.learn.sessions.a1.A1SituationSession
+import com.learnde.app.learn.sessions.translator.TranslatorSession
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,7 +30,7 @@ class LearnSessionRegistry @Inject constructor(
     a1Learning: A1SituationSession,
     a1Review: A1ReviewSession,                // v3.2: NEW
     // Живой переводчик
-    translator: com.learnde.app.learn.sessions.translator.TranslatorSession,
+    translator: TranslatorSession,
 ) {
     private val sessions: Map<String, LearnSession> = mapOf(
         a0.id         to a0,
