@@ -139,6 +139,11 @@ $wordList
         if (!sessionCompleted && evaluateCallsCount > 0) {
             autoSaveSession(isComplete = false)
         }
+        // ФИКС: Очищаем состояние синглтона, чтобы освободить память и избежать утечек в новые сессии
+        reviewLemmas = emptyList()
+        producedLemmas.clear()
+        failedLemmas.clear()
+        diagnoses.clear()
     }
 
     override suspend fun handleToolCall(call: FunctionCall): String? {
