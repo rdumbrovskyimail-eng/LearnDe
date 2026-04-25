@@ -130,10 +130,12 @@ fun A1LearningScreen(
             val sessionId = if (state.isReviewMode) "a1_review" else "a1_situation"
             learnCoreViewModel.onIntent(LearnCoreIntent.Start(sessionId))
         } else {
-            rationaleIsPermanent = activity == null ||
-                !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
-                    activity, android.Manifest.permission.RECORD_AUDIO,
+            val shouldShow = activity?.let {
+                androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                    it, android.Manifest.permission.RECORD_AUDIO,
                 )
+            } ?: false
+            rationaleIsPermanent = !shouldShow
             showRationaleDialog = true
         }
     }
@@ -144,7 +146,14 @@ fun A1LearningScreen(
             onDismiss = { showRationaleDialog = false },
             onRequestAgain = {
                 showRationaleDialog = false
-                micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                if (rationaleIsPermanent) {
+                    val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = android.net.Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                } else {
+                    micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                }
             },
             context = context,
         )
