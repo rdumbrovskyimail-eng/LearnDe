@@ -11,7 +11,7 @@ package com.learnde.app.presentation.learn
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.learnde.app.data.settings.AppSettings
-import com.learnde.app.learn.data.db.A1SessionDao
+import com.learnde.app.learn.data.db.A1SessionLogDao
 import androidx.datastore.core.DataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +30,7 @@ import javax.inject.Inject
 @HiltViewModel
 class LearnHubViewModel @Inject constructor(
     private val settingsStore: DataStore<AppSettings>,
-    private val sessionDao: A1SessionDao,
+    private val sessionDao: A1SessionLogDao,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LearnHubState())
@@ -47,7 +47,8 @@ class LearnHubViewModel @Inject constructor(
     private fun observeSettings() {
         viewModelScope.launch {
             settingsStore.data.collect { settings ->
-                val passed = settings.testPassed
+                // TODO: Заменить заглушку на реальный статус из A1UserProgressDao
+                val passed = false 
                 val items = LearnHubState.DEFAULT_ITEMS.map {
                     if (it.id == "a0a1_test" && passed) it.copy(
                         badge = "REPLAY",
