@@ -274,6 +274,9 @@ class A1SituationSession @Inject constructor(
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
 
         producedLemmas.add(lemma)
+        // ФИКС: Добавляем оценку в аккумулятор, чтобы она учитывалась при расчете среднего балла за сессию
+        qualityAccumulator.add(lemma to quality)
+
         val delta = (quality - 3).coerceIn(-2, 4) * 0.03f
         val clusterId = currentContext?.cluster?.id ?: "unknown"
         
