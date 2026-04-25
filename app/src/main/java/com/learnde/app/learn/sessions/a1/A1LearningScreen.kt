@@ -1208,10 +1208,14 @@ private fun BottomActionButton(
             Row(modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
                     onClick = {
-                        learnCoreViewModel.sendSystemText(
-                            "[СИСТЕМА]: Ученик нажал кнопку 'Не знаю'. " +
-                                "Дай правильный ответ и краткое объяснение по-русски.",
-                        )
+                        if (learnState.isAiSpeaking) {
+                            Toast.makeText(context, "Подождите, ИИ ещё говорит…", Toast.LENGTH_SHORT).show()
+                        } else {
+                            learnCoreViewModel.sendSystemText(
+                                "[СИСТЕМА]: Ученик нажал кнопку 'Не знаю'. " +
+                                    "Дай правильный ответ и краткое объяснение по-русски.",
+                            )
+                        }
                     },
                     modifier = Modifier.height(48.dp),
                     shape = RoundedCornerShape(LearnTokens.RadiusSm),
