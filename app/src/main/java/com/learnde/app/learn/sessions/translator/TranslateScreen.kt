@@ -226,6 +226,7 @@ fun TranslatorScreen(
                     isActive = isActive,
                     isAiSpeaking = learnState.isAiSpeaking,
                     isMicActive = learnState.isMicActive,
+                    rmsIntensity = learnState.currentRms,
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -377,6 +378,7 @@ private fun SpeakerStatusIndicator(
     isActive: Boolean,
     isAiSpeaking: Boolean,
     isMicActive: Boolean,
+    rmsIntensity: Float,
 ) {
     val (label, color, icon) = when {
         !isActive -> Triple("Нажмите кнопку «Старт», чтобы начать", MaterialTheme.colorScheme.onSurfaceVariant, null)
@@ -404,7 +406,7 @@ private fun SpeakerStatusIndicator(
             )
             Spacer(Modifier.width(8.dp))
             // Waveform
-            WaveformBars(color = color, intensity = learnState.currentRms)
+            WaveformBars(color = color, intensity = rmsIntensity)
             Spacer(Modifier.width(10.dp))
         }
         Text(
