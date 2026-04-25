@@ -166,6 +166,14 @@ class A1SituationSession @Inject constructor(
         if (currentPhase != A1Phase.FINISHED && evaluateCallsCount > 0) {
             autoSaveIncompleteSession()
         }
+        // ФИКС: Очищаем состояние синглтона
+        currentContext = null
+        targetedLemmas.clear()
+        producedLemmas.clear()
+        failedLemmas.clear()
+        diagnoses.clear()
+        qualityAccumulator.clear()
+        preEvalSnapshots.clear()
     }
 
     private suspend fun autoSaveIncompleteSession() {
