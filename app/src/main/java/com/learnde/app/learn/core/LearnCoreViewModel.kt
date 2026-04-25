@@ -748,12 +748,12 @@ class LearnCoreViewModel @Inject constructor(
         setupJob = viewModelScope.launch {
             delay(GREETING_WARMUP_MS)
 
-            if (!liveClient.isReady) {
-                logger.w("Learn: WS not ready after warmup, aborting greeting flow")
+            // ФИКС: Проверяем, не была ли сессия остановлена или перезапущена во время delay
+            if (!liveClient.isReady || activeSession != session) {
+                logger.w("Learn: WS not ready or session changed after warmup, aborting greeting flow")
                 return@launch
             }
 
-            // Нет стартового сообщения — просто включаем мик и ждём юзера.
             if (session.initialUserMessage.isBlank()) {
                 logger.d("Learn: no initial greeting → enabling mic only")
                 if (!_state.value.isMicActive) startMic()
@@ -763,51 +763,47 @@ class LearnCoreViewModel @Inject constructor(
             logger.d("Learn: starting greeting sequence (silence-first → mic → text)")
             awaitingInitialGreeting = true
 
-            // ── Шаг 1: Сначала чистый warmup-силенс (без живого микрофона).
-            // Так серверный VAD не ловит смешанный поток "реальный фон + нули".
             runCatching { sendSilenceWarmup() }
                 .onFailure { logger.w("Learn: silence warmup failed: ${it.message}") }
 
-            if (!liveClient.isReady) {
-                logger.w("Learn: WS died during silence warmup")
+            // ФИКС: Повторная проверка после долгого suspend-метода отправки аудио
+            if (!liveClient.isReady || activeSession != session) {
+                logger.w("Learn: WS died or session changed during silence warmup")
                 awaitingInitialGreeting = false
                 return@launch
             }
 
-            // ── Шаг 2: Теперь включаем реальный микрофон.
             if (!_state.value.isMicActive) startMic()
             delay(MIC_PREWARM_MS)
 
-            if (!liveClient.isReady) {
-                logger.w("Learn: WS died during mic prewarm")
+            // ФИКС: И еще одна проверка перед отправкой текста
+            if (!liveClient.isReady || activeSession != session) {
+                logger.w("Learn: WS died or session changed during mic prewarm")
                 awaitingInitialGreeting = false
                 return@launch
             }
 
-            // ── Шаг 3: Триггерный текст.
             logger.d("Learn: sending initial greeting trigger")
             liveClient.sendText(session.initialUserMessage)
-            // ВАЖНО: sendTurnComplete() после sendText НЕ вызываем —
-            // sendText уже содержит turn_complete=true.
 
-            // ── Шаг 4: Retry-логика, если модель всё ещё молчит.
             greetingFallbackJob?.cancel()
             greetingFallbackJob = viewModelScope.launch {
                 delay(GREETING_RETRY_MS)
-                if (awaitingInitialGreeting && liveClient.isReady) {
+                // ФИКС: Проверка актуальности сессии в fallback-ветке
+                if (awaitingInitialGreeting && liveClient.isReady && activeSession == session) {
                     logger.w("Learn: no audio from model in ${GREETING_RETRY_MS}ms — retrying")
-                    // Второй warmup + более настойчивая фраза.
                     runCatching { sendSilenceWarmup() }
+                    if (activeSession != session) return@launch
+                    
                     liveClient.sendText(
                         "Ты меня слышишь? Поприветствуй ученика сейчас по-русски и " +
                             "задай первый вопрос."
                     )
 
                     delay(GREETING_FINAL_MS - GREETING_RETRY_MS)
-                    if (awaitingInitialGreeting) {
+                    if (awaitingInitialGreeting && activeSession == session) {
                         logger.w("Learn: model stayed silent, giving up greeting flow")
                         awaitingInitialGreeting = false
-                        // Мик уже включён, юзер может заговорить первым.
                     }
                 }
             }
@@ -833,8 +829,8 @@ class LearnCoreViewModel @Inject constructor(
             val end = minOf(offset + chunkSize, silence.size)
             liveClient.sendAudio(silence.copyOfRange(offset, end))
             offset = end
-            // Минимальная пауза между чанками, имитирующая реальный стриминг.
-            delay(5)
+            // ФИКС: Реальная задержка 40мс для чанка 40мс, чтобы не спамить сервер и не ловить RateLimit
+            delay(40)
         }
     }
 
