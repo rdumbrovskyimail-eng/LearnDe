@@ -11,7 +11,7 @@ package com.learnde.app.presentation.learn
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.learnde.app.data.settings.AppSettings
-import com.learnde.app.learn.data.db.A1SessionLogDao
+import com.learnde.app.learn.data.db.A1SessionDao
 import androidx.datastore.core.DataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +30,7 @@ import javax.inject.Inject
 @HiltViewModel
 class LearnHubViewModel @Inject constructor(
     private val settingsStore: DataStore<AppSettings>,
-    private val sessionDao: A1SessionLogDao,
+    private val sessionDao: A1SessionDao,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LearnHubState())
