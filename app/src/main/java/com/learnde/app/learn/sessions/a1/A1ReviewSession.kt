@@ -36,7 +36,6 @@ class A1ReviewSession @Inject constructor(
     private val bus: A1LearningBus,
     private val logger: AppLogger,
     private val fsrs: FsrsScheduler,
-    private val evaluator: A1LemmaEvaluator,
 ) : LearnSession {
 
     override val id: String = "a1_review"
@@ -168,19 +167,39 @@ $wordList
         if (wasCorrect) producedLemmas.add(lemma) else failedLemmas.add(lemma)
 
         return lemmaLock(lemma).withLock {
-            val result = evaluator.evaluate(
-                lemma = lemma,
-                quality = quality,
-                diagnosis = diagnosis,
-                feedback = feedback,
-                clusterId = "review"
-            )
-            
-            if (result == null) {
+            val entity = lemmaDao.getByLemma(lemma)
+            if (entity == null) {
+                logger.w("A1ReviewSession.eval: lemma '$lemma' not in DB")
                 return@withLock """{"status":"ignored","reason":"unknown lemma"}"""
             }
 
-            """{"status":"ok","intervention":"${result.intervention}","mastery":"${result.newMastery}"}"""
+            val adjustedQuality = when (diagnosis.depth) {
+                ErrorDepth.NONE, ErrorDepth.SLIP -> quality
+                ErrorDepth.MISTAKE -> (quality - 1).coerceAtLeast(2)
+                ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)
+            }
+            val rating = FsrsRating.fromQuality(adjustedQuality)
+            val (newState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
+            val newMastery = fsrs.masteryScore(newState)
+            val intervention = diagnosis.recommendedIntervention()
+            val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
+
+            lemmaDao.updateProgressFsrs(
+                lemma = lemma,
+                produced = if (wasCorrect) 1 else 0,
+                failed = if (!wasCorrect) 1 else 0,
+                newProductionScore = newMastery,
+                recognitionDelta = recognitionDelta,
+                clusterId = "review",
+                nextReview = nextReviewAt,
+                fsrsDifficulty = newState.difficulty,
+                fsrsStability = newState.stability,
+                fsrsReps = newState.reps,
+                fsrsLapses = newState.lapses,
+                fsrsLastReviewAt = newState.lastReviewAt,
+            )
+
+            """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
         }
     }
 
@@ -223,8 +242,6 @@ $wordList
         sessionDao.insert(
             A1SessionLogEntity(
                 clusterId = "review",
-                clusterTitleRu = "Повторение слабых слов",
-                clusterTitleDe = "Wortschatz-Wiederholung",
                 startedAt = sessionStartedAt,
                 endedAt = endedAt,
                 lemmasTargetedJson = jsonList(reviewLemmas.map { it.lemma }),
