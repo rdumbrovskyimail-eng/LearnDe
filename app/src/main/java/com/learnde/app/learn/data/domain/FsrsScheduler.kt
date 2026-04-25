@@ -151,15 +151,26 @@ class FsrsScheduler @Inject constructor() {
     }
 
     /**
-     * Текущий "уровень освоения" 0..1 для UI.
+     * "Сейчас вспомню" — для бейджа "слова на повторение". Падает со временем.
      */
-    fun masteryScore(state: FsrsState, nowMs: Long = System.currentTimeMillis()): Float {
-        if (state.reps == 0) return 0f
+    fun retrievalScore(state: FsrsState, nowMs: Long = System.currentTimeMillis()): Float {
+        if (state.stability <= 0.0) return 0f
         val elapsed = ((nowMs - state.lastReviewAt) / MS_PER_DAY).coerceAtLeast(0.0)
-        val r = state.retrievabilityAt(elapsed)
-        val reliabilityBonus = (state.reps - state.lapses).coerceAtLeast(0).toDouble() /
-            max(state.reps.toDouble(), 1.0)
-        return ((r * 0.7 + reliabilityBonus * 0.3).coerceIn(0.0, 1.0)).toFloat()
+        return state.retrievabilityAt(elapsed).toFloat().coerceIn(0f, 1f)
+    }
+
+    /**
+     * "Прочно сидит в памяти" — для глобального прогресса (кольца на главном).
+     * НЕ откатывается со временем, считается по stability + надёжности повторений.
+     */
+    fun masteryScore(state: FsrsState): Float {
+        if (state.stability <= 0.0 || state.reps == 0) return 0f
+        // Stability в днях → нормализуем в [0..1] через мягкую функцию насыщения.
+        // 0.5 при stability=14d, 0.8 при stability=60d, 0.95 при stability=180d.
+        val sNorm = (state.stability / (state.stability + 14.0)).coerceIn(0.0, 1.0)
+        val reliability = (state.reps - state.lapses).coerceAtLeast(0).toDouble() /
+                          state.reps.coerceAtLeast(1).toDouble()
+        return (sNorm * (0.6 + 0.4 * reliability)).toFloat().coerceIn(0f, 1f)
     }
 
     companion object {
