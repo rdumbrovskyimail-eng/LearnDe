@@ -18,3 +18,8 @@ import javax.inject.Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class LearnScope
 
+// ФИКС: Возвращаем VoiceScope, так как он используется в модуле Voice
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class VoiceScope
+
