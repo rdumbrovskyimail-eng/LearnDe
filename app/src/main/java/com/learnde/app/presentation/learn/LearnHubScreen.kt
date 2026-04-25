@@ -42,6 +42,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Quiz
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.WarningAmber
@@ -131,6 +132,13 @@ fun LearnHubScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { hubVm.onIntent(LearnHubIntent.OpenDebugLogs) }) {
+                        Icon(
+                            Icons.Filled.BugReport,
+                            contentDescription = "Журнал",
+                            tint = colors.textMid,
+                        )
+                    }
                     if (state.currentStreakDays > 0) {
                         StreakChip(state.currentStreakDays)
                         Spacer(Modifier.width(LearnTokens.PaddingMd))
