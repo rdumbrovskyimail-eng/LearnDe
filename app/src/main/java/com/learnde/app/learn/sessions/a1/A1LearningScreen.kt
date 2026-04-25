@@ -1349,23 +1349,45 @@ private fun EmptyChatPlaceholder(
 private fun BottomActionButton(state: A1LearningState, vm: A1LearningViewModel, conn: LearnConnectionStatus) {
     when {
         state.sessionActive -> {
-            Button(
-                onClick = { vm.onIntent(A1LearningIntent.StopSession) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
-                    .shadow(6.dp, RoundedCornerShape(14.dp), ambientColor = LearnTheme.Red, spotColor = LearnTheme.Red),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = LearnTheme.Red),
-            ) {
-                Icon(Icons.Filled.Stop, null, tint = Color.White, modifier = Modifier.size(22.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = {
+                        learnCoreViewModel.sendSystemText(
+                            "[СИСТЕМА]: Ученик нажал кнопку 'Не знаю'. " +
+                            "Дай правильный ответ и краткое объяснение по-русски."
+                        )
+                    },
+                    modifier = Modifier.height(54.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                ) {
+                    Text(
+                        "Не знаю 🤷‍♂️",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    if (state.isReviewMode) "Остановить повторение" else "Остановить сессию",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                )
+                Button(
+                    onClick = { vm.onIntent(A1LearningIntent.StopSession) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(54.dp)
+                        .shadow(6.dp, RoundedCornerShape(14.dp), ambientColor = LearnTheme.Red, spotColor = LearnTheme.Red),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = LearnTheme.Red),
+                ) {
+                    Icon(Icons.Filled.Stop, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (state.isReviewMode) "Остановить" else "Стоп",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                    )
+                }
             }
         }
         state.currentCluster != null -> {
