@@ -22,6 +22,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -50,7 +51,7 @@ class A1ReviewSession @Inject constructor(
     private val producedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val failedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val diagnoses = ConcurrentHashMap<String, ErrorDiagnosis>()
-    
+
     private val qualitySum = java.util.concurrent.atomic.AtomicInteger(0)
     private val qualityCount = java.util.concurrent.atomic.AtomicInteger(0)
 
@@ -86,6 +87,8 @@ class A1ReviewSession @Inject constructor(
             val art = lemma.article?.let { "$it " } ?: ""
             "  • $art${lemma.lemma} [${lemma.pos}]"
         }
+
+        val allowedLemmas = reviewLemmas.joinToString(", ") { it.lemma }
 
         return """
 ════════════════════════════════════════════════════════════
@@ -147,7 +150,8 @@ $wordList
     private suspend fun handleEvaluate(call: FunctionCall): String {
         val lemma = call.args["lemma"]?.trim() ?: return err("no lemma")
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
-        
+        val feedback = call.args["feedback"] ?: ""
+
         val diagnosis = ErrorDiagnosis(
             source = ErrorSource.fromString(call.args["error_source"]),
             depth = ErrorDepth.fromString(call.args["error_depth"]),
@@ -213,7 +217,7 @@ $wordList
         finalFeedback: String? = null,
     ) {
         val endedAt = System.currentTimeMillis()
-        val avgQ = if (qualityCount.get() == 0) 0f 
+        val avgQ = if (qualityCount.get() == 0) 0f
                    else qualitySum.get().toFloat() / qualityCount.get()
         val qualityValue = finalQuality ?: avgQ.toInt().coerceIn(1, 7)
         val feedbackValue = finalFeedback ?: "Повторено ${producedLemmas.size + failedLemmas.size} слов."
