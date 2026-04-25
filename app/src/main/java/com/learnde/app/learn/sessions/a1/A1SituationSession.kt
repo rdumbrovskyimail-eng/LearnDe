@@ -52,6 +52,10 @@ class A1SituationSession @Inject constructor(
     @Volatile private var sessionStartedAt: Long = 0L
 
     private val mutex = Mutex()
+    private val perLemmaLocks = ConcurrentHashMap<String, Mutex>()
+    private fun lemmaLock(lemma: String): Mutex =
+        perLemmaLocks.getOrPut(lemma) { Mutex() }
+
     private val targetedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val producedLemmas = ConcurrentHashMap.newKeySet<String>()
     private val failedLemmas = ConcurrentHashMap.newKeySet<String>()
@@ -303,40 +307,31 @@ class A1SituationSession @Inject constructor(
 
         val intervention = diagnosis.recommendedIntervention()
 
-        val entity = lemmaDao.getByLemma(lemma)
-        if (entity == null) {
-            logger.w("A1Session.eval: lemma '$lemma' not in DB (Gemini сочинил?)")
-            bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
-                lemma = lemma,
-                quality = quality,
-                diagnosis = diagnosis,
-                intervention = intervention,
-                feedback = feedback,
-            ))
-            return """{"status":"ignored","reason":"unknown lemma","intervention":"$intervention"}"""
-        }
+        return lemmaLock(lemma).withLock {
+            val entity = lemmaDao.getByLemma(lemma)
+            if (entity == null) {
+                logger.w("A1Session.eval: lemma '$lemma' not in DB (Gemini сочинил?)")
+                bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
+                    lemma = lemma, quality = quality, diagnosis = diagnosis,
+                    intervention = intervention, feedback = feedback,
+                ))
+                return@withLock """{"status":"ignored","reason":"unknown lemma","intervention":"$intervention"}"""
+            }
 
-        val adjustedQuality = when (diagnosis.depth) {
-            ErrorDepth.NONE -> quality
-            ErrorDepth.SLIP -> quality    
-            ErrorDepth.MISTAKE -> (quality - 1).coerceAtLeast(2)  
-            ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)    
-        }
-        val rating = com.learnde.app.learn.domain.FsrsRating.fromQuality(adjustedQuality)
+            val adjustedQuality = when (diagnosis.depth) {
+                ErrorDepth.NONE -> quality
+                ErrorDepth.SLIP -> quality
+                ErrorDepth.MISTAKE -> (quality - 1).coerceAtLeast(2)
+                ErrorDepth.ERROR -> (quality - 2).coerceAtLeast(1)
+            }
+            val rating = com.learnde.app.learn.domain.FsrsRating.fromQuality(adjustedQuality)
+            val (newFsrsState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
+            val newMastery = fsrs.masteryScore(newFsrsState)
 
-        val (newFsrsState, nextReviewAt) = fsrs.schedule(entity.toFsrsState(), rating)
-        val newMastery = fsrs.masteryScore(newFsrsState)
+            val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
+            val clusterId = currentContext?.cluster?.id ?: "unknown"
 
-        logger.d(
-            "A1Session.eval[FSRS]: lemma=$lemma q=$quality(adj=$adjustedQuality) " +
-            "rating=$rating src=${diagnosis.source} depth=${diagnosis.depth} " +
-            "→ mastery=$newMastery, next in ${(nextReviewAt - System.currentTimeMillis()) / 60_000}min"
-        )
-
-        val recognitionDelta = if (quality >= 4) 0.08f else 0.02f
-        val clusterId = currentContext?.cluster?.id ?: "unknown"
-
-        scope.launch {
+            // СИНХРОННЫЙ апдейт под локом — никаких scope.launch здесь.
             lemmaDao.updateProgressFsrs(
                 lemma = lemma,
                 produced = if (wasCorrect) 1 else 0,
@@ -351,17 +346,12 @@ class A1SituationSession @Inject constructor(
                 fsrsLapses = newFsrsState.lapses,
                 fsrsLastReviewAt = newFsrsState.lastReviewAt,
             )
-
             bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
-                lemma = lemma,
-                quality = quality,
-                diagnosis = diagnosis,
-                intervention = intervention,
-                feedback = feedback,
+                lemma = lemma, quality = quality, diagnosis = diagnosis,
+                intervention = intervention, feedback = feedback,
             ))
+            """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
         }
-        
-        return """{"status":"ok","intervention":"$intervention","mastery":"$newMastery"}"""
     }
 
     private suspend fun handleIntroduceGrammar(call: FunctionCall): String {
