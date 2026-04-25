@@ -196,6 +196,11 @@ fun AppNavGraph(
                             popUpTo(Routes.LEARN_HUB)
                         }
                     },
+                    onNavigateToRoute = { route ->
+                        navController.navigate(route) {
+                            popUpTo(Routes.LEARN_A0A1) { inclusive = true }
+                        }
+                    },
                     learnCoreViewModel = learnCoreVm,
                 )
             }
