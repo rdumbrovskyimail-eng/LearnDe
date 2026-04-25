@@ -150,6 +150,11 @@ $wordList
         return when (call.name) {
             A1FunctionDeclarations.FN_EVALUATE_AND_UPDATE -> handleEvaluate(call)
             A1FunctionDeclarations.FN_FINISH_SESSION -> handleFinish(call)
+            // ФИКС: Защита от галлюцинаций. Если ИИ по привычке вызовет эти функции, 
+            // просто соглашаемся, чтобы не ломать диалог ошибками.
+            A1FunctionDeclarations.FN_MARK_LEMMA_HEARD,
+            A1FunctionDeclarations.FN_MARK_LEMMA_PRODUCED,
+            A1FunctionDeclarations.FN_START_PHASE -> """{"status":"ok"}"""
             else -> """{"error":"function not available in review mode"}"""
         }
     }
