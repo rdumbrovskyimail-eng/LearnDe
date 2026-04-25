@@ -103,20 +103,21 @@ fun StudyScreen(
             
             // ═══ Hero: Trophy ═══
             Box(
-                modifier = Modifier.size(120.dp).scale(pulseScale),
+                modifier = Modifier.size(220.dp).scale(pulseScale),
                 contentAlignment = Alignment.Center,
             ) {
-                // Glow
+                // Glow — без clip, чтобы радиальный градиент плавно "затухал" в фоне.
                 Box(
                     modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape)
+                        .size(220.dp)
                         .background(
                             Brush.radialGradient(
                                 colors = listOf(
-                                    accentColor.copy(alpha = 0.3f),
+                                    accentColor.copy(alpha = 0.35f),
+                                    accentColor.copy(alpha = 0.12f),
                                     accentColor.copy(alpha = 0f),
-                                )
+                                ),
+                                radius = 280f,
                             )
                         )
                 )
