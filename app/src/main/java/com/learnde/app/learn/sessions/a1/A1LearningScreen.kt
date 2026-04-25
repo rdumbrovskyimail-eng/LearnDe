@@ -294,7 +294,7 @@ fun A1LearningScreen(
         ) {
             // ─── Inline loader + AudioParticleBox ───
             AnimatedVisibility(
-                visible = learnState.isPreparingSession && learnState.transcript.isEmpty(),
+                visible = learnState.isPreparingSession || state.sessionActive,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically(),
             ) {
@@ -304,12 +304,25 @@ fun A1LearningScreen(
                         .fillMaxWidth()
                         .padding(top = LearnTokens.PaddingSm, bottom = LearnTokens.PaddingMd),
                 ) {
-                    InlineLoadingBar(modifier = Modifier.weight(1f))
-                }
-            }
-
-            AnimatedVisibility(visible = state.sessionActive) {
-                Box(Modifier.fillMaxWidth().padding(vertical = LearnTokens.PaddingSm), contentAlignment = Alignment.Center) {
+                    val showLoader = learnState.isPreparingSession && learnState.transcript.isEmpty()
+                    
+                    AnimatedContent(
+                        targetState = showLoader,
+                        transitionSpec = {
+                            fadeIn(tween(300)) togetherWith fadeOut(tween(300))
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = "loaderAnim"
+                    ) { isLoaderVisible ->
+                        if (isLoaderVisible) {
+                            InlineLoadingBar(modifier = Modifier.fillMaxWidth())
+                        } else {
+                            Spacer(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    
+                    Spacer(Modifier.width(LearnTokens.PaddingSm))
+                    
                     AudioParticleBox(
                         playbackSync = learnCoreViewModel.audioPlaybackFlow,
                         size = 36.dp,
