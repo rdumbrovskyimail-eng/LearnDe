@@ -1,5 +1,7 @@
 package com.learnde.app.domain.model
 
+import androidx.compose.runtime.Immutable
+
 /**
  * Одно сообщение в истории диалога.
  * Используется для:
@@ -7,6 +9,7 @@ package com.learnde.app.domain.model
  * 2. Context restore при reconnect (отправка через clientContent)
  * 3. Будущее: сохранение в Room (Этап 7)
  */
+@Immutable
 data class ConversationMessage(
     /** "user" или "model" — совпадает с Gemini API roles */
     val role: String,
