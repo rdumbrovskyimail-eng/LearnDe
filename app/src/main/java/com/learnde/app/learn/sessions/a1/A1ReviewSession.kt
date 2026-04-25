@@ -22,7 +22,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -88,8 +87,6 @@ class A1ReviewSession @Inject constructor(
             "  • $art${lemma.lemma} [${lemma.pos}]"
         }
 
-        val allowedLemmas = reviewLemmas.joinToString(", ") { it.lemma }
-
         return """
 ════════════════════════════════════════════════════════════
 РОЛЬ: Русскоязычный репетитор немецкого A1.
@@ -150,8 +147,7 @@ $wordList
     private suspend fun handleEvaluate(call: FunctionCall): String {
         val lemma = call.args["lemma"]?.trim() ?: return err("no lemma")
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
-        val feedback = call.args["feedback"] ?: ""
-
+        
         val diagnosis = ErrorDiagnosis(
             source = ErrorSource.fromString(call.args["error_source"]),
             depth = ErrorDepth.fromString(call.args["error_depth"]),
@@ -168,10 +164,7 @@ $wordList
 
         return lemmaLock(lemma).withLock {
             val entity = lemmaDao.getByLemma(lemma)
-            if (entity == null) {
-                logger.w("A1ReviewSession.eval: lemma '$lemma' not in DB")
-                return@withLock """{"status":"ignored","reason":"unknown lemma"}"""
-            }
+                ?: return@withLock """{"status":"ignored","reason":"unknown lemma"}"""
 
             val adjustedQuality = when (diagnosis.depth) {
                 ErrorDepth.NONE, ErrorDepth.SLIP -> quality
