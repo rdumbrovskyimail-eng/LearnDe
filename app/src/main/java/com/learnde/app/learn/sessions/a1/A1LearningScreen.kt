@@ -614,7 +614,7 @@ private fun CurrentClusterCard(
             ) {
                 Text(
                     "ГРАММАТИКА",
-                    fontSize = 9.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = LearnTheme.Purple,
                     letterSpacing = 1.sp,
@@ -792,7 +792,7 @@ private fun PhaseTimeline(current: A1Phase) {
                 val color = if (isActive) LearnTheme.Primary else MaterialTheme.colorScheme.onSurfaceVariant
                 Text(
                     label,
-                    fontSize = 9.sp,
+                    fontSize = 11.sp,
                     fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                     color = color,
                     textAlign = TextAlign.Center,
@@ -957,7 +957,7 @@ private fun DiagChip(text: String, color: Color) {
     ) {
         Text(
             text,
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             color = color,
             fontWeight = FontWeight.Bold,
             fontFamily = FontFamily.Monospace,
@@ -991,7 +991,7 @@ private fun SessionLiveStats(heard: Int, produced: Int, failed: Int, grammarIntr
             Column {
                 Text(
                     "НОВОЕ ПРАВИЛО",
-                    fontSize = 9.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = LearnTheme.Purple,
                     letterSpacing = 1.sp,
@@ -1218,7 +1218,7 @@ private fun ChatBubble(message: ConversationMessage) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (isUser) "ВЫ" else "GEMINI",
-                    fontSize = 9.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = accent,
                     letterSpacing = 1.2.sp,
