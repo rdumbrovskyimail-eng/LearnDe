@@ -1,7 +1,4 @@
-// ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА
-// Путь: app/src/main/java/com/learnde/app/learn/test/a0a1/A0a1TestViewModel.kt
-// ═══════════════════════════════════════════════════════════
+// >>> ЗАМЕНИТЬ ВЕСЬ ФАЙЛ A0a1TestViewModel.kt НА ЭТОТ КОД <<<
 package com.learnde.app.learn.test.a0a1
 
 import androidx.lifecycle.ViewModel
@@ -29,8 +26,6 @@ data class A0a1TestUiState(
     val lastQuestionIndex: Int = 0,
     val verdict: TestVerdict = TestVerdict.NONE,
     val finished: Boolean = false,
-
-    // ─── Новые поля для премиального UI ───
     val currentQuestionText: String? = null,
     val lastAnswerCorrect: Boolean? = null,
     val lastAnswerReason: String? = null,
@@ -70,17 +65,8 @@ class A0a1TestViewModel @Inject constructor(
 
     private fun onAward(payload: AwardPayload) {
         val cur = _state.value
-        // Защита от ДУБЛИРОВАНИЯ начисления, но НЕ от опоздавшей оценки за последний вопрос.
-        // Если finish_test уже пришёл, мы всё ещё можем принять оценку, если по индексу
-        // вопроса это последний неоценённый.
-        if (cur.answeredCount >= cur.totalQuestions && cur.finished) {
-            // Тест уже завершён И оценок ровно столько, сколько вопросов — игнор.
-            return
-        }
-        if (cur.answeredCount >= cur.totalQuestions) {
-            // Все вопросы оценены, но finalize ещё не отработал — игнор.
-            return
-        }
+        if (cur.answeredCount >= cur.totalQuestions && cur.finished) return
+        if (cur.answeredCount >= cur.totalQuestions) return
 
         val newAnswered = cur.answeredCount + 1
         val newTotal = cur.totalPoints + payload.points
@@ -123,8 +109,6 @@ class A0a1TestViewModel @Inject constructor(
             }
         }
     }
-        }
-    }
 
     sealed class TestNextStep {
         data class StartSession(val sessionId: String) : TestNextStep()
@@ -147,7 +131,6 @@ class A0a1TestViewModel @Inject constructor(
 
         _state.value = A0a1TestUiState(phase = nextPhase)
 
-        // A0 пройден → выходим из теста и идём в основное обучение A1 (НЕ запускаем Live-сессию с этим ID).
         if (current == TestPhase.A0 && nextPhase == TestPhase.A1) {
             return TestNextStep.NavigateRoute("learn/a1")
         }
