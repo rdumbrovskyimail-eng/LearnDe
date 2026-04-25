@@ -84,6 +84,7 @@ import com.learnde.app.presentation.learn.theme.LearnTokens
 import com.learnde.app.presentation.learn.theme.Plural
 import com.learnde.app.presentation.learn.theme.learnColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun A0a1TestScreen(
@@ -156,7 +157,7 @@ fun A0a1TestScreen(
                 // ФИКС: Ждем фактического отключения вместо хардкодного delay(400),
                 // чтобы избежать гонки (race condition) между Stop и Start.
                 androidx.compose.runtime.snapshotFlow { learnCoreViewModel.state.value.connectionStatus }
-                    .kotlinx.coroutines.flow.first { it == com.learnde.app.learn.core.LearnConnectionStatus.Disconnected }
+                    .first { it == com.learnde.app.learn.core.LearnConnectionStatus.Disconnected }
 
                 when (val step = viewModel.advanceToNextPhase()) {
                     is A0a1TestViewModel.TestNextStep.StartSession ->
