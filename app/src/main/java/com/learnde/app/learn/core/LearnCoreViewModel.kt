@@ -130,7 +130,11 @@ class LearnCoreViewModel @Inject constructor(
     private val _state = MutableStateFlow(LearnCoreState())
     val state: StateFlow<LearnCoreState> = _state.asStateFlow()
 
-    private val _effects = MutableSharedFlow<LearnCoreEffect>(extraBufferCapacity = 8)
+    // ФИКС: DROP_OLDEST гарантирует, что новые события (ошибки, тосты) никогда не будут потеряны
+    private val _effects = MutableSharedFlow<LearnCoreEffect>(
+        extraBufferCapacity = 32,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
     val effects: SharedFlow<LearnCoreEffect> = _effects.asSharedFlow()
 
     val audioPlaybackFlow get() = audioEngine.playbackSync
