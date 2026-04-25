@@ -156,7 +156,8 @@ class LearnCoreViewModel @Inject constructor(
     /** Флаг: ждём первый ответ модели после стартового приветствия. */
     @Volatile private var awaitingInitialGreeting = false
 
-    private val transcriptBuffer = mutableListOf<ConversationMessage>()
+    private val transcriptMutex = Mutex()
+    @Volatile private var transcriptBuffer: List<ConversationMessage> = emptyList()
     private val pendingModelText = StringBuilder()
     private var audioReceivedThisTurn = false
     private var pendingFlushJob: Job? = null
@@ -323,6 +324,7 @@ class LearnCoreViewModel @Inject constructor(
 
         activeSession = null
         pendingToolCalls.clear()
+        transcriptMutex.withLock { transcriptBuffer = emptyList() }
         statusBus.reset()
         vocabularyEnforcer.reset()
         contextSeeded = false
@@ -418,7 +420,7 @@ class LearnCoreViewModel @Inject constructor(
 
     private fun handleStart(sessionId: String) {
         viewModelScope.launch {
-            transcriptBuffer.clear()
+            transcriptMutex.withLock { transcriptBuffer = emptyList() }
             _state.update { it.copy(transcript = emptyList()) }
             startInternal(sessionId)
         }
@@ -620,7 +622,7 @@ class LearnCoreViewModel @Inject constructor(
                         if (event.text != lastInputText || now - lastInputTs > 5_000) {
                             lastInputText = event.text
                             lastInputTs = now
-                            appendTranscript(ConversationMessage.user(event.text))
+                            launch { appendTranscript(ConversationMessage.user(event.text)) }
                         } else {
                             lastInputTs = now
                         }
@@ -851,10 +853,12 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    private fun appendTranscript(msg: ConversationMessage) {
-        transcriptBuffer.add(msg)
-        while (transcriptBuffer.size > MAX_TRANSCRIPT_SIZE) transcriptBuffer.removeAt(0)
-        _state.update { it.copy(transcript = transcriptBuffer.toList()) }
+    private suspend fun appendTranscript(msg: ConversationMessage) {
+        transcriptMutex.withLock {
+            val next = (transcriptBuffer + msg).takeLast(MAX_TRANSCRIPT_SIZE)
+            transcriptBuffer = next
+            _state.update { it.copy(transcript = next) }
+        }
     }
 
     private fun appendOrAppendToLastModel(text: String) {
@@ -862,7 +866,7 @@ class LearnCoreViewModel @Inject constructor(
         pendingModelText.append(text)
 
         if (audioReceivedThisTurn) {
-            flushPendingModelText()
+            viewModelScope.launch { flushPendingModelText() }
             return
         }
 
@@ -876,34 +880,35 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    private fun flushPendingModelText() {
+    private suspend fun flushPendingModelText() {
         if (pendingModelText.isEmpty()) return
         val text = pendingModelText.toString()
         pendingModelText.clear()
         pendingFlushJob?.cancel()
         pendingFlushJob = null
 
-        val last = transcriptBuffer.lastOrNull()
-        if (last != null && last.role == ConversationMessage.ROLE_MODEL) {
-            // Дедупликация: если приходит тот же текст — игнор.
-            if (last.text.endsWith(text)) {
-                logger.d("Learn: suppressing duplicate ModelText/OutputTranscript")
-                _state.update { it.copy(transcript = transcriptBuffer.toList()) }
-                return
-            }
-            val updated = last.copy(text = last.text + text)
-            transcriptBuffer[transcriptBuffer.size - 1] = updated
-        } else {
-            transcriptBuffer.add(
-                ConversationMessage(
+        transcriptMutex.withLock {
+            val last = transcriptBuffer.lastOrNull()
+            if (last != null && last.role == ConversationMessage.ROLE_MODEL) {
+                if (last.text.endsWith(text)) {
+                    logger.d("Learn: suppressing duplicate ModelText/OutputTranscript")
+                    return
+                }
+                val updated = last.copy(text = last.text + text)
+                val next = transcriptBuffer.toMutableList()
+                next[next.size - 1] = updated
+                transcriptBuffer = next
+                _state.update { it.copy(transcript = next) }
+            } else {
+                val next = (transcriptBuffer + ConversationMessage(
                     role = ConversationMessage.ROLE_MODEL,
                     text = text,
                     timestamp = System.currentTimeMillis()
-                )
-            )
-            while (transcriptBuffer.size > MAX_TRANSCRIPT_SIZE) transcriptBuffer.removeAt(0)
+                )).takeLast(MAX_TRANSCRIPT_SIZE)
+                transcriptBuffer = next
+                _state.update { it.copy(transcript = next) }
+            }
         }
-        _state.update { it.copy(transcript = transcriptBuffer.toList()) }
     }
 
     private fun handleToolCalls(event: GeminiEvent.ToolCall) {
