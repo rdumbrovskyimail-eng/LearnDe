@@ -80,6 +80,13 @@ class A1LearningViewModel @Inject constructor(
                 if (!_state.value.isReviewMode) {
                     session.disputeEvaluation(intent.lemma)
                 }
+
+                // ФИКС: Сообщаем Gemini о disputed evaluation.
+                _effects.tryEmit(A1LearningEffect.SendSystemTextToGemini(
+                    "[СИСТЕМА]: Ученик оспорил твою оценку слова '${intent.lemma}'. " +
+                    "Считай ответ правильным, кратко извинись по-русски и продолжай урок."
+                ))
+
                 _effects.tryEmit(A1LearningEffect.ShowToast("Оценка исправлена!"))
                 _state.update { s ->
                     val ev = s.lastEvaluation
