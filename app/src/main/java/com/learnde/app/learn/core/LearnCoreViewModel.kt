@@ -1,6 +1,39 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v3.4.1 (Патч: безопасная отправка SystemText)
+// ПОЛНАЯ ЗАМЕНА v3.4 (С ПАТЧЕМ ШАГ 16)
 // Путь: app/src/main/java/com/learnde/app/learn/core/LearnCoreViewModel.kt
+//
+// КЛЮЧЕВАЯ ФИКСА v3.4 (Gemini молчит только до первой реплики юзера):
+//
+//   Native-audio модели (gemini-2.5-flash-native-audio-preview и др.)
+//   НЕ реагируют на голый sendText — их аудио-пайплайн "спит" пока через
+//   VAD не прошёл хотя бы один реальный аудио-чанк. Это подтверждено:
+//     - Twilio-интеграция шлёт sendText + сразу начинает стрим аудио линии
+//     - Форум Google: "Session established, ping 'Hello', and off you go"
+//       (но у репортёра мик уже включён с живым аудио-фидом)
+//
+//   Решение — связка из трёх шагов:
+//     1. Включить микрофон ПЕРВЫМ (до sendText). Реальное фоновое аудио
+//        раскачает VAD и активирует серверный пайплайн.
+//     2. Влить "warmup silence": 400 мс нулевого PCM прямо через
+//        liveClient.sendAudio(zeroBytes) — это будит серверный VAD
+//        без риска поймать Interrupted на случайном шуме.
+//     3. Затем sendText(initialUserMessage) — теперь модель точно ответит.
+//
+//   Fallback: если через 4 сек аудио от модели так и нет — повторяем
+//   sendText с более явной фразой.
+//
+// ЧТО ЕЩЁ исправлено по сравнению с 19-КБ версией:
+//   - sendText уже содержит turn_complete=true → не вызываем sendTurnComplete() после
+//   - ModelText пишется ВСЕГДА (дедупликация в flushPendingModelText через endsWith)
+//   - Возвращён silence timer (подбадривание молчащего ученика)
+//   - Возвращён FIFO-лимит транскрипта
+//   - Специфичный catch ForegroundServiceStartNotAllowedException
+//
+// ВАЖНО: В systemInstruction каждой сессии должна быть явная фраза:
+//   "Начни разговор первым. Тепло поприветствуй ученика по-русски.
+//    НЕ жди, пока ученик заговорит."
+// Без этого даже правильный протокол не поможет — модель не знает,
+// что именно говорить первой.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.core
 
@@ -86,7 +119,8 @@ class LearnCoreViewModel @Inject constructor(
          * и оставляем мик включённым. */
         private const val GREETING_FINAL_MS = 8_000L
 
-        /** 16kHz mono 16-bit PCM — столько байт нужно на SILENCE_WARMUP_MS тишины. */
+        /** 16kHz mono 16-bit PCM — столько байт нужно на SILENCE_WARMUP_MS тишины.
+         * 2 байта/сэмпл × 16000 сэмплов/сек × (SILENCE_WARMUP_MS / 1000) */
         private const val SILENCE_PCM_BYTES = (2 * 16000 * 400) / 1000 // = 12800
     }
 
@@ -116,7 +150,10 @@ class LearnCoreViewModel @Inject constructor(
     @Volatile private var lastInputTs: Long = 0L
     @Volatile private var lastInputText: String = ""
 
+    /** Флаг: модель уже начала говорить в этом турне (пришёл первый AudioChunk). */
     @Volatile private var modelStartedSpeakingThisTurn = false
+
+    /** Флаг: ждём первый ответ модели после стартового приветствия. */
     @Volatile private var awaitingInitialGreeting = false
 
     private val transcriptMutex = Mutex()
@@ -157,8 +194,7 @@ class LearnCoreViewModel @Inject constructor(
     }
 
     /**
-     * ПАТЧ 3.4.1: Безопасная отправка системного текста.
-     * Если ИИ говорит, ждем до 4 сек, чтобы не перебивать текущую генерацию.
+     * ПАТЧ ШАГ 16: Ожидание завершения речи ИИ перед отправкой текста.
      */
     fun sendSystemText(text: String) {
         if (!liveClient.isReady) {
@@ -215,6 +251,9 @@ class LearnCoreViewModel @Inject constructor(
             session.systemInstruction
         }
 
+        // VAD по типу сессии.
+        // silence — сколько тишины ждать, чтобы закрыть ход ученика.
+        // prefix — сколько мс аудио до детекта речи отдать модели (чтобы не рубить начало слов).
         val (silenceMs, prefixMs, temp) = when (session.id) {
             "translator"   -> Triple(1200, 300, 0.3f)
             "a1_situation" -> Triple(1000, 300, cachedSettings.temperature)
@@ -253,7 +292,12 @@ class LearnCoreViewModel @Inject constructor(
             enableGoogleSearch = false,
             functionDeclarations = session.functionDeclarations,
             sendAudioStreamEnd = cachedSettings.sendAudioStreamEnd,
-        )
+        ).also {
+            logger.d(
+                "Learn: config for ${session.id}: silence=${finalSilenceMs}ms, " +
+                    "prefix=${prefixMs}ms, temp=$temp, outputTranscription=${cachedSettings.outputTranscription}"
+            )
+        }
     }
 
     private fun observeArbiter() {
@@ -268,6 +312,10 @@ class LearnCoreViewModel @Inject constructor(
             }
         }
     }
+
+    // ══════════════════════════════════════════════════════
+    //  START / STOP / RESTART
+    // ══════════════════════════════════════════════════════
 
     private suspend fun stopInternal() = startStopMutex.withLock {
         logger.d("▶ Learn.stopInternal")
@@ -306,14 +354,21 @@ class LearnCoreViewModel @Inject constructor(
             )
         }
         arbiter.release(ClientOwner.LEARN)
+        logger.d("◀ Learn.stopInternal — arbiter released")
     }
 
     private suspend fun startInternal(sessionId: String) = startStopMutex.withLock {
-        val session = registry.get(sessionId) ?: return@withLock
+        val session = registry.get(sessionId) ?: run {
+            logger.e("Learn: unknown session id: $sessionId")
+            _effects.tryEmit(LearnCoreEffect.Error(UiText.Plain("Unknown session: $sessionId")))
+            return@withLock
+        }
         if (activeApiKey.isEmpty()) {
             _state.update { it.copy(error = UiText.Plain("API ключ не задан. Задайте его в Настройках.")) }
             return@withLock
         }
+
+        logger.d("▶ Learn.startInternal(${session.id})")
 
         arbiter.acquire(ClientOwner.LEARN)
         runCatching { liveClient.disconnect() }
@@ -367,6 +422,7 @@ class LearnCoreViewModel @Inject constructor(
             arbiter.release(ClientOwner.LEARN)
             activeSession = null
         }
+        logger.d("◀ Learn.startInternal — awaiting SetupComplete")
     }
 
     private fun handleStart(sessionId: String) {
@@ -378,7 +434,9 @@ class LearnCoreViewModel @Inject constructor(
     }
 
     private fun handleStop() {
-        viewModelScope.launch { stopInternal() }
+        viewModelScope.launch {
+            stopInternal()
+        }
     }
 
     private fun handleRestart() {
@@ -402,7 +460,10 @@ class LearnCoreViewModel @Inject constructor(
         val hasMic = ContextCompat.checkSelfPermission(
             appContext, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
-        if (!hasMic) return
+        if (!hasMic) {
+            logger.w("Learn.startMic: no RECORD_AUDIO permission")
+            return
+        }
 
         val fgsOk = safeStartForegroundService()
         if (!fgsOk) {
@@ -433,7 +494,9 @@ class LearnCoreViewModel @Inject constructor(
         micJob = null
         silenceTimerJob?.cancel()
         viewModelScope.launch {
-            micOperationMutex.withLock { audioEngine.stopCapture() }
+            micOperationMutex.withLock {
+                audioEngine.stopCapture()
+            }
             when {
                 cachedSettings.sendAudioStreamEnd -> liveClient.sendAudioStreamEnd()
                 else -> liveClient.sendTurnComplete()
@@ -456,8 +519,14 @@ class LearnCoreViewModel @Inject constructor(
                 )
             )
             true
+        } catch (e: IllegalStateException) {
+            logger.w("FGS not allowed: ${e.javaClass.simpleName}: ${e.message}")
+            false
+        } catch (e: SecurityException) {
+            logger.e("FGS permission denied: ${e.message}")
+            false
         } catch (e: Exception) {
-            logger.w("FGS start error: ${e.message}")
+            logger.e("FGS unexpected error: ${e.message}", e)
             false
         }
     }
@@ -467,8 +536,12 @@ class LearnCoreViewModel @Inject constructor(
             appContext.startService(
                 com.learnde.app.GeminiLiveForegroundService.stopIntent(appContext)
             )
-        } catch (_: Exception) {}
+        } catch (_: Exception) { /* сервис мог быть уже остановлен */ }
     }
+
+    // ══════════════════════════════════════════════════════
+    //  GEMINI EVENTS
+    // ══════════════════════════════════════════════════════
 
     private fun observeGeminiEvents() {
         viewModelScope.launch {
@@ -485,6 +558,7 @@ class LearnCoreViewModel @Inject constructor(
                             if (awaitingInitialGreeting) {
                                 awaitingInitialGreeting = false
                                 greetingFallbackJob?.cancel()
+                                logger.d("Learn: model started greeting ✓")
                             }
                         }
                         _state.update { it.copy(isAiSpeaking = true, isPreparingSession = false) }
@@ -523,13 +597,19 @@ class LearnCoreViewModel @Inject constructor(
                                 delay(LEARNER_SILENCE_THRESHOLD_MS)
                                 val quietFor = System.currentTimeMillis() - lastInputTs
                                 if (quietFor > SILENCE_CHECK_WINDOW_MS && liveClient.isReady) {
+                                    logger.d("Learn: silence detected (${quietFor}ms), prompting AI")
                                     liveClient.sendText(
-                                        "[СИСТЕМА]: Ученик молчит. Коротко подбодри его по-русски."
+                                        "[СИСТЕМА]: Ученик молчит. Коротко подбодри его по-русски, " +
+                                            "дай подсказку или назови правильный ответ и попроси повторить."
                                     )
                                     lastInputTs = System.currentTimeMillis()
                                 }
                             }
                         }
+                    }
+
+                    is GeminiEvent.GenerationComplete -> {
+                        _state.update { it.copy(isAiSpeaking = false) }
                     }
 
                     is GeminiEvent.InputTranscript -> {
@@ -548,6 +628,7 @@ class LearnCoreViewModel @Inject constructor(
                         if (awaitingInitialGreeting) {
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
+                            logger.d("Learn: model started OutputTranscript — clearing greeting wait")
                         }
                         appendOrAppendToLastModel(event.text)
                         if (activeSession?.id == "a1_situation" || activeSession?.id == "a1_review") {
@@ -559,6 +640,7 @@ class LearnCoreViewModel @Inject constructor(
                         if (awaitingInitialGreeting) {
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
+                            logger.d("Learn: model started ModelText — clearing greeting wait")
                         }
                         appendOrAppendToLastModel(event.text)
                     }
@@ -567,6 +649,7 @@ class LearnCoreViewModel @Inject constructor(
                         if (awaitingInitialGreeting) {
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
+                            logger.d("Learn: model started ToolCall — clearing greeting wait")
                         }
                         handleToolCalls(event)
                     }
@@ -591,6 +674,13 @@ class LearnCoreViewModel @Inject constructor(
                         audioEngine.stopCapture()
                         pendingToolCalls.clear()
                         silenceTimerJob?.cancel()
+                        if (activeSession != null) {
+                            _effects.tryEmit(
+                                LearnCoreEffect.ShowToast(
+                                    UiText.Plain("WS closed: ${event.code} ${event.reason}")
+                                )
+                            )
+                        }
                     }
 
                     is GeminiEvent.ConnectionError -> {
@@ -606,8 +696,13 @@ class LearnCoreViewModel @Inject constructor(
                         audioEngine.stopCapture()
                         pendingToolCalls.clear()
                         silenceTimerJob?.cancel()
+                        _effects.tryEmit(LearnCoreEffect.Error(UiText.Plain(event.message)))
                     }
-                    else -> {}
+
+                    is GeminiEvent.SessionHandleUpdate,
+                    is GeminiEvent.GoAway,
+                    is GeminiEvent.UsageMetadata,
+                    is GeminiEvent.GroundingMetadata -> { /* no-op */ }
                 }
             }
         }
@@ -622,31 +717,58 @@ class LearnCoreViewModel @Inject constructor(
         setupJob?.cancel()
         setupJob = viewModelScope.launch {
             delay(GREETING_WARMUP_MS)
-            if (!liveClient.isReady) return@launch
+
+            if (!liveClient.isReady) {
+                logger.w("Learn: WS not ready after warmup, aborting greeting flow")
+                return@launch
+            }
 
             if (session.initialUserMessage.isBlank()) {
+                logger.d("Learn: no initial greeting → enabling mic only")
                 if (!_state.value.isMicActive) startMic()
                 return@launch
             }
 
+            logger.d("Learn: starting greeting sequence (silence-first → mic → text)")
             awaitingInitialGreeting = true
-            runCatching { sendSilenceWarmup() }
 
-            if (!liveClient.isReady) return@launch
+            runCatching { sendSilenceWarmup() }
+                .onFailure { logger.w("Learn: silence warmup failed: ${it.message}") }
+
+            if (!liveClient.isReady) {
+                logger.w("Learn: WS died during silence warmup")
+                awaitingInitialGreeting = false
+                return@launch
+            }
 
             if (!_state.value.isMicActive) startMic()
             delay(MIC_PREWARM_MS)
 
-            if (!liveClient.isReady) return@launch
+            if (!liveClient.isReady) {
+                logger.w("Learn: WS died during mic prewarm")
+                awaitingInitialGreeting = false
+                return@launch
+            }
 
+            logger.d("Learn: sending initial greeting trigger")
             liveClient.sendText(session.initialUserMessage)
 
             greetingFallbackJob?.cancel()
             greetingFallbackJob = viewModelScope.launch {
                 delay(GREETING_RETRY_MS)
                 if (awaitingInitialGreeting && liveClient.isReady) {
+                    logger.w("Learn: no audio from model in ${GREETING_RETRY_MS}ms — retrying")
                     runCatching { sendSilenceWarmup() }
-                    liveClient.sendText("Ты меня слышишь? Поприветствуй ученика.")
+                    liveClient.sendText(
+                        "Ты меня слышишь? Поприветствуй ученика сейчас по-русски и " +
+                            "задай первый вопрос."
+                    )
+
+                    delay(GREETING_FINAL_MS - GREETING_RETRY_MS)
+                    if (awaitingInitialGreeting) {
+                        logger.w("Learn: model stayed silent, giving up greeting flow")
+                        awaitingInitialGreeting = false
+                    }
                 }
             }
         }
@@ -654,6 +776,7 @@ class LearnCoreViewModel @Inject constructor(
 
     private suspend fun sendSilenceWarmup() {
         val silence = ByteArray(SILENCE_PCM_BYTES)
+        logger.d("Learn: injecting ${SILENCE_PCM_BYTES}B of silence (${SILENCE_WARMUP_MS}ms)")
         val chunkSize = 1280
         var offset = 0
         while (offset < silence.size) {
@@ -670,6 +793,7 @@ class LearnCoreViewModel @Inject constructor(
         if ((activeSession?.id == "a1_situation" || activeSession?.id == "a1_review")
             && liveClient.isReady) {
             val prompt = vocabularyEnforcer.buildCorrectionPrompt(violation)
+            logger.d("Learn: sending buffered vocab correction (${violation.violatingWords})")
             liveClient.sendText(prompt)
         }
     }
@@ -694,7 +818,10 @@ class LearnCoreViewModel @Inject constructor(
         pendingFlushJob?.cancel()
         pendingFlushJob = viewModelScope.launch {
             delay(TEXT_FLUSH_TIMEOUT_MS)
-            if (pendingModelText.isNotEmpty()) flushPendingModelText()
+            if (pendingModelText.isNotEmpty()) {
+                logger.w("LearnCore: force-flush pending text (audio не пришёл за ${TEXT_FLUSH_TIMEOUT_MS}ms)")
+                flushPendingModelText()
+            }
         }
     }
 
@@ -708,9 +835,13 @@ class LearnCoreViewModel @Inject constructor(
         transcriptMutex.withLock {
             val last = transcriptBuffer.lastOrNull()
             if (last != null && last.role == ConversationMessage.ROLE_MODEL) {
-                if (last.text.endsWith(text)) return
+                if (last.text.endsWith(text)) {
+                    logger.d("Learn: suppressing duplicate ModelText/OutputTranscript")
+                    return
+                }
                 val updated = last.copy(text = last.text + text)
-                val next = transcriptBuffer.toMutableList().also { it[it.size - 1] = updated }
+                val next = transcriptBuffer.toMutableList()
+                next[next.size - 1] = updated
                 transcriptBuffer = next
                 _state.update { it.copy(transcript = next) }
             } else {
@@ -728,10 +859,12 @@ class LearnCoreViewModel @Inject constructor(
     private fun handleToolCalls(event: GeminiEvent.ToolCall) {
         val session = activeSession
         val responses = java.util.concurrent.ConcurrentLinkedQueue<ToolResponse>()
+
         for (call in event.calls) {
             pendingToolCalls.add(call.id)
             statusBus.onDetected(call.name, call.id)
         }
+
         val children = event.calls.map { call ->
             viewModelScope.launch {
                 try {
@@ -739,8 +872,12 @@ class LearnCoreViewModel @Inject constructor(
                     statusBus.onExecuting(call.name, call.id)
                     val result = runCatching {
                         session?.handleToolCall(call) ?: """{"error":"no active session"}"""
-                    }.getOrElse { """{"error":"${it.message}"}""" }
-                    statusBus.onCompleted(call.name, call.id, !result.contains("\"error\""))
+                    }.getOrElse { e ->
+                        logger.e("Learn.toolCall threw: ${e.message}", e)
+                        """{"error":"${e.message?.replace("\"", "'")}"}"""
+                    }
+                    val success = !result.contains("\"error\"")
+                    statusBus.onCompleted(call.name, call.id, success)
                     responses.add(ToolResponse(call.name, call.id, result))
                 } finally {
                     pendingToolCalls.remove(call.id)
@@ -748,6 +885,7 @@ class LearnCoreViewModel @Inject constructor(
                 }
             }.also { toolCallJobs[call.id] = it }
         }
+
         viewModelScope.launch {
             children.joinAll()
             if (responses.isNotEmpty() && liveClient.isReady) {
@@ -764,11 +902,16 @@ class LearnCoreViewModel @Inject constructor(
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
         pendingFlushJob?.cancel()
+        pendingModelText.clear()
+        statusBus.reset()
         safeStopForegroundService()
+
         GlobalScope.launch(Dispatchers.IO + NonCancellable) {
+            runCatching { transcriptBuffer = emptyList() }
             runCatching { audioEngine.releaseAll() }
             runCatching { liveClient.disconnect() }
             runCatching { arbiter.release(ClientOwner.LEARN) }
+            logger.d("LearnCoreViewModel cleanup complete")
         }
     }
 }
