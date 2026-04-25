@@ -464,7 +464,15 @@ class LearnCoreViewModel @Inject constructor(
         micJob = viewModelScope.launch {
             // ФИКС: Mutex защищает от race condition при быстрых toggle.
             micOperationMutex.withLock {
-                launch { audioEngine.micOutput.collect { chunk -> liveClient.sendAudio(chunk) } }
+                launch {
+                    audioEngine.micOutput.collect { chunk ->
+                        // Не отправляем чанки, пока модель сама говорит — иначе создаём
+                        // акустический фидбек: динамик → микрофон → распознавание собственной речи.
+                        if (!_state.value.isAiSpeaking) {
+                            liveClient.sendAudio(chunk)
+                        }
+                    }
+                }
                 audioEngine.startCapture()
             }
         }
