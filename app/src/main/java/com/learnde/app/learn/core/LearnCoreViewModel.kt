@@ -492,10 +492,12 @@ class LearnCoreViewModel @Inject constructor(
             micOperationMutex.withLock {
                 audioEngine.stopCapture()
             }
-            if (cachedSettings.sendAudioStreamEnd) {
-                liveClient.sendAudioStreamEnd()
-            } else if (!cachedSettings.enableServerVad) {
-                liveClient.sendTurnComplete()
+            // Пользователь явно завершил ввод — ВСЕГДА закрываем turn,
+            // независимо от настроек VAD. Иначе сервер ждёт серверного таймаута
+            // тишины и пользователь видит "тормоза" приложения.
+            when {
+                cachedSettings.sendAudioStreamEnd -> liveClient.sendAudioStreamEnd()
+                else -> liveClient.sendTurnComplete()
             }
             _state.update {
                 it.copy(
