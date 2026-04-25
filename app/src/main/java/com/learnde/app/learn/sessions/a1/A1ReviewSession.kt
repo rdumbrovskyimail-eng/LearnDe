@@ -56,6 +56,7 @@ class A1ReviewSession @Inject constructor(
     private val qualityCount = java.util.concurrent.atomic.AtomicInteger(0)
 
     @Volatile private var evaluateCallsCount: Int = 0
+    @Volatile private var sessionCompleted: Boolean = false
 
     override val systemInstruction: String
         get() = buildReviewPrompt()
@@ -122,6 +123,7 @@ $wordList
 
     override suspend fun onEnter() {
         sessionStartedAt = System.currentTimeMillis()
+        sessionCompleted = false
         producedLemmas.clear()
         failedLemmas.clear()
         diagnoses.clear()
@@ -134,7 +136,7 @@ $wordList
 
     override suspend fun onExit() {
         logger.d("A1ReviewSession onExit (evaluateCalls=$evaluateCallsCount)")
-        if (evaluateCallsCount > 0) {
+        if (!sessionCompleted && evaluateCallsCount > 0) {
             autoSaveSession(isComplete = false)
         }
     }
@@ -204,6 +206,7 @@ $wordList
         val quality = call.args["overall_quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
         val feedback = call.args["feedback"] ?: ""
 
+        sessionCompleted = true
         autoSaveSession(isComplete = true, finalQuality = quality, finalFeedback = feedback)
 
         bus.emitSuspend(A1LearningEvent.SessionFinished(quality, feedback))
