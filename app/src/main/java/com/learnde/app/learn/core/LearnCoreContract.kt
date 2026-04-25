@@ -18,13 +18,11 @@ data class LearnCoreState(
     val arbiterOwned: Boolean = false,
     // ФИНАЛ: Флаг для показа красивой анимации загрузки
     val isPreparingSession: Boolean = false, 
-    val lastVocabViolation: String? = null,
 )
 
 sealed class LearnCoreIntent {
     data class Start(val sessionId: String) : LearnCoreIntent()
     data object Stop : LearnCoreIntent()
-    data object Restart : LearnCoreIntent()
     data object ToggleMic : LearnCoreIntent()
     data object ClearError : LearnCoreIntent()
 }
