@@ -105,14 +105,14 @@ fun DebugLogsScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFF0A0A0A),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text("Логи (${filtered.size}/${allEntries.size})",
-                    fontSize = 15.sp, color = Color.White) },
+                    fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = MaterialTheme.colorScheme.onBackground)
                     }
                 },
                 actions = {
@@ -126,14 +126,14 @@ fun DebugLogsScreen(
                         copyToClipboard(context, vm.export())
                         Toast.makeText(context, "Скопировано", Toast.LENGTH_SHORT).show()
                     }) {
-                        Icon(Icons.Filled.ContentCopy, "Копировать", tint = Color.White)
+                        Icon(Icons.Filled.ContentCopy, "Копировать", tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = { vm.clear() }) {
                         Icon(Icons.Filled.Delete, "Очистить", tint = Color(0xFFE53935))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0A0A0A)
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         }
