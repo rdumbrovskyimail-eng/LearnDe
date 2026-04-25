@@ -291,8 +291,10 @@ fun AppNavGraph(
                 com.learnde.app.learn.sessions.a1.coursemap.A1CourseMapScreen(
                     onBack = { navController.popBackStack() },
                     onClusterClick = { clusterId ->
-                        navController.popBackStack()
-                        // TODO: передать clusterId в A1LearningViewModel через savedStateHandle
+                        navController.navigate("learn/a1?clusterId=$clusterId") {
+                            popUpTo(Routes.LEARN_A1) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 )
             }
