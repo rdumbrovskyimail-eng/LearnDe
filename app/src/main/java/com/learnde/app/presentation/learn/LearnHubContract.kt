@@ -31,8 +31,8 @@ data class LearnHubState(
         val DEFAULT_ITEMS: List<LearnHubItem> = listOf(
             LearnHubItem(
                 id = "a0a1_test",
-                title = "Тест уровня",
-                subtitle = "Устный экзамен с разбором каждого ответа",
+                title = "Тестирование A0–B2",
+                subtitle = "Определи свой текущий уровень",
                 badge = "A0–A1",
                 iconKey = "Quiz",
                 accentKey = "Accent",
