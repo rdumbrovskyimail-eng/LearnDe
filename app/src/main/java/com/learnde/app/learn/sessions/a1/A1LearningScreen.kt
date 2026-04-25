@@ -166,37 +166,20 @@ fun A1LearningScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                    RoundedCornerShape(16.dp)
-                )
-                .padding(horizontal = 10.dp, vertical = 8.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    // 🔴 ФИКС: НЕ фильтруем — показываем и ROLE_USER, и ROLE_MODEL
-                    items(transcript, key = { it.timestamp }) { msg ->
-                        ChatBubble(msg)
-                    }
-                }
-                
-                // 💡 Vocabulary Simplification Notice
-                // (Доступ к state через замыкание или передачу в ChatSection)
-                // В текущей реализации ChatSection не имеет доступа к state, 
-                // поэтому логика должна быть вызвана из родителя или передана параметром.
-            }
-        }
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(topBarAccent.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                if (state.isReviewMode) Icons.Filled.Refresh else Icons.Filled.School,
+                                contentDescription = null,
+                                tint = topBarAccent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                         Spacer(Modifier.width(10.dp))
                         Column {
                             Text(
@@ -1177,14 +1160,7 @@ private fun ChatSection(
                 items(transcript, key = { it.timestamp }) { msg ->
                     ChatBubble(msg)
                 }
-                
-                // 💡 Vocabulary Simplification Notice
-                // (Предполагается, что state.vocabSimplificationNotice доступен в A1LearningState)
-                // Если notice есть, он отображается в конце чата
             }
-        }
-    }
-}
         }
     }
 }
