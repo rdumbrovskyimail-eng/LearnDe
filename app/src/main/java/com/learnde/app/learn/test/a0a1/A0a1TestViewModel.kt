@@ -45,6 +45,7 @@ data class A0a1TestUiState(
 @HiltViewModel
 class A0a1TestViewModel @Inject constructor(
     private val bus: A0a1TestBus,
+    private val settingsStore: androidx.datastore.core.DataStore<com.learnde.app.data.settings.AppSettings>,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(A0a1TestUiState())
@@ -118,6 +119,9 @@ class A0a1TestViewModel @Inject constructor(
             val passed = _state.value.isPassed
             val verdict = if (passed) TestVerdict.PASSED else TestVerdict.FAILED
             _state.update { it.copy(verdict = verdict, finished = true) }
+            if (passed) {
+                runCatching { settingsStore.updateData { it.copy(testPassed = true) } }
+            }
         }
     }
 
