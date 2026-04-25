@@ -367,7 +367,7 @@ fun A1LearningScreen(
                 }
 
                 // ─── ГЛАВНАЯ КНОПКА ─────
-                BottomActionButton(state, vm, learnState.connectionStatus)
+                BottomActionButton(state, vm, learnState.connectionStatus, learnCoreViewModel)
                 Spacer(Modifier.height(8.dp))
             }
 
@@ -1346,7 +1346,12 @@ private fun EmptyChatPlaceholder(
 // BOTTOM ACTION BUTTON
 // ═══════════════════════════════════════════════════════════
 @Composable
-private fun BottomActionButton(state: A1LearningState, vm: A1LearningViewModel, conn: LearnConnectionStatus) {
+private fun BottomActionButton(
+    state: A1LearningState,
+    vm: A1LearningViewModel,
+    conn: LearnConnectionStatus,
+    learnCoreViewModel: LearnCoreViewModel,
+) {
     when {
         state.sessionActive -> {
             Row(modifier = Modifier.fillMaxWidth()) {
