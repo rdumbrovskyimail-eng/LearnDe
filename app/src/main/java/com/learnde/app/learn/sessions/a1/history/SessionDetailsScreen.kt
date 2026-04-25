@@ -62,6 +62,7 @@ fun SessionDetailsScreen(
     sessionId: Long,
     onBack: () -> Unit,
     onRepeatCluster: (String) -> Unit,
+    onStartNewReview: () -> Unit,
     vm: SessionDetailsViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -117,14 +118,36 @@ fun SessionDetailsScreen(
                             item { FeedbackCard(state.session!!.feedbackText) }
                         }
                         item {
-                            Button(
-                                onClick = { onRepeatCluster(state.session!!.clusterId) },
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
-                            ) {
-                                Icon(Icons.Filled.PlayArrow, null, tint = Color.White)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Повторить этот урок", color = Color.White,
-                                    fontWeight = FontWeight.SemiBold)
+                            val isReviewSession = state.session!!.clusterId == "review"
+                            if (isReviewSession) {
+                                Button(
+                                    onClick = { onStartNewReview() },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF7B1FA2),
+                                    ),
+                                ) {
+                                    Icon(Icons.Filled.PlayArrow, null, tint = Color.White)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "Начать новое повторение",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = { onRepeatCluster(state.session!!.clusterId) },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                ) {
+                                    Icon(Icons.Filled.PlayArrow, null, tint = Color.White)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "Повторить этот урок",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
                             }
                         }
                         item { Spacer(Modifier.height(16.dp)) }
