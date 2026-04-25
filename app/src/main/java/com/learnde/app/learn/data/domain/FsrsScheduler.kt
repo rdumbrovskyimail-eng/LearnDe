@@ -91,7 +91,9 @@ class FsrsScheduler @Inject constructor() {
             val r = prior.retrievabilityAt(elapsedDays)
             when (rating) {
                 FsrsRating.AGAIN -> {
-                    w9 * prior.stability.pow(-0.5) * (w6 - newD) * exp(w8 * (1.0 - r))
+                    // ФИКС: Используем (11.0 - newD) чтобы избежать отрицательной стабильности,
+                    // и (prior.stability + 1.0) для защиты от сингулярности при stability ≈ 0
+                    w9 * (prior.stability + 1.0).pow(-0.5) * (11.0 - newD) * exp(w8 * (1.0 - r))
                 }
                 FsrsRating.HARD -> {
                     prior.stability * (1.0 + exp(w5) *
