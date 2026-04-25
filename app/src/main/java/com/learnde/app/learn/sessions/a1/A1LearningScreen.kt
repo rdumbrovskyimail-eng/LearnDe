@@ -391,7 +391,8 @@ fun A1LearningScreen(
 
             // ─── ЧАТ ─── (главный элемент, weight=1f)
             if (learnState.error != null) {
-                ErrorSection(learnState.error ?: "Ошибка связи")
+                // Безопасное извлечение строки или фоллбэк
+                ErrorSection("Ошибка связи с сервером") 
                 Spacer(Modifier.height(LearnTokens.PaddingSm))
             }
             if (state.sessionActive && learnState.transcript.isNotEmpty()) {
