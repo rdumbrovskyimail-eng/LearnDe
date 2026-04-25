@@ -1,11 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА (Patch 2.5)
+// ПОЛНАЯ ЗАМЕНА
 // Путь: app/src/main/java/com/learnde/app/presentation/navigation/NavGraph.kt
-//
-// ИЗМЕНЕНИЯ:
-//   - Добавлен маршрут learn/a1/history
-//   - A1LearningScreen теперь принимает onOpenHistory
-//   - Кнопка "Повторить урок" из History переводит в a1 с arg clusterId
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.navigation
 
@@ -14,11 +9,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Modifier
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
@@ -35,6 +32,7 @@ import com.learnde.app.presentation.learn.LearnHubScreen
 import com.learnde.app.presentation.onboarding.OnboardingScreen
 import com.learnde.app.presentation.settings.SettingsScreen
 import com.learnde.app.presentation.voice.VoiceScreen
+import com.learnde.app.presentation.learn.theme.learnColors
 
 object Routes {
     const val ONBOARDING = "onboarding"
@@ -228,8 +226,6 @@ fun AppNavGraph(
                 val a1Vm: com.learnde.app.learn.sessions.a1.A1LearningViewModel =
                     hiltViewModel(entry)
 
-                // SavedStateHandle хранит признак "уже стартовали этот кластер",
-                // чтобы поворот экрана / смена темы не перезапускали активную сессию.
                 val handle = entry.savedStateHandle
                 LaunchedEffect(clusterId) {
                     val alreadyStarted = handle.get<String>("startedClusterId") == clusterId
@@ -260,7 +256,6 @@ fun AppNavGraph(
                 )
             }
 
-            // Alias без аргументов → редирект на основной маршрут с пустым clusterId.
             composable(Routes.LEARN_A1) {
                 LaunchedEffect(Unit) {
                     navController.navigate("learn/a1?clusterId=") {
@@ -293,10 +288,10 @@ fun AppNavGraph(
             }
 
             composable(Routes.LEARN_A1_GRAMMAR) {
-                androidx.compose.foundation.layout.Box(
-                    modifier = androidx.compose.ui.Modifier
+                Box(
+                    modifier = Modifier
                         .fillMaxSize()
-                        .background(com.learnde.app.presentation.learn.theme.learnColors().bg)
+                        .background(learnColors().bg)
                 ) {
                     com.learnde.app.learn.sessions.a1.grammar.GrammarSheet(
                         onDismiss = { navController.popBackStack() }
@@ -319,8 +314,8 @@ fun AppNavGraph(
             composable(
                 route = Routes.LEARN_A1_SESSION_DETAILS,
                 arguments = listOf(
-                    androidx.navigation.navArgument("sessionId") {
-                        type = androidx.navigation.NavType.LongType
+                    navArgument("sessionId") {
+                        type = NavType.LongType
                     }
                 )
             ) { entry ->
