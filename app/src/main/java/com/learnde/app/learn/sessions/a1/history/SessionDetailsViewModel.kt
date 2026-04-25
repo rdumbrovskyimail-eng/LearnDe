@@ -111,7 +111,11 @@ class SessionDetailsViewModel @Inject constructor(
     private fun parseList(json: String): List<String> = try {
         if (json.isBlank() || json == "[]") emptyList()
         else Json.decodeFromString(json)
-    } catch (_: Exception) { emptyList() }
+    } catch (e: kotlinx.serialization.SerializationException) {
+        emptyList()
+    } catch (e: IllegalArgumentException) {
+        emptyList()
+    }
 
     private fun parseDiagnosesMap(json: String): Map<String, ErrorDiagnosis> {
         if (json.isBlank() || json == "{}") return emptyMap()
