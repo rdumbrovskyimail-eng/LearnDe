@@ -393,11 +393,19 @@ class GeminiLiveClient(
 
                 // ─── Транскрипция ───
                 if (config.sendTranscriptionConfig) {
-                    if (config.inputTranscription) {
-                        put("inputAudioTranscription", buildJsonObject {})
+                    if (config.inputTranscription.enabled) {
+                        put("inputAudioTranscription", buildJsonObject {
+                            config.inputTranscription.languageCode?.takeIf { it.isNotBlank() }?.let {
+                                put("languageCode", it)
+                            }
+                        })
                     }
-                    if (config.outputTranscription) {
-                        put("outputAudioTranscription", buildJsonObject {})
+                    if (config.outputTranscription.enabled) {
+                        put("outputAudioTranscription", buildJsonObject {
+                            config.outputTranscription.languageCode?.takeIf { it.isNotBlank() }?.let {
+                                put("languageCode", it)
+                            }
+                        })
                     }
                 }
 
