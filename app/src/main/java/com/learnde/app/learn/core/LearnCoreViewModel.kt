@@ -287,9 +287,9 @@ class LearnCoreViewModel @Inject constructor(
             maxOf(cachedSettings.vadSilenceTimeoutMs, 500)
         else silenceMs
 
-        // ФИКС 1: Для переводчика отключаем жесткую привязку к языку, 
+        // ФИКС 1: Для переводчика передаем пустую строку "", 
         // чтобы ASR распознавал все языки (RU/UA/EN/DE) автоматически.
-        val finalLanguageCode = if (session.id == "translator") null else cachedSettings.languageCode
+        val finalLanguageCode = if (session.id == "translator") "" else cachedSettings.languageCode
 
         return SessionConfig(
             model = cachedSettings.model,
