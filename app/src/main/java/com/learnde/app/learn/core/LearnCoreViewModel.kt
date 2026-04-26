@@ -652,17 +652,29 @@ class LearnCoreViewModel @Inject constructor(
 
                         flushPendingVocabViolation()
 
-                        // Таймер тишины ученика — только если мик уже включён.
+                        // Таймер тишины ученика — с тремя guards:
+                        // 1. mic должен быть включён
+                        // 2. сессия не должна быть завершена через finish_session
+                        //    (иначе модель отвечает на собственный ping и 
+                        //    продолжает урок после прощания)
+                        // 3. между silence-промптами должен пройти cooldown
+                        //    (антиспам если ученик надолго отошёл)
                         lastInputTs = System.currentTimeMillis()
-                        if (_state.value.isMicActive) {
+                        val now = System.currentTimeMillis()
+                        val cooldownPassed = (now - lastSilencePromptAtMs) > SILENCE_PROMPT_COOLDOWN_MS
+
+                        if (_state.value.isMicActive && !sessionFinished && cooldownPassed) {
                             silenceTimerJob?.cancel()
                             silenceTimerJob = viewModelScope.launch {
                                 delay(LEARNER_SILENCE_THRESHOLD_MS)
                                 val quietFor = System.currentTimeMillis() - lastInputTs
-                                // ФИКС: Повторно проверяем isMicActive после delay, 
-                                // так как пользователь мог выключить микрофон за эти 10 секунд.
-                                if (quietFor > SILENCE_CHECK_WINDOW_MS && liveClient.isReady && _state.value.isMicActive) {
+                                if (quietFor > SILENCE_CHECK_WINDOW_MS
+                                    && liveClient.isReady
+                                    && _state.value.isMicActive
+                                    && !sessionFinished
+                                ) {
                                     logger.d("Learn: silence detected (${quietFor}ms), prompting AI")
+                                    lastSilencePromptAtMs = System.currentTimeMillis()
                                     liveClient.sendText(
                                         "[СИСТЕМА]: Ученик молчит. Коротко подбодри его по-русски, " +
                                             "дай подсказку или назови правильный ответ и попроси повторить."
