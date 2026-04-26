@@ -44,8 +44,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -512,7 +510,7 @@ private fun ErrorSection(msg: String) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// КОМПАКТНАЯ строка прогресса — 56dp кольца
+// КОМПАКТНАЯ строка прогресса — 48dp кольца
 // ═══════════════════════════════════════════════════════════
 @Composable
 private fun CompactProgressRow(state: A1LearningState) {
@@ -779,7 +777,7 @@ private fun PhaseTimeline(current: A1Phase) {
         A1Phase.IDLE, A1Phase.WARM_UP, A1Phase.INTRODUCE, A1Phase.DRILL,
         A1Phase.APPLY, A1Phase.GRAMMAR, A1Phase.COOL_DOWN, A1Phase.FINISHED,
     )
-    val labels = listOf("", "Разминка", "Новое", "Тренаж", "Применяй", "Правило", "Итог", "Готово")
+    val labels = listOf("Готово к старту", "Разминка", "Новое", "Тренаж", "Применяй", "Правило", "Итог", "Готово")
     val currentIndex = phases.indexOfFirst { it == current }
 
     Column(modifier = Modifier.fillMaxWidth()) {
