@@ -41,7 +41,7 @@ object A1FunctionDeclarations {
         parameters = mapOf(
             "lemma" to ParameterConfig(
                 type = "STRING",
-                description = "Базовая форма леммы (например 'Haus', не 'Häuser')."
+                description = "Базовая форма леммы БЕЗ артикля и БЕЗ окончаний. ПРАВИЛЬНО: 'Tag', 'Morgen', 'Wiederhören', 'hallo'. НЕПРАВИЛЬНО: 'der Tag', 'das Wiederhören', 'guten Morgen', 'Häuser'. Если фраза составная (например 'guten Tag') — шли ТОЛЬКО ключевое существительное: 'Tag'."
             )
         ),
         required = listOf("lemma")
