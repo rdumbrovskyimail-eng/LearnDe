@@ -1123,13 +1123,23 @@ class LearnCoreViewModel @Inject constructor(
                     .onFailure { logger.e("Learn: failed to send ToolResponse: ${it.message}") }
             }
 
-            // Если в этом батче был finish_session — фиксируем что урок завершён.
-            // С этого момента silence-таймер выключен, чтобы модель не отвечала 
-            // на собственные [СИСТЕМА]: Ученик молчит после прощания.
+            // Если в этом батче был finish_session — корректно завершаем сессию.
             if (event.calls.any { it.name == "finish_session" }) {
                 sessionFinished = true
                 silenceTimerJob?.cancel()
-                logger.d("Learn: finish_session detected → silence prompts disabled")
+                logger.d("Learn: finish_session detected → silence prompts disabled, stopping session in ${FINISH_SESSION_GRACE_MS}ms")
+                
+                _state.update { it.copy(isFinishingSession = true) }
+                
+                finishGraceJob?.cancel()
+                finishGraceJob = viewModelScope.launch {
+                    delay(FINISH_SESSION_GRACE_MS)
+                    // Проверяем что сессия всё ещё активна — иначе race с manual stop
+                    if (activeSession != null && sessionFinished) {
+                        logger.d("Learn: finish_session grace expired → closing session")
+                        stopInternal()
+                    }
+                }
             }
         }
     }
