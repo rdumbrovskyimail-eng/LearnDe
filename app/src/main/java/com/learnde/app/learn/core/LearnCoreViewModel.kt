@@ -607,6 +607,9 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.SetupComplete -> handleSetupComplete()
 
                     is GeminiEvent.AudioChunk -> {
+                        // Обновляем timestamp для timing-based mic gate
+                        lastAiAudioChunkAtMs = System.currentTimeMillis()
+
                         // Первый аудио-чанк в этом турне → модель точно заговорила.
                         if (!modelStartedSpeakingThisTurn) {
                             modelStartedSpeakingThisTurn = true
