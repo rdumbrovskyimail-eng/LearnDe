@@ -1086,7 +1086,7 @@ private fun ChatSection(
             ) {
                 items(
                     transcript,
-                    key = { msg -> "${msg.timestamp}_${msg.role}_${msg.text.length}" }
+                    key = { msg -> "${msg.timestamp}_${msg.role}_${msg.text.hashCode()}" }
                 ) { msg ->
                     ChatBubble(msg)
                 }
