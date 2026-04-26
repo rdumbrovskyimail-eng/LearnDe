@@ -21,10 +21,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,7 +63,10 @@ fun GrammarSheet(
                 .padding(horizontal = LearnTokens.PaddingLg)
                 .padding(bottom = LearnTokens.PaddingXl),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Icon(
                     Icons.Filled.MenuBook,
                     null,
@@ -75,6 +80,14 @@ fun GrammarSheet(
                     fontWeight = FontWeight.Bold,
                     color = colors.textHi,
                 )
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Закрыть",
+                        tint = colors.textMid
+                    )
+                }
             }
             Text(
                 "Открыто ${state.introducedCount} из ${state.totalCount} правил",
