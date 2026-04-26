@@ -45,7 +45,6 @@ data class A1LearningState(
     val finalFeedback: String? = null,
 
     val isA1Completed: Boolean = false,
-    val a1Completed: Boolean = false,
 )
 
 data class LastEvaluation(
