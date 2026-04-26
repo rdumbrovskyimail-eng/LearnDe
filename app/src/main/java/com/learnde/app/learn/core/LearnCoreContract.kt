@@ -18,6 +18,7 @@ data class LearnCoreState(
     val arbiterOwned: Boolean = false,
     // ФИНАЛ: Флаг для показа красивой анимации загрузки
     val isPreparingSession: Boolean = false, 
+    val isFinishingSession: Boolean = false,
 )
 
 sealed class LearnCoreIntent {
