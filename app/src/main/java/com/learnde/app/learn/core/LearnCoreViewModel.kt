@@ -175,6 +175,7 @@ class LearnCoreViewModel @Inject constructor(
     private var silenceTimerJob: Job? = null
     private var greetingFallbackJob: Job? = null
     private var setupJob: Job? = null
+    private var finishGraceJob: Job? = null
 
     @Volatile private var lastInputTs: Long = 0L
     @Volatile private var lastInputText: String = ""
