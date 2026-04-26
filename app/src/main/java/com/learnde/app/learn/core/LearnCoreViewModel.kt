@@ -1165,6 +1165,7 @@ class LearnCoreViewModel @Inject constructor(
         silenceTimerJob?.cancel()
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
+        finishGraceJob?.cancel()
         pendingFlushJob?.cancel()
         pendingModelText.clear()
         statusBus.reset()
