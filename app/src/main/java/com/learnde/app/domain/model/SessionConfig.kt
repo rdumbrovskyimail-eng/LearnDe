@@ -69,8 +69,8 @@ data class SessionConfig(
     val systemInstruction: String = DEFAULT_SYSTEM_INSTRUCTION,
 
     // ── Transcription ──
-    val inputTranscription: TranscriptionConfig = TranscriptionConfig(true),
-    val outputTranscription: TranscriptionConfig = TranscriptionConfig(true),
+    val inputTranscription: Boolean = true,
+    val outputTranscription: Boolean = true,
 
     // ── Session Management ──
     val enableSessionResumption: Boolean = true,
@@ -161,8 +161,8 @@ data class SessionConfig(
             diagnosticMinimalSetup = true,
             enableSessionResumption = false,
             enableContextCompression = false,
-            inputTranscription = TranscriptionConfig(false),
-            outputTranscription = TranscriptionConfig(false),
+            inputTranscription = false,
+            outputTranscription = false,
             logFullSetupJson = true
         )
 
@@ -190,8 +190,8 @@ data class SessionConfig(
         /** Убираем транскрипцию — если работает, проблема в transcription-блоках */
         fun withoutTranscriptionProfile() = SessionConfig(
             sendTranscriptionConfig = false,
-            inputTranscription = TranscriptionConfig(false),
-            outputTranscription = TranscriptionConfig(false),
+            inputTranscription = false,
+            outputTranscription = false,
             logFullSetupJson = true
         )
     }
@@ -207,8 +207,3 @@ enum class LatencyProfile(val thinkingLevel: String, val displayName: String) {
     Balanced ("medium",  "Balanced (medium thinking)"),
     Reasoning("high",    "Reasoning (deep thinking)")
 }
-
-data class TranscriptionConfig(
-    val enabled: Boolean,
-    val languageCode: String? = null
-)
