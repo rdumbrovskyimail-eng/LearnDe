@@ -125,6 +125,21 @@ class LearnCoreViewModel @Inject constructor(
         /** 16kHz mono 16-bit PCM — столько байт нужно на SILENCE_WARMUP_MS тишины.
          *  2 байта/сэмпл × 16000 сэмплов/сек × (SILENCE_WARMUP_MS / 1000) */
         private const val SILENCE_PCM_BYTES = (2 * 16000 * 400) / 1000 // = 12800
+
+        /** 
+         * Хвост аудио модели после последнего PCM-чанка, в течение 
+         * которого всё ещё считаем что динамик звучит и mic надо 
+         * гейтить. Покрывает jitter buffer + хвост AudioTrack. 
+         * Если 600мс прошло без новых AudioChunk — считаем что модель 
+         * отзвучала, mic открываем независимо от TurnComplete.
+         */
+        private const val AI_AUDIO_TAIL_MS = 600L
+
+        /** 
+         * Минимальный интервал между silence-промптами, чтобы не 
+         * спамить модель если ученик надолго замолчал.
+         */
+        private const val SILENCE_PROMPT_COOLDOWN_MS = 30_000L
     }
 
     private val _state = MutableStateFlow(LearnCoreState())
