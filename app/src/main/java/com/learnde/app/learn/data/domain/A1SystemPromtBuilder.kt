@@ -209,8 +209,8 @@ ${if (hasGrammar) """▶ GRAMMAR — 1-2 МИНУТЫ
     private fun formatLemmas(lemmas: List<LemmaA1Entity>): String {
         if (lemmas.isEmpty()) return "(пусто)"
         return lemmas.joinToString("\n") { lemma ->
-            val article = lemma.article?.let { "$it " } ?: ""
-            "  • $article${lemma.lemma} [${lemma.pos}]"
+            val article = lemma.article?.let { " [$it]" } ?: ""
+            "  • ${lemma.lemma}$article — ${lemma.pos} → лемма: \"${lemma.lemma}\""
         }
     }
 
