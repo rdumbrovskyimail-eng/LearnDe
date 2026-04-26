@@ -178,6 +178,18 @@ class LearnCoreViewModel @Inject constructor(
     /** Флаг: ждём первый ответ модели после стартового приветствия. */
     @Volatile private var awaitingInitialGreeting = false
 
+    /** Timestamp последнего AudioChunk от модели (для timing-based mic gate). */
+    @Volatile private var lastAiAudioChunkAtMs: Long = 0L
+
+    /** Сессия завершена через finish_session — silence-промпты выключены. */
+    @Volatile private var sessionFinished: Boolean = false
+
+    /** Timestamp последнего отправленного [СИСТЕМА]: Ученик молчит (антиспам). */
+    @Volatile private var lastSilencePromptAtMs: Long = 0L
+
+    /** Счётчик дропнутых mic-чанков для диагностики. */
+    @Volatile private var droppedMicChunks: Int = 0
+
     private val transcriptMutex = Mutex()
     @Volatile private var transcriptBuffer: List<ConversationMessage> = emptyList()
     private val pendingModelText = StringBuilder()
