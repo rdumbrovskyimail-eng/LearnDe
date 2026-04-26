@@ -276,7 +276,9 @@ class A1SituationSession @Inject constructor(
     }
 
     private suspend fun handleMarkLemmaHeard(call: FunctionCall): String {
-        val lemma = normalizeLemma(call.args["lemma"] ?: return err("no lemma"))
+        val originalLemma = call.args["lemma"] ?: return err("no lemma")
+        val lemma = normalizeLemma(originalLemma)
+        if (lemma != originalLemma) logger.d("A1Session: normalized heard lemma '$originalLemma' → '$lemma'")
         targetedLemmas.add(lemma)
 
         val ctx = currentContext
