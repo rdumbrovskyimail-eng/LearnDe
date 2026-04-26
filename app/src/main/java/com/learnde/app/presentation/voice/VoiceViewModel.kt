@@ -286,8 +286,8 @@ class VoiceViewModel @Inject constructor(
 
             DiagnosticProfile.WITHOUT_TRANSCRIPTION -> base.copy(
                 sendTranscriptionConfig = false,
-                inputTranscription = false,
-                outputTranscription = false,
+                inputTranscription = com.learnde.app.domain.model.TranscriptionConfig(false),
+                outputTranscription = com.learnde.app.domain.model.TranscriptionConfig(false),
                 logFullSetupJson = true
             )
         }
