@@ -261,8 +261,8 @@ class VoiceViewModel @Inject constructor(
                 diagnosticMinimalSetup = true,
                 enableSessionResumption = false,
                 enableContextCompression = false,
-                inputTranscription = com.learnde.app.domain.model.TranscriptionConfig(false),
-                outputTranscription = com.learnde.app.domain.model.TranscriptionConfig(false),
+                inputTranscription = false,
+                outputTranscription = false,
                 logFullSetupJson = true
             )
 
@@ -286,8 +286,8 @@ class VoiceViewModel @Inject constructor(
 
             DiagnosticProfile.WITHOUT_TRANSCRIPTION -> base.copy(
                 sendTranscriptionConfig = false,
-                inputTranscription = com.learnde.app.domain.model.TranscriptionConfig(false),
-                outputTranscription = com.learnde.app.domain.model.TranscriptionConfig(false),
+                inputTranscription = false,
+                outputTranscription = false,
                 logFullSetupJson = true
             )
         }
@@ -475,12 +475,8 @@ class VoiceViewModel @Inject constructor(
                 cachedSettings.vadSilenceTimeoutMs else 100,
             vadPrefixPaddingMs = 20,
             systemInstruction = finalSystemInstruction,
-            inputTranscription = com.learnde.app.domain.model.TranscriptionConfig(
-                enabled = cachedSettings.inputTranscription
-            ),
-            outputTranscription = com.learnde.app.domain.model.TranscriptionConfig(
-                enabled = cachedSettings.outputTranscription
-            ),
+            inputTranscription = cachedSettings.inputTranscription,
+            outputTranscription = cachedSettings.outputTranscription,
             enableSessionResumption = cachedSettings.enableSessionResumption,
             transparentResumption = cachedSettings.transparentResumption,
             sessionHandle = liveClient.sessionHandle,
