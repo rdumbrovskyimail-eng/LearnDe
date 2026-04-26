@@ -355,6 +355,8 @@ class LearnCoreViewModel @Inject constructor(
         micJob?.cancel()
         silenceTimerJob?.cancel()
         greetingFallbackJob?.cancel()
+        finishGraceJob?.cancel()
+        finishGraceJob = null
 
         // ФИКС: Останавливаем запись строго под мьютексом, чтобы избежать гонки со startMic.
         // Это гарантирует, что releaseAll() не будет вызван при активном микрофоне.
@@ -393,6 +395,7 @@ class LearnCoreViewModel @Inject constructor(
                 isMicActive = false,
                 isAiSpeaking = false,
                 isPreparingSession = false,
+                isFinishingSession = false,
             )
         }
         arbiter.release(ClientOwner.LEARN)
