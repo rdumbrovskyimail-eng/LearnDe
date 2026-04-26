@@ -126,24 +126,20 @@ class LearnCoreViewModel @Inject constructor(
          *  2 байта/сэмпл × 16000 сэмплов/сек × (SILENCE_WARMUP_MS / 1000) */
         private const val SILENCE_PCM_BYTES = (2 * 16000 * 400) / 1000 // = 12800
 
-        /** Tail для drill-сессий (a1) — нужен запас на jitter buffer + tool-calls. */
-        private const val AI_AUDIO_TAIL_MS_A1 = 600L
-
-        /** Tail для переводчика — низкий, нужна молниеносность. */
-        private const val AI_AUDIO_TAIL_MS_TRANSLATOR = 250L
+        /** 
+         * Хвост аудио модели после последнего PCM-чанка, в течение 
+         * которого всё ещё считаем что динамик звучит и mic надо 
+         * гейтить. Покрывает jitter buffer + хвост AudioTrack. 
+         * Если 600мс прошло без новых AudioChunk — считаем что модель 
+         * отзвучала, mic открываем независимо от TurnComplete.
+         */
+        private const val AI_AUDIO_TAIL_MS = 600L
 
         /** 
          * Минимальный интервал между silence-промптами, чтобы не 
          * спамить модель если ученик надолго замолчал.
          */
         private const val SILENCE_PROMPT_COOLDOWN_MS = 30_000L
-
-        /** 
-         * Сколько ждать после finish_session, прежде чем закрыть сессию. 
-         * Окно нужно чтобы модель успела доиграть прощальную TTS-реплику 
-         * и прислать отложенные mark_lemma_produced.
-         */
-        private const val FINISH_SESSION_GRACE_MS = 5_000L
     }
 
     private val _state = MutableStateFlow(LearnCoreState())
@@ -172,7 +168,6 @@ class LearnCoreViewModel @Inject constructor(
     private var silenceTimerJob: Job? = null
     private var greetingFallbackJob: Job? = null
     private var setupJob: Job? = null
-    private var finishGraceJob: Job? = null
 
     @Volatile private var lastInputTs: Long = 0L
     @Volatile private var lastInputText: String = ""
@@ -185,9 +180,6 @@ class LearnCoreViewModel @Inject constructor(
 
     /** Timestamp последнего AudioChunk от модели (для timing-based mic gate). */
     @Volatile private var lastAiAudioChunkAtMs: Long = 0L
-
-    /** Активный tail-порог в зависимости от типа сессии. */
-    @Volatile private var activeAiAudioTailMs: Long = AI_AUDIO_TAIL_MS_A1
 
     /** Сессия завершена через finish_session — silence-промпты выключены. */
     @Volatile private var sessionFinished: Boolean = false
@@ -296,16 +288,7 @@ class LearnCoreViewModel @Inject constructor(
             presencePenalty = cachedSettings.presencePenalty,
             frequencyPenalty = cachedSettings.frequencyPenalty,
             voiceId = cachedSettings.voiceId,
-            // languageCode задаётся в speechConfig: влияет на TTS-голос 
-            // модели и на ASR-распознавание. 
-            // Для a1 ставим ru-RU, потому что репетитор говорит в основном 
-            // по-русски, а немецкие слова всё равно проговариваются 
-            // нормально (как живой репетитор).
-            languageCode = when (session.id) {
-                "a1_situation", "a1_review" -> "ru-RU"
-                "translator" -> ""  // multilingual для переводчика
-                else -> cachedSettings.languageCode
-            },
+            languageCode = cachedSettings.languageCode,
             latencyProfile = profile,
             autoActivityDetection = cachedSettings.enableServerVad,
             vadStartSensitivity = if (cachedSettings.vadStartOfSpeechSensitivity > 0.5f)
@@ -315,15 +298,8 @@ class LearnCoreViewModel @Inject constructor(
             vadSilenceDurationMs = finalSilenceMs,
             vadPrefixPaddingMs = prefixMs,
             systemInstruction = finalSystemInstruction,
-            // languageCode здесь больше не передаём — Gemini Live v1beta 
-            // не поддерживает это поле внутри transcription. Подсказка 
-            // языка задаётся через speechConfig.languageCode (см. выше).
-            inputTranscription = com.learnde.app.domain.model.TranscriptionConfig(
-                enabled = cachedSettings.inputTranscription
-            ),
-            outputTranscription = com.learnde.app.domain.model.TranscriptionConfig(
-                enabled = cachedSettings.outputTranscription
-            ),
+            inputTranscription = cachedSettings.inputTranscription,
+            outputTranscription = cachedSettings.outputTranscription,
             enableSessionResumption = false,
             sessionHandle = null,
             enableContextCompression = false,
@@ -365,8 +341,6 @@ class LearnCoreViewModel @Inject constructor(
         micJob?.cancel()
         silenceTimerJob?.cancel()
         greetingFallbackJob?.cancel()
-        finishGraceJob?.cancel()
-        finishGraceJob = null
 
         // ФИКС: Останавливаем запись строго под мьютексом, чтобы избежать гонки со startMic.
         // Это гарантирует, что releaseAll() не будет вызван при активном микрофоне.
@@ -405,7 +379,6 @@ class LearnCoreViewModel @Inject constructor(
                 isMicActive = false,
                 isAiSpeaking = false,
                 isPreparingSession = false,
-                isFinishingSession = false,
             )
         }
         arbiter.release(ClientOwner.LEARN)
@@ -445,16 +418,9 @@ class LearnCoreViewModel @Inject constructor(
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
         setupJob = null
-        finishGraceJob?.cancel()
-        finishGraceJob = null
 
         session.onEnter()
         activeSession = session
-        activeAiAudioTailMs = when (session.id) {
-            "translator" -> AI_AUDIO_TAIL_MS_TRANSLATOR
-            else -> AI_AUDIO_TAIL_MS_A1
-        }
-        logger.d("Learn: AI audio tail = ${activeAiAudioTailMs}ms for session ${session.id}")
         if (session.id == "a1_situation" || session.id == "a1_review") {
             vocabularyEnforcer.warmUp()
         }
@@ -467,7 +433,6 @@ class LearnCoreViewModel @Inject constructor(
                 isMicActive = false,
                 isAiSpeaking = false,
                 isPreparingSession = true,
-                isFinishingSession = false,
             )
         }
 
@@ -552,7 +517,7 @@ class LearnCoreViewModel @Inject constructor(
                     val now = System.currentTimeMillis()
                     val sinceLastAi = now - lastAiAudioChunkAtMs
                     val aiActuallyAudible = lastAiAudioChunkAtMs > 0L &&
-                                            sinceLastAi < activeAiAudioTailMs
+                                            sinceLastAi < AI_AUDIO_TAIL_MS
 
                     if (!aiActuallyAudible) {
                         liveClient.sendAudio(chunk)
@@ -1144,23 +1109,13 @@ class LearnCoreViewModel @Inject constructor(
                     .onFailure { logger.e("Learn: failed to send ToolResponse: ${it.message}") }
             }
 
-            // Если в этом батче был finish_session — корректно завершаем сессию.
+            // Если в этом батче был finish_session — фиксируем что урок завершён.
+            // С этого момента silence-таймер выключен, чтобы модель не отвечала 
+            // на собственные [СИСТЕМА]: Ученик молчит после прощания.
             if (event.calls.any { it.name == "finish_session" }) {
                 sessionFinished = true
                 silenceTimerJob?.cancel()
-                logger.d("Learn: finish_session detected → silence prompts disabled, stopping session in ${FINISH_SESSION_GRACE_MS}ms")
-                
-                _state.update { it.copy(isFinishingSession = true) }
-                
-                finishGraceJob?.cancel()
-                finishGraceJob = viewModelScope.launch {
-                    delay(FINISH_SESSION_GRACE_MS)
-                    // Проверяем что сессия всё ещё активна — иначе race с manual stop
-                    if (activeSession != null && sessionFinished) {
-                        logger.d("Learn: finish_session grace expired → closing session")
-                        stopInternal()
-                    }
-                }
+                logger.d("Learn: finish_session detected → silence prompts disabled")
             }
         }
     }
@@ -1190,7 +1145,6 @@ class LearnCoreViewModel @Inject constructor(
         silenceTimerJob?.cancel()
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
-        finishGraceJob?.cancel()
         pendingFlushJob?.cancel()
         pendingModelText.clear()
         statusBus.reset()
