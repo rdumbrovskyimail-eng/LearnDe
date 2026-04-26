@@ -187,6 +187,7 @@ private fun StatChip(label: String, value: String, modifier: Modifier = Modifier
 private data class ClusterStatusStyle(
     val icon: ImageVector,
     val color: Color,
+    val label: String,
 )
 
 @Composable
@@ -198,10 +199,10 @@ private fun ClusterMapCard(
     val colors = learnColors()
     val mastery = cluster.masteryScore
     val status: ClusterStatusStyle = when {
-        cluster.isMastered -> ClusterStatusStyle(Icons.Filled.CheckCircle, colors.success)
-        isCurrent -> ClusterStatusStyle(Icons.Filled.PlayArrow, colors.accent)
-        cluster.isUnlocked -> ClusterStatusStyle(Icons.Filled.PlayArrow, colors.textMid)
-        else -> ClusterStatusStyle(Icons.Filled.Lock, colors.textLow)
+        cluster.isMastered -> ClusterStatusStyle(Icons.Filled.CheckCircle, colors.success, "Освоено")
+        isCurrent -> ClusterStatusStyle(Icons.Filled.PlayArrow, colors.accent, "Текущий")
+        cluster.isUnlocked -> ClusterStatusStyle(Icons.Filled.PlayArrow, colors.textMid, "Доступен")
+        else -> ClusterStatusStyle(Icons.Filled.Lock, colors.textLow, "Закрыт")
     }
 
     // БЕЗОПАСНОЕ получение scale: анимация создается только в ветке, где isCurrent == true,
@@ -223,21 +224,34 @@ private fun ClusterMapCard(
             .padding(LearnTokens.PaddingMd),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(status.color.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(48.dp)
         ) {
-            Icon(
-                status.icon,
-                null,
-                tint = status.color,
-                modifier = Modifier.size(if (status.icon == Icons.Filled.Lock) 14.dp else 16.dp),
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(status.color.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    status.icon,
+                    null,
+                    tint = status.color,
+                    modifier = Modifier.size(if (status.icon == Icons.Filled.Lock) 14.dp else 16.dp),
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = status.label,
+                fontSize = 8.sp,
+                color = colors.textLow,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
             )
         }
-        Spacer(Modifier.width(LearnTokens.PaddingMd))
+        Spacer(Modifier.width(LearnTokens.PaddingSm))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 cluster.titleRu,
