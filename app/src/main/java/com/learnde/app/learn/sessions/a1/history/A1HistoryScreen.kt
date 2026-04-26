@@ -377,7 +377,7 @@ private fun SessionCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MiniStat(Icons.Filled.CheckCircle, entity.lemmasProducedJson.lemmaCount(), colors.success)
                 Spacer(Modifier.width(LearnTokens.PaddingSm))
-                MiniStat(Icons.Filled.Cancel, entity.lemmasFailedJson.lemmaCount(), colors.error)
+                MiniStat(Icons.Filled.Close, entity.lemmasFailedJson.lemmaCount(), colors.error)
                 if (!entity.isComplete) {
                     Spacer(Modifier.width(LearnTokens.PaddingSm))
                     Text(
