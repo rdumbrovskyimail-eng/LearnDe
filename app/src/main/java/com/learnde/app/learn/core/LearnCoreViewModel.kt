@@ -126,14 +126,11 @@ class LearnCoreViewModel @Inject constructor(
          *  2 байта/сэмпл × 16000 сэмплов/сек × (SILENCE_WARMUP_MS / 1000) */
         private const val SILENCE_PCM_BYTES = (2 * 16000 * 400) / 1000 // = 12800
 
-        /** 
-         * Хвост аудио модели после последнего PCM-чанка, в течение 
-         * которого всё ещё считаем что динамик звучит и mic надо 
-         * гейтить. Покрывает jitter buffer + хвост AudioTrack. 
-         * Если 600мс прошло без новых AudioChunk — считаем что модель 
-         * отзвучала, mic открываем независимо от TurnComplete.
-         */
-        private const val AI_AUDIO_TAIL_MS = 600L
+        /** Tail для drill-сессий (a1) — нужен запас на jitter buffer + tool-calls. */
+        private const val AI_AUDIO_TAIL_MS_A1 = 600L
+
+        /** Tail для переводчика — низкий, нужна молниеносность. */
+        private const val AI_AUDIO_TAIL_MS_TRANSLATOR = 250L
 
         /** 
          * Минимальный интервал между silence-промптами, чтобы не 
@@ -188,6 +185,9 @@ class LearnCoreViewModel @Inject constructor(
 
     /** Timestamp последнего AudioChunk от модели (для timing-based mic gate). */
     @Volatile private var lastAiAudioChunkAtMs: Long = 0L
+
+    /** Активный tail-порог в зависимости от типа сессии. */
+    @Volatile private var activeAiAudioTailMs: Long = AI_AUDIO_TAIL_MS_A1
 
     /** Сессия завершена через finish_session — silence-промпты выключены. */
     @Volatile private var sessionFinished: Boolean = false
@@ -296,7 +296,16 @@ class LearnCoreViewModel @Inject constructor(
             presencePenalty = cachedSettings.presencePenalty,
             frequencyPenalty = cachedSettings.frequencyPenalty,
             voiceId = cachedSettings.voiceId,
-            languageCode = cachedSettings.languageCode,
+            // languageCode задаётся в speechConfig: влияет на TTS-голос 
+            // модели и на ASR-распознавание. 
+            // Для a1 ставим ru-RU, потому что репетитор говорит в основном 
+            // по-русски, а немецкие слова всё равно проговариваются 
+            // нормально (как живой репетитор).
+            languageCode = when (session.id) {
+                "a1_situation", "a1_review" -> "ru-RU"
+                "translator" -> ""  // multilingual для переводчика
+                else -> cachedSettings.languageCode
+            },
             latencyProfile = profile,
             autoActivityDetection = cachedSettings.enableServerVad,
             vadStartSensitivity = if (cachedSettings.vadStartOfSpeechSensitivity > 0.5f)
@@ -306,13 +315,14 @@ class LearnCoreViewModel @Inject constructor(
             vadSilenceDurationMs = finalSilenceMs,
             vadPrefixPaddingMs = prefixMs,
             systemInstruction = finalSystemInstruction,
+            // languageCode здесь больше не передаём — Gemini Live v1beta 
+            // не поддерживает это поле внутри transcription. Подсказка 
+            // языка задаётся через speechConfig.languageCode (см. выше).
             inputTranscription = com.learnde.app.domain.model.TranscriptionConfig(
-                enabled = cachedSettings.inputTranscription,
-                languageCode = if (session.id == "a1_situation" || session.id == "a1_review") "de-DE" else null
+                enabled = cachedSettings.inputTranscription
             ),
             outputTranscription = com.learnde.app.domain.model.TranscriptionConfig(
-                enabled = cachedSettings.outputTranscription,
-                languageCode = if (session.id == "a1_situation" || session.id == "a1_review") "ru-RU" else null
+                enabled = cachedSettings.outputTranscription
             ),
             enableSessionResumption = false,
             sessionHandle = null,
@@ -440,6 +450,11 @@ class LearnCoreViewModel @Inject constructor(
 
         session.onEnter()
         activeSession = session
+        activeAiAudioTailMs = when (session.id) {
+            "translator" -> AI_AUDIO_TAIL_MS_TRANSLATOR
+            else -> AI_AUDIO_TAIL_MS_A1
+        }
+        logger.d("Learn: AI audio tail = ${activeAiAudioTailMs}ms for session ${session.id}")
         if (session.id == "a1_situation" || session.id == "a1_review") {
             vocabularyEnforcer.warmUp()
         }
@@ -537,7 +552,7 @@ class LearnCoreViewModel @Inject constructor(
                     val now = System.currentTimeMillis()
                     val sinceLastAi = now - lastAiAudioChunkAtMs
                     val aiActuallyAudible = lastAiAudioChunkAtMs > 0L &&
-                                            sinceLastAi < AI_AUDIO_TAIL_MS
+                                            sinceLastAi < activeAiAudioTailMs
 
                     if (!aiActuallyAudible) {
                         liveClient.sendAudio(chunk)
