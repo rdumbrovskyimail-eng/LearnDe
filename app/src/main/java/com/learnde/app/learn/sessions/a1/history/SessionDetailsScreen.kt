@@ -143,7 +143,7 @@ fun SessionDetailsScreen(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(46.dp),
+                                    .height(LearnTokens.ButtonHeightMd),
                                 shape = RoundedCornerShape(LearnTokens.RadiusSm),
                                 colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
                             ) {
