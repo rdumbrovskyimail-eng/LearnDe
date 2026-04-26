@@ -435,6 +435,8 @@ class LearnCoreViewModel @Inject constructor(
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
         setupJob = null
+        finishGraceJob?.cancel()
+        finishGraceJob = null
 
         session.onEnter()
         activeSession = session
@@ -450,6 +452,7 @@ class LearnCoreViewModel @Inject constructor(
                 isMicActive = false,
                 isAiSpeaking = false,
                 isPreparingSession = true,
+                isFinishingSession = false,
             )
         }
 
