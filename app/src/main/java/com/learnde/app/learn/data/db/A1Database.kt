@@ -34,7 +34,7 @@ import javax.inject.Singleton
         A1SessionLogEntity::class,
         A1UserProgressEntity::class,
     ],
-    version = 4, // v3.1.2: grammarRuleId в a1_clusters
+    version = 5, // v3.5.1: Очистка дублей лемм и артиклей
     exportSchema = false
 )
 @TypeConverters(A1Converters::class)
@@ -113,7 +113,7 @@ object A1DatabaseModule {
     @Singleton
     fun provideA1Database(@ApplicationContext ctx: Context): A1Database =
         Room.databaseBuilder(ctx, A1Database::class.java, "a1_learning.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
 
