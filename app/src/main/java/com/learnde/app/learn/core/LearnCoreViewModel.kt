@@ -1105,7 +1105,17 @@ class LearnCoreViewModel @Inject constructor(
         viewModelScope.launch {
             children.joinAll()
             if (responses.isNotEmpty() && liveClient.isReady) {
-                liveClient.sendToolResponse(responses.toList())
+                runCatching { liveClient.sendToolResponse(responses.toList()) }
+                    .onFailure { logger.e("Learn: failed to send ToolResponse: ${it.message}") }
+            }
+
+            // Если в этом батче был finish_session — фиксируем что урок завершён.
+            // С этого момента silence-таймер выключен, чтобы модель не отвечала 
+            // на собственные [СИСТЕМА]: Ученик молчит после прощания.
+            if (event.calls.any { it.name == "finish_session" }) {
+                sessionFinished = true
+                silenceTimerJob?.cancel()
+                logger.d("Learn: finish_session detected → silence prompts disabled")
             }
         }
     }
