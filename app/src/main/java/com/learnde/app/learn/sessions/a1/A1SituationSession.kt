@@ -73,8 +73,24 @@ class A1SituationSession @Inject constructor(
     private val qualityAccumulator = CopyOnWriteArrayList<Pair<String, Int>>() // lemma to quality
 
     private fun normalizeLemma(raw: String): String {
-        // ФИКС: Приводим к нижнему регистру, чтобы избежать дубликатов (Haus и haus) в статистике сессии
-        return raw.trim().lowercase()
+        var s = raw.trim()
+        val lowerS = s.lowercase()
+        val articles = listOf("der ", "die ", "das ", "den ", "dem ", "des ", "ein ", "eine ", "einen ", "einem ", "einer ")
+        for (a in articles) {
+            if (lowerS.startsWith(a)) {
+                s = s.substring(a.length).trim()
+                break
+            }
+        }
+        val greeters = listOf("guten ", "guter ", "auf ")
+        val lowerS2 = s.lowercase()
+        for (g in greeters) {
+            if (lowerS2.startsWith(g)) {
+                s = s.substring(g.length).trim()
+                break
+            }
+        }
+        return s.lowercase()
     }
 
     suspend fun disputeEvaluation(lemma: String) {
