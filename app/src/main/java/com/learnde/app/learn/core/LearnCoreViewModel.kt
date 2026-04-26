@@ -981,7 +981,33 @@ class LearnCoreViewModel @Inject constructor(
         viewModelScope.launch {
             children.joinAll()
             if (responses.isNotEmpty() && liveClient.isReady) {
-                liveClient.sendToolResponse(responses.toList())
+                runCatching { liveClient.sendToolResponse(responses.toList()) }
+                    .onFailure { logger.e("Learn: failed to send ToolResponse: ${it.message}") }
+            }
+
+            // ФИКС: Gemini часто не присылает TurnComplete после ToolCall.
+            // Из-за этого isAiSpeaking остается true, и микрофон блокируется навсегда.
+            // Снимаем блокировку микрофона и сбрасываем флаги текущего хода.
+            _state.update { it.copy(isAiSpeaking = false) }
+            audioReceivedThisTurn = false
+            modelStartedSpeakingThisTurn = false
+
+            // Перезапускаем таймер тишины, так как теперь мы ждем ответа ученика
+            lastInputTs = System.currentTimeMillis()
+            if (_state.value.isMicActive) {
+                silenceTimerJob?.cancel()
+                silenceTimerJob = viewModelScope.launch {
+                    delay(LEARNER_SILENCE_THRESHOLD_MS)
+                    val quietFor = System.currentTimeMillis() - lastInputTs
+                    if (quietFor > SILENCE_CHECK_WINDOW_MS && liveClient.isReady && _state.value.isMicActive) {
+                        logger.d("Learn: silence detected (${quietFor}ms) after ToolCall, prompting AI")
+                        liveClient.sendText(
+                            "[СИСТЕМА]: Ученик молчит. Коротко подбодри его по-русски, " +
+                                "дай подсказку или назови правильный ответ и попроси повторить."
+                        )
+                        lastInputTs = System.currentTimeMillis()
+                    }
+                }
             }
         }
     }
