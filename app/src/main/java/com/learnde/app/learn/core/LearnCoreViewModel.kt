@@ -298,8 +298,14 @@ class LearnCoreViewModel @Inject constructor(
             vadSilenceDurationMs = finalSilenceMs,
             vadPrefixPaddingMs = prefixMs,
             systemInstruction = finalSystemInstruction,
-            inputTranscription = cachedSettings.inputTranscription,
-            outputTranscription = cachedSettings.outputTranscription,
+            inputTranscription = com.learnde.app.domain.model.TranscriptionConfig(
+                enabled = cachedSettings.inputTranscription,
+                languageCode = if (session.id == "a1_situation" || session.id == "a1_review") "de-DE" else null
+            ),
+            outputTranscription = com.learnde.app.domain.model.TranscriptionConfig(
+                enabled = cachedSettings.outputTranscription,
+                languageCode = if (session.id == "a1_situation" || session.id == "a1_review") "ru-RU" else null
+            ),
             enableSessionResumption = false,
             sessionHandle = null,
             enableContextCompression = false,
