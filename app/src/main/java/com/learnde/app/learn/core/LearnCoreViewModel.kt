@@ -711,30 +711,23 @@ class LearnCoreViewModel @Inject constructor(
                         silenceTimerJob?.cancel()
                         val now = System.currentTimeMillis()
 
-                        // Фильтр явного ASR-мусора: транскрипт не содержит 
-                        // ни латиницы (включая немецкие умляуты), ни кириллицы. 
-                        // Это значит ASR распознал немецкую фонему как CJK / 
-                        // devanagari / иероглифы — такое в чат не пускаем.
+                        // ФИКС 2: Добавлены украинские буквы (і, є, ґ, ї)
                         val hasLatin = event.text.any {
-                            it in 'a'..'z' || it in 'A'..'Z' ||
-                                it in "äöüßÄÖÜ"
+                            it in 'a'..'z' || it in 'A'..'Z' || it in "äöüßÄÖÜ"
                         }
                         val hasCyrillic = event.text.any {
-                            it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё'
+                            it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' || it in "ієґїІЄҐЇ"
                         }
                         if (event.text.isNotBlank() && !hasLatin && !hasCyrillic) {
                             logger.d("Learn: dropping garbage transcript: ${event.text}")
                             return@collect
                         }
 
-                        // Инкрементальное обновление: новый транскрипт начинается 
-                        // со старого И прошло меньше 3с — это ASR доуточнил 
-                        // распознавание, обновляем последнее сообщение, 
-                        // не создаём новое.
-                        if (lastInputText.isNotEmpty()
-                            && event.text.startsWith(lastInputText)
-                            && (now - lastInputTs) < 3_000
-                        ) {
+                        // ФИКС 3: Убрана жесткая привязка startsWith. ASR может полностью 
+                        // переписать фразу (например "Я зашел" -> "Я пришел").
+                        // Если прошло меньше 4 секунд с прошлого обновления, считаем это 
+                        // корректировкой текущей фразы и обновляем пузырь в чате.
+                        if (lastInputText.isNotEmpty() && (now - lastInputTs) < 4_000) {
                             lastInputText = event.text
                             lastInputTs = now
                             launch { updateLastUserTranscript(event.text) }
