@@ -692,7 +692,35 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.InputTranscript -> {
                         silenceTimerJob?.cancel()
                         val now = System.currentTimeMillis()
-                        if (event.text != lastInputText || now - lastInputTs > 5_000) {
+
+                        // Фильтр явного ASR-мусора: транскрипт не содержит 
+                        // ни латиницы (включая немецкие умляуты), ни кириллицы. 
+                        // Это значит ASR распознал немецкую фонему как CJK / 
+                        // devanagari / иероглифы — такое в чат не пускаем.
+                        val hasLatin = event.text.any {
+                            it in 'a'..'z' || it in 'A'..'Z' ||
+                                it in "äöüßÄÖÜ"
+                        }
+                        val hasCyrillic = event.text.any {
+                            it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё'
+                        }
+                        if (event.text.isNotBlank() && !hasLatin && !hasCyrillic) {
+                            logger.d("Learn: dropping garbage transcript: ${event.text}")
+                            return@collect
+                        }
+
+                        // Инкрементальное обновление: новый транскрипт начинается 
+                        // со старого И прошло меньше 3с — это ASR доуточнил 
+                        // распознавание, обновляем последнее сообщение, 
+                        // не создаём новое.
+                        if (lastInputText.isNotEmpty()
+                            && event.text.startsWith(lastInputText)
+                            && (now - lastInputTs) < 3_000
+                        ) {
+                            lastInputText = event.text
+                            lastInputTs = now
+                            launch { updateLastUserTranscript(event.text) }
+                        } else if (event.text != lastInputText) {
                             lastInputText = event.text
                             lastInputTs = now
                             launch { appendTranscript(ConversationMessage.user(event.text)) }
