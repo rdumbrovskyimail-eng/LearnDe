@@ -324,9 +324,27 @@ class A1SituationSession @Inject constructor(
     }
 
     private suspend fun handleEvaluateAndUpdate(call: FunctionCall): String {
-        val lemma = normalizeLemma(call.args["lemma"] ?: return err("no lemma"))
+        val originalLemma = call.args["lemma"] ?: return err("no lemma")
+        val lemma = normalizeLemma(originalLemma)
+        if (lemma != originalLemma) {
+            logger.d("A1Session: normalized lemma '$originalLemma' → '$lemma'")
+        }
+        
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
         val feedback = call.args["feedback"] ?: ""
+        val errorDepthStr = call.args["error_depth"] ?: "NONE"
+
+        // GUARD: Защита от ASR-мусора
+        val isAsrGarbage = originalLemma.length < 3 || run {
+            val hasLatin = originalLemma.any { it in 'a'..'z' || it in 'A'..'Z' || it in "äöüßÄÖÜ" }
+            val hasCyrillic = originalLemma.any { it in 'а'..'я' || it in 'А'..'Я' }
+            !hasLatin && !hasCyrillic
+        }
+        
+        if ((errorDepthStr == "ERROR" || errorDepthStr == "MISTAKE") && isAsrGarbage) {
+            logger.w("A1Session.eval: rejecting bogus $errorDepthStr due to ASR garbage: '$originalLemma'")
+            return """{"status":"skipped","reason":"asr_garbage"}"""
+        }
 
         val diagnosis = ErrorDiagnosis(
             source = ErrorSource.fromString(call.args["error_source"]),
