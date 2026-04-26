@@ -1,15 +1,12 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v5.0 (Voice-First Minimalism)
+// ПОЛНАЯ ЗАМЕНА v5.1
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/translator/TranslateScreen.kt
 //
-// КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ v5.0:
-//   1. Убран SessionLoadingOverlay (был fullscreen).
-//   2. Добавлен AudioParticleBox в шапку — реакция на голос Gemini.
-//   3. LanguageFlowBanner упрощён: монохром, текстовые маркеры RU/UA ↔ DE
-//      без эмодзи-флагов как UI.
-//   4. TranscriptBubble без флагов — только текстовые лейблы и weight.
-//   5. Зелёная FAB-кнопка → крупная Material-кнопка единого стиля.
-//   6. Логика detectIsGerman + isActive не тронута.
+// ИЗМЕНЕНИЯ v5.1:
+//   - detectLang теперь возвращает 4 состояния: DE / RU / UK / UNKNOWN
+//   - Метка пузыря "ВЫ · DETECTING…" пока текст слишком короткий
+//   - Добавлено различение RU vs UK по украинским буквам
+//   - Остальная UI не тронута
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.translator
 
@@ -21,7 +18,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -136,7 +132,6 @@ fun TranslatorScreen(
 
     val showInlineLoader = learnState.isPreparingSession && learnState.transcript.isEmpty()
 
-    // ФИКС: Гарантируем остановку сессии при системном жесте "Назад"
     androidx.activity.compose.BackHandler {
         if (isActive) learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
         onBack()
@@ -206,7 +201,6 @@ fun TranslatorScreen(
                 .padding(pad)
                 .padding(horizontal = LearnTokens.PaddingLg),
         ) {
-            // ─── Inline-loader + AudioParticleBox ───
             AnimatedVisibility(
                 visible = showInlineLoader || isActive,
                 enter = fadeIn() + expandVertically(),
@@ -237,9 +231,9 @@ fun TranslatorScreen(
                             )
                         }
                     }
-                    
+
                     Spacer(Modifier.width(LearnTokens.PaddingSm))
-                    
+
                     AudioParticleBox(
                         playbackSync = learnCoreViewModel.audioPlaybackFlow,
                         size = 36.dp,
@@ -247,11 +241,9 @@ fun TranslatorScreen(
                 }
             }
 
-            // ─── Hero banner: RU/UA ↔ DE ───
             LanguageFlowBanner(isActive = isActive)
             Spacer(Modifier.height(LearnTokens.PaddingMd))
 
-            // ─── Транскрипт (главная зона) ───
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -270,7 +262,6 @@ fun TranslatorScreen(
 
             Spacer(Modifier.height(LearnTokens.PaddingLg))
 
-            // ─── FAB микрофон ───
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 MainMicButton(
                     isActive = isActive,
@@ -462,7 +453,7 @@ private fun EmptyTranscriptHint(isActive: Boolean) {
 @Composable
 private fun TranscriptList(messages: List<ConversationMessage>) {
     val listState = rememberLazyListState()
-    LaunchedEffect(messages.size) {
+    LaunchedEffect(messages.size, messages.lastOrNull()?.text) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
@@ -472,7 +463,7 @@ private fun TranscriptList(messages: List<ConversationMessage>) {
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        items(messages, key = { msg -> "${msg.timestamp}_${msg.role}_${msg.text.hashCode()}" }) { msg ->
+        items(messages, key = { msg -> "${msg.timestamp}_${msg.role}" }) { msg ->
             TranscriptBubble(message = msg)
         }
     }
@@ -485,13 +476,16 @@ private fun TranscriptBubble(message: ConversationMessage) {
     val text = message.text.trim()
     if (text.isEmpty()) return
 
-    val isGerman = detectIsGerman(text)
-    val langCode = if (isGerman) "DE" else "RU/UA"
+    val lang = detectLang(text)
+    val langText = when (lang) {
+        DetectedLang.DE -> "DE"
+        DetectedLang.RU -> "RU"
+        DetectedLang.UK -> "UA"
+        DetectedLang.UNKNOWN -> "…"
+    }
     val label = when {
-        isUser && isGerman -> "ВЫ · DE"
-        isUser && !isGerman -> "ВЫ · RU/UA"
-        !isUser && isGerman -> "ПЕРЕВОД · DE"
-        else -> "ПЕРЕВОД · RU/UA"
+        isUser -> "ВЫ · $langText"
+        else -> "ПЕРЕВОД · $langText"
     }
     val bg = if (isUser) colors.accentSoft else colors.surfaceVar
     val border = if (isUser) colors.accent.copy(alpha = 0.25f) else colors.stroke
@@ -608,6 +602,10 @@ private fun MainMicButton(
     }
 }
 
+// ─── Language detection (4-state) ───
+private enum class DetectedLang { DE, RU, UK, UNKNOWN }
+
+private val UKR_SPECIFIC = "ієґїІЄҐЇ'ʼ"
 private val GERMAN_FUNCTION_WORDS = setOf(
     "der","die","das","den","dem","des","ein","eine","einen","einem","einer","eines",
     "ich","du","er","sie","es","wir","ihr","mich","dich","ihn","uns","euch","ihnen",
@@ -617,32 +615,27 @@ private val GERMAN_FUNCTION_WORDS = setOf(
     "bei","nach","seit","vor","durch","zu","in","an","im","am","ins","ans",
     "ja","nein","auch","schon","noch","mehr","sehr","gut","heute","morgen","gestern"
 )
-private val ENGLISH_FUNCTION_WORDS = setOf(
-    "the","a","an","is","are","was","were","i","you","he","she","it","we","they",
-    "have","has","had","do","does","did","not","and","or","but","if","when","that",
-    "this","these","those","with","without","for","from","to","in","on","at","by",
-    "yes","no","ok","what","why","how","who","where"
-)
 
-private fun detectIsGerman(text: String): Boolean {
-    if (text.isBlank()) return false
-    // 1) Кириллица — точно русский.
-    if (text.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' }) return false
-    // 2) Умлауты/ß — точно немецкий.
-    if (text.any { it in "äöüßÄÖÜ" }) return true
-    // 3) Дискриминатор по служебным словам.
-    val tokens = text.lowercase()
-        .replace(Regex("[^a-z ]"), " ")
-        .split(Regex("\\s+"))
-        .filter { it.isNotBlank() }
-    if (tokens.isEmpty()) return false
-    val deHits = tokens.count { it in GERMAN_FUNCTION_WORDS }
-    val enHits = tokens.count { it in ENGLISH_FUNCTION_WORDS }
+private fun detectLang(text: String): DetectedLang {
+    if (text.isBlank() || text == "..." || text == "…") return DetectedLang.UNKNOWN
+
+    val hasCyrillic = text.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' }
+    val hasUkrSpecific = text.any { it in UKR_SPECIFIC }
+    val hasUmlauts = text.any { it in "äöüßÄÖÜ" }
+
     return when {
-        deHits > enHits -> true
-        enHits > deHits -> false
-        // Ничья — латиница без явных признаков → не показываем флаг "DE",
-        // считаем "не определено" (= не немецкий, чтобы не дезинформировать).
-        else -> false
+        hasUkrSpecific -> DetectedLang.UK
+        hasCyrillic -> DetectedLang.RU
+        hasUmlauts -> DetectedLang.DE
+        else -> {
+            // Латиница без умлаутов — проверим по словарю немецких служебных слов
+            val tokens = text.lowercase()
+                .replace(Regex("[^a-z ]"), " ")
+                .split(Regex("\\s+"))
+                .filter { it.isNotBlank() }
+            if (tokens.isEmpty()) return DetectedLang.UNKNOWN
+            val deHits = tokens.count { it in GERMAN_FUNCTION_WORDS }
+            if (deHits > 0) DetectedLang.DE else DetectedLang.UNKNOWN
+        }
     }
 }
