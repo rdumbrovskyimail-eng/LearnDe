@@ -298,7 +298,9 @@ class A1SituationSession @Inject constructor(
     }
 
     private suspend fun handleMarkLemmaProduced(call: FunctionCall): String {
-        val lemma = normalizeLemma(call.args["lemma"] ?: return err("no lemma"))
+        val originalLemma = call.args["lemma"] ?: return err("no lemma")
+        val lemma = normalizeLemma(originalLemma)
+        if (lemma != originalLemma) logger.d("A1Session: normalized produced lemma '$originalLemma' → '$lemma'")
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
 
         producedLemmas.add(lemma)
