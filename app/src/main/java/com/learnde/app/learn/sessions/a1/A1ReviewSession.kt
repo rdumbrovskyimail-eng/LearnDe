@@ -159,48 +159,10 @@ $wordList
         }
     }
 
-    private fun normalizeLemma(raw: String): String {
-        var s = raw.trim()
-        val lowerS = s.lowercase()
-        val articles = listOf("der ", "die ", "das ", "den ", "dem ", "des ", "ein ", "eine ", "einen ", "einem ", "einer ")
-        for (a in articles) {
-            if (lowerS.startsWith(a)) {
-                s = s.substring(a.length).trim()
-                break
-            }
-        }
-        val greeters = listOf("guten ", "guter ", "auf ")
-        val lowerS2 = s.lowercase()
-        for (g in greeters) {
-            if (lowerS2.startsWith(g)) {
-                s = s.substring(g.length).trim()
-                break
-            }
-        }
-        return s.lowercase()
-    }
-
     private suspend fun handleEvaluate(call: FunctionCall): String {
-        val originalLemma = call.args["lemma"] ?: return err("no lemma")
-        val lemma = normalizeLemma(originalLemma)
-        if (lemma != originalLemma) {
-            logger.d("A1ReviewSession: normalized lemma '$originalLemma' → '$lemma'")
-        }
-        
+        val lemma = call.args["lemma"]?.trim() ?: return err("no lemma")
         val quality = call.args["quality"]?.toIntOrNull()?.coerceIn(1, 7) ?: 5
         val feedback = call.args["feedback"] ?: ""
-        val errorDepthStr = call.args["error_depth"] ?: "NONE"
-
-        val isAsrGarbage = originalLemma.length < 3 || run {
-            val hasLatin = originalLemma.any { it in 'a'..'z' || it in 'A'..'Z' || it in "äöüßÄÖÜ" }
-            val hasCyrillic = originalLemma.any { it in 'а'..'я' || it in 'А'..'Я' }
-            !hasLatin && !hasCyrillic
-        }
-        
-        if ((errorDepthStr == "ERROR" || errorDepthStr == "MISTAKE") && isAsrGarbage) {
-            logger.w("A1ReviewSession.eval: rejecting bogus $errorDepthStr due to ASR garbage: '$originalLemma'")
-            return """{"status":"skipped","reason":"asr_garbage"}"""
-        }
 
         val diagnosis = ErrorDiagnosis(
             source = ErrorSource.fromString(call.args["error_source"]),
@@ -218,10 +180,7 @@ $wordList
 
         return lemmaLock(lemma).withLock {
             val entity = lemmaDao.getByLemma(lemma)
-            if (entity == null) {
-                logger.w("A1ReviewSession.eval: lemma '$lemma' (raw='$originalLemma') not in DB")
-                return@withLock """{"status":"ignored","reason":"unknown lemma"}"""
-            }
+                ?: return@withLock """{"status":"ignored","reason":"unknown lemma"}"""
 
             val adjustedQuality = when (diagnosis.depth) {
                 ErrorDepth.NONE, ErrorDepth.SLIP -> quality
