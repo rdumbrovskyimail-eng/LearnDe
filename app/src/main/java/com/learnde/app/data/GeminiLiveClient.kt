@@ -392,21 +392,11 @@ class GeminiLiveClient(
                 }
 
                 // ─── Транскрипция ───
-                // ВАЖНО: Gemini Live API v1beta НЕ поддерживает поле 
-                // "languageCode" внутри inputAudioTranscription / 
-                // outputAudioTranscription. Любая попытка отправить это 
-                // поле приводит к закрытию соединения с кодом 1007.
-                //
-                // Поэтому шлём ПУСТЫЕ объекты — этого достаточно, чтобы 
-                // сервер начал слать transcription-события.
-                //
-                // Для подсказки ASR/TTS какой язык ожидается, используется 
-                // speechConfig.languageCode (он передаётся выше).
                 if (config.sendTranscriptionConfig) {
-                    if (config.inputTranscription.enabled) {
+                    if (config.inputTranscription) {
                         put("inputAudioTranscription", buildJsonObject {})
                     }
-                    if (config.outputTranscription.enabled) {
+                    if (config.outputTranscription) {
                         put("outputAudioTranscription", buildJsonObject {})
                     }
                 }
