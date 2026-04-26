@@ -475,8 +475,12 @@ class VoiceViewModel @Inject constructor(
                 cachedSettings.vadSilenceTimeoutMs else 100,
             vadPrefixPaddingMs = 20,
             systemInstruction = finalSystemInstruction,
-            inputTranscription = com.learnde.app.domain.model.TranscriptionConfig(cachedSettings.inputTranscription),
-            outputTranscription = com.learnde.app.domain.model.TranscriptionConfig(cachedSettings.outputTranscription),
+            inputTranscription = com.learnde.app.domain.model.TranscriptionConfig(
+                enabled = cachedSettings.inputTranscription
+            ),
+            outputTranscription = com.learnde.app.domain.model.TranscriptionConfig(
+                enabled = cachedSettings.outputTranscription
+            ),
             enableSessionResumption = cachedSettings.enableSessionResumption,
             transparentResumption = cachedSettings.transparentResumption,
             sessionHandle = liveClient.sessionHandle,
