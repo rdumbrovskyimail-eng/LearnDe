@@ -218,7 +218,10 @@ $wordList
 
         return lemmaLock(lemma).withLock {
             val entity = lemmaDao.getByLemma(lemma)
-                ?: return@withLock """{"status":"ignored","reason":"unknown lemma"}"""
+            if (entity == null) {
+                logger.w("A1ReviewSession.eval: lemma '$lemma' (raw='$originalLemma') not in DB")
+                return@withLock """{"status":"ignored","reason":"unknown lemma"}"""
+            }
 
             val adjustedQuality = when (diagnosis.depth) {
                 ErrorDepth.NONE, ErrorDepth.SLIP -> quality
