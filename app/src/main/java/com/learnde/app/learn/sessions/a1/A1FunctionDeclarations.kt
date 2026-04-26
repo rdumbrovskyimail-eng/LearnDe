@@ -51,7 +51,7 @@ object A1FunctionDeclarations {
         name = FN_MARK_LEMMA_PRODUCED,
         description = "Вызывай когда ученик успешно использовал лемму в своей речи.",
         parameters = mapOf(
-            "lemma" to ParameterConfig(type = "STRING", description = "Базовая форма леммы."),
+            "lemma" to ParameterConfig(type = "STRING", description = "Базовая форма леммы БЕЗ артикля и БЕЗ окончаний. ПРАВИЛЬНО: 'Tag', 'Morgen'. НЕПРАВИЛЬНО: 'der Tag'."),
             "quality" to ParameterConfig(type = "INTEGER", description = "Качество 1-7.")
         ),
         required = listOf("lemma", "quality")
