@@ -363,7 +363,7 @@ class A1SituationSession @Inject constructor(
             val entity = lemmaDao.getByLemma(lemma)
             val intervention = diagnosis.recommendedIntervention()
             if (entity == null) {
-                logger.w("A1Session.eval: lemma '$lemma' not in DB (Gemini сочинил?)")
+                logger.w("A1Session.eval: lemma '$lemma' (raw='$originalLemma') not in DB (Gemini сочинил?)")
                 bus.emitSuspend(A1LearningEvent.LemmaEvaluated(
                     lemma = lemma, quality = quality, diagnosis = diagnosis,
                     intervention = intervention, feedback = feedback,
