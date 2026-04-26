@@ -961,6 +961,28 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Обновляет текст последнего USER-сообщения (для инкрементальных 
+     * ASR-апдейтов). Если последнее сообщение не USER — добавляет новое.
+     */
+    private suspend fun updateLastUserTranscript(text: String) {
+        transcriptMutex.withLock {
+            val last = transcriptBuffer.lastOrNull()
+            if (last != null && last.role == ConversationMessage.ROLE_USER) {
+                val updated = last.copy(text = text)
+                val next = transcriptBuffer.toMutableList()
+                next[next.size - 1] = updated
+                transcriptBuffer = next
+                _state.update { it.copy(transcript = next) }
+            } else {
+                val next = (transcriptBuffer + ConversationMessage.user(text))
+                    .takeLast(MAX_TRANSCRIPT_SIZE)
+                transcriptBuffer = next
+                _state.update { it.copy(transcript = next) }
+            }
+        }
+    }
+
     private fun appendOrAppendToLastModel(text: String) {
         if (text.isEmpty()) return
         pendingModelText.append(text)
