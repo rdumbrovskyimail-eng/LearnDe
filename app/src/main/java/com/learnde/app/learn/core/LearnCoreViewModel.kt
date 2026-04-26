@@ -629,9 +629,12 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.Interrupted -> {
+                        // ФИКС: НЕ выкидываем pendingModelText, а флашим его.
+                        // Иначе при ложном барджине (например, эхо динамика 
+                        // через мик) теряется уже распознанный текст модели.
+                        if (pendingModelText.isNotEmpty()) flushPendingModelText()
                         audioEngine.flushPlayback()
                         _state.update { it.copy(isAiSpeaking = false) }
-                        pendingModelText.clear()
                         audioReceivedThisTurn = false
                         pendingFlushJob?.cancel()
                         pendingFlushJob = null
