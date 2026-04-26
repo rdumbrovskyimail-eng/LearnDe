@@ -207,7 +207,7 @@ fun TranslatorScreen(
         ) {
             // ─── Inline-loader + AudioParticleBox ───
             AnimatedVisibility(
-                visible = showInlineLoader,
+                visible = showInlineLoader || isActive,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically(),
             ) {
@@ -217,8 +217,28 @@ fun TranslatorScreen(
                         .fillMaxWidth()
                         .padding(top = LearnTokens.PaddingSm, bottom = LearnTokens.PaddingMd),
                 ) {
-                    InlineLoadingBar(modifier = Modifier.weight(1f))
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = showInlineLoader,
+                        transitionSpec = {
+                            fadeIn(tween(300)) togetherWith fadeOut(tween(300))
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = "loaderAnim"
+                    ) { isLoaderVisible: Boolean ->
+                        if (isLoaderVisible) {
+                            InlineLoadingBar(modifier = Modifier.fillMaxWidth())
+                        } else {
+                            SpeakerStatusIndicator(
+                                isActive = isActive,
+                                isAiSpeaking = learnState.isAiSpeaking,
+                                isMicActive = learnState.isMicActive,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                    
                     Spacer(Modifier.width(LearnTokens.PaddingSm))
+                    
                     AudioParticleBox(
                         playbackSync = learnCoreViewModel.audioPlaybackFlow,
                         size = 36.dp,
@@ -227,24 +247,7 @@ fun TranslatorScreen(
             }
 
             // ─── Hero banner: RU/UA ↔ DE ───
-            Spacer(Modifier.height(LearnTokens.PaddingSm))
             LanguageFlowBanner(isActive = isActive)
-            Spacer(Modifier.height(LearnTokens.PaddingMd))
-
-            // ─── AudioParticleBox + speaker status ───
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SpeakerStatusIndicator(
-                    isActive = isActive,
-                    isAiSpeaking = learnState.isAiSpeaking,
-                    isMicActive = learnState.isMicActive,
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(LearnTokens.PaddingSm))
-                AudioParticleBox(
-                    playbackSync = learnCoreViewModel.audioPlaybackFlow,
-                    size = 44.dp,
-                )
-            }
             Spacer(Modifier.height(LearnTokens.PaddingMd))
 
             // ─── Транскрипт (главная зона) ───
