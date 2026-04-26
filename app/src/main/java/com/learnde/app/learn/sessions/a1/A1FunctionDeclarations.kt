@@ -41,7 +41,7 @@ object A1FunctionDeclarations {
         parameters = mapOf(
             "lemma" to ParameterConfig(
                 type = "STRING",
-                description = "Базовая форма леммы БЕЗ артикля и БЕЗ окончаний. ПРАВИЛЬНО: 'Tag', 'Morgen', 'Wiederhören', 'hallo'. НЕПРАВИЛЬНО: 'der Tag', 'das Wiederhören', 'guten Morgen', 'Häuser'. Если фраза составная (например 'guten Tag') — шли ТОЛЬКО ключевое существительное: 'Tag'."
+                description = "Базовая форма леммы (например 'Haus', не 'Häuser')."
             )
         ),
         required = listOf("lemma")
@@ -51,7 +51,7 @@ object A1FunctionDeclarations {
         name = FN_MARK_LEMMA_PRODUCED,
         description = "Вызывай когда ученик успешно использовал лемму в своей речи.",
         parameters = mapOf(
-            "lemma" to ParameterConfig(type = "STRING", description = "Базовая форма леммы БЕЗ артикля и БЕЗ окончаний. ПРАВИЛЬНО: 'Tag', 'Morgen'. НЕПРАВИЛЬНО: 'der Tag'."),
+            "lemma" to ParameterConfig(type = "STRING", description = "Базовая форма леммы."),
             "quality" to ParameterConfig(type = "INTEGER", description = "Качество 1-7.")
         ),
         required = listOf("lemma", "quality")
@@ -70,7 +70,7 @@ object A1FunctionDeclarations {
         parameters = mapOf(
             "lemma" to ParameterConfig(
                 type = "STRING",
-                description = "Базовая форма леммы БЕЗ артикля и БЕЗ окончаний. ПРАВИЛЬНО: 'Tag', 'Morgen', 'Wiederhören', 'hallo'. НЕПРАВИЛЬНО: 'der Tag', 'das Wiederhören', 'guten Morgen', 'Häuser'. Если фраза составная (например 'guten Tag') — шли ТОЛЬКО ключевое существительное: 'Tag'."
+                description = "Лемма, которую ученик пытался использовать."
             ),
             "quality" to ParameterConfig(
                 type = "INTEGER",
