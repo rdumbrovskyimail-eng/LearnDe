@@ -70,7 +70,7 @@ object A1FunctionDeclarations {
         parameters = mapOf(
             "lemma" to ParameterConfig(
                 type = "STRING",
-                description = "Лемма, которую ученик пытался использовать."
+                description = "Базовая форма леммы БЕЗ артикля и БЕЗ окончаний. ПРАВИЛЬНО: 'Tag', 'Morgen', 'Wiederhören', 'hallo'. НЕПРАВИЛЬНО: 'der Tag', 'das Wiederhören', 'guten Morgen', 'Häuser'. Если фраза составная (например 'guten Tag') — шли ТОЛЬКО ключевое существительное: 'Tag'."
             ),
             "quality" to ParameterConfig(
                 type = "INTEGER",
