@@ -370,7 +370,7 @@ private fun DiagnosisRow(diagnosis: ErrorDiagnosis) {
 private fun MiniChip(text: String, color: Color) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(LearnTokens.RadiusXxs))
             .background(color.copy(alpha = 0.15f))
             .padding(horizontal = 5.dp, vertical = 1.dp),
     ) {
