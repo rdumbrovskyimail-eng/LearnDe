@@ -261,8 +261,8 @@ class VoiceViewModel @Inject constructor(
                 diagnosticMinimalSetup = true,
                 enableSessionResumption = false,
                 enableContextCompression = false,
-                inputTranscription = false,
-                outputTranscription = false,
+                inputTranscription = com.learnde.app.domain.model.TranscriptionConfig(false),
+                outputTranscription = com.learnde.app.domain.model.TranscriptionConfig(false),
                 logFullSetupJson = true
             )
 
