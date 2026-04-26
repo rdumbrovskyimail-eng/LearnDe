@@ -83,7 +83,7 @@ class A1DataImporter @Inject constructor(
         // колонка останется пустой и кластеры не свяжутся с грамматикой.
 
         // ФИКС: Синхронизировано с A1Database version = 4
-        const val CURRENT_DATA_VERSION = 4
+        const val CURRENT_DATA_VERSION = 5
     }
 
     /**
