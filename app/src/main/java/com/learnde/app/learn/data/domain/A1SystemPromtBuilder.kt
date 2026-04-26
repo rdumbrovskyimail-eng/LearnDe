@@ -73,9 +73,13 @@ $userLine
 ID правила: ${cluster.grammarRuleId ?: "(нет)"}
 
 ═══ ОСНОВНЫЕ СЛОВА УРОКА ═══
+Формат: <basic_form> [<артикль если существительное>] — <часть речи>
+ВАЖНО: в функции mark_lemma_heard / evaluate_and_update_lemma шли ТОЛЬКО basic_form БЕЗ артикля.
 $lemmasList
 
 ═══ СЛОВА НА ПОВТОРЕНИЕ (включи ОБЯЗАТЕЛЬНО в WARM_UP или DRILL) ═══
+Формат: <basic_form> [<артикль если существительное>] — <часть речи>
+ВАЖНО: в функции mark_lemma_heard / evaluate_and_update_lemma шли ТОЛЬКО basic_form БЕЗ артикля.
 $reviewList
 
 $grammarBlock
