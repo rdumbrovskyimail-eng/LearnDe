@@ -365,6 +365,10 @@ class LearnCoreViewModel @Inject constructor(
         pendingFlushJob = null
         modelStartedSpeakingThisTurn = false
         awaitingInitialGreeting = false
+        sessionFinished = false
+        lastAiAudioChunkAtMs = 0L
+        lastSilencePromptAtMs = 0L
+        droppedMicChunks = 0
         setupJob?.cancel()
         setupJob = null
 
@@ -407,6 +411,10 @@ class LearnCoreViewModel @Inject constructor(
         pendingFlushJob = null
         modelStartedSpeakingThisTurn = false
         awaitingInitialGreeting = false
+        sessionFinished = false
+        lastAiAudioChunkAtMs = 0L
+        lastSilencePromptAtMs = 0L
+        droppedMicChunks = 0
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
         setupJob = null
