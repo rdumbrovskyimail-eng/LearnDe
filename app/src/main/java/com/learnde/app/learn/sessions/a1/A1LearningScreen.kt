@@ -1056,12 +1056,20 @@ private fun ChatSection(
                 .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                "Диалог",
-                fontSize = LearnTokens.FontSizeCaption,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.textMid,
-            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(LearnTokens.RadiusXxs))
+                    .background(colors.surfaceVar)
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    "Диалог",
+                    fontSize = LearnTokens.FontSizeCaption,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textMid,
+                    letterSpacing = LearnTokens.CapsLetterSpacing,
+                )
+            }
             Spacer(Modifier.weight(1f))
             SpeakingIndicator(isAiSpeaking = isAiSpeaking, isMicActive = isMicActive)
         }
