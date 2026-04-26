@@ -197,6 +197,23 @@ fun A0a1TestScreen(
 
             Spacer(Modifier.height(LearnTokens.PaddingMd))
 
+            // ─── Inline loader ───
+            AnimatedVisibility(
+                visible = learnState.isPreparingSession && learnState.transcript.isEmpty(),
+                enter = fadeIn() + androidx.compose.animation.expandVertically(),
+                exit = fadeOut() + androidx.compose.animation.shrinkVertically(),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = LearnTokens.PaddingMd),
+                ) {
+                    com.learnde.app.presentation.learn.components.InlineLoadingBar(
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
             // ─── Question card + AudioParticleBox ───
             Row(verticalAlignment = Alignment.Top) {
                 QuestionCard(
