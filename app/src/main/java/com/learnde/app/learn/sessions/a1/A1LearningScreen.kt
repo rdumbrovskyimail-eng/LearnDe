@@ -949,7 +949,7 @@ private fun DiagChip(text: String) {
     val colors = learnColors()
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(LearnTokens.RadiusXxs))
             .background(colors.surfaceVar)
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
