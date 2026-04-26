@@ -140,6 +140,13 @@ class LearnCoreViewModel @Inject constructor(
          * спамить модель если ученик надолго замолчал.
          */
         private const val SILENCE_PROMPT_COOLDOWN_MS = 30_000L
+
+        /** 
+         * Сколько ждать после finish_session, прежде чем закрыть сессию. 
+         * Окно нужно чтобы модель успела доиграть прощальную TTS-реплику 
+         * и прислать отложенные mark_lemma_produced.
+         */
+        private const val FINISH_SESSION_GRACE_MS = 5_000L
     }
 
     private val _state = MutableStateFlow(LearnCoreState())
