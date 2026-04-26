@@ -502,10 +502,31 @@ class LearnCoreViewModel @Inject constructor(
             // 1. Запускаем сбор аудиоданных ВНЕ мьютекса
             launch {
                 audioEngine.micOutput.collect { chunk ->
-                    // Не отправляем чанки, пока модель сама говорит — иначе создаём
-                    // акустический фидбек: динамик → микрофон → распознавание собственной речи.
-                    if (!_state.value.isAiSpeaking) {
+                    // ГЕЙТ ПО ИЗМЕРЕННОМУ ВРЕМЕНИ С ПОСЛЕДНЕГО PCM-ЧАНКА МОДЕЛИ.
+                    // 
+                    // Раньше использовался флаг isAiSpeaking, но он снимается 
+                    // только на TurnComplete, который после tool-calls часто 
+                    // приходит с задержкой 2-19 секунд → mic "глох".
+                    //
+                    // Новая логика: модель реально звучит в динамик только 
+                    // если с момента последнего AudioChunk прошло меньше 
+                    // AI_AUDIO_TAIL_MS (600мс). Это окно покрывает jitter 
+                    // buffer + хвост AudioTrack. Если новые чанки перестали 
+                    // приходить — гейт открывается автоматически, без 
+                    // зависимости от TurnComplete.
+                    val now = System.currentTimeMillis()
+                    val sinceLastAi = now - lastAiAudioChunkAtMs
+                    val aiActuallyAudible = lastAiAudioChunkAtMs > 0L &&
+                                            sinceLastAi < AI_AUDIO_TAIL_MS
+
+                    if (!aiActuallyAudible) {
                         liveClient.sendAudio(chunk)
+                        if (droppedMicChunks > 0) {
+                            logger.d("Mic: gate opened, dropped $droppedMicChunks chunks during AI tail")
+                            droppedMicChunks = 0
+                        }
+                    } else {
+                        droppedMicChunks++
                     }
                 }
             }
