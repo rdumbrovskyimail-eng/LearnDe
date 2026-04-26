@@ -421,11 +421,10 @@ private fun ScoreCircle(points: Int, threshold: Int, lastPoints: Int?) {
     }
 
     Box(
-        modifier = Modifier.size(180.dp),
+        modifier = Modifier.size(160.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(modifier = Modifier.size(160.dp)) {
-            val density = 1f
+        Canvas(modifier = Modifier.size(140.dp)) {
             val stroke = 8.dp.toPx()
             drawArc(
                 color = colors.stroke,
@@ -461,7 +460,7 @@ private fun ScoreCircle(points: Int, threshold: Int, lastPoints: Int?) {
             ) { n ->
                 Text(
                     text = n.toString(),
-                    fontSize = 56.sp,
+                    fontSize = 48.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = colors.textHi,
                 )
