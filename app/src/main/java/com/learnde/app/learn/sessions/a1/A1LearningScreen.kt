@@ -1261,9 +1261,9 @@ private fun BottomActionButton(
                             )
                         }
                     },
-                    modifier = Modifier.height(48.dp),
-                    shape = RoundedCornerShape(LearnTokens.RadiusSm),
-                    contentPadding = PaddingValues(horizontal = LearnTokens.PaddingMd, vertical = 6.dp),
+                        modifier = Modifier.height(LearnTokens.ButtonHeightMd),
+                        shape = RoundedCornerShape(LearnTokens.RadiusSm),
+                        contentPadding = PaddingValues(horizontal = LearnTokens.PaddingMd, vertical = 6.dp),
                     border = BorderStroke(LearnTokens.BorderThin, colors.stroke),
                 ) {
                     Text(
@@ -1278,7 +1278,7 @@ private fun BottomActionButton(
                     onClick = { vm.onIntent(A1LearningIntent.StopSession) },
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(LearnTokens.ButtonHeightMd),
                     shape = RoundedCornerShape(LearnTokens.RadiusSm),
                     colors = ButtonDefaults.buttonColors(containerColor = colors.error),
                 ) {
@@ -1299,7 +1299,7 @@ private fun BottomActionButton(
                     onClick = { vm.onIntent(A1LearningIntent.StartNextCluster) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .height(LearnTokens.ButtonHeightMd),
                     shape = RoundedCornerShape(LearnTokens.RadiusSm),
                     colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
                 ) {
@@ -1343,7 +1343,7 @@ private fun BottomActionButton(
                 onClick = { vm.onIntent(A1LearningIntent.StartReviewSession) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
+                    .height(LearnTokens.ButtonHeightMd),
                 shape = RoundedCornerShape(LearnTokens.RadiusSm),
                 colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
             ) {
