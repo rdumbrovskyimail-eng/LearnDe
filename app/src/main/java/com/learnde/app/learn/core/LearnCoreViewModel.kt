@@ -287,6 +287,10 @@ class LearnCoreViewModel @Inject constructor(
             maxOf(cachedSettings.vadSilenceTimeoutMs, 500)
         else silenceMs
 
+        // ФИКС 1: Для переводчика отключаем жесткую привязку к языку, 
+        // чтобы ASR распознавал все языки (RU/UA/EN/DE) автоматически.
+        val finalLanguageCode = if (session.id == "translator") null else cachedSettings.languageCode
+
         return SessionConfig(
             model = cachedSettings.model,
             temperature = temp,
@@ -296,7 +300,7 @@ class LearnCoreViewModel @Inject constructor(
             presencePenalty = cachedSettings.presencePenalty,
             frequencyPenalty = cachedSettings.frequencyPenalty,
             voiceId = cachedSettings.voiceId,
-            languageCode = cachedSettings.languageCode,
+            languageCode = finalLanguageCode,
             latencyProfile = profile,
             autoActivityDetection = cachedSettings.enableServerVad,
             vadStartSensitivity = if (cachedSettings.vadStartOfSpeechSensitivity > 0.5f)
