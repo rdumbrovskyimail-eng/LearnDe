@@ -34,7 +34,7 @@ import javax.inject.Singleton
         A1SessionLogEntity::class,
         A1UserProgressEntity::class,
     ],
-    version = 5, // v3.5.1: Очистка дублей лемм и артиклей
+    version = 4, // v3.1.2: grammarRuleId в a1_clusters
     exportSchema = false
 )
 @TypeConverters(A1Converters::class)
@@ -74,24 +74,6 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
-val MIGRATION_4_5 = object : Migration(4, 5) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        // Удаляем явный мусор с артиклями
-        db.execSQL("DELETE FROM a1_lemmas WHERE lemma LIKE 'der %' OR lemma LIKE 'die %' OR lemma LIKE 'das %'")
-        // Удаляем дубли в нижнем регистре, если есть нормальная версия
-        db.execSQL("""
-            DELETE FROM a1_lemmas 
-            WHERE lemma = LOWER(lemma) 
-            AND pos = 'Substantiv' 
-            AND EXISTS (
-                SELECT 1 FROM a1_lemmas AS t2 
-                WHERE LOWER(t2.lemma) = a1_lemmas.lemma 
-                AND t2.lemma != a1_lemmas.lemma
-            )
-        """)
-    }
-}
-
 class A1Converters {
     @TypeConverter
     fun listToJson(list: List<String>?): String =
@@ -113,8 +95,8 @@ object A1DatabaseModule {
     @Singleton
     fun provideA1Database(@ApplicationContext ctx: Context): A1Database =
         Room.databaseBuilder(ctx, A1Database::class.java, "a1_learning.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
-            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true) // <-- Вернуть эту строку
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
 
     @Provides fun provideLemmaDao(db: A1Database) = db.lemmaDao()
