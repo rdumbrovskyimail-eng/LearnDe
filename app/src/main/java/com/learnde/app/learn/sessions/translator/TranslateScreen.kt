@@ -1,12 +1,13 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v5.1
+// ПОЛНАЯ ЗАМЕНА v5.2
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/translator/TranslateScreen.kt
 //
-// ИЗМЕНЕНИЯ v5.1:
-//   - detectLang теперь возвращает 4 состояния: DE / RU / UK / UNKNOWN
-//   - Метка пузыря "ВЫ · DETECTING…" пока текст слишком короткий
-//   - Добавлено различение RU vs UK по украинским буквам
-//   - Остальная UI не тронута
+// ИЗМЕНЕНИЯ v5.2:
+//   - Детектор языка: убран апостроф из UKR_SPECIFIC (баг "Wie geht's?"→UA)
+//   - Расширен немецкий словарь (toll, klasse, super, hallo, danke, bitte, etc)
+//   - Метка UNKNOWN теперь "?" вместо "…" (понятнее)
+//   - Поддержка цифр и числительных в детекции (если только цифры — UNKNOWN
+//     не показываем, т.к. цифры одинаково звучат во многих языках)
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.translator
 
@@ -481,7 +482,7 @@ private fun TranscriptBubble(message: ConversationMessage) {
         DetectedLang.DE -> "DE"
         DetectedLang.RU -> "RU"
         DetectedLang.UK -> "UA"
-        DetectedLang.UNKNOWN -> "…"
+        DetectedLang.UNKNOWN -> "?"
     }
     val label = when {
         isUser -> "ВЫ · $langText"
@@ -605,7 +606,10 @@ private fun MainMicButton(
 // ─── Language detection (4-state) ───
 private enum class DetectedLang { DE, RU, UK, UNKNOWN }
 
-private val UKR_SPECIFIC = "ієґїІЄҐЇ'ʼ"
+// ВАЖНО: апостроф убран из набора — он встречается в немецких контракциях
+// типа "Wie geht's?" и не должен триггерить украинский.
+private val UKR_SPECIFIC_LETTERS = "ієґїІЄҐЇ"
+
 private val GERMAN_FUNCTION_WORDS = setOf(
     "der","die","das","den","dem","des","ein","eine","einen","einem","einer","eines",
     "ich","du","er","sie","es","wir","ihr","mich","dich","ihn","uns","euch","ihnen",
@@ -613,29 +617,38 @@ private val GERMAN_FUNCTION_WORDS = setOf(
     "ist","sind","war","waren","habe","hat","haben","wird","werden",
     "nicht","kein","keine","mit","ohne","für","gegen","über","unter","auf","aus",
     "bei","nach","seit","vor","durch","zu","in","an","im","am","ins","ans",
-    "ja","nein","auch","schon","noch","mehr","sehr","gut","heute","morgen","gestern"
+    "ja","nein","auch","schon","noch","mehr","sehr","gut","heute","morgen","gestern",
+    "hallo","danke","bitte","tschüss","toll","klasse","super","wunderbar",
+    "wie","was","wo","wer","wann","warum","welcher","welche","welches",
+    "geht","gehst","gehen","macht","machst","machen",
+    "kosten","möglich","ändern","wirklich","funktionieren","jetzt"
 )
 
 private fun detectLang(text: String): DetectedLang {
-    if (text.isBlank() || text == "..." || text == "…") return DetectedLang.UNKNOWN
+    val cleaned = text.trim()
+    if (cleaned.isBlank() || cleaned == "..." || cleaned == "…" || cleaned == "?") {
+        return DetectedLang.UNKNOWN
+    }
 
-    val hasCyrillic = text.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' }
-    val hasUkrSpecific = text.any { it in UKR_SPECIFIC }
-    val hasUmlauts = text.any { it in "äöüßÄÖÜ" }
+    val hasCyrillic = cleaned.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' }
+    val hasUkrSpecific = cleaned.any { it in UKR_SPECIFIC_LETTERS }
+    val hasUmlauts = cleaned.any { it in "äöüßÄÖÜ" }
+    val hasLatinLetters = cleaned.any { it in 'a'..'z' || it in 'A'..'Z' }
 
     return when {
         hasUkrSpecific -> DetectedLang.UK
         hasCyrillic -> DetectedLang.RU
         hasUmlauts -> DetectedLang.DE
-        else -> {
-            // Латиница без умлаутов — проверим по словарю немецких служебных слов
-            val tokens = text.lowercase()
-                .replace(Regex("[^a-z ]"), " ")
+        hasLatinLetters -> {
+            // Латиница без умлаутов — проверим словарь
+            val tokens = cleaned.lowercase()
+                .replace(Regex("[^a-zäöüß]"), " ")
                 .split(Regex("\\s+"))
                 .filter { it.isNotBlank() }
             if (tokens.isEmpty()) return DetectedLang.UNKNOWN
             val deHits = tokens.count { it in GERMAN_FUNCTION_WORDS }
             if (deHits > 0) DetectedLang.DE else DetectedLang.UNKNOWN
         }
+        else -> DetectedLang.UNKNOWN  // только цифры/знаки
     }
 }
