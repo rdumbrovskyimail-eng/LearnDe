@@ -16,6 +16,7 @@ data class LearnCoreState(
     val error: UiText? = null,
     val apiKeySet: Boolean = false,
     val arbiterOwned: Boolean = false,
+    val liveUserTranscript: String = "",
     // ФИНАЛ: Флаг для показа красивой анимации загрузки
     val isPreparingSession: Boolean = false, 
     val isFinishingSession: Boolean = false,
