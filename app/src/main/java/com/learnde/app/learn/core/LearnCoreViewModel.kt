@@ -117,6 +117,11 @@ class LearnCoreViewModel @Inject constructor(
         // v3.7: критерии "короткой латинской галлюцинации"
         private const val ASR_GARBAGE_MAX_WORDS = 2
         private const val ASR_GARBAGE_MAX_CHARS = 18
+
+        /** Опциональный фильтр коротких ASR-галлюцинаций в translator-режиме.
+         *  Если true — Hola/Pesa la otra/cocktail заменяются на "…" с меткой ВЫ · ?
+         *  Чтобы сделать тоглом — замените на cachedSettings.<flag> в трёх местах ниже. */
+        private const val TRANSLATOR_SUPPRESS_SHORT_ASR_GARBAGE = true
     }
 
     private val _state = MutableStateFlow(LearnCoreState())
@@ -235,7 +240,7 @@ class LearnCoreViewModel @Inject constructor(
             DeltaClass.MEANINGFUL -> {
                 // v3.7: дополнительная проверка для translator-режима
                 if (activeSession?.id == "translator"
-                    && cachedSettings.translatorSuppressShortAsrGarbage
+                    && TRANSLATOR_SUPPRESS_SHORT_ASR_GARBAGE
                     && isShortLatinAsrGarbage(text)) {
                     logger.d("Learn: short latin ASR garbage suppressed: '$text'")
                     lastRejectedUserDelta = text
@@ -315,7 +320,7 @@ class LearnCoreViewModel @Inject constructor(
             fallback.isNotEmpty() -> {
                 // v3.7: для translator с включённым флагом — заменяем мусор на "…"
                 val textToShow = if (activeSession?.id == "translator"
-                    && cachedSettings.translatorSuppressShortAsrGarbage) {
+                    && TRANSLATOR_SUPPRESS_SHORT_ASR_GARBAGE) {
                     "…"
                 } else {
                     fallback
@@ -672,7 +677,7 @@ class LearnCoreViewModel @Inject constructor(
             logger.d(
                 "Learn: config for ${session.id}: silence=${finalSilenceMs}ms, " +
                     "prefix=${prefixMs}ms, temp=$temp, outputTr=${cachedSettings.outputTranscription}, " +
-                    "garbageSuppress=${cachedSettings.translatorSuppressShortAsrGarbage}"
+                    "garbageSuppress=$TRANSLATOR_SUPPRESS_SHORT_ASR_GARBAGE"
             )
         }
     }
@@ -1340,17 +1345,12 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    // ═══════════════════════════════════════════════════════
-    //  v3.7: словари для эвристики ASR-garbage
-    // ═══════════════════════════════════════════════════════
-
-    companion object Dictionaries {
-        // Не использую companion object в общем смысле — это просто
-        // анонимный namespace. Реальный companion определён выше.
-    }
 }
 
-// Вынесены из класса чтобы не разрастался companion object выше
+// ═══════════════════════════════════════════════════════
+// v3.7: словари для эвристики ASR-garbage (top-level private)
+// ═══════════════════════════════════════════════════════
+
 private val KNOWN_GERMAN_WORDS = setOf(
     "der","die","das","den","dem","des","ein","eine","einen","einem","einer",
     "ich","du","er","sie","es","wir","ihr","mich","dich","ihn","uns","euch",
@@ -1363,7 +1363,7 @@ private val KNOWN_GERMAN_WORDS = setOf(
     "wie","was","wo","wer","wann","warum","welcher","welche","welches",
     "guten","tag","abend","nacht","entschuldigung",
     "geht","gehst","gehen","macht","machst","machen","kommt","kommst","kommen",
-    "alles","nichts","etwas","jetzt","heute","morgen"
+    "alles","nichts","etwas","jetzt"
 )
 
 private val KNOWN_ENGLISH_WORDS = setOf(
