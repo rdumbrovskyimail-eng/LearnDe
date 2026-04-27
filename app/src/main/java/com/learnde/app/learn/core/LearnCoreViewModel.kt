@@ -278,30 +278,28 @@ class LearnCoreViewModel @Inject constructor(
         }
         liveUserMessageTs = 0L
     }
-            }
-            DeltaClass.AMBIGUOUS -> {
-                lastRejectedUserDelta = text
-                logger.d("Learn: ambiguous delta saved as fallback: '$text'")
-                return
-            }
-        }
+
+    private suspend fun handleUserDelta(text: String) {
+        if (text.isEmpty()) return
 
         val current = userTurnBuffer.toString()
         when {
             current.isEmpty() -> userTurnBuffer.append(text)
-            text == current -> return
-            text.startsWith(current) && text.length > current.length -> {
+            text.startsWith(current) -> {
                 userTurnBuffer.clear()
                 userTurnBuffer.append(text)
             }
-            current.endsWith(text) -> return
-            else -> userTurnBuffer.append(text)
+            current.contains(text) -> { 
+            }
+            else -> {
+                userTurnBuffer.append(" ").append(text)
+            }
         }
+
+        _state.update { it.copy(liveUserTranscript = userTurnBuffer.toString()) }
 
         lastInputTs = System.currentTimeMillis()
         silenceTimerJob?.cancel()
-
-        upsertLiveUserBubble(userTurnBuffer.toString())
     }
 
     private suspend fun handleModelDelta(text: String, source: String) {
@@ -334,37 +332,7 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    private suspend fun finalizeUserTurn() {
-        val bufferedText = userTurnBuffer.toString().trim()
-        val fallback = lastRejectedUserDelta.trim()
 
-        userTurnBuffer.clear()
-        lastRejectedUserDelta = ""
-
-        when {
-            bufferedText.isNotEmpty() -> {
-                if (liveUserMessageTs != 0L) {
-                    updateBubbleByTs(liveUserMessageTs, bufferedText, ConversationMessage.ROLE_USER)
-                } else {
-                    upsertLiveUserBubble(bufferedText)
-                }
-            }
-            fallback.isNotEmpty() -> {
-                // v3.7: для translator с включённым флагом — заменяем мусор на "…"
-                val textToShow = if (activeSession?.id == "translator"
-                    && TRANSLATOR_SUPPRESS_SHORT_ASR_GARBAGE) {
-                    "…"
-                } else {
-                    fallback
-                }
-                logger.d("Learn: turn ended with only ambiguous deltas, showing: '$textToShow'")
-                upsertLiveUserBubble(textToShow)
-            }
-            else -> {}
-        }
-
-        liveUserMessageTs = 0L
-    }
 
     private suspend fun finalizeModelTurn() {
         val finalText = modelTurnBuffer.toString().trim()
@@ -535,79 +503,7 @@ class LearnCoreViewModel @Inject constructor(
         textWithoutAudioJob = null
     }
 
-    // ═══════════════════════════════════════════════════════
-    //  v3.7: КЛАССИФИКАЦИЯ ASR-ВВОДА
-    // ═══════════════════════════════════════════════════════
 
-    private enum class DeltaClass { MEANINGFUL, AMBIGUOUS, CJK_GARBAGE }
-
-    private fun classifyUserDelta(text: String): DeltaClass {
-        val hasAsianGarbage = text.any { c ->
-            val block = Character.UnicodeBlock.of(c) ?: return@any false
-            block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
-                block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||
-                block == Character.UnicodeBlock.CJK_SYMBOLS_AND_PUNCTUATION ||
-                block == Character.UnicodeBlock.HIRAGANA ||
-                block == Character.UnicodeBlock.KATAKANA ||
-                block == Character.UnicodeBlock.HANGUL_SYLLABLES ||
-                block == Character.UnicodeBlock.HANGUL_JAMO ||
-                block == Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO ||
-                block == Character.UnicodeBlock.ARABIC ||
-                block == Character.UnicodeBlock.HEBREW ||
-                block == Character.UnicodeBlock.THAI
-        }
-        if (hasAsianGarbage) return DeltaClass.CJK_GARBAGE
-
-        val hasMeaningful = text.any { c ->
-            c in 'a'..'z' || c in 'A'..'Z' ||
-                c in 'а'..'я' || c in 'А'..'Я' ||
-                c == 'ё' || c == 'Ё' ||
-                c in "äöüßÄÖÜ" ||
-                c in "ієґїІЄҐЇ" ||
-                c in "čšžćđČŠŽĆĐ" ||
-                c in '0'..'9'
-        }
-        if (hasMeaningful) return DeltaClass.MEANINGFUL
-
-        return DeltaClass.AMBIGUOUS
-    }
-
-    /**
-     * v3.7: эвристика "это короткая латинская галлюцинация ASR".
-     *
-     * Условия (все должны быть выполнены):
-     *   - Текст ≤ ASR_GARBAGE_MAX_WORDS слов И ≤ ASR_GARBAGE_MAX_CHARS символов
-     *   - Только латиница (нет кириллицы и нет умлаутов)
-     *   - НЕТ немецких служебных слов (в этом случае это валидный немецкий ввод)
-     *   - НЕТ английских служебных слов (валидный английский ввод)
-     *
-     * Срабатывает на: "Hola", "Pesa la otra", "cocktail", "Naviščou", "zoutra"
-     * НЕ срабатывает на: "Hallo", "Danke", "Yes", "OK", "Hello"
-     */
-    private fun isShortLatinAsrGarbage(text: String): Boolean {
-        val cleaned = text.trim()
-        if (cleaned.isEmpty()) return false
-        if (cleaned.length > ASR_GARBAGE_MAX_CHARS) return false
-
-        val words = cleaned.split(Regex("\\s+")).filter { it.isNotBlank() }
-        if (words.size > ASR_GARBAGE_MAX_WORDS) return false
-
-        // Если есть кириллица или умлауты — точно не галлюцинация
-        val hasCyrillic = cleaned.any { it in 'а'..'я' || it in 'А'..'Я' }
-        if (hasCyrillic) return false
-        val hasUmlauts = cleaned.any { it in "äöüßÄÖÜ" }
-        if (hasUmlauts) return false
-
-        // Проверяем словари для немецкого и английского
-        val lower = cleaned.lowercase().replace(Regex("[^a-z]"), " ")
-        val tokens = lower.split(Regex("\\s+")).filter { it.isNotBlank() }
-        if (tokens.isEmpty()) return false
-
-        if (tokens.any { it in KNOWN_GERMAN_WORDS }) return false
-        if (tokens.any { it in KNOWN_ENGLISH_WORDS }) return false
-
-        return true
-    }
 
     private fun observeVocabularyViolations() {
         viewModelScope.launch {
@@ -1384,30 +1280,3 @@ class LearnCoreViewModel @Inject constructor(
 
 }
 
-// ═══════════════════════════════════════════════════════
-// v3.7: словари для эвристики ASR-garbage (top-level private)
-// ═══════════════════════════════════════════════════════
-
-private val KNOWN_GERMAN_WORDS = setOf(
-    "der","die","das","den","dem","des","ein","eine","einen","einem","einer",
-    "ich","du","er","sie","es","wir","ihr","mich","dich","ihn","uns","euch",
-    "und","oder","aber","weil","wenn","dass","ob","sondern","denn","doch",
-    "ist","sind","war","waren","habe","hat","haben","wird","werden",
-    "nicht","kein","keine","mit","ohne","fur","gegen","uber","unter","auf","aus",
-    "bei","nach","seit","vor","durch","zu","in","an","im","am","ins","ans",
-    "ja","nein","auch","schon","noch","mehr","sehr","gut","heute","morgen","gestern",
-    "hallo","danke","bitte","tschuss","toll","klasse","super","wunderbar",
-    "wie","was","wo","wer","wann","warum","welcher","welche","welches",
-    "guten","tag","abend","nacht","entschuldigung",
-    "geht","gehst","gehen","macht","machst","machen","kommt","kommst","kommen",
-    "alles","nichts","etwas","jetzt"
-)
-
-private val KNOWN_ENGLISH_WORDS = setOf(
-    "the","a","an","is","are","was","were","i","you","he","she","it","we","they",
-    "have","has","had","do","does","did","not","and","or","but","if","when","that",
-    "this","these","those","with","without","for","from","to","in","on","at","by",
-    "yes","no","ok","okay","what","why","how","who","where",
-    "hello","hi","hey","thanks","thank","please","sorry","welcome",
-    "good","bad","fine","great","cool","nice"
-)
