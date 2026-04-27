@@ -1364,6 +1364,7 @@ class LearnCoreViewModel @Inject constructor(
         cancelTextWithoutAudioWatchdog()
         statusBus.reset()
         safeStopForegroundService()
+        speechRecognizerManager.destroy()
 
         cleanupScope.launch {
             runCatching { stopInternal() }
