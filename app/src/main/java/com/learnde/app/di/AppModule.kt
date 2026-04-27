@@ -54,12 +54,4 @@ object VoiceProvidesModule {
         logger: AppLogger
     ): AudioEngine = AndroidAudioEngine(logger)
 
-    @Provides
-    @Singleton
-    fun provideLocalSpeechRecognizerManager(
-        @ApplicationContext context: Context,
-        logger: AppLogger
-    ): LocalSpeechRecognizerManager {
-        return LocalSpeechRecognizerManager(context, logger)
-    }
 }
