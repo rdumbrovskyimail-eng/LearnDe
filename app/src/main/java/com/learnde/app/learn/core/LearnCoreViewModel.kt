@@ -233,20 +233,51 @@ class LearnCoreViewModel @Inject constructor(
     private suspend fun handleUserDelta(text: String) {
         if (text.isEmpty()) return
 
-        when (classifyUserDelta(text)) {
-            DeltaClass.CJK_GARBAGE -> {
-                logger.d("Learn: dropping CJK garbage: '$text'")
-                return
+        // Мы убрали агрессивные фильтры (classifyUserDelta, isShortLatinAsrGarbage),
+        // из-за которых были "пропуски". Теперь мы полностью доверяем мультиязычной модели Gemini.
+
+        val current = userTurnBuffer.toString()
+        when {
+            current.isEmpty() -> userTurnBuffer.append(text)
+            text.startsWith(current) -> {
+                // Gemini присылает накопительный текст (напр. "Привет" -> "Привет как дела")
+                userTurnBuffer.clear()
+                userTurnBuffer.append(text)
             }
-            DeltaClass.MEANINGFUL -> {
-                // v3.7: дополнительная проверка для translator-режима
-                if (activeSession?.id == "translator"
-                    && TRANSLATOR_SUPPRESS_SHORT_ASR_GARBAGE
-                    && isShortLatinAsrGarbage(text)) {
-                    logger.d("Learn: short latin ASR garbage suppressed: '$text'")
-                    lastRejectedUserDelta = text
-                    return
-                }
+            current.contains(text) -> { 
+                // Игнорируем дубликаты
+            }
+            else -> {
+                // Gemini прислал новый кусок фразы
+                userTurnBuffer.append(" ").append(text)
+            }
+        }
+
+        // МГНОВЕННО обновляем "живой" полупрозрачный пузырь в UI (как в AI Studio)
+        _state.update { it.copy(liveUserTranscript = userTurnBuffer.toString()) }
+
+        lastInputTs = System.currentTimeMillis()
+        silenceTimerJob?.cancel()
+    }
+
+    private suspend fun finalizeUserTurn() {
+        val bufferedText = userTurnBuffer.toString().trim()
+        userTurnBuffer.clear()
+
+        // 1. Очищаем "живой" текст с экрана
+        _state.update { it.copy(liveUserTranscript = "") }
+
+        // 2. Если текст был, сохраняем его как финальное сообщение в историю чата
+        if (bufferedText.isNotEmpty()) {
+            transcriptMutex.withLock {
+                val newMsg = ConversationMessage.user(bufferedText)
+                val next = (transcriptBuffer + newMsg).takeLast(MAX_TRANSCRIPT_SIZE)
+                transcriptBuffer = next
+                _state.update { it.copy(transcript = next) }
+            }
+        }
+        liveUserMessageTs = 0L
+    }
             }
             DeltaClass.AMBIGUOUS -> {
                 lastRejectedUserDelta = text
