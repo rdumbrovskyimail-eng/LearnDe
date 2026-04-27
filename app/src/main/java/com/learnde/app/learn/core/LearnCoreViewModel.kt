@@ -737,6 +737,7 @@ class LearnCoreViewModel @Inject constructor(
         micOperationMutex.withLock {
             audioEngine.stopCapture()
         }
+        speechRecognizerManager.stopListening()
         safeStopForegroundService()
 
         runCatching { liveClient.disconnect() }
@@ -938,6 +939,8 @@ class LearnCoreViewModel @Inject constructor(
         micJob?.cancel()
         micJob = null
         silenceTimerJob?.cancel()
+        speechRecognizerManager.stopListening()
+
         viewModelScope.launch {
             micOperationMutex.withLock {
                 audioEngine.stopCapture()
