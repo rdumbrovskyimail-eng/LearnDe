@@ -85,7 +85,6 @@ class LearnCoreViewModel @Inject constructor(
     private val statusBus: LearnFunctionStatusBus,
     private val registry: LearnSessionRegistry,
     private val vocabularyEnforcer: com.learnde.app.learn.domain.VocabularyEnforcer,
-    private val speechRecognizerManager: LocalSpeechRecognizerManager,
 ) : ViewModel() {
 
     companion object {
@@ -202,7 +201,6 @@ class LearnCoreViewModel @Inject constructor(
         observeArbiter()
         observeVocabularyViolations()
         startTranscriptProcessor()
-        observeLocalSpeech()
         viewModelScope.launch { audioEngine.initPlayback() }
     }
 
@@ -591,25 +589,7 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    private fun observeLocalSpeech() {
-        // Слушаем частичные результаты (когда пользователь еще говорит)
-        viewModelScope.launch {
-            speechRecognizerManager.partialTranscript.collect { text ->
-                _state.update { it.copy(liveUserTranscript = text) }
-            }
-        }
 
-        // Слушаем финальный результат фразы
-        viewModelScope.launch {
-            speechRecognizerManager.finalTranscript.collect { text ->
-                if (text.isNotBlank()) {
-                    // Очищаем "живой" текст.
-                    // Финальный текст добавится в историю через GeminiEvent.InputTranscript
-                    _state.update { it.copy(liveUserTranscript = "") }
-                }
-            }
-        }
-    }
 
     fun onIntent(intent: LearnCoreIntent) {
         when (intent) {
@@ -898,8 +878,6 @@ class LearnCoreViewModel @Inject constructor(
         _state.update {
             it.copy(isMicActive = true, connectionStatus = LearnConnectionStatus.Recording)
         }
-
-        speechRecognizerManager.startListening("ru-RU")
 
         micJob = viewModelScope.launch {
             launch {
@@ -1364,7 +1342,6 @@ class LearnCoreViewModel @Inject constructor(
         cancelTextWithoutAudioWatchdog()
         statusBus.reset()
         safeStopForegroundService()
-        speechRecognizerManager.destroy()
 
         cleanupScope.launch {
             runCatching { stopInternal() }
