@@ -202,6 +202,7 @@ class LearnCoreViewModel @Inject constructor(
         observeArbiter()
         observeVocabularyViolations()
         startTranscriptProcessor()
+        observeLocalSpeech()
         viewModelScope.launch { audioEngine.initPlayback() }
     }
 
@@ -585,6 +586,26 @@ class LearnCoreViewModel @Inject constructor(
                 if (activeSession?.id == "a1_situation" || activeSession?.id == "a1_review") {
                     pendingVocabViolation = violation
                     logger.d("Learn: vocab violation buffered (${violation.violatingWords})")
+                }
+            }
+        }
+    }
+
+    private fun observeLocalSpeech() {
+        // Слушаем частичные результаты (когда пользователь еще говорит)
+        viewModelScope.launch {
+            speechRecognizerManager.partialTranscript.collect { text ->
+                _state.update { it.copy(liveUserTranscript = text) }
+            }
+        }
+
+        // Слушаем финальный результат фразы
+        viewModelScope.launch {
+            speechRecognizerManager.finalTranscript.collect { text ->
+                if (text.isNotBlank()) {
+                    // Очищаем "живой" текст.
+                    // Финальный текст добавится в историю через GeminiEvent.InputTranscript
+                    _state.update { it.copy(liveUserTranscript = "") }
                 }
             }
         }
