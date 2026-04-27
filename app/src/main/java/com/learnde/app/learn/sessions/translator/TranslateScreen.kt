@@ -1,14 +1,7 @@
-// ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v5.2
+// ════════════════════════════════════════════════════════════
+// ПОЛНАЯ ЗАМЕНА v5.3 (с поддержкой Live-транскрипции)
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/translator/TranslateScreen.kt
-//
-// ИЗМЕНЕНИЯ v5.2:
-//   - Детектор языка: убран апостроф из UKR_SPECIFIC (баг "Wie geht's?"→UA)
-//   - Расширен немецкий словарь (toll, klasse, super, hallo, danke, bitte, etc)
-//   - Метка UNKNOWN теперь "?" вместо "…" (понятнее)
-//   - Поддержка цифр и числительных в детекции (если только цифры — UNKNOWN
-//     не показываем, т.к. цифры одинаково звучат во многих языках)
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.translator
 
 import android.Manifest
@@ -69,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -131,7 +125,9 @@ fun TranslatorScreen(
         )
     }
 
-    val showInlineLoader = learnState.isPreparingSession && learnState.transcript.isEmpty()
+    // Достаем "живой" текст из стейта
+    val liveUserText = learnState.liveUserTranscript
+    val showInlineLoader = learnState.isPreparingSession && learnState.transcript.isEmpty() && liveUserText.isEmpty()
 
     androidx.activity.compose.BackHandler {
         if (isActive) learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
@@ -254,10 +250,14 @@ fun TranslatorScreen(
                     .border(LearnTokens.BorderThin, colors.stroke, RoundedCornerShape(LearnTokens.RadiusMd))
                     .padding(LearnTokens.PaddingSm),
             ) {
-                if (learnState.transcript.isEmpty()) {
+                // Если нет ни истории, ни живого текста - показываем заглушку
+                if (learnState.transcript.isEmpty() && liveUserText.isEmpty()) {
                     EmptyTranscriptHint(isActive = isActive)
                 } else {
-                    TranscriptList(messages = learnState.transcript)
+                    TranscriptList(
+                        messages = learnState.transcript,
+                        liveUserText = liveUserText
+                    )
                 }
             }
 
@@ -452,26 +452,43 @@ private fun EmptyTranscriptHint(isActive: Boolean) {
 }
 
 @Composable
-private fun TranscriptList(messages: List<ConversationMessage>) {
+private fun TranscriptList(messages: List<ConversationMessage>, liveUserText: String) {
     val listState = rememberLazyListState()
-    LaunchedEffect(messages.size, messages.lastOrNull()?.text) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+    
+    // Анимируем скролл вниз при добавлении сообщений или изменении live-текста
+    LaunchedEffect(messages.size, messages.lastOrNull()?.text, liveUserText) {
+        val totalItems = messages.size + if (liveUserText.isNotEmpty()) 1 else 0
+        if (totalItems > 0) {
+            listState.animateScrollToItem(totalItems - 1)
         }
     }
+    
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        // Отрисовка зафиксированных сообщений
         items(messages, key = { msg -> "${msg.timestamp}_${msg.role}" }) { msg ->
-            TranscriptBubble(message = msg)
+            TranscriptBubble(message = msg, isLive = false)
+        }
+        
+        // Отрисовка "живого" текста, если он есть
+        if (liveUserText.isNotEmpty()) {
+            item(key = "live_user_transcript") {
+                val liveMsg = ConversationMessage(
+                    role = ConversationMessage.ROLE_USER,
+                    text = liveUserText,
+                    timestamp = System.currentTimeMillis()
+                )
+                TranscriptBubble(message = liveMsg, isLive = true)
+            }
         }
     }
 }
 
 @Composable
-private fun TranscriptBubble(message: ConversationMessage) {
+private fun TranscriptBubble(message: ConversationMessage, isLive: Boolean = false) {
     val colors = learnColors()
     val isUser = message.role == ConversationMessage.ROLE_USER
     val text = message.text.trim()
@@ -484,16 +501,24 @@ private fun TranscriptBubble(message: ConversationMessage) {
         DetectedLang.UK -> "UA"
         DetectedLang.UNKNOWN -> "?"
     }
+    
     val label = when {
+        isLive -> "ВЫ ГОВОРИТЕ..."
         isUser -> "ВЫ · $langText"
         else -> "ПЕРЕВОД · $langText"
     }
+    
     val bg = if (isUser) colors.accentSoft else colors.surfaceVar
     val border = if (isUser) colors.accent.copy(alpha = 0.25f) else colors.stroke
     val labelColor = if (isUser) colors.accent else colors.textMid
 
+    // Применяем прозрачность для Live-пузыря
+    val bubbleAlpha = if (isLive) 0.6f else 1.0f
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(bubbleAlpha),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
     ) {
         Column(
@@ -605,25 +630,12 @@ private fun MainMicButton(
 
 // ═══════════════════════════════════════════════════════════
 // Language detection v5.3 (4-state: DE / RU / UK / UNKNOWN)
-//
-// ИЗМЕНЕНИЯ v5.3:
-//   - Добавлены украинские слова-маркеры (що, ти, буде, робити...).
-//     Раньше "Що ти будеш робити завтра?" определялось как RU
-//     потому что не содержит букв ієґїІЄҐЇ. Теперь UA.
-//   - Добавлены белорусские маркеры (ў, ’) — помечаются как UA
-//     (мы не различаем UK/BE в маршрутизации, но это всё-таки
-//     не русский, поэтому метка UA честнее чем RU).
 // ═══════════════════════════════════════════════════════════
 private enum class DetectedLang { DE, RU, UK, UNKNOWN }
 
-// Уникальные украинские/белорусские буквы (точная сигнатура)
 private val UKR_SPECIFIC_LETTERS = "ієґїІЄҐЇўЎ"
 
-// Украинские/белорусские слова-маркеры. Если в тексте без специфичных букв
-// есть хотя бы одно слово отсюда — считаем UK.
-// Все слова в нижнем регистре.
 private val UKR_MARKER_WORDS = setOf(
-    // украинские маркеры
     "що", "щоб", "чому", "як", "де", "коли",
     "ти", "ви", "він", "вона", "ми", "вони",
     "буде", "будеш", "будемо", "будуть", "буду",
@@ -641,7 +653,6 @@ private val UKR_MARKER_WORDS = setOf(
     "сьогодні", "завтра", "вчора",
     "привіт", "дякую", "будь",
     "навіщо", "невже",
-    // белорусские маркеры
     "вось", "зноў", "праводзім", "прыгожага",
     "дужа", "часу", "прыедуць", "аўтара"
 )
@@ -672,11 +683,7 @@ private fun detectLang(text: String): DetectedLang {
     val hasLatinLetters = cleaned.any { it in 'a'..'z' || it in 'A'..'Z' }
 
     return when {
-        // 1. Уникальные украинские/белорусские буквы → точно UK
         hasUkrSpecific -> DetectedLang.UK
-
-        // 2. Кириллица без украинских букв — может быть RU или UK без них.
-        //    Проверяем по словам-маркерам.
         hasCyrillic -> {
             val cyrillicTokens = cleaned.lowercase()
                 .replace(Regex("[^а-яё ]"), " ")
@@ -685,11 +692,7 @@ private fun detectLang(text: String): DetectedLang {
             val ukrHits = cyrillicTokens.count { it in UKR_MARKER_WORDS }
             if (ukrHits > 0) DetectedLang.UK else DetectedLang.RU
         }
-
-        // 3. Умлауты → DE
         hasUmlauts -> DetectedLang.DE
-
-        // 4. Латиница без умлаутов → проверяем по словарю немецких слов
         hasLatinLetters -> {
             val tokens = cleaned.lowercase()
                 .replace(Regex("[^a-zäöüß]"), " ")
@@ -699,7 +702,6 @@ private fun detectLang(text: String): DetectedLang {
             val deHits = tokens.count { it in GERMAN_FUNCTION_WORDS }
             if (deHits > 0) DetectedLang.DE else DetectedLang.UNKNOWN
         }
-
         else -> DetectedLang.UNKNOWN
     }
 }
