@@ -2,6 +2,7 @@ package com.learnde.app.di
 
 import com.learnde.app.data.AndroidAudioEngine
 import com.learnde.app.data.GeminiLiveClient
+import com.learnde.app.data.LocalSpeechRecognizerManager
 import com.learnde.app.data.PersistentConversationRepository
 import com.learnde.app.domain.AudioEngine
 import com.learnde.app.domain.ConversationRepository
@@ -12,8 +13,10 @@ import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import android.content.Context
 
 /**
  * Биндинг абстракций на реализации (только @Binds — должен быть abstract class).
@@ -50,4 +53,13 @@ object VoiceProvidesModule {
     fun provideVoiceAudioEngine(
         logger: AppLogger
     ): AudioEngine = AndroidAudioEngine(logger)
+
+    @Provides
+    @Singleton
+    fun provideLocalSpeechRecognizerManager(
+        @ApplicationContext context: Context,
+        logger: AppLogger
+    ): LocalSpeechRecognizerManager {
+        return LocalSpeechRecognizerManager(context, logger)
+    }
 }
