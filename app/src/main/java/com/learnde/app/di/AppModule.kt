@@ -2,7 +2,6 @@ package com.learnde.app.di
 
 import com.learnde.app.data.AndroidAudioEngine
 import com.learnde.app.data.GeminiLiveClient
-import com.learnde.app.data.LocalSpeechRecognizerManager
 import com.learnde.app.data.PersistentConversationRepository
 import com.learnde.app.domain.AudioEngine
 import com.learnde.app.domain.ConversationRepository
