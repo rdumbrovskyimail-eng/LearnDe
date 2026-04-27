@@ -41,6 +41,7 @@ import androidx.core.content.ContextCompat
 import androidx.datastore.core.DataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.learnde.app.data.LocalSpeechRecognizerManager
 import com.learnde.app.data.settings.AppSettings
 import com.learnde.app.domain.AudioEngine
 import com.learnde.app.domain.LiveClient
@@ -84,6 +85,7 @@ class LearnCoreViewModel @Inject constructor(
     private val statusBus: LearnFunctionStatusBus,
     private val registry: LearnSessionRegistry,
     private val vocabularyEnforcer: com.learnde.app.learn.domain.VocabularyEnforcer,
+    private val speechRecognizerManager: LocalSpeechRecognizerManager,
 ) : ViewModel() {
 
     companion object {
