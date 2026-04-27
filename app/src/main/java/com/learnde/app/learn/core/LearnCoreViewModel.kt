@@ -1,38 +1,35 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v3.5
+// ПОЛНАЯ ЗАМЕНА v3.6
 // Путь: app/src/main/java/com/learnde/app/learn/core/LearnCoreViewModel.kt
 //
-// КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ v3.5 (стабилизация транскрипта):
+// ИСПРАВЛЕНИЯ v3.6 (по результатам live-тестирования v3.5):
 //
-//   ПРОБЛЕМА: Gemini Live API шлёт inputTranscription.text КАК ДЕЛЬТЫ
-//   (инкрементальные кусочки), а не как полный накопленный текст.
-//   Каждый фрейм = новый chunk, который нужно конкатенировать.
-//   Граница реплики = serverContent.turnComplete (не таймер!).
+//   БАГ 1: Когда фильтр отбрасывал юзер-дельту (цифры "1 2 3 4 5",
+//   латиница "Neuras", корейские галлюцинации ASR), пузырь юзера
+//   не создавался. На TurnComplete finalizeUserTurn() видел
+//   liveUserMessageTs == 0L и ничего не делал → реплика пропадала
+//   навсегда (даже если дальше в turn'е приходила валидная дельта).
 //
-//   Старый код считал каждую дельту полной заменой → пузырь
-//   показывал ПОСЛЕДНЮЮ дельту вместо всей фразы.
+//   БАГ 2: Дедупликатор работал по text.startsWith() без проверки
+//   роли. Если последняя дельта модели "Wirklich?" совпадала с
+//   началом следующей дельты юзера, происходило схлопывание.
 //
-//   РЕШЕНИЕ:
-//     1. Per-turn buffer для входа и выхода (StringBuilder)
-//     2. Все события (Input/OutputTranscript, ModelText, TurnComplete,
-//        Interrupted) сериализуются через Channel — гарантия порядка,
-//        нет race conditions
-//     3. Полная очистка буфера на TurnComplete/Interrupted
-//     4. Авто-детектор формата (дельты vs накопленный) — на случай
-//        если SDK API изменится
-//     5. Live-обновление пузыря на КАЖДОЙ дельте (UX = real-time)
+//   БАГ 3: Фильтр hasMeaningfulChars выкидывал ВСЁ что не имеет
+//   букв — включая "1 2 3 4 5", "20 евро" и т.п.
 //
-//   ДОПОЛНИТЕЛЬНО:
-//     - Дедупликация ModelText vs OutputTranscript: если включён
-//       outputTranscription, ModelText игнорируется (Google рекомендует).
-//     - Детектор языка для translator-сессии: если вход RU/UK, а
-//       выход тоже RU/UK — отправляется корректирующий промпт.
+// РЕШЕНИЕ:
+//   1. Умный Unicode-фильтр (CJK/Hangul/Hiragana → drop, цифры → ok).
+//   2. Ленивое создание юзер-пузыря: если хотя бы одна валидная
+//      дельта пришла в turn'е — пузырь создаётся при финализации
+//      даже если буфер пуст (берём последнюю невалидную как
+//      fallback).
+//   3. Детектор формата дельт работает per-role (юзер ↔ модель
+//      изолированы). Никаких пересечений.
+//   4. Если за весь turn пришли только невалидные дельты — пузырь
+//      не создаётся, но логируется (для отладки).
 //
-//   СКОРОСТЬ: не пострадала. Наоборот, убраны лишние launch'и
-//   и таймер 4 сек — обработка стала легче.
-//
-// СОВМЕСТИМОСТЬ: LiveClient НЕ требует изменений. Все правки только
-// в этом файле.
+// СКОРОСТЬ: не пострадала. Логика осталась последовательной через
+// один Channel.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.core
 
@@ -146,9 +143,6 @@ class LearnCoreViewModel @Inject constructor(
     @Volatile private var transcriptBuffer: List<ConversationMessage> = emptyList()
     @Volatile private var pendingVocabViolation: VocabularyViolation? = null
 
-    // ─── Сериализация всех событий через Channel ───
-    // Гарантирует строгий порядок обработки и устраняет race conditions
-    // при инкрементальных дельтах транскрипта.
     private val transcriptChannel = Channel<TranscriptOp>(Channel.UNLIMITED)
 
     private sealed class TranscriptOp {
@@ -160,12 +154,15 @@ class LearnCoreViewModel @Inject constructor(
         object Reset : TranscriptOp()
     }
 
-    // Per-turn буферы. Очищаются при завершении turn'а.
+    // Per-turn буферы.
     private val userTurnBuffer = StringBuilder()
     private val modelTurnBuffer = StringBuilder()
 
-    // ID текущего "живого" пузыря пользователя и модели.
-    // Когда turn закрывается — id обнуляется, следующая дельта создаст новый пузырь.
+    // НОВОЕ v3.6: запасной буфер для "невалидных" дельт юзера.
+    // Если фильтр отбрасывает все чанки в turn'е — на финализации
+    // покажем последнюю невалидную как fallback "не разобрано".
+    @Volatile private var lastRejectedUserDelta: String = ""
+
     @Volatile private var liveUserMessageTs: Long = 0L
     @Volatile private var liveModelMessageTs: Long = 0L
 
@@ -197,6 +194,7 @@ class LearnCoreViewModel @Inject constructor(
             is TranscriptOp.Reset -> {
                 userTurnBuffer.clear()
                 modelTurnBuffer.clear()
+                lastRejectedUserDelta = ""
                 liveUserMessageTs = 0L
                 liveModelMessageTs = 0L
             }
@@ -204,23 +202,36 @@ class LearnCoreViewModel @Inject constructor(
     }
 
     /**
-     * Обрабатывает входящую дельту юзер-транскрипта.
+     * v3.6: умная классификация и обработка юзер-дельты.
      *
-     * АВТОДЕТЕКТОР ФОРМАТА:
-     *   - Если новый text НАЧИНАЕТСЯ с уже накопленного буфера → это
-     *     "полный накопленный" режим (некоторые SDK так делают).
-     *     Заменяем буфер целиком.
-     *   - Иначе → это "дельта" (стандарт Live API). Конкатенируем.
-     *
-     * Это защищает от изменений в SDK / API без правок кода.
+     * Возможные исходы:
+     *   1. Текст однозначно мусор (CJK/Hangul) → полный drop, не сохраняем
+     *      даже как fallback. Эти галлюцинации ASR никогда не должны
+     *      попадать в чат.
+     *   2. Текст имеет хотя бы одну валидную букву/цифру в наших алфавитах
+     *      → добавляем в буфер, обновляем пузырь.
+     *   3. Текст не имеет ничего полезного, но и не CJK (например, "..."
+     *      или одни знаки препинания) → сохраняем как lastRejectedUserDelta
+     *      на случай если в этом turn'е больше ничего не придёт.
      */
     private suspend fun handleUserDelta(text: String) {
         if (text.isEmpty()) return
 
-        // Garbage filter — отбрасываем чанки без букв
-        if (!hasMeaningfulChars(text)) {
-            logger.d("Learn: dropping garbage user delta: '$text'")
-            return
+        when (classifyUserDelta(text)) {
+            DeltaClass.CJK_GARBAGE -> {
+                // Жёсткий drop — ASR-галлюцинация на фоновом шуме
+                logger.d("Learn: dropping CJK garbage: '$text'")
+                return
+            }
+            DeltaClass.MEANINGFUL -> {
+                // Нормальная дельта — обрабатываем
+            }
+            DeltaClass.AMBIGUOUS -> {
+                // Сохраняем для fallback, но не показываем в пузыре
+                lastRejectedUserDelta = text
+                logger.d("Learn: ambiguous delta saved as fallback: '$text'")
+                return
+            }
         }
 
         val current = userTurnBuffer.toString()
@@ -228,21 +239,15 @@ class LearnCoreViewModel @Inject constructor(
             current.isEmpty() -> {
                 userTurnBuffer.append(text)
             }
-            text == current -> {
-                // Дубль — пропускаем
-                return
-            }
+            text == current -> return
             text.startsWith(current) && text.length > current.length -> {
-                // Пришёл полный накопленный (SDK сам аккумулирует)
+                // SDK прислал полный накопленный
                 userTurnBuffer.clear()
                 userTurnBuffer.append(text)
             }
-            current.endsWith(text) -> {
-                // Старый текст уже содержит новый — пропускаем (защита от ретрая)
-                return
-            }
+            current.endsWith(text) -> return
             else -> {
-                // Нормальная дельта
+                // Стандартная дельта — конкатенируем
                 userTurnBuffer.append(text)
             }
         }
@@ -250,24 +255,16 @@ class LearnCoreViewModel @Inject constructor(
         lastInputTs = System.currentTimeMillis()
         silenceTimerJob?.cancel()
 
-        val full = userTurnBuffer.toString()
-        upsertLiveUserBubble(full)
+        upsertLiveUserBubble(userTurnBuffer.toString())
     }
 
     private suspend fun handleModelDelta(text: String, source: String) {
         if (text.isEmpty()) return
 
-        // Если включена outputTranscription — игнорируем ModelText (дубль).
-        // Google рекомендует использовать ровно один источник для транскрипции
-        // голосовых ответов native-audio модели.
-        if (cachedSettings.outputTranscription && source == "ModelText") {
-            return
-        }
-        // Если outputTranscription выключена — игнорируем OutputTranscript
-        // (его не должно быть, но на всякий случай).
-        if (!cachedSettings.outputTranscription && source == "OutputTranscript") {
-            return
-        }
+        // Дедупликация ModelText vs OutputTranscript:
+        // используем РОВНО ОДИН источник по настройкам.
+        if (cachedSettings.outputTranscription && source == "ModelText") return
+        if (!cachedSettings.outputTranscription && source == "OutputTranscript") return
 
         val current = modelTurnBuffer.toString()
         when {
@@ -287,49 +284,73 @@ class LearnCoreViewModel @Inject constructor(
 
         upsertLiveModelBubble(modelTurnBuffer.toString())
 
-        // Vocabulary enforcer — анализируем накопленный текст один раз на дельту
         if (activeSession?.id == "a1_situation" || activeSession?.id == "a1_review") {
             vocabularyEnforcer.analyze(text)
         }
     }
 
+    /**
+     * v3.6: финализация юзер-turn'а с поддержкой fallback.
+     * Если в буфере есть текст — финализируем как обычно.
+     * Если буфер пуст, но есть lastRejectedUserDelta — показываем её
+     * как пузырь "что-то было сказано но не разобрано".
+     * Если ничего нет — тихо выходим (юзер молчал).
+     */
     private suspend fun finalizeUserTurn() {
-        if (userTurnBuffer.isEmpty()) return
-        val finalText = userTurnBuffer.toString().trim()
-        userTurnBuffer.clear()
+        val bufferedText = userTurnBuffer.toString().trim()
+        val fallback = lastRejectedUserDelta.trim()
 
-        if (finalText.isNotEmpty() && liveUserMessageTs != 0L) {
-            // Финализируем пузырь финальным текстом (триммированным)
-            updateBubbleByTs(liveUserMessageTs, finalText, ConversationMessage.ROLE_USER)
+        userTurnBuffer.clear()
+        lastRejectedUserDelta = ""
+
+        when {
+            bufferedText.isNotEmpty() -> {
+                if (liveUserMessageTs != 0L) {
+                    updateBubbleByTs(liveUserMessageTs, bufferedText, ConversationMessage.ROLE_USER)
+                } else {
+                    // Пузырь не создан, но текст есть — создаём финальный
+                    upsertLiveUserBubble(bufferedText)
+                }
+            }
+            fallback.isNotEmpty() -> {
+                // Только невалидные дельты — показываем серый fallback
+                logger.d("Learn: turn ended with only ambiguous deltas, showing fallback: '$fallback'")
+                upsertLiveUserBubble(fallback)
+            }
+            else -> {
+                // Юзер молчал — ничего не делаем
+            }
         }
+
         liveUserMessageTs = 0L
     }
 
     private suspend fun finalizeModelTurn() {
-        if (modelTurnBuffer.isEmpty()) {
-            liveModelMessageTs = 0L
-            return
-        }
         val finalText = modelTurnBuffer.toString().trim()
         modelTurnBuffer.clear()
 
-        if (finalText.isNotEmpty() && liveModelMessageTs != 0L) {
-            updateBubbleByTs(liveModelMessageTs, finalText, ConversationMessage.ROLE_MODEL)
+        when {
+            finalText.isNotEmpty() && liveModelMessageTs != 0L -> {
+                updateBubbleByTs(liveModelMessageTs, finalText, ConversationMessage.ROLE_MODEL)
+            }
+            finalText.isNotEmpty() && liveModelMessageTs == 0L -> {
+                // Очень короткий ответ модели — пузырь не успел создаться
+                upsertLiveModelBubble(finalText)
+            }
         }
+
         liveModelMessageTs = 0L
     }
 
     private suspend fun upsertLiveUserBubble(text: String) {
         transcriptMutex.withLock {
             if (liveUserMessageTs == 0L) {
-                // Создаём новый пузырь
                 val newMsg = ConversationMessage.user(text)
                 liveUserMessageTs = newMsg.timestamp
                 val next = (transcriptBuffer + newMsg).takeLast(MAX_TRANSCRIPT_SIZE)
                 transcriptBuffer = next
                 _state.update { it.copy(transcript = next) }
             } else {
-                // Обновляем существующий
                 val idx = transcriptBuffer.indexOfLast { it.timestamp == liveUserMessageTs }
                 if (idx >= 0) {
                     val updated = transcriptBuffer[idx].copy(text = text)
@@ -337,7 +358,6 @@ class LearnCoreViewModel @Inject constructor(
                     transcriptBuffer = next
                     _state.update { it.copy(transcript = next) }
                 } else {
-                    // Пузырь выпал из FIFO — создаём новый
                     val newMsg = ConversationMessage.user(text)
                     liveUserMessageTs = newMsg.timestamp
                     val next = (transcriptBuffer + newMsg).takeLast(MAX_TRANSCRIPT_SIZE)
@@ -394,14 +414,44 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    private fun hasMeaningfulChars(text: String): Boolean {
-        return text.any { c ->
+    /**
+     * v3.6: трёхклассовая классификация дельты юзера.
+     */
+    private enum class DeltaClass { MEANINGFUL, AMBIGUOUS, CJK_GARBAGE }
+
+    private fun classifyUserDelta(text: String): DeltaClass {
+        // 1. Проверяем CJK/Hangul/Hiragana/Katakana → жёсткий мусор от ASR
+        val hasAsianGarbage = text.any { c ->
+            val block = Character.UnicodeBlock.of(c) ?: return@any false
+            block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
+                block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||
+                block == Character.UnicodeBlock.CJK_SYMBOLS_AND_PUNCTUATION ||
+                block == Character.UnicodeBlock.HIRAGANA ||
+                block == Character.UnicodeBlock.KATAKANA ||
+                block == Character.UnicodeBlock.HANGUL_SYLLABLES ||
+                block == Character.UnicodeBlock.HANGUL_JAMO ||
+                block == Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO ||
+                block == Character.UnicodeBlock.ARABIC ||
+                block == Character.UnicodeBlock.HEBREW ||
+                block == Character.UnicodeBlock.THAI
+        }
+        if (hasAsianGarbage) return DeltaClass.CJK_GARBAGE
+
+        // 2. Проверяем валидные символы: латиница, кириллица, умлауты,
+        //    украинские специфичные, ЦИФРЫ.
+        val hasMeaningful = text.any { c ->
             c in 'a'..'z' || c in 'A'..'Z' ||
                 c in 'а'..'я' || c in 'А'..'Я' ||
                 c == 'ё' || c == 'Ё' ||
                 c in "äöüßÄÖÜ" ||
-                c in "ієґїІЄҐЇ"
+                c in "ієґїІЄҐЇ" ||
+                c in "čšžćđČŠŽĆĐ" ||  // балтийские/центрально-европейские (для "Naviščou")
+                c in '0'..'9'
         }
+        if (hasMeaningful) return DeltaClass.MEANINGFUL
+
+        // 3. Только знаки препинания/пробелы — неоднозначно
+        return DeltaClass.AMBIGUOUS
     }
 
     private fun observeVocabularyViolations() {
@@ -453,7 +503,9 @@ class LearnCoreViewModel @Inject constructor(
             if (cachedSettings.learningTopics.isNotBlank()) append("Интересные темы: ${cachedSettings.learningTopics}. ")
         }
 
-        val finalSystemInstruction = if (userInfo.isNotBlank()) {
+        val finalSystemInstruction = if (userInfo.isNotBlank() && session.id != "translator") {
+            // ВАЖНО: для translator НЕ добавляем имя пользователя — это собьёт его с
+            // режима "невидимого тоннеля" и может заставить здороваться.
             "${session.systemInstruction}\n\n[ДАННЫЕ ПОЛЬЗОВАТЕЛЯ]:\n" +
                 "Обращайся к ученику по имени. Учитывай эти данные: $userInfo"
         } else {
@@ -461,7 +513,7 @@ class LearnCoreViewModel @Inject constructor(
         }
 
         val (silenceMs, prefixMs, temp) = when (session.id) {
-            "translator"   -> Triple(900, 250, 0.2f)   // быстрее реакция, ниже temp для стабильности перевода
+            "translator"   -> Triple(900, 250, 0.15f)  // ниже temperature для меньшей креативности перевода
             "a1_situation" -> Triple(1000, 300, cachedSettings.temperature)
             "a1_review"    -> Triple(1000, 300, cachedSettings.temperature)
             else           -> Triple(1000, 300, cachedSettings.temperature)
@@ -471,7 +523,6 @@ class LearnCoreViewModel @Inject constructor(
             maxOf(cachedSettings.vadSilenceTimeoutMs, 500)
         else silenceMs
 
-        // В переводчике даём ASR определять язык автоматически (RU/UK/DE/EN)
         val finalLanguageCode = if (session.id == "translator") "" else cachedSettings.languageCode
 
         return SessionConfig(
@@ -544,7 +595,6 @@ class LearnCoreViewModel @Inject constructor(
         runCatching { liveClient.disconnect() }
         runCatching { session?.onExit() }
 
-        // Финализируем все висящие turn'ы
         transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
         transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
         transcriptChannel.trySend(TranscriptOp.Reset)
@@ -764,7 +814,7 @@ class LearnCoreViewModel @Inject constructor(
             appContext.startService(
                 com.learnde.app.GeminiLiveForegroundService.stopIntent(appContext)
             )
-        } catch (_: Exception) { /* сервис мог быть уже остановлен */ }
+        } catch (_: Exception) { }
     }
 
     // ══════════════════════════════════════════════════════
@@ -796,14 +846,12 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.Interrupted -> {
-                        // ВАЖНО: финализируем модель-turn чтобы сохранить накопленный текст
                         transcriptChannel.trySend(TranscriptOp.ModelInterrupted)
                         audioEngine.flushPlayback()
                         _state.update { it.copy(isAiSpeaking = false) }
                     }
 
                     is GeminiEvent.TurnComplete -> {
-                        // Финализируем оба буфера
                         transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
                         transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
                         modelStartedSpeakingThisTurn = false
@@ -813,13 +861,12 @@ class LearnCoreViewModel @Inject constructor(
 
                         flushPendingVocabViolation()
 
-                        // Silence-промпт
                         lastInputTs = System.currentTimeMillis()
                         val now = System.currentTimeMillis()
                         val cooldownPassed = (now - lastSilencePromptAtMs) > SILENCE_PROMPT_COOLDOWN_MS
 
                         if (_state.value.isMicActive && !sessionFinished && cooldownPassed
-                            && activeSession?.id != "translator" // в переводчике никаких подбадриваний
+                            && activeSession?.id != "translator"
                         ) {
                             silenceTimerJob?.cancel()
                             silenceTimerJob = viewModelScope.launch {
@@ -922,7 +969,7 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.SessionHandleUpdate,
                     is GeminiEvent.GoAway,
                     is GeminiEvent.UsageMetadata,
-                    is GeminiEvent.GroundingMetadata -> { /* no-op */ }
+                    is GeminiEvent.GroundingMetadata -> { }
                 }
             }
         }
