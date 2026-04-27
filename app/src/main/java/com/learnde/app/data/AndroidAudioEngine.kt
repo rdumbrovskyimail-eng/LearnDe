@@ -133,10 +133,25 @@ class AndroidAudioEngine(
         }
 
         val recorder = try {
-            AudioRecord(
-                MediaRecorder.AudioSource.VOICE_COMMUNICATION, sampleRate,
-                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minBuf * 2
-            )
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                AudioRecord.Builder()
+                    .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                            .build()
+                    )
+                    .setBufferSizeInBytes(minBuf * 2)
+                    .build()
+            } else {
+                @Suppress("DEPRECATION")
+                AudioRecord(
+                    MediaRecorder.AudioSource.VOICE_COMMUNICATION, sampleRate,
+                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minBuf * 2
+                )
+            }
         } catch (e: SecurityException) {
             logger.e("SECURITY on AudioRecord ctor: ${e.message}")
             return
