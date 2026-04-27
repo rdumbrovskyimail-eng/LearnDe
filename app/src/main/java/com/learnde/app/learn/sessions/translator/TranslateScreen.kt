@@ -603,12 +603,48 @@ private fun MainMicButton(
     }
 }
 
-// ─── Language detection (4-state) ───
+// ═══════════════════════════════════════════════════════════
+// Language detection v5.3 (4-state: DE / RU / UK / UNKNOWN)
+//
+// ИЗМЕНЕНИЯ v5.3:
+//   - Добавлены украинские слова-маркеры (що, ти, буде, робити...).
+//     Раньше "Що ти будеш робити завтра?" определялось как RU
+//     потому что не содержит букв ієґїІЄҐЇ. Теперь UA.
+//   - Добавлены белорусские маркеры (ў, ’) — помечаются как UA
+//     (мы не различаем UK/BE в маршрутизации, но это всё-таки
+//     не русский, поэтому метка UA честнее чем RU).
+// ═══════════════════════════════════════════════════════════
 private enum class DetectedLang { DE, RU, UK, UNKNOWN }
 
-// ВАЖНО: апостроф убран из набора — он встречается в немецких контракциях
-// типа "Wie geht's?" и не должен триггерить украинский.
-private val UKR_SPECIFIC_LETTERS = "ієґїІЄҐЇ"
+// Уникальные украинские/белорусские буквы (точная сигнатура)
+private val UKR_SPECIFIC_LETTERS = "ієґїІЄҐЇўЎ"
+
+// Украинские/белорусские слова-маркеры. Если в тексте без специфичных букв
+// есть хотя бы одно слово отсюда — считаем UK.
+// Все слова в нижнем регистре.
+private val UKR_MARKER_WORDS = setOf(
+    // украинские маркеры
+    "що", "щоб", "чому", "як", "де", "коли",
+    "ти", "ви", "він", "вона", "ми", "вони",
+    "буде", "будеш", "будемо", "будуть", "буду",
+    "робити", "робиш", "роблю", "робимо",
+    "створювати", "створюєш",
+    "розумію", "розумієш", "розуміти",
+    "хочу", "хочеш", "хоче", "хочемо",
+    "почати", "починати",
+    "здобути", "здобуваю",
+    "професію", "професія",
+    "вчитися", "вчуся", "вчишся", "вчимося",
+    "є", "немає",
+    "не", "так", "ні",
+    "дуже", "трохи",
+    "сьогодні", "завтра", "вчора",
+    "привіт", "дякую", "будь",
+    "навіщо", "невже",
+    // белорусские маркеры
+    "вось", "зноў", "праводзім", "прыгожага",
+    "дужа", "часу", "прыедуць", "аўтара"
+)
 
 private val GERMAN_FUNCTION_WORDS = setOf(
     "der","die","das","den","dem","des","ein","eine","einen","einem","einer","eines",
@@ -636,11 +672,25 @@ private fun detectLang(text: String): DetectedLang {
     val hasLatinLetters = cleaned.any { it in 'a'..'z' || it in 'A'..'Z' }
 
     return when {
+        // 1. Уникальные украинские/белорусские буквы → точно UK
         hasUkrSpecific -> DetectedLang.UK
-        hasCyrillic -> DetectedLang.RU
+
+        // 2. Кириллица без украинских букв — может быть RU или UK без них.
+        //    Проверяем по словам-маркерам.
+        hasCyrillic -> {
+            val cyrillicTokens = cleaned.lowercase()
+                .replace(Regex("[^а-яё ]"), " ")
+                .split(Regex("\\s+"))
+                .filter { it.isNotBlank() }
+            val ukrHits = cyrillicTokens.count { it in UKR_MARKER_WORDS }
+            if (ukrHits > 0) DetectedLang.UK else DetectedLang.RU
+        }
+
+        // 3. Умлауты → DE
         hasUmlauts -> DetectedLang.DE
+
+        // 4. Латиница без умлаутов → проверяем по словарю немецких слов
         hasLatinLetters -> {
-            // Латиница без умлаутов — проверим словарь
             val tokens = cleaned.lowercase()
                 .replace(Regex("[^a-zäöüß]"), " ")
                 .split(Regex("\\s+"))
@@ -649,6 +699,7 @@ private fun detectLang(text: String): DetectedLang {
             val deHits = tokens.count { it in GERMAN_FUNCTION_WORDS }
             if (deHits > 0) DetectedLang.DE else DetectedLang.UNKNOWN
         }
-        else -> DetectedLang.UNKNOWN  // только цифры/знаки
+
+        else -> DetectedLang.UNKNOWN
     }
 }
