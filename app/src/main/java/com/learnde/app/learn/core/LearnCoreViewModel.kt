@@ -1,35 +1,36 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v3.6
+// ПОЛНАЯ ЗАМЕНА v3.7
 // Путь: app/src/main/java/com/learnde/app/learn/core/LearnCoreViewModel.kt
 //
-// ИСПРАВЛЕНИЯ v3.6 (по результатам live-тестирования v3.5):
+// НОВОЕ В v3.7 (по результатам live-тестирования v3.6):
 //
-//   БАГ 1: Когда фильтр отбрасывал юзер-дельту (цифры "1 2 3 4 5",
-//   латиница "Neuras", корейские галлюцинации ASR), пузырь юзера
-//   не создавался. На TurnComplete finalizeUserTurn() видел
-//   liveUserMessageTs == 0L и ничего не делал → реплика пропадала
-//   навсегда (даже если дальше в turn'е приходила валидная дельта).
+//   1. STUCK-TURN WATCHDOG (3500ms)
+//      Лечит главную проблему сессии 2: модель присылает первую
+//      дельту ("Hallo. Lass") и зависает на 10+ секунд. WS жив,
+//      но генерация заморожена.
+//      Решение: после первой model-дельты запускаем таймер. Если
+//      3500ms не пришло НИ новой дельты, НИ AudioChunk, НИ
+//      TurnComplete — принудительно финализируем turn локально.
+//      Юзер видит частичный перевод и может продолжать.
 //
-//   БАГ 2: Дедупликатор работал по text.startsWith() без проверки
-//   роли. Если последняя дельта модели "Wirklich?" совпадала с
-//   началом следующей дельты юзера, происходило схлопывание.
+//   2. TEXT-WITHOUT-AUDIO DETECTOR
+//      Детектит когда OutputTranscript есть, а AudioChunk не идёт.
+//      Не блокирует UI, просто логирует и не закрывает mic gate
+//      (т.к. динамик не звучит — нет смысла гейтить мик).
 //
-//   БАГ 3: Фильтр hasMeaningfulChars выкидывал ВСЁ что не имеет
-//   букв — включая "1 2 3 4 5", "20 евро" и т.п.
+//   3. ASR-GARBAGE SUPPRESSOR (опциональный, по флагу)
+//      Если cachedSettings.translatorSuppressShortAsrGarbage==true
+//      и в translator-режиме пришла КОРОТКАЯ латинская дельта
+//      без немецких маркеров (Hola, Pesa la otra, cocktail) —
+//      показываем пузырь как "…" с меткой ВЫ · ?
 //
-// РЕШЕНИЕ:
-//   1. Умный Unicode-фильтр (CJK/Hangul/Hiragana → drop, цифры → ok).
-//   2. Ленивое создание юзер-пузыря: если хотя бы одна валидная
-//      дельта пришла в turn'е — пузырь создаётся при финализации
-//      даже если буфер пуст (берём последнюю невалидную как
-//      fallback).
-//   3. Детектор формата дельт работает per-role (юзер ↔ модель
-//      изолированы). Никаких пересечений.
-//   4. Если за весь turn пришли только невалидные дельты — пузырь
-//      не создаётся, но логируется (для отладки).
+//   4. INITIAL-SESSION ECHO GUARD
+//      На первые 2 секунды после SetupComplete расширяем AI tail
+//      gate с 600ms до 1500ms. Защита от хвоста аудио прошлой
+//      сессии (баг 16:26:36 где модель ответила сама себе).
 //
-// СКОРОСТЬ: не пострадала. Логика осталась последовательной через
-// один Channel.
+// СОВМЕСТИМОСТЬ: требуется одно новое поле в AppSettings:
+//   val translatorSuppressShortAsrGarbage: Boolean = true
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.core
 
@@ -100,8 +101,22 @@ class LearnCoreViewModel @Inject constructor(
         private const val GREETING_FINAL_MS = 8_000L
         private const val SILENCE_PCM_BYTES = (2 * 16000 * 400) / 1000
         private const val AI_AUDIO_TAIL_MS = 600L
+
+        // v3.7: расширенный AI tail на старте сессии для защиты от echo
+        private const val AI_AUDIO_TAIL_INITIAL_MS = 1_500L
+        private const val INITIAL_SESSION_GUARD_MS = 2_000L
+
+        // v3.7: stuck-turn watchdog
+        private const val STUCK_TURN_TIMEOUT_MS = 3_500L
+        // v3.7: text-without-audio detector
+        private const val TEXT_WITHOUT_AUDIO_TIMEOUT_MS = 1_500L
+
         private const val SILENCE_PROMPT_COOLDOWN_MS = 30_000L
         private const val FINISH_SESSION_GRACE_MS = 5_000L
+
+        // v3.7: критерии "короткой латинской галлюцинации"
+        private const val ASR_GARBAGE_MAX_WORDS = 2
+        private const val ASR_GARBAGE_MAX_CHARS = 18
     }
 
     private val _state = MutableStateFlow(LearnCoreState())
@@ -131,6 +146,10 @@ class LearnCoreViewModel @Inject constructor(
     private var setupJob: Job? = null
     private var finishGraceJob: Job? = null
 
+    // v3.7: новые watchdog-джобы
+    private var stuckTurnWatchdogJob: Job? = null
+    private var textWithoutAudioJob: Job? = null
+
     @Volatile private var lastInputTs: Long = 0L
     @Volatile private var modelStartedSpeakingThisTurn = false
     @Volatile private var awaitingInitialGreeting = false
@@ -138,6 +157,14 @@ class LearnCoreViewModel @Inject constructor(
     @Volatile private var sessionFinished: Boolean = false
     @Volatile private var lastSilencePromptAtMs: Long = 0L
     @Volatile private var droppedMicChunks: Int = 0
+
+    // v3.7: timestamp последней любой активности от модели в текущем turn'е
+    // (audio ИЛИ output transcript). Используется watchdog'ом.
+    @Volatile private var lastModelActivityAtMs: Long = 0L
+    // v3.7: timestamp когда сессия стала Ready (для initial echo guard)
+    @Volatile private var sessionReadyAtMs: Long = 0L
+    // v3.7: модель уже прислала ХОТЯ БЫ что-то (audio или text) в этом turn'е
+    @Volatile private var hasModelOutputThisTurn: Boolean = false
 
     private val transcriptMutex = Mutex()
     @Volatile private var transcriptBuffer: List<ConversationMessage> = emptyList()
@@ -154,13 +181,9 @@ class LearnCoreViewModel @Inject constructor(
         object Reset : TranscriptOp()
     }
 
-    // Per-turn буферы.
     private val userTurnBuffer = StringBuilder()
     private val modelTurnBuffer = StringBuilder()
 
-    // НОВОЕ v3.6: запасной буфер для "невалидных" дельт юзера.
-    // Если фильтр отбрасывает все чанки в turn'е — на финализации
-    // покажем последнюю невалидную как fallback "не разобрано".
     @Volatile private var lastRejectedUserDelta: String = ""
 
     @Volatile private var liveUserMessageTs: Long = 0L
@@ -201,33 +224,25 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    /**
-     * v3.6: умная классификация и обработка юзер-дельты.
-     *
-     * Возможные исходы:
-     *   1. Текст однозначно мусор (CJK/Hangul) → полный drop, не сохраняем
-     *      даже как fallback. Эти галлюцинации ASR никогда не должны
-     *      попадать в чат.
-     *   2. Текст имеет хотя бы одну валидную букву/цифру в наших алфавитах
-     *      → добавляем в буфер, обновляем пузырь.
-     *   3. Текст не имеет ничего полезного, но и не CJK (например, "..."
-     *      или одни знаки препинания) → сохраняем как lastRejectedUserDelta
-     *      на случай если в этом turn'е больше ничего не придёт.
-     */
     private suspend fun handleUserDelta(text: String) {
         if (text.isEmpty()) return
 
         when (classifyUserDelta(text)) {
             DeltaClass.CJK_GARBAGE -> {
-                // Жёсткий drop — ASR-галлюцинация на фоновом шуме
                 logger.d("Learn: dropping CJK garbage: '$text'")
                 return
             }
             DeltaClass.MEANINGFUL -> {
-                // Нормальная дельта — обрабатываем
+                // v3.7: дополнительная проверка для translator-режима
+                if (activeSession?.id == "translator"
+                    && cachedSettings.translatorSuppressShortAsrGarbage
+                    && isShortLatinAsrGarbage(text)) {
+                    logger.d("Learn: short latin ASR garbage suppressed: '$text'")
+                    lastRejectedUserDelta = text
+                    return
+                }
             }
             DeltaClass.AMBIGUOUS -> {
-                // Сохраняем для fallback, но не показываем в пузыре
                 lastRejectedUserDelta = text
                 logger.d("Learn: ambiguous delta saved as fallback: '$text'")
                 return
@@ -236,20 +251,14 @@ class LearnCoreViewModel @Inject constructor(
 
         val current = userTurnBuffer.toString()
         when {
-            current.isEmpty() -> {
-                userTurnBuffer.append(text)
-            }
+            current.isEmpty() -> userTurnBuffer.append(text)
             text == current -> return
             text.startsWith(current) && text.length > current.length -> {
-                // SDK прислал полный накопленный
                 userTurnBuffer.clear()
                 userTurnBuffer.append(text)
             }
             current.endsWith(text) -> return
-            else -> {
-                // Стандартная дельта — конкатенируем
-                userTurnBuffer.append(text)
-            }
+            else -> userTurnBuffer.append(text)
         }
 
         lastInputTs = System.currentTimeMillis()
@@ -261,25 +270,24 @@ class LearnCoreViewModel @Inject constructor(
     private suspend fun handleModelDelta(text: String, source: String) {
         if (text.isEmpty()) return
 
-        // Дедупликация ModelText vs OutputTranscript:
-        // используем РОВНО ОДИН источник по настройкам.
         if (cachedSettings.outputTranscription && source == "ModelText") return
         if (!cachedSettings.outputTranscription && source == "OutputTranscript") return
 
+        // v3.7: фиксируем активность для watchdog
+        lastModelActivityAtMs = System.currentTimeMillis()
+        hasModelOutputThisTurn = true
+        startStuckTurnWatchdog()
+
         val current = modelTurnBuffer.toString()
         when {
-            current.isEmpty() -> {
-                modelTurnBuffer.append(text)
-            }
+            current.isEmpty() -> modelTurnBuffer.append(text)
             text == current -> return
             text.startsWith(current) && text.length > current.length -> {
                 modelTurnBuffer.clear()
                 modelTurnBuffer.append(text)
             }
             current.endsWith(text) -> return
-            else -> {
-                modelTurnBuffer.append(text)
-            }
+            else -> modelTurnBuffer.append(text)
         }
 
         upsertLiveModelBubble(modelTurnBuffer.toString())
@@ -289,13 +297,6 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    /**
-     * v3.6: финализация юзер-turn'а с поддержкой fallback.
-     * Если в буфере есть текст — финализируем как обычно.
-     * Если буфер пуст, но есть lastRejectedUserDelta — показываем её
-     * как пузырь "что-то было сказано но не разобрано".
-     * Если ничего нет — тихо выходим (юзер молчал).
-     */
     private suspend fun finalizeUserTurn() {
         val bufferedText = userTurnBuffer.toString().trim()
         val fallback = lastRejectedUserDelta.trim()
@@ -308,18 +309,21 @@ class LearnCoreViewModel @Inject constructor(
                 if (liveUserMessageTs != 0L) {
                     updateBubbleByTs(liveUserMessageTs, bufferedText, ConversationMessage.ROLE_USER)
                 } else {
-                    // Пузырь не создан, но текст есть — создаём финальный
                     upsertLiveUserBubble(bufferedText)
                 }
             }
             fallback.isNotEmpty() -> {
-                // Только невалидные дельты — показываем серый fallback
-                logger.d("Learn: turn ended with only ambiguous deltas, showing fallback: '$fallback'")
-                upsertLiveUserBubble(fallback)
+                // v3.7: для translator с включённым флагом — заменяем мусор на "…"
+                val textToShow = if (activeSession?.id == "translator"
+                    && cachedSettings.translatorSuppressShortAsrGarbage) {
+                    "…"
+                } else {
+                    fallback
+                }
+                logger.d("Learn: turn ended with only ambiguous deltas, showing: '$textToShow'")
+                upsertLiveUserBubble(textToShow)
             }
-            else -> {
-                // Юзер молчал — ничего не делаем
-            }
+            else -> {}
         }
 
         liveUserMessageTs = 0L
@@ -334,12 +338,14 @@ class LearnCoreViewModel @Inject constructor(
                 updateBubbleByTs(liveModelMessageTs, finalText, ConversationMessage.ROLE_MODEL)
             }
             finalText.isNotEmpty() && liveModelMessageTs == 0L -> {
-                // Очень короткий ответ модели — пузырь не успел создаться
                 upsertLiveModelBubble(finalText)
             }
         }
 
         liveModelMessageTs = 0L
+        hasModelOutputThisTurn = false
+        cancelStuckTurnWatchdog()
+        cancelTextWithoutAudioWatchdog()
     }
 
     private suspend fun upsertLiveUserBubble(text: String) {
@@ -414,13 +420,91 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
+    // ═══════════════════════════════════════════════════════
+    //  v3.7: STUCK-TURN WATCHDOG
+    // ═══════════════════════════════════════════════════════
+
     /**
-     * v3.6: трёхклассовая классификация дельты юзера.
+     * Запускается на КАЖДОЙ дельте от модели (audio или text).
+     * Если за STUCK_TURN_TIMEOUT_MS не пришло ничего нового и
+     * не пришёл TurnComplete — принудительно финализируем turn.
+     *
+     * Это решает баг native-audio модели Gemini Live где она
+     * иногда зависает в середине генерации (видели "Hallo. Lass"
+     * и тишину 10+ секунд).
      */
+    private fun startStuckTurnWatchdog() {
+        stuckTurnWatchdogJob?.cancel()
+        stuckTurnWatchdogJob = viewModelScope.launch {
+            delay(STUCK_TURN_TIMEOUT_MS)
+            // Проверяем что watchdog ещё актуален
+            if (!hasModelOutputThisTurn) return@launch
+
+            val sinceLastActivity = System.currentTimeMillis() - lastModelActivityAtMs
+            if (sinceLastActivity >= STUCK_TURN_TIMEOUT_MS) {
+                logger.w("⚠ STUCK_TURN_DETECTED — no model activity for ${sinceLastActivity}ms, " +
+                    "force-finalizing")
+
+                // 1. Финализируем буферы (сохраняем то что успело прийти)
+                transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
+                transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
+
+                // 2. Чистим аудио (если что-то висит в очереди)
+                runCatching { audioEngine.flushPlayback() }
+                runCatching { audioEngine.onTurnComplete() }
+
+                // 3. Сбрасываем UI-состояние
+                modelStartedSpeakingThisTurn = false
+                hasModelOutputThisTurn = false
+                _state.update { it.copy(isAiSpeaking = false) }
+
+                // 4. Открываем mic gate (если был закрыт по AI tail)
+                lastAiAudioChunkAtMs = 0L
+
+                cancelTextWithoutAudioWatchdog()
+            }
+        }
+    }
+
+    private fun cancelStuckTurnWatchdog() {
+        stuckTurnWatchdogJob?.cancel()
+        stuckTurnWatchdogJob = null
+    }
+
+    /**
+     * Запускается когда пришёл OutputTranscript но AudioChunk не пришёл.
+     * Если за TEXT_WITHOUT_AUDIO_TIMEOUT_MS аудио так и не появилось —
+     * считаем что модель залипла в text-only режиме. Логируем и
+     * сбрасываем lastAiAudioChunkAtMs чтобы mic gate не блокировал.
+     */
+    private fun startTextWithoutAudioWatchdog() {
+        textWithoutAudioJob?.cancel()
+        textWithoutAudioJob = viewModelScope.launch {
+            delay(TEXT_WITHOUT_AUDIO_TIMEOUT_MS)
+            val now = System.currentTimeMillis()
+            // Если модель всё ещё якобы "говорит", но AudioChunk
+            // не приходил — открываем mic gate.
+            if (hasModelOutputThisTurn && (now - lastAiAudioChunkAtMs) > TEXT_WITHOUT_AUDIO_TIMEOUT_MS) {
+                logger.w("⚠ TEXT_WITHOUT_AUDIO — model outputs text but no audio, " +
+                    "opening mic gate proactively")
+                lastAiAudioChunkAtMs = 0L
+                _state.update { it.copy(isAiSpeaking = false) }
+            }
+        }
+    }
+
+    private fun cancelTextWithoutAudioWatchdog() {
+        textWithoutAudioJob?.cancel()
+        textWithoutAudioJob = null
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  v3.7: КЛАССИФИКАЦИЯ ASR-ВВОДА
+    // ═══════════════════════════════════════════════════════
+
     private enum class DeltaClass { MEANINGFUL, AMBIGUOUS, CJK_GARBAGE }
 
     private fun classifyUserDelta(text: String): DeltaClass {
-        // 1. Проверяем CJK/Hangul/Hiragana/Katakana → жёсткий мусор от ASR
         val hasAsianGarbage = text.any { c ->
             val block = Character.UnicodeBlock.of(c) ?: return@any false
             block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
@@ -437,21 +521,55 @@ class LearnCoreViewModel @Inject constructor(
         }
         if (hasAsianGarbage) return DeltaClass.CJK_GARBAGE
 
-        // 2. Проверяем валидные символы: латиница, кириллица, умлауты,
-        //    украинские специфичные, ЦИФРЫ.
         val hasMeaningful = text.any { c ->
             c in 'a'..'z' || c in 'A'..'Z' ||
                 c in 'а'..'я' || c in 'А'..'Я' ||
                 c == 'ё' || c == 'Ё' ||
                 c in "äöüßÄÖÜ" ||
                 c in "ієґїІЄҐЇ" ||
-                c in "čšžćđČŠŽĆĐ" ||  // балтийские/центрально-европейские (для "Naviščou")
+                c in "čšžćđČŠŽĆĐ" ||
                 c in '0'..'9'
         }
         if (hasMeaningful) return DeltaClass.MEANINGFUL
 
-        // 3. Только знаки препинания/пробелы — неоднозначно
         return DeltaClass.AMBIGUOUS
+    }
+
+    /**
+     * v3.7: эвристика "это короткая латинская галлюцинация ASR".
+     *
+     * Условия (все должны быть выполнены):
+     *   - Текст ≤ ASR_GARBAGE_MAX_WORDS слов И ≤ ASR_GARBAGE_MAX_CHARS символов
+     *   - Только латиница (нет кириллицы и нет умлаутов)
+     *   - НЕТ немецких служебных слов (в этом случае это валидный немецкий ввод)
+     *   - НЕТ английских служебных слов (валидный английский ввод)
+     *
+     * Срабатывает на: "Hola", "Pesa la otra", "cocktail", "Naviščou", "zoutra"
+     * НЕ срабатывает на: "Hallo", "Danke", "Yes", "OK", "Hello"
+     */
+    private fun isShortLatinAsrGarbage(text: String): Boolean {
+        val cleaned = text.trim()
+        if (cleaned.isEmpty()) return false
+        if (cleaned.length > ASR_GARBAGE_MAX_CHARS) return false
+
+        val words = cleaned.split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (words.size > ASR_GARBAGE_MAX_WORDS) return false
+
+        // Если есть кириллица или умлауты — точно не галлюцинация
+        val hasCyrillic = cleaned.any { it in 'а'..'я' || it in 'А'..'Я' }
+        if (hasCyrillic) return false
+        val hasUmlauts = cleaned.any { it in "äöüßÄÖÜ" }
+        if (hasUmlauts) return false
+
+        // Проверяем словари для немецкого и английского
+        val lower = cleaned.lowercase().replace(Regex("[^a-z]"), " ")
+        val tokens = lower.split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return false
+
+        if (tokens.any { it in KNOWN_GERMAN_WORDS }) return false
+        if (tokens.any { it in KNOWN_ENGLISH_WORDS }) return false
+
+        return true
     }
 
     private fun observeVocabularyViolations() {
@@ -504,8 +622,6 @@ class LearnCoreViewModel @Inject constructor(
         }
 
         val finalSystemInstruction = if (userInfo.isNotBlank() && session.id != "translator") {
-            // ВАЖНО: для translator НЕ добавляем имя пользователя — это собьёт его с
-            // режима "невидимого тоннеля" и может заставить здороваться.
             "${session.systemInstruction}\n\n[ДАННЫЕ ПОЛЬЗОВАТЕЛЯ]:\n" +
                 "Обращайся к ученику по имени. Учитывай эти данные: $userInfo"
         } else {
@@ -513,7 +629,7 @@ class LearnCoreViewModel @Inject constructor(
         }
 
         val (silenceMs, prefixMs, temp) = when (session.id) {
-            "translator"   -> Triple(900, 250, 0.15f)  // ниже temperature для меньшей креативности перевода
+            "translator"   -> Triple(900, 250, 0.15f)
             "a1_situation" -> Triple(1000, 300, cachedSettings.temperature)
             "a1_review"    -> Triple(1000, 300, cachedSettings.temperature)
             else           -> Triple(1000, 300, cachedSettings.temperature)
@@ -555,7 +671,8 @@ class LearnCoreViewModel @Inject constructor(
         ).also {
             logger.d(
                 "Learn: config for ${session.id}: silence=${finalSilenceMs}ms, " +
-                    "prefix=${prefixMs}ms, temp=$temp, outputTr=${cachedSettings.outputTranscription}"
+                    "prefix=${prefixMs}ms, temp=$temp, outputTr=${cachedSettings.outputTranscription}, " +
+                    "garbageSuppress=${cachedSettings.translatorSuppressShortAsrGarbage}"
             )
         }
     }
@@ -586,6 +703,8 @@ class LearnCoreViewModel @Inject constructor(
         greetingFallbackJob?.cancel()
         finishGraceJob?.cancel()
         finishGraceJob = null
+        cancelStuckTurnWatchdog()
+        cancelTextWithoutAudioWatchdog()
 
         micOperationMutex.withLock {
             audioEngine.stopCapture()
@@ -610,6 +729,9 @@ class LearnCoreViewModel @Inject constructor(
         awaitingInitialGreeting = false
         sessionFinished = false
         lastAiAudioChunkAtMs = 0L
+        lastModelActivityAtMs = 0L
+        sessionReadyAtMs = 0L
+        hasModelOutputThisTurn = false
         lastSilencePromptAtMs = 0L
         droppedMicChunks = 0
         setupJob?.cancel()
@@ -654,8 +776,13 @@ class LearnCoreViewModel @Inject constructor(
         awaitingInitialGreeting = false
         sessionFinished = false
         lastAiAudioChunkAtMs = 0L
+        lastModelActivityAtMs = 0L
+        sessionReadyAtMs = 0L
+        hasModelOutputThisTurn = false
         lastSilencePromptAtMs = 0L
         droppedMicChunks = 0
+        cancelStuckTurnWatchdog()
+        cancelTextWithoutAudioWatchdog()
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
         setupJob = null
@@ -747,8 +874,17 @@ class LearnCoreViewModel @Inject constructor(
                 audioEngine.micOutput.collect { chunk ->
                     val now = System.currentTimeMillis()
                     val sinceLastAi = now - lastAiAudioChunkAtMs
+
+                    // v3.7: на старте сессии используем расширенный tail
+                    val effectiveTailMs = if (sessionReadyAtMs > 0L
+                        && (now - sessionReadyAtMs) < INITIAL_SESSION_GUARD_MS) {
+                        AI_AUDIO_TAIL_INITIAL_MS
+                    } else {
+                        AI_AUDIO_TAIL_MS
+                    }
+
                     val aiActuallyAudible = lastAiAudioChunkAtMs > 0L &&
-                                            sinceLastAi < AI_AUDIO_TAIL_MS
+                                            sinceLastAi < effectiveTailMs
 
                     if (!aiActuallyAudible) {
                         liveClient.sendAudio(chunk)
@@ -831,7 +967,11 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.SetupComplete -> handleSetupComplete()
 
                     is GeminiEvent.AudioChunk -> {
-                        lastAiAudioChunkAtMs = System.currentTimeMillis()
+                        val now = System.currentTimeMillis()
+                        lastAiAudioChunkAtMs = now
+                        // v3.7: фиксируем активность для watchdog
+                        lastModelActivityAtMs = now
+                        hasModelOutputThisTurn = true
 
                         if (!modelStartedSpeakingThisTurn) {
                             modelStartedSpeakingThisTurn = true
@@ -843,18 +983,29 @@ class LearnCoreViewModel @Inject constructor(
                         }
                         _state.update { it.copy(isAiSpeaking = true, isPreparingSession = false) }
                         audioEngine.enqueuePlayback(event.pcmData)
+
+                        // Перезапускаем watchdog
+                        startStuckTurnWatchdog()
+                        // Audio пришёл — text-without-audio watchdog не нужен
+                        cancelTextWithoutAudioWatchdog()
                     }
 
                     is GeminiEvent.Interrupted -> {
                         transcriptChannel.trySend(TranscriptOp.ModelInterrupted)
                         audioEngine.flushPlayback()
                         _state.update { it.copy(isAiSpeaking = false) }
+                        hasModelOutputThisTurn = false
+                        cancelStuckTurnWatchdog()
+                        cancelTextWithoutAudioWatchdog()
                     }
 
                     is GeminiEvent.TurnComplete -> {
                         transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
                         transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
                         modelStartedSpeakingThisTurn = false
+                        hasModelOutputThisTurn = false
+                        cancelStuckTurnWatchdog()
+                        cancelTextWithoutAudioWatchdog()
 
                         audioEngine.onTurnComplete()
                         _state.update { it.copy(isAiSpeaking = false) }
@@ -903,6 +1054,12 @@ class LearnCoreViewModel @Inject constructor(
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
                         }
+                        // v3.7: если text пришёл, а audio ещё нет — стартуем
+                        // text-without-audio watchdog
+                        if (lastAiAudioChunkAtMs == 0L
+                            || (System.currentTimeMillis() - lastAiAudioChunkAtMs) > 500) {
+                            startTextWithoutAudioWatchdog()
+                        }
                         transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "OutputTranscript"))
                     }
 
@@ -910,6 +1067,10 @@ class LearnCoreViewModel @Inject constructor(
                         if (awaitingInitialGreeting) {
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
+                        }
+                        if (lastAiAudioChunkAtMs == 0L
+                            || (System.currentTimeMillis() - lastAiAudioChunkAtMs) > 500) {
+                            startTextWithoutAudioWatchdog()
                         }
                         transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "ModelText"))
                     }
@@ -930,6 +1091,8 @@ class LearnCoreViewModel @Inject constructor(
 
                     is GeminiEvent.Disconnected -> {
                         greetingFallbackJob?.cancel()
+                        cancelStuckTurnWatchdog()
+                        cancelTextWithoutAudioWatchdog()
                         val isAbnormal = event.code != 1000 && event.code != 1001
                         val errorMsg = if (isAbnormal) "Соединение закрыто: ${event.reason} (Код: ${event.code}). Проверьте API-ключ." else null
 
@@ -952,6 +1115,8 @@ class LearnCoreViewModel @Inject constructor(
 
                     is GeminiEvent.ConnectionError -> {
                         greetingFallbackJob?.cancel()
+                        cancelStuckTurnWatchdog()
+                        cancelTextWithoutAudioWatchdog()
                         _state.update {
                             it.copy(
                                 connectionStatus = LearnConnectionStatus.Disconnected,
@@ -977,6 +1142,7 @@ class LearnCoreViewModel @Inject constructor(
 
     private fun handleSetupComplete() {
         _state.update { it.copy(connectionStatus = LearnConnectionStatus.Ready) }
+        sessionReadyAtMs = System.currentTimeMillis()
         val session = activeSession ?: return
         contextSeeded = true
         modelStartedSpeakingThisTurn = false
@@ -1160,6 +1326,8 @@ class LearnCoreViewModel @Inject constructor(
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
         finishGraceJob?.cancel()
+        cancelStuckTurnWatchdog()
+        cancelTextWithoutAudioWatchdog()
         statusBus.reset()
         safeStopForegroundService()
 
@@ -1171,4 +1339,38 @@ class LearnCoreViewModel @Inject constructor(
             logger.d("LearnCoreViewModel cleanup complete")
         }
     }
+
+    // ═══════════════════════════════════════════════════════
+    //  v3.7: словари для эвристики ASR-garbage
+    // ═══════════════════════════════════════════════════════
+
+    companion object Dictionaries {
+        // Не использую companion object в общем смысле — это просто
+        // анонимный namespace. Реальный companion определён выше.
+    }
 }
+
+// Вынесены из класса чтобы не разрастался companion object выше
+private val KNOWN_GERMAN_WORDS = setOf(
+    "der","die","das","den","dem","des","ein","eine","einen","einem","einer",
+    "ich","du","er","sie","es","wir","ihr","mich","dich","ihn","uns","euch",
+    "und","oder","aber","weil","wenn","dass","ob","sondern","denn","doch",
+    "ist","sind","war","waren","habe","hat","haben","wird","werden",
+    "nicht","kein","keine","mit","ohne","fur","gegen","uber","unter","auf","aus",
+    "bei","nach","seit","vor","durch","zu","in","an","im","am","ins","ans",
+    "ja","nein","auch","schon","noch","mehr","sehr","gut","heute","morgen","gestern",
+    "hallo","danke","bitte","tschuss","toll","klasse","super","wunderbar",
+    "wie","was","wo","wer","wann","warum","welcher","welche","welches",
+    "guten","tag","abend","nacht","entschuldigung",
+    "geht","gehst","gehen","macht","machst","machen","kommt","kommst","kommen",
+    "alles","nichts","etwas","jetzt","heute","morgen"
+)
+
+private val KNOWN_ENGLISH_WORDS = setOf(
+    "the","a","an","is","are","was","were","i","you","he","she","it","we","they",
+    "have","has","had","do","does","did","not","and","or","but","if","when","that",
+    "this","these","those","with","without","for","from","to","in","on","at","by",
+    "yes","no","ok","okay","what","why","how","who","where",
+    "hello","hi","hey","thanks","thank","please","sorry","welcome",
+    "good","bad","fine","great","cool","nice"
+)
