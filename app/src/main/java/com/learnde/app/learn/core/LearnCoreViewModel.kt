@@ -897,6 +897,9 @@ class LearnCoreViewModel @Inject constructor(
         _state.update {
             it.copy(isMicActive = true, connectionStatus = LearnConnectionStatus.Recording)
         }
+
+        speechRecognizerManager.startListening("ru-RU")
+
         micJob = viewModelScope.launch {
             launch {
                 audioEngine.micOutput.collect { chunk ->
