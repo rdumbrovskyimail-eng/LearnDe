@@ -41,7 +41,6 @@ import androidx.core.content.ContextCompat
 import androidx.datastore.core.DataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.learnde.app.data.LocalSpeechRecognizerManager
 import com.learnde.app.data.settings.AppSettings
 import com.learnde.app.domain.AudioEngine
 import com.learnde.app.domain.LiveClient
@@ -233,27 +232,20 @@ class LearnCoreViewModel @Inject constructor(
     private suspend fun handleUserDelta(text: String) {
         if (text.isEmpty()) return
 
-        // Мы убрали агрессивные фильтры (classifyUserDelta, isShortLatinAsrGarbage),
-        // из-за которых были "пропуски". Теперь мы полностью доверяем мультиязычной модели Gemini.
-
         val current = userTurnBuffer.toString()
         when {
             current.isEmpty() -> userTurnBuffer.append(text)
             text.startsWith(current) -> {
-                // Gemini присылает накопительный текст (напр. "Привет" -> "Привет как дела")
                 userTurnBuffer.clear()
                 userTurnBuffer.append(text)
             }
             current.contains(text) -> { 
-                // Игнорируем дубликаты
             }
             else -> {
-                // Gemini прислал новый кусок фразы
                 userTurnBuffer.append(" ").append(text)
             }
         }
 
-        // МГНОВЕННО обновляем "живой" полупрозрачный пузырь в UI (как в AI Studio)
         _state.update { it.copy(liveUserTranscript = userTurnBuffer.toString()) }
 
         lastInputTs = System.currentTimeMillis()
@@ -277,29 +269,6 @@ class LearnCoreViewModel @Inject constructor(
             }
         }
         liveUserMessageTs = 0L
-    }
-
-    private suspend fun handleUserDelta(text: String) {
-        if (text.isEmpty()) return
-
-        val current = userTurnBuffer.toString()
-        when {
-            current.isEmpty() -> userTurnBuffer.append(text)
-            text.startsWith(current) -> {
-                userTurnBuffer.clear()
-                userTurnBuffer.append(text)
-            }
-            current.contains(text) -> { 
-            }
-            else -> {
-                userTurnBuffer.append(" ").append(text)
-            }
-        }
-
-        _state.update { it.copy(liveUserTranscript = userTurnBuffer.toString()) }
-
-        lastInputTs = System.currentTimeMillis()
-        silenceTimerJob?.cancel()
     }
 
     private suspend fun handleModelDelta(text: String, source: String) {
@@ -843,7 +812,6 @@ class LearnCoreViewModel @Inject constructor(
         micJob?.cancel()
         micJob = null
         silenceTimerJob?.cancel()
-        speechRecognizerManager.stopListening()
 
         viewModelScope.launch {
             micOperationMutex.withLock {
