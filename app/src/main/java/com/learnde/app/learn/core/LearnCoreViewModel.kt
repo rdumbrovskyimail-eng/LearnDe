@@ -1,6 +1,17 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v3.7
+// ПОЛНАЯ ЗАМЕНА v3.8
 // Путь: app/src/main/java/com/learnde/app/learn/core/LearnCoreViewModel.kt
+//
+//   v3.8 (function-based user transcription для translator):
+//     - Транскрипция речи пользователя в режиме "translator" теперь
+//       приходит ОТ САМОЙ МОДЕЛИ через function call submit_user_speech,
+//       а не от ASR-канала InputTranscript.
+//     - ASR Google по-прежнему отвечает за транскрипцию голоса Gemini
+//       (OutputTranscript) — там он работает идеально.
+//     - Решает проблему иероглифов и кривой транскрипции на коротких
+//       фразах (1-3 слова) и при переключении укр↔рос.
+//     - Новая зависимость: TranslatorSession инжектится напрямую,
+//       чтобы подписаться на её userSpeechFlow.
 //
 // НОВОЕ В v3.7 (по результатам live-тестирования v3.6):
 //
@@ -84,6 +95,7 @@ class LearnCoreViewModel @Inject constructor(
     private val statusBus: LearnFunctionStatusBus,
     private val registry: LearnSessionRegistry,
     private val vocabularyEnforcer: com.learnde.app.learn.domain.VocabularyEnforcer,
+    private val translatorSession: com.learnde.app.learn.sessions.translator.TranslatorSession,
 ) : ViewModel() {
 
     companion object {
@@ -200,6 +212,7 @@ class LearnCoreViewModel @Inject constructor(
         observeArbiter()
         observeVocabularyViolations()
         startTranscriptProcessor()
+        observeTranslatorUserSpeech()
         viewModelScope.launch { audioEngine.initPlayback() }
     }
 
@@ -480,6 +493,29 @@ class LearnCoreViewModel @Inject constructor(
                 if (activeSession?.id == "a1_situation" || activeSession?.id == "a1_review") {
                     pendingVocabViolation = violation
                     logger.d("Learn: vocab violation buffered (${violation.violatingWords})")
+                }
+            }
+        }
+    }
+
+    private fun observeTranslatorUserSpeech() {
+        viewModelScope.launch {
+            translatorSession.userSpeechFlow.collect { event ->
+                // Обрабатываем только если активна именно translator-сессия
+                if (activeSession?.id != "translator") return@collect
+                
+                logger.d("Learn: user speech via function call [${event.language}]: ${event.text}")
+                
+                transcriptMutex.withLock {
+                    val newMsg = ConversationMessage.user(event.text)
+                    val next = (transcriptBuffer + newMsg).takeLast(MAX_TRANSCRIPT_SIZE)
+                    transcriptBuffer = next
+                    _state.update { 
+                        it.copy(
+                            transcript = next,
+                            liveUserTranscript = ""
+                        ) 
+                    }
                 }
             }
         }
@@ -952,7 +988,12 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.InputTranscript -> {
-                        transcriptChannel.trySend(TranscriptOp.UserDelta(event.text))
+                        // v3.8: для translator-сессии ASR пользователя не используем —
+                        // транскрипцию даст сама модель через function call submit_user_speech.
+                        // Это решает проблему иероглифов на коротких фразах укр/рос/нем.
+                        if (activeSession?.id != "translator") {
+                            transcriptChannel.trySend(TranscriptOp.UserDelta(event.text))
+                        }
                     }
 
                     is GeminiEvent.OutputTranscript -> {
