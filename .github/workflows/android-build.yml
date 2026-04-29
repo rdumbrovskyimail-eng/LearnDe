@@ -23,10 +23,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-          gradle-home-cache-cleanup: true
+          cache-cleanup: on-success
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+      - name: Ensure Gradle Wrapper
+        run: |
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "gradle-wrapper.jar missing — regenerating wrapper"
+            mkdir -p gradle/wrapper
+            curl -sLo gradle/wrapper/gradle-wrapper.jar \
+              https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar
+          fi
+          chmod +x ./gradlew
 
       - name: Build Debug APK
         run: |
