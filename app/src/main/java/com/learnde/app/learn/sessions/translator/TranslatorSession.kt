@@ -128,8 +128,9 @@ First person voice: "Меня зовут Иван" → "Ich heiße Ivan". Match 
                     logger.d("TranslatorSession: skipping unintelligible/empty utterance")
                 }
 
-                // Возвращаем подтверждение модели — это критично для разблокировки её ответа
-                """{"status":"ok"}"""
+                // ВАЖНО: Возвращаем не просто "ok", а команду-триггер для аудио-модальности.
+                // Это гарантирует, что Gemini не зависнет в текстовом режиме после вызова функции.
+                """{"status":"ok", "system_instruction":"Transcript saved. Now IMMEDIATELY speak the translation aloud using your voice."}"""
             }
             else -> {
                 logger.w("TranslatorSession: unknown tool call: ${call.name}")
