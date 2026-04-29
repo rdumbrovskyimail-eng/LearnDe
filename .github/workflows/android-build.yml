@@ -22,26 +22,16 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          cache-enabled: true
           cache-read-only: false
-          gradle-home-cache-includes: |
-            caches
-            notifications
-            wrapper
-          gradle-home-cache-excludes: |
-            caches/build-cache-1
+          gradle-home-cache-cleanup: true
 
       - name: Build Debug APK
         run: |
-          gradle assembleDebug \
-            --no-build-cache \
-            --no-configuration-cache \
+          ./gradlew assembleDebug \
+            --build-cache \
+            --configuration-cache \
             --parallel \
-            --max-workers=4 \
-            -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m" \
-            -Dorg.gradle.parallel=true \
-            -Dkotlin.incremental=false \
-            -Dandroid.enableJetifier=false
+            --max-workers=4
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
