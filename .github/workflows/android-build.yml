@@ -25,6 +25,9 @@ jobs:
           cache-read-only: false
           gradle-home-cache-cleanup: true
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Build Debug APK
         run: |
           ./gradlew assembleDebug \
