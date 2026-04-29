@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════
-// ЗАМЕНА
+// ЗАМЕНА (build-speed optimized)
 // Путь: app/build.gradle.kts
-// Изменения: + Room (runtime, ktx, compiler via ksp)
+// Изменения:
+//   + явное отключение неиспользуемых buildFeatures (viewBinding,
+//     dataBinding, aidl, renderScript, resValues, shaders) — пропускает
+//     соответствующие Gradle-таски
+//   + resourceConfigurations = ru/de/en — убирает 60+ языков из
+//     зависимостей при packaging
 // ═══════════════════════════════════════════════════════════
 plugins {
     id("com.android.application")
@@ -21,11 +26,21 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        // Оставляем только нужные локали — ускоряет packaging
+        resourceConfigurations += listOf("ru", "de", "en")
     }
 
     buildFeatures {
         buildConfig = true
         compose = true
+        // Явно отключаем неиспользуемое — Gradle пропустит соответствующие таски
+        viewBinding = false
+        dataBinding = false
+        aidl = false
+        renderScript = false
+        resValues = false
+        shaders = false
     }
 
     buildTypes {
