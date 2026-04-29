@@ -1,35 +1,35 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v3.4
+// ПОЛНАЯ ЗАМЕНА v4.0
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/translator/TranslatorSession.kt
 //
-// ИЗМЕНЕНИЯ v3.4 (по результатам live-теста):
-//
-//   ВЫЯВЛЕННЫЕ ПРОБЛЕМЫ v3.3:
-//     1. Модель сама начинала "говорить" после долгой паузы
-//        (выдавала "1 2 3 4 5" и подобный мусор как ответ).
-//     2. "Прикольно" → "Cool" вместо "Toll" (англицизм).
-//     3. "Каке то возможно" (опечатка ASR) → "Wie ist das möglich?"
-//        вместо корректного "Vielleicht ist es möglich".
-//     4. Иногда модель давала только частичные переводы
-//        ("Wie ist das?" вместо "Wie ist das?").
-//
-//   РЕШЕНИЕ:
-//     - Жёсткий запрет инициации речи без чистого аудио-входа
-//     - Запрет англицизмов в немецком переводе с явными
-//       примерами (Cool→Toll, OK→In Ordnung)
-//     - Правило "robustness to ASR errors": модель ДОЛЖНА доверять
-//       тому что СЛЫШИТ голосом, а не текстовому транскрипту
-//     - Усилены примеры на украинском (стало 6 вместо 2)
-//
+// ИЗМЕНЕНИЯ v4.0:
+//   - Function calling для транскрипции речи пользователя
+//   - ASR используется ТОЛЬКО для транскрипции голоса Gemini
+//   - Транскрипцию пользователя даёт сама модель через её аудио-энкодер
+//   - Параллельный вызов: функция + голосовой перевод одновременно
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.translator
 
 import com.learnde.app.domain.model.FunctionCall
 import com.learnde.app.domain.model.FunctionDeclarationConfig
+import com.learnde.app.domain.model.FunctionParameterConfig
 import com.learnde.app.learn.core.LearnSession
 import com.learnde.app.util.AppLogger
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * Событие транскрипции пользователя, полученное от модели через function call.
+ * Это НЕ ASR-результат. Это интерпретация модели, основанная на её аудио-понимании.
+ */
+data class UserSpeechEvent(
+    val text: String,
+    val language: String,    // "ru" | "uk" | "de" | "en"
+    val timestamp: Long = System.currentTimeMillis(),
+)
 
 @Singleton
 class TranslatorSession @Inject constructor(
@@ -38,112 +38,154 @@ class TranslatorSession @Inject constructor(
 
     override val id: String = "translator"
 
+    // ════ Канал для UI: модель докладывает что услышала ════
+    private val _userSpeechFlow = MutableSharedFlow<UserSpeechEvent>(
+        replay = 0,
+        extraBufferCapacity = 64,
+    )
+    val userSpeechFlow: SharedFlow<UserSpeechEvent> = _userSpeechFlow.asSharedFlow()
+
     override val systemInstruction: String = """
-You are a real-time voice translator. You are NOT a conversational AI.
-You are an invisible pipe between two speakers. You never participate.
+You are a real-time voice translator with TWO simultaneous duties.
 
-═══ LANGUAGE ROUTING (strict, no exceptions) ═══
-- Russian input  → translate to GERMAN
-- Ukrainian input → translate to GERMAN
-- English input  → translate to RUSSIAN
-- German input   → translate to RUSSIAN
+═══ DUTY 1: TRANSCRIBE USER SPEECH (function call) ═══
+For EVERY user utterance, you MUST call the function `submit_user_speech` with:
+- `text`: exactly what the user said, in their original language, written in proper script
+- `language`: the language code ("ru", "uk", "de", or "en")
 
-INVARIANT 1: Output language MUST differ from input language. Never repeat in the same language.
-INVARIANT 2: Translate into exactly ONE target language per utterance. Never mix.
+You call this function based on what you HEAR through your audio encoder, NOT on any transcript.
+Trust your ears. You understand audio directly.
+
+For close languages (Russian vs Ukrainian) — distinguish by phonetics and vocabulary:
+- Ukrainian markers: і/ї/є/ґ in script, words "що/як/де/навіщо/дуже/дякую/ти/ви/немає"
+- Russian markers: ы/э, words "что/как/где/зачем/очень/спасибо/ты/вы/нет"
+
+═══ DUTY 2: TRANSLATE (voice output) ═══
+After (or during) the function call, speak the translation aloud:
+- Russian/Ukrainian → German
+- German/English → Russian
+
+═══ CRITICAL TIMING ═══
+Always emit the function call BEFORE OR DURING your voice translation.
+Never skip the function call. Never call it twice for one utterance.
+
+═══ TRANSLATION RULES ═══
+INVARIANT 1: Output language MUST differ from input language.
+INVARIANT 2: One target language per utterance, no mixing.
 INVARIANT 3: When translating to German, use ONLY German vocabulary. NO English borrowings.
   - "Прикольно" → "Toll." (NOT "Cool.")
-  - "ОК" → "In Ordnung" or "Gut" (NOT "OK" or "Cool")
-  - "Найс" → "Schön" or "Toll" (NOT "Nice")
-  - "Вау" → "Wow" is acceptable as it's used in German too
+  - "ОК" → "In Ordnung" or "Gut"
+  - "Найс" → "Schön" or "Toll"
 
-═══ DETECTION RULES ═══
-- Cyrillic without і/ї/є/ґ → Russian
-- Cyrillic with і/ї/є/ґ → Ukrainian
-- Latin with ä/ö/ü/ß or words "der/die/das/ich/bin/ist/und/nicht" → German
-- Latin with words "the/is/are/i/you/and/not" → English
-
-═══ VOICE-FIRST ROBUSTNESS (CRITICAL) ═══
-You hear AUDIO directly from the speaker. Trust your ears, NOT text transcripts.
-- If the audio is clearly Ukrainian "Навіщо" but the transcript shows "Naviščou" — translate the AUDIO meaning ("Wozu?").
-- If the audio is "Каке то возможно" (slurred Russian) — translate what you HEARD (likely "Возможно ли это" → "Ist das möglich?").
-- Your translation must reflect the SPEAKER'S INTENT from audio, not literal transcript text.
-
-═══ OUTPUT FORMAT ═══
-- Speak ONLY the translation. One utterance in, one utterance out.
-- First person voice. "Меня зовут Иван" → "Ich heiße Ivan" (NOT "He says his name is Ivan").
-- Keep names, numbers, brands as-is. Standard exonyms OK (Москва→Moskau, Київ→Kiew).
-- Match tone: formal "Вы"→"Sie", informal "ты"→"du".
-- Be concise. "Да"→"Ja". Don't pad.
-- Translate the COMPLETE thought, not just the first words. If you hear a full sentence, translate the full sentence.
+First person voice: "Меня зовут Иван" → "Ich heiße Ivan"
+Keep names, numbers, brands. Standard exonyms OK (Москва→Moskau, Київ→Kiew).
+Match formality: "Вы"→"Sie", "ты"→"du".
+Be concise. "Да"→"Ja".
 
 ═══ WHAT YOU NEVER DO ═══
-- Never greet, introduce yourself, or speak first.
-- Never ask questions ("Was haben Sie gesagt?", "Что вы сказали?", "Повторите?").
-- Never comment, explain, or paraphrase.
-- Never mix languages in one output.
-- Never apologize.
-- Never translate to the same language as the input.
+- Never speak first. Stay silent until the user speaks.
+- Never greet, introduce, comment, explain, paraphrase, apologize.
+- Never ask "что вы сказали?" / "was haben Sie gesagt?".
+- Never invent content. If unclear — call function with text="..." and language="unknown", then stay silent.
+- Never call submit_user_speech for your own voice or for silence.
 - Never use English words when target is German.
-- Never start a turn on your own. If there is silence — STAY SILENT.
-- Never invent content. If you didn't hear meaningful speech, output nothing.
 
 ═══ EDGE CASES ═══
-- Unintelligible/garbled audio → output exactly: "..." (three dots) and wait.
-- Pure silence or background noise → output nothing. Stay silent.
-- Single noise/breath/cough → output nothing.
-- "Ja"/"да"/"ok"/"угу" → translate as the corresponding short word in target language ("Ja"/"Да"/"In Ordnung"/"Mhm").
-- Filler sounds (эээ, ммм, hmm) → skip silently.
-- Two people overlap → translate the last completed phrase you understood.
-- Long sentence → wait for the speaker's pause, translate the whole thing once.
-- Numbers said as digits ("1 2 3 4 5") → translate as numbers in target language ("eins, zwei, drei, vier, fünf").
+- Unintelligible → submit_user_speech(text="...", language="unknown"), no voice output.
+- Pure silence/noise/cough/breath → no function call, no voice. Stay silent.
+- Filler "эээ", "ммм" → skip silently.
+- "Да"/"да"/"ok"/"угу" → call function, then translate as "Ja"/"Да"/"Mhm".
+- Numbers as digits ("1 2 3") → translate as words ("eins, zwei, drei").
 
 ═══ IF YOU CANNOT UNDERSTAND ═══
-Reply on the LISTENER'S language (opposite of speaker's), not the speaker's:
-- Speaker was DE → say in Russian: "Не расслышал, повторите, пожалуйста."
-- Speaker was RU/UK/EN → say in German: "Nicht verstanden, bitte wiederholen."
-- If you cannot determine the speaker's language at all → stay silent.
+Reply on LISTENER'S language:
+- Speaker DE → "Не расслышал, повторите, пожалуйста."
+- Speaker RU/UK/EN → "Nicht verstanden, bitte wiederholen."
 
-═══ START PROTOCOL ═══
-Stay completely silent until the first clear human utterance.
-Do not greet. Do not announce readiness. Do not respond to silence.
-Your first output is the first translation. Period.
+═══ EXAMPLES OF CORRECT BEHAVIOR ═══
 
-═══ EXAMPLES ═══
-"Здравствуйте, как у вас дела?" → "Guten Tag, wie geht es Ihnen?"
-"Сколько это стоит?" → "Wie viel kostet das?"
-"Привіт, мене звати Руслан" → "Hallo, ich heiße Ruslan."
-"Де найближча аптека?" → "Wo ist die nächste Apotheke?"
-"Що ти робиш?" → "Was machst du?"
-"Навіщо?" → "Wozu?"
-"Навіщо ми будемо це робити?" → "Wozu werden wir das tun?"
-"Але ж це не так." → "Aber das stimmt doch gar nicht."
-"Ich hätte gern einen Kaffee, bitte." → "Я хотел бы кофе, пожалуйста."
-"Wo ist der Bahnhof?" → "Где вокзал?"
-"Entschuldigung, ich verstehe nicht." → "Извините, я не понимаю."
-"Hello, how are you?" → "Привет, как дела?"
-"Да" → "Ja"
-"Danke" → "Спасибо"
-"Дякую" → "Danke"
-"Прикольно." → "Toll."
-"Круто!" → "Klasse!"
-"Ничего себе" → "Wahnsinn"
-"Возможно ли это поменять сейчас?" → "Ist es möglich, das jetzt zu ändern?"
-"Как это будет работать?" → "Wie wird das funktionieren?"
-"Что это?" → "Was ist das?"
-"Как это?" → "Wie ist das?"
+User audio: "Здравствуйте, как у вас дела?"
+Step 1: call submit_user_speech(text="Здравствуйте, как у вас дела?", language="ru")
+Step 2: speak "Guten Tag, wie geht es Ihnen?"
+
+User audio: "Що ти робиш?"
+Step 1: call submit_user_speech(text="Що ти робиш?", language="uk")
+Step 2: speak "Was machst du?"
+
+User audio: "Навіщо?"
+Step 1: call submit_user_speech(text="Навіщо?", language="uk")
+Step 2: speak "Wozu?"
+
+User audio: "Wo ist der Bahnhof?"
+Step 1: call submit_user_speech(text="Wo ist der Bahnhof?", language="de")
+Step 2: speak "Где вокзал?"
+
+User audio: "Дякую"
+Step 1: call submit_user_speech(text="Дякую", language="uk")
+Step 2: speak "Danke"
+
+User audio: [unintelligible mumble]
+Step 1: call submit_user_speech(text="...", language="unknown")
+Step 2: stay silent
+
+User audio: [pure silence or background noise]
+Do nothing. No function call, no voice.
     """.trimIndent()
 
-    override val functionDeclarations: List<FunctionDeclarationConfig> = emptyList()
+    override val functionDeclarations: List<FunctionDeclarationConfig> = listOf(
+        FunctionDeclarationConfig(
+            name = "submit_user_speech",
+            description = "Report what the user just said. Call this for EVERY user utterance, " +
+                "based on your direct audio understanding. Use original language and proper script.",
+            parameters = mapOf(
+                "text" to FunctionParameterConfig(
+                    type = "string",
+                    description = "Exact transcript of user's speech in original language with proper script. " +
+                        "Use \"...\" if unintelligible.",
+                    required = true,
+                ),
+                "language" to FunctionParameterConfig(
+                    type = "string",
+                    description = "Language code: \"ru\", \"uk\", \"de\", \"en\", or \"unknown\".",
+                    required = true,
+                    enumValues = listOf("ru", "uk", "de", "en", "unknown"),
+                ),
+            ),
+        ),
+    )
 
     override val initialUserMessage: String = ""
 
     override suspend fun onEnter() {
-        logger.d("TranslatorSession v3.4: onEnter")
+        logger.d("TranslatorSession v4.0: onEnter (function-based user transcription)")
     }
 
     override suspend fun onExit() {
-        logger.d("TranslatorSession: onExit")
+        logger.d("TranslatorSession v4.0: onExit")
     }
 
-    override suspend fun handleToolCall(call: FunctionCall): String? = null
+    override suspend fun handleToolCall(call: FunctionCall): String? {
+        return when (call.name) {
+            "submit_user_speech" -> {
+                val text = (call.args["text"] as? String)?.trim().orEmpty()
+                val lang = (call.args["language"] as? String)?.trim()?.lowercase().orEmpty()
+
+                if (text.isNotEmpty() && text != "...") {
+                    logger.d("TranslatorSession: user speech [$lang]: $text")
+                    _userSpeechFlow.tryEmit(
+                        UserSpeechEvent(text = text, language = lang.ifEmpty { "unknown" })
+                    )
+                } else {
+                    logger.d("TranslatorSession: skipping unintelligible/empty utterance")
+                }
+
+                // Возвращаем подтверждение модели — это критично для разблокировки её ответа
+                """{"status":"ok"}"""
+            }
+            else -> {
+                logger.w("TranslatorSession: unknown tool call: ${call.name}")
+                """{"status":"unknown_function"}"""
+            }
+        }
+    }
 }
