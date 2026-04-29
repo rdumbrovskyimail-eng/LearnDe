@@ -20,26 +20,14 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Ensure Gradle Wrapper
-        run: |
-          if [ ! -f gradle/wrapper/gradle-wrapper.jar ] || [ ! -s gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Wrapper jar missing or empty — regenerating via system gradle"
-            gradle wrapper --gradle-version 9.4.1 --distribution-type bin
-          fi
-          chmod +x ./gradlew
-          ls -la gradle/wrapper/
-          file gradle/wrapper/gradle-wrapper.jar
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-          cache-cleanup: on-success
 
       - name: Build Debug APK
         run: |
-          ./gradlew assembleDebug \
+          gradle assembleDebug \
             --build-cache \
-            --configuration-cache \
             --parallel \
             --max-workers=4
 
