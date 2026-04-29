@@ -12,7 +12,7 @@ package com.learnde.app.learn.sessions.translator
 
 import com.learnde.app.domain.model.FunctionCall
 import com.learnde.app.domain.model.FunctionDeclarationConfig
-import com.learnde.app.domain.model.FunctionParameterConfig
+import com.learnde.app.domain.model.ParameterConfig
 import com.learnde.app.learn.core.LearnSession
 import com.learnde.app.util.AppLogger
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -138,19 +138,18 @@ Do nothing. No function call, no voice.
             description = "Report what the user just said. Call this for EVERY user utterance, " +
                 "based on your direct audio understanding. Use original language and proper script.",
             parameters = mapOf(
-                "text" to FunctionParameterConfig(
-                    type = "string",
-                    description = "Exact transcript of user's speech in original language with proper script. " +
-                        "Use \"...\" if unintelligible.",
-                    required = true,
+                "text" to ParameterConfig(
+                    type = "STRING",
+                    description = "Exact transcript of user's speech in original language with " +
+                        "proper script. Use \"...\" if unintelligible.",
                 ),
-                "language" to FunctionParameterConfig(
-                    type = "string",
-                    description = "Language code: \"ru\", \"uk\", \"de\", \"en\", or \"unknown\".",
-                    required = true,
-                    enumValues = listOf("ru", "uk", "de", "en", "unknown"),
+                "language" to ParameterConfig(
+                    type = "STRING",
+                    description = "Language code: one of \"ru\", \"uk\", \"de\", \"en\", \"unknown\". " +
+                        "Use phonetic and lexical markers to distinguish Russian from Ukrainian.",
                 ),
             ),
+            required = listOf("text", "language"),
         ),
     )
 
