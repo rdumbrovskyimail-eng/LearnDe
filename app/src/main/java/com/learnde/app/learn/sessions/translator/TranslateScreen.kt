@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v5.3 (с поддержкой Live-транскрипции)
+// ПОЛНАЯ ЗАМЕНА v5.4 (function-based user transcription)
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/translator/TranslateScreen.kt
 // ════════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.translator
@@ -256,7 +256,12 @@ fun TranslatorScreen(
                 } else {
                     TranscriptList(
                         messages = learnState.transcript,
-                        liveUserText = liveUserText
+                        liveUserText = liveUserText,
+                        showThinking = isActive 
+                            && learnState.isMicActive 
+                            && !learnState.isAiSpeaking 
+                            && !learnState.isPreparingSession
+                            && learnState.transcript.lastOrNull()?.role != ConversationMessage.ROLE_USER
                     )
                 }
             }
@@ -452,12 +457,20 @@ private fun EmptyTranscriptHint(isActive: Boolean) {
 }
 
 @Composable
-private fun TranscriptList(messages: List<ConversationMessage>, liveUserText: String) {
+private fun TranscriptList(
+    messages: List<ConversationMessage>,
+    liveUserText: String,
+    showThinking: Boolean,
+) {
     val listState = rememberLazyListState()
     
-    // Анимируем скролл вниз при добавлении сообщений или изменении live-текста
-    LaunchedEffect(messages.size, messages.lastOrNull()?.text, liveUserText) {
-        val totalItems = messages.size + if (liveUserText.isNotEmpty()) 1 else 0
+    LaunchedEffect(messages.size, messages.lastOrNull()?.text, liveUserText, showThinking) {
+        val extra = when {
+            liveUserText.isNotEmpty() -> 1
+            showThinking -> 1
+            else -> 0
+        }
+        val totalItems = messages.size + extra
         if (totalItems > 0) {
             listState.animateScrollToItem(totalItems - 1)
         }
@@ -468,12 +481,11 @@ private fun TranscriptList(messages: List<ConversationMessage>, liveUserText: St
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        // Отрисовка зафиксированных сообщений
         items(messages, key = { msg -> "${msg.timestamp}_${msg.role}" }) { msg ->
             TranscriptBubble(message = msg, isLive = false)
         }
         
-        // Отрисовка "живого" текста, если он есть
+        // Legacy "живой" пузырь — для других сессий, где ASR ещё используется
         if (liveUserText.isNotEmpty()) {
             item(key = "live_user_transcript") {
                 val liveMsg = ConversationMessage(
@@ -483,6 +495,108 @@ private fun TranscriptList(messages: List<ConversationMessage>, liveUserText: St
                 )
                 TranscriptBubble(message = liveMsg, isLive = true)
             }
+        }
+        
+        // v5.4: thinking-индикатор для translator-сессии когда мы слушаем
+        if (showThinking && liveUserText.isEmpty()) {
+            item(key = "thinking_bubble") {
+                ThinkingBubble()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThinkingBubble() {
+    val colors = learnColors()
+    val transition = rememberInfiniteTransition(label = "thinkingDots")
+    
+    val dot1 by transition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "dot1",
+    )
+    val dot2 by transition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, delayMillis = 200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "dot2",
+    )
+    val dot3 by transition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, delayMillis = 400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "dot3",
+    )
+    
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(
+                    RoundedCornerShape(
+                        topStart = LearnTokens.RadiusSm,
+                        topEnd = LearnTokens.RadiusSm,
+                        bottomStart = LearnTokens.RadiusSm,
+                        bottomEnd = 4.dp,
+                    ),
+                )
+                .background(colors.accentSoft)
+                .border(
+                    LearnTokens.BorderThin,
+                    colors.accent.copy(alpha = 0.25f),
+                    RoundedCornerShape(
+                        topStart = LearnTokens.RadiusSm,
+                        topEnd = LearnTokens.RadiusSm,
+                        bottomStart = LearnTokens.RadiusSm,
+                        bottomEnd = 4.dp,
+                    ),
+                )
+                .padding(horizontal = LearnTokens.PaddingMd, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                "СЛУШАЮ",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.accent,
+                letterSpacing = LearnTokens.CapsLetterSpacing,
+            )
+            Spacer(Modifier.width(4.dp))
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .alpha(dot1)
+                    .clip(CircleShape)
+                    .background(colors.accent),
+            )
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .alpha(dot2)
+                    .clip(CircleShape)
+                    .background(colors.accent),
+            )
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .alpha(dot3)
+                    .clip(CircleShape)
+                    .background(colors.accent),
+            )
         }
     }
 }
