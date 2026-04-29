@@ -1023,6 +1023,11 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.ToolCall -> {
+                        // ВАЖНО: Вызов функции — это тоже активность модели! Сбрасываем таймер зависания.
+                        lastModelActivityAtMs = System.currentTimeMillis()
+                        hasModelOutputThisTurn = true
+                        startStuckTurnWatchdog()
+
                         if (awaitingInitialGreeting) {
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
