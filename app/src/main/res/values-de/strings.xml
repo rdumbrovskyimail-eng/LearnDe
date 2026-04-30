@@ -8,15 +8,15 @@
 
     <string name="translator_lang_user">Ihre Sprache</string>
     <string name="translator_lang_target">Deutsch</string>
-    <string name="translator_lang_codes_user">RU · UA</string>
+    <string name="translator_lang_codes_user">RU &#xB7; UA</string>
     <string name="translator_lang_code_target">DE</string>
 
     <string name="translator_hint_idle_title">Sprachübersetzer</string>
-    <string name="translator_hint_idle_subtitle">Русский · Український · Deutsch\nSofortige Sprachübersetzung</string>
+    <string name="translator_hint_idle_subtitle">Русский &#xB7; Український &#xB7; Deutsch\nSofortige Sprachübersetzung</string>
     <string name="translator_hint_active_title">Sprechen Sie jederzeit</string>
     <string name="translator_hint_active_subtitle">Die Übersetzung erscheint hier und wird vorgelesen</string>
 
-    <string name="translator_bubble_you_speaking">Sie sprechen…</string>
+    <string name="translator_bubble_you_speaking">Sie sprechen...</string>
     <string name="translator_bubble_you">Sie</string>
     <string name="translator_bubble_translation">Übersetzung</string>
 
