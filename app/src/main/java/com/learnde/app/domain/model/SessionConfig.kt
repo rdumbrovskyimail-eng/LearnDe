@@ -199,11 +199,20 @@ data class SessionConfig(
 
 /**
  * Профиль латентности → Gemini 3.1 thinkingLevel.
- * Значения: "minimal" | "low" | "medium" | "high"
+ *
+ * Off       — thinkingConfig вообще НЕ отправляется. Самая быстрая реакция.
+ *             Идеально для перевода и командных голосовых интерфейсов.
+ * UltraLow  — "minimal" thinking. Лёгкое обдумывание перед ответом.
+ * Low       — "low" thinking. Стандартное.
+ * Balanced  — "medium" thinking. Для разговорных AI.
+ * Reasoning — "high" thinking. Для сложных задач (математика, код, анализ).
+ *
+ * thinkingLevel == null означает "не отправлять блок thinkingConfig".
  */
-enum class LatencyProfile(val thinkingLevel: String, val displayName: String) {
-    UltraLow ("minimal", "Ultra Low (minimal thinking)"),
-    Low      ("low",     "Low (light thinking)"),
-    Balanced ("medium",  "Balanced (medium thinking)"),
-    Reasoning("high",    "Reasoning (deep thinking)")
+enum class LatencyProfile(val thinkingLevel: String?, val displayName: String) {
+    Off      (null,      "Off — мгновенный ответ"),
+    UltraLow ("minimal", "Ultra Low — minimal thinking"),
+    Low      ("low",     "Low — light thinking"),
+    Balanced ("medium",  "Balanced — medium thinking"),
+    Reasoning("high",    "Reasoning — deep thinking")
 }
