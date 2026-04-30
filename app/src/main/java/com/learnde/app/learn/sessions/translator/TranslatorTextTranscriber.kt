@@ -1,24 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ v1.0
-// Путь: app/src/main/java/com/learnde/app/learn/sessions/translator/TranslatorTextTranscriber.kt
-//
-// Параллельный transcription-клиент для translator-сессии.
-//
-// Архитектура:
-//   - Использует отдельный @TranslatorTextScope LiveClient
-//     (свой WebSocket, не пересекается с основным audio-клиентом).
-//   - Работает в text modality — модель отвечает только текстом.
-//   - Принимает PCM от микрофона (дублируется из основного потока),
-//     слушает event ModelText и эмитит UserTranscriptEvent в UI.
-//   - Полностью независим: если падает — audio перевод продолжается.
-//
-// Формат ответа модели:
-//   Текст в формате "<lang>|<transcript>", например:
-//     "ru|Привет, как дела"
-//     "uk|Дякую дуже"
-//     "de|Wie geht's"
-//   Если непонятно — "unknown|...".
-// ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.translator
 
 import com.learnde.app.domain.LiveClient
@@ -31,7 +10,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -39,11 +17,10 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class UserTranscriptEvent(
-    val text: String,
-    val language: String,           // ru | uk | de | en | unknown
-    val timestamp: Long = System.currentTimeMillis(),
-)
+sealed class TranscriberEvent {
+    data class LiveUpdate(val original: String, val translation: String) : TranscriberEvent()
+    data class FinalTurn(val original: String, val translation: String, val lang: String) : TranscriberEvent()
+}
 
 @Singleton
 class TranslatorTextTranscriber @Inject constructor(
@@ -53,22 +30,20 @@ class TranslatorTextTranscriber @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val _transcripts = MutableSharedFlow<UserTranscriptEvent>(
+    private val _events = MutableSharedFlow<TranscriberEvent>(
         replay = 0,
         extraBufferCapacity = 64,
     )
-    val transcripts: SharedFlow<UserTranscriptEvent> = _transcripts.asSharedFlow()
+    val events: SharedFlow<TranscriberEvent> = _events.asSharedFlow()
 
     @Volatile private var eventJob: Job? = null
     @Volatile private var isActive: Boolean = false
 
     private val turnBuffer = StringBuilder()
+    private val pcmBuffer = mutableListOf<ByteArray>()
 
     val isReady: Boolean get() = client.isReady
 
-    // ═══════════════════════════════════════════════════════
-    //  PROMPT — ультра-минимальный, без function calling
-    // ═══════════════════════════════════════════════════════
     private val systemInstruction = """
 You are a real-time text translator. For every user utterance you produce TWO things: the original transcript AND the translation, following STRICT direction rules identical to the audio translator.
 
@@ -109,6 +84,7 @@ ABSOLUTE RULES:
         }
         isActive = true
         turnBuffer.clear()
+        pcmBuffer.clear()
 
         val config = SessionConfig(
             model = model,
@@ -117,7 +93,7 @@ ABSOLUTE RULES:
             topP = 0.6f,
             topK = 10,
             maxOutputTokens = 256,
-            voiceId = "Aoede",          // не используется в TEXT mode, но поле обязательное
+            voiceId = "Aoede",
             languageCode = "",
             latencyProfile = LatencyProfile.Off,
             autoActivityDetection = true,
@@ -126,15 +102,15 @@ ABSOLUTE RULES:
             vadPrefixPaddingMs = 80,
             vadSilenceDurationMs = 350,
             systemInstruction = systemInstruction,
-            inputTranscription = false,    // не нужно — мы сами транскрибируем
-            outputTranscription = false,   // ответ модели и так в text-mode
-            enableSessionResumption = false,
+            inputTranscription = false,
+            outputTranscription = false,
+            enableSessionResumption = true,
             enableContextCompression = false,
             enableGoogleSearch = false,
             functionDeclarations = emptyList(),
             sendAudioStreamEnd = true,
             setupTimeoutMs = 8_000L,
-            sendThinkingConfig = false,    // дополнительная защита: не шлём thinking
+            sendThinkingConfig = false,
         )
 
         logger.d("TranslatorTextTranscriber: starting (TEXT mode, model=$model)")
@@ -146,9 +122,13 @@ ABSOLUTE RULES:
         }
 
         runCatching { client.connect(apiKey, config, logRaw) }
+            .onSuccess {
+                logger.d("TranslatorTextTranscriber: connected successfully")
+            }
             .onFailure { e ->
                 logger.e("TranslatorTextTranscriber: connect failed: ${e.message}")
                 isActive = false
+                eventJob?.cancel()
             }
     }
 
@@ -159,15 +139,20 @@ ABSOLUTE RULES:
         eventJob?.cancel()
         eventJob = null
         turnBuffer.clear()
+        pcmBuffer.clear()
         logger.d("TranslatorTextTranscriber: stopped")
     }
 
-    /**
-     * Передать PCM-чанк от микрофона в text-сессию.
-     * Вызывается параллельно с основной audio-сессией.
-     */
     fun sendAudio(pcm: ByteArray) {
-        if (!isActive || !client.isReady) return
+        if (!isActive) return
+        if (!client.isReady) {
+            pcmBuffer.add(pcm)
+            return
+        }
+        if (pcmBuffer.isNotEmpty()) {
+            pcmBuffer.forEach { client.sendAudio(it) }
+            pcmBuffer.clear()
+        }
         client.sendAudio(pcm)
     }
 
@@ -180,15 +165,20 @@ ABSOLUTE RULES:
         when (event) {
             is GeminiEvent.SetupComplete -> {
                 logger.d("TranslatorTextTranscriber: ready")
+                if (pcmBuffer.isNotEmpty()) {
+                    pcmBuffer.forEach { client.sendAudio(it) }
+                    pcmBuffer.clear()
+                }
             }
             is GeminiEvent.ModelText -> {
                 turnBuffer.append(event.text)
+                parseAndEmitLive(turnBuffer.toString())
             }
             is GeminiEvent.TurnComplete, is GeminiEvent.GenerationComplete -> {
                 val raw = turnBuffer.toString().trim()
                 turnBuffer.clear()
                 if (raw.isNotEmpty()) {
-                    parseAndEmit(raw)
+                    parseAndEmitFinal(raw)
                 }
             }
             is GeminiEvent.Interrupted -> {
@@ -204,35 +194,39 @@ ABSOLUTE RULES:
         }
     }
 
-    private fun parseAndEmit(raw: String) {
-        // Берём только первую строку, на случай если модель насочиняла
-        val line = raw.lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: return
-        val pipeIdx = line.indexOf('|')
+    private fun parseAndEmitLive(raw: String) {
+        val originalMatch = Regex("ORIGINAL:(.*?)(?:\\nTRANSLATION:|$)", RegexOption.DOT_MATCHES_ALL).find(raw)
+        val translationMatch = Regex("TRANSLATION:(.*)", RegexOption.DOT_MATCHES_ALL).find(raw)
+        val orig = originalMatch?.groupValues?.get(1)?.trim() ?: ""
+        val trans = translationMatch?.groupValues?.get(1)?.trim() ?: ""
+        _events.tryEmit(TranscriberEvent.LiveUpdate(orig, trans))
+    }
 
-        val (lang, text) = if (pipeIdx in 1..6) {
-            val l = line.substring(0, pipeIdx).trim().lowercase()
-            val t = line.substring(pipeIdx + 1).trim()
-            l to t
-        } else {
-            // Fallback: модель не дала формат — считаем unknown и берём как есть
-            "unknown" to line
-        }
+    private fun parseAndEmitFinal(raw: String) {
+        val originalMatch = Regex("ORIGINAL:(.*?)(?:\\nTRANSLATION:|$)", RegexOption.DOT_MATCHES_ALL).find(raw)
+        val translationMatch = Regex("TRANSLATION:(.*)", RegexOption.DOT_MATCHES_ALL).find(raw)
+        val orig = originalMatch?.groupValues?.get(1)?.trim() ?: ""
+        val trans = translationMatch?.groupValues?.get(1)?.trim() ?: ""
 
-        if (text.isBlank() || text == "...") {
+        if (orig.isBlank() && trans.isBlank()) {
             logger.d("TranslatorTextTranscriber: empty/unintelligible, skipping")
             return
         }
 
-        val normalizedLang = when (lang) {
-            "ru", "uk", "de", "en", "unknown" -> lang
-            else -> "unknown"
-        }
+        val lang = detectLang(orig)
+        logger.d("TranslatorTextTranscriber: [$lang] $orig -> $trans")
+        _events.tryEmit(TranscriberEvent.FinalTurn(orig, trans, lang))
+    }
 
-        logger.d("TranslatorTextTranscriber: [$normalizedLang] $text")
-        _transcripts.tryEmit(UserTranscriptEvent(text = text, language = normalizedLang))
+    private fun detectLang(text: String): String {
+        val lower = text.lowercase()
+        if (lower.any { it in "ієґї" }) return "uk"
+        if (lower.any { it in "а-яё" }) return "ru"
+        if (lower.any { it in "äöüß" } || lower.contains(Regex("\\b(der|die|das|und|ist|ich)\\b"))) return "de"
+        return "unknown"
     }
 
     fun shutdown() {
-        scope.cancel()
+        scope.launch { stop() }
     }
 }
