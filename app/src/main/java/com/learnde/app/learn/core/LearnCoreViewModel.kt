@@ -932,6 +932,10 @@ class LearnCoreViewModel @Inject constructor(
                 cachedSettings.sendAudioStreamEnd -> liveClient.sendAudioStreamEnd()
                 else -> liveClient.sendTurnComplete()
             }
+            // Также пробрасываем audioStreamEnd в text-транскриптер
+            if (activeSession?.id == "translator") {
+                runCatching { translatorTextTranscriber.sendAudioStreamEnd() }
+            }
             _state.update {
                 it.copy(
                     isMicActive = false,
@@ -1368,6 +1372,7 @@ class LearnCoreViewModel @Inject constructor(
             runCatching { transcriptMutex.withLock { transcriptBuffer = emptyList() } }
             runCatching { audioEngine.releaseAll() }
             runCatching { transcriptChannel.close() }
+            runCatching { translatorTextTranscriber.shutdown() }
             logger.d("LearnCoreViewModel cleanup complete")
         }
     }
