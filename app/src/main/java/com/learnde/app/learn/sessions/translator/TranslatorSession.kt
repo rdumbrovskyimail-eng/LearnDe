@@ -1,17 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // ПОЛНАЯ ЗАМЕНА v7.0 — minimal prompt, parallel function call
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/translator/TranslatorSession.kt
-//
-// КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ vs v5.0:
-//   1. Промпт ужат с 1500 до ~600 chars. Каждый токен в system
-//      instruction замедляет первый аудио-чанк на ~10-30ms.
-//      Менее токенов = быстрее старт generation.
-//   2. Function description ужат до одной строки.
-//   3. Tool response теперь "{}" — модель не парсит ничего лишнего
-//      и быстрее возвращается в audio generation mode.
-//   4. ЯВНОЕ требование "speak in parallel with function call,
-//      do not wait for tool response" — это критично для скорости.
-//   5. Запрет на любые текстовые комментарии — только аудио.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.translator
 
@@ -45,9 +34,6 @@ class TranslatorSession @Inject constructor(
     )
     val userSpeechFlow: SharedFlow<UserSpeechEvent> = _userSpeechFlow.asSharedFlow()
 
-    // ═══════════════════════════════════════════════════════
-    // СИСТЕМНЫЙ ПРОМПТ v7.0 — сжатый, императивный, audio-first
-    // ═══════════════════════════════════════════════════════
     override val systemInstruction: String = """
 You are a real-time voice translator. SPEAK THE TRANSLATION INSTANTLY.
 
@@ -72,7 +58,7 @@ QUALITY RULES:
 - Match length and register exactly.
 
 GERMAN OUTPUT — 100% GERMAN, ZERO ENGLISH:
-cool→toll, OK→in Ordnung, sorry→Entschuldigung, hi→hallo, bye→tschüss, thanks→danke, nice→schön, super stays super.
+cool→toll, OK→in Ordnung, sorry→Entschuldigung, hi→hallo, bye→tschüss, thanks→danke, nice→schön.
 
 RUSSIAN OUTPUT — NATURAL RUSSIAN:
 No German word-order calques. "Ich freue mich"→"Я рад". Use proper aspect and prepositions.
@@ -125,8 +111,7 @@ NEVER:
                     )
                 }
 
-                // Минимально возможный ответ. Модель не парсит ничего лишнего
-                // и быстрее возвращается в audio generation mode.
+                // Минимальный ответ — модель быстрее возвращается в audio mode.
                 "{}"
             }
             else -> "{}"
