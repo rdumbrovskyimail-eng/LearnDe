@@ -96,6 +96,7 @@ class LearnCoreViewModel @Inject constructor(
     private val registry: LearnSessionRegistry,
     private val vocabularyEnforcer: com.learnde.app.learn.domain.VocabularyEnforcer,
     private val translatorSession: com.learnde.app.learn.sessions.translator.TranslatorSession,
+    private val translatorTextTranscriber: com.learnde.app.learn.sessions.translator.TranslatorTextTranscriber,
 ) : ViewModel() {
 
     companion object {
@@ -213,6 +214,7 @@ class LearnCoreViewModel @Inject constructor(
         observeVocabularyViolations()
         startTranscriptProcessor()
         observeTranslatorUserSpeech()
+        observeTranslatorTextTranscripts()
         viewModelScope.launch { audioEngine.initPlayback() }
     }
 
@@ -515,6 +517,40 @@ class LearnCoreViewModel @Inject constructor(
                             transcript = next,
                             liveUserTranscript = ""
                         ) 
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeTranslatorTextTranscripts() {
+        viewModelScope.launch {
+            translatorTextTranscriber.transcripts.collect { event ->
+                // Только для активной translator-сессии
+                if (activeSession?.id != "translator") return@collect
+
+                logger.d("Learn: text-transcriber [${event.language}]: ${event.text}")
+
+                transcriptMutex.withLock {
+                    // Если последний user-пузырь свежий (< 5 сек) — обновляем его,
+                    // иначе добавляем новый. Это синхронизирует ASR-фоновое
+                    // обновление с финальным текстом от text-сессии.
+                    val lastUserIdx = transcriptBuffer.indexOfLast {
+                        it.role == ConversationMessage.ROLE_USER
+                    }
+                    val now = System.currentTimeMillis()
+                    val next = if (lastUserIdx >= 0
+                        && now - transcriptBuffer[lastUserIdx].timestamp < 5000) {
+                        transcriptBuffer.toMutableList().apply {
+                            set(lastUserIdx, transcriptBuffer[lastUserIdx].copy(text = event.text))
+                        }
+                    } else {
+                        (transcriptBuffer + ConversationMessage.user(event.text))
+                            .takeLast(MAX_TRANSCRIPT_SIZE)
+                    }
+                    transcriptBuffer = next
+                    _state.update {
+                        it.copy(transcript = next, liveUserTranscript = "")
                     }
                 }
             }
