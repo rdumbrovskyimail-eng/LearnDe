@@ -1,4 +1,5 @@
-resources>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
     <!-- ═══ Translator Screen ═══ -->
     <string name="translator_title">Live Translator</string>
 
