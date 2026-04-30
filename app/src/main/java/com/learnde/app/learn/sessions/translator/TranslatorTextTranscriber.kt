@@ -82,7 +82,6 @@ ABSOLUTE RULES:
             logger.d("TranslatorTextTranscriber: already active, skipping start")
             return
         }
-        isActive = true
         turnBuffer.clear()
         pcmBuffer.clear()
 
@@ -123,11 +122,11 @@ ABSOLUTE RULES:
 
         runCatching { client.connect(apiKey, config, logRaw) }
             .onSuccess {
+                isActive = true
                 logger.d("TranslatorTextTranscriber: connected successfully")
             }
             .onFailure { e ->
                 logger.e("TranslatorTextTranscriber: connect failed: ${e.message}")
-                isActive = false
                 eventJob?.cancel()
             }
     }
