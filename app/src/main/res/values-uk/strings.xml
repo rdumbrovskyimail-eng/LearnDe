@@ -12,7 +12,7 @@
     <string name="translator_lang_code_target">DE</string>
 
     <string name="translator_hint_idle_title">Голосовий перекладач</string>
-    <string name="translator_hint_idle_subtitle">Русский &#xB7; Український &#xB7; Deutsch\nМиттєвий голосовий переклад</string>
+    <string name="translator_hint_idle_subtitle">Російська &#xB7; Українська &#xB7; Deutsch\nМиттєвий голосовий переклад</string>
     <string name="translator_hint_active_title">Говоріть будь-коли</string>
     <string name="translator_hint_active_subtitle">"Переклад з'явиться тут і прозвучить уголос"</string>
 
