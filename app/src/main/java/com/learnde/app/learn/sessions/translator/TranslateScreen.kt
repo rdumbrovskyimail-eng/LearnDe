@@ -27,11 +27,14 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -77,6 +80,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -264,7 +268,7 @@ fun TranslatorScreen(
 // ═══════════════════════════════════════════════════════════
 @Composable
 private fun HeroParticleBackground(
-    playbackSync: kotlinx.coroutines.flow.SharedFlow<com.learnde.app.domain.AudioPlaybackSync>,
+    playbackSync: Flow<ByteArray>,
     isActive: Boolean,
     isAiSpeaking: Boolean,
     isMicActive: Boolean,
@@ -385,7 +389,7 @@ private fun RotatingRing(
     Box(
         modifier = Modifier
             .size(size)
-            .scale(1f)
+            .graphicsLayer { rotationZ = angle }
             .clip(CircleShape)
             .border(
                 width = 1.dp,
@@ -401,11 +405,7 @@ private fun RotatingRing(
                 shape = CircleShape,
             )
             .alpha(0.7f),
-    ) {
-        // Закомментировано: Compose не даёт легко вращать border-only элемент.
-        // Вместо этого делаем эффект через градиент. Поворот не нужен — sweepGradient уже даёт эффект.
-        val _ = angle  // ссылаемся, чтобы не было warning
-    }
+    )
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -776,6 +776,7 @@ private fun ThinkingDots() {
 // ═══════════════════════════════════════════════════════════
 //  ПЛАВАЮЩАЯ КНОПКА МИКРОФОНА
 // ═══════════════════════════════════════════════════════════
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 private fun FloatingMicButton(
     isActive: Boolean,
