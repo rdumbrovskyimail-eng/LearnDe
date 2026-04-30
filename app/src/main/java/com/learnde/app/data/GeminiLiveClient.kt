@@ -333,9 +333,12 @@ class GeminiLiveClient(
                         }
                     })
 
-                    if (config.sendThinkingConfig) {
+                    // Off (thinkingLevel == null) → блок не шлём вообще, модель работает 
+                    // в максимально быстром режиме без обдумывания.
+                    val thinkingLevel = config.latencyProfile.thinkingLevel
+                    if (config.sendThinkingConfig && thinkingLevel != null) {
                         put("thinkingConfig", buildJsonObject {
-                            put("thinkingLevel", config.latencyProfile.thinkingLevel)
+                            put("thinkingLevel", thinkingLevel)
                             if (config.thinkingIncludeThoughts) {
                                 put("includeThoughts", true)
                             }
