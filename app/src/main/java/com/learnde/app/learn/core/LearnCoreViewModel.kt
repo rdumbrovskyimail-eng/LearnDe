@@ -1,3 +1,4 @@
+// Путь: app/src/main/java/com/learnde/app/learn/core/LearnCoreViewModel.kt
 package com.learnde.app.learn.core
 
 import android.Manifest
@@ -1152,8 +1153,9 @@ class LearnCoreViewModel @Inject constructor(
     }
 }
 
-5. SessionConfig.kt (Исправлен voiceId)
+5. SessionConfig.kt
 
+// Путь: app/src/main/java/com/learnde/app/domain/model/SessionConfig.kt
 package com.learnde.app.domain.model
 
 data class FunctionDeclarationConfig(
