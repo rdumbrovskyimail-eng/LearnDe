@@ -193,9 +193,18 @@ ABSOLUTE OUTPUT RULES:
                     }
                 }
             }
-            is GeminiEvent.ModelText -> {
+            is GeminiEvent.OutputTranscript -> {
                 turnBuffer.append(event.text)
                 parseAndEmitLive(turnBuffer.toString())
+            }
+            is GeminiEvent.ModelText -> {
+                // В AUDIO modality модель не должна слать чистый текст,
+                // но если вдруг прилетит — учитываем его в буфере.
+                turnBuffer.append(event.text)
+                parseAndEmitLive(turnBuffer.toString())
+            }
+            is GeminiEvent.AudioChunk -> {
+                // Голос модели в этом клиенте мы игнорируем — нам нужен только текст.
             }
             is GeminiEvent.TurnComplete, is GeminiEvent.GenerationComplete -> {
                 val raw = turnBuffer.toString().trim()
