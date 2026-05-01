@@ -56,6 +56,9 @@ class LearnCoreViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
+        private val cleanupScope = kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+        )
         private const val MAX_TRANSCRIPT_SIZE = 150
         private const val LEARNER_SILENCE_THRESHOLD_MS = 10_000L
         private const val SILENCE_CHECK_WINDOW_MS = 9_000L
@@ -135,6 +138,7 @@ class LearnCoreViewModel @Inject constructor(
     private val modelTurnBuffer = StringBuilder()
 
     @Volatile private var liveModelMessageTs: Long = 0L
+    @Volatile private var translatorLiveBubbleTs: Long = 0L
 
     init {
         observeSettings()
@@ -166,6 +170,7 @@ class LearnCoreViewModel @Inject constructor(
                 userTurnBuffer.clear()
                 modelTurnBuffer.clear()
                 liveModelMessageTs = 0L
+                translatorLiveBubbleTs = 0L
             }
         }
     }
@@ -246,9 +251,44 @@ class LearnCoreViewModel @Inject constructor(
         }
 
         liveModelMessageTs = 0L
+        translatorLiveBubbleTs = 0L
         hasModelOutputThisTurn = false
         cancelStuckTurnWatchdog()
         cancelTextWithoutAudioWatchdog()
+    }
+
+    private suspend fun upsertTranslatorLiveBubble(text: String) {
+        transcriptMutex.withLock {
+            if (translatorLiveBubbleTs == 0L) {
+                val newMsg = ConversationMessage(
+                    role = ConversationMessage.ROLE_MODEL,
+                    text = text,
+                    timestamp = System.currentTimeMillis()
+                )
+                translatorLiveBubbleTs = newMsg.timestamp
+                val next = (transcriptBuffer + newMsg).takeLast(MAX_TRANSCRIPT_SIZE)
+                transcriptBuffer = next
+                _state.update { it.copy(transcript = next) }
+            } else {
+                val idx = transcriptBuffer.indexOfLast { it.timestamp == translatorLiveBubbleTs }
+                if (idx >= 0) {
+                    val updated = transcriptBuffer[idx].copy(text = text)
+                    val next = transcriptBuffer.toMutableList().apply { set(idx, updated) }
+                    transcriptBuffer = next
+                    _state.update { it.copy(transcript = next) }
+                } else {
+                    val newMsg = ConversationMessage(
+                        role = ConversationMessage.ROLE_MODEL,
+                        text = text,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    translatorLiveBubbleTs = newMsg.timestamp
+                    val next = (transcriptBuffer + newMsg).takeLast(MAX_TRANSCRIPT_SIZE)
+                    transcriptBuffer = next
+                    _state.update { it.copy(transcript = next) }
+                }
+            }
+        }
     }
 
     private suspend fun upsertLiveModelBubble(text: String) {
@@ -349,19 +389,20 @@ class LearnCoreViewModel @Inject constructor(
                             _state.update { it.copy(liveUserTranscript = event.original) }
                         }
                         if (event.translation.isNotEmpty()) {
-                            upsertLiveModelBubble(event.translation)
+                            upsertTranslatorLiveBubble(event.translation)
                         }
                     }
                     is com.learnde.app.learn.sessions.translator.TranscriberEvent.FinalTurn -> {
                         _state.update { it.copy(liveUserTranscript = "") }
                         transcriptMutex.withLock {
+                            val filtered = transcriptBuffer.filterNot { it.timestamp == translatorLiveBubbleTs }
                             val userMsg = ConversationMessage.user(event.original)
                             val modelMsg = ConversationMessage.model(event.translation)
-                            val next = (transcriptBuffer + userMsg + modelMsg).takeLast(MAX_TRANSCRIPT_SIZE)
+                            val next = (filtered + userMsg + modelMsg).takeLast(MAX_TRANSCRIPT_SIZE)
                             transcriptBuffer = next
                             _state.update { it.copy(transcript = next) }
                         }
-                        liveModelMessageTs = 0L
+                        translatorLiveBubbleTs = 0L
                     }
                 }
             }
@@ -521,6 +562,7 @@ class LearnCoreViewModel @Inject constructor(
         hasModelOutputThisTurn = false
         lastSilencePromptAtMs = 0L
         droppedMicChunks = 0
+        translatorLiveBubbleTs = 0L
         setupJob?.cancel()
         setupJob = null
 
@@ -688,15 +730,16 @@ class LearnCoreViewModel @Inject constructor(
 
                     if (!aiActuallyAudible) {
                         liveClient.sendAudio(chunk)
-                        if (activeSession?.id == "translator") {
-                            translatorTextTranscriber.sendAudio(chunk)
-                        }
                         if (droppedMicChunks > 0) {
                             logger.d("Mic: gate opened, dropped $droppedMicChunks chunks during AI tail")
                             droppedMicChunks = 0
                         }
                     } else {
                         droppedMicChunks++
+                    }
+
+                    if (activeSession?.id == "translator") {
+                        translatorTextTranscriber.sendAudio(chunk)
                     }
                 }
             }
@@ -860,6 +903,11 @@ class LearnCoreViewModel @Inject constructor(
                             || (System.currentTimeMillis() - lastAiAudioChunkAtMs) > 500) {
                             startTextWithoutAudioWatchdog()
                         }
+                        if (activeSession?.id == "translator") {
+                            lastModelActivityAtMs = System.currentTimeMillis()
+                            hasModelOutputThisTurn = true
+                            startStuckTurnWatchdog()
+                        }
                         if (activeSession?.id != "translator") {
                             transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "OutputTranscript"))
                         }
@@ -873,6 +921,11 @@ class LearnCoreViewModel @Inject constructor(
                         if (lastAiAudioChunkAtMs == 0L
                             || (System.currentTimeMillis() - lastAiAudioChunkAtMs) > 500) {
                             startTextWithoutAudioWatchdog()
+                        }
+                        if (activeSession?.id == "translator") {
+                            lastModelActivityAtMs = System.currentTimeMillis()
+                            hasModelOutputThisTurn = true
+                            startStuckTurnWatchdog()
                         }
                         if (activeSession?.id != "translator") {
                             transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "ModelText"))
@@ -966,7 +1019,11 @@ class LearnCoreViewModel @Inject constructor(
 
             if (session.id == "translator" || session.initialUserMessage.isBlank()) {
                 logger.d("Learn: no initial greeting → enabling mic only")
-                if (!_state.value.isMicActive) startMic()
+                delay(50)
+                if (activeSession == session && !_state.value.isMicActive
+                    && _state.value.connectionStatus == LearnConnectionStatus.Ready) {
+                    startMic()
+                }
                 return@launch
             }
 
@@ -1142,7 +1199,7 @@ class LearnCoreViewModel @Inject constructor(
         statusBus.reset()
         safeStopForegroundService()
 
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        cleanupScope.launch {
             runCatching { stopInternal() }
             runCatching { transcriptMutex.withLock { transcriptBuffer = emptyList() } }
             runCatching { audioEngine.releaseAll() }
@@ -1151,114 +1208,4 @@ class LearnCoreViewModel @Inject constructor(
             logger.d("LearnCoreViewModel cleanup complete")
         }
     }
-}
-
-data class FunctionDeclarationConfig(
-    val name: String,
-    val description: String,
-    val parameters: Map<String, ParameterConfig> = emptyMap(),
-    val required: List<String> = emptyList()
-)
-
-data class ParameterConfig(
-    val type: String = "STRING",
-    val description: String = "",
-    val enumValues: List<String> = emptyList(),
-    val items: ParameterConfig? = null,
-    val properties: Map<String, ParameterConfig> = emptyMap(),
-    val required: List<String> = emptyList()
-)
-
-data class SessionConfig(
-    val model: String = DEFAULT_MODEL,
-    val responseModality: String = "AUDIO",
-    val temperature: Float = 1.0f,
-    val topP: Float = 0.95f,
-    val topK: Int = 0,
-    val maxOutputTokens: Int = 8192,
-    val presencePenalty: Float = 0.0f,
-    val frequencyPenalty: Float = 0.0f,
-    val voiceId: String = "Aoede",
-    val languageCode: String = "",
-    val latencyProfile: LatencyProfile = LatencyProfile.UltraLow,
-    val thinkingIncludeThoughts: Boolean = false,
-    val mediaResolution: String = "",
-    val autoActivityDetection: Boolean = true,
-    val vadStartSensitivity: String = "START_SENSITIVITY_LOW",
-    val vadEndSensitivity: String = "END_SENSITIVITY_LOW",
-    val vadPrefixPaddingMs: Int = 20,
-    val vadSilenceDurationMs: Int = 100,
-    val systemInstruction: String = DEFAULT_SYSTEM_INSTRUCTION,
-    val inputTranscription: Boolean = true,
-    val outputTranscription: Boolean = true,
-    val enableSessionResumption: Boolean = true,
-    val transparentResumption: Boolean = true,
-    val sessionHandle: String? = null,
-    val enableContextCompression: Boolean = true,
-    val compressionTriggerTokens: Long = 0L,
-    val compressionTargetTokens: Long = 0L,
-    val enableGoogleSearch: Boolean = false,
-    val functionDeclarations: List<FunctionDeclarationConfig> = emptyList(),
-    val sendAudioStreamEnd: Boolean = true,
-    val setupTimeoutMs: Long = 10_000L,
-    val diagnosticMinimalSetup: Boolean = false,
-    val sendThinkingConfig: Boolean = true,
-    val sendGenerationParams: Boolean = true,
-    val sendVadConfig: Boolean = true,
-    val sendTranscriptionConfig: Boolean = true,
-    val sendSessionResumptionConfig: Boolean = true,
-    val sendContextCompressionConfig: Boolean = true,
-    val logFullSetupJson: Boolean = true
-) {
-    companion object {
-        const val DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
-        const val DEFAULT_SYSTEM_INSTRUCTION =
-            "Ты русскоязычный голосовой ассистент. " +
-            "Всегда отвечай только на русском языке. " +
-            "Слушай и понимай русскую речь. " +
-            "Отвечай кратко и по делу, не более 2-3 предложений, " +
-            "если пользователь не просит подробного ответа."
-        const val INPUT_SAMPLE_RATE = 16_000
-        const val OUTPUT_SAMPLE_RATE = 24_000
-        const val WS_HOST = "generativelanguage.googleapis.com"
-        const val WS_PATH = "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
-
-        fun baselineProfile() = SessionConfig(
-            diagnosticMinimalSetup = true,
-            enableSessionResumption = false,
-            enableContextCompression = false,
-            inputTranscription = false,
-            outputTranscription = false,
-            logFullSetupJson = true
-        )
-        fun withoutThinkingProfile() = SessionConfig(
-            sendThinkingConfig = false,
-            logFullSetupJson = true
-        )
-        fun withoutVadProfile() = SessionConfig(
-            sendVadConfig = false,
-            logFullSetupJson = true
-        )
-        fun withoutSessionMgmtProfile() = SessionConfig(
-            sendSessionResumptionConfig = false,
-            sendContextCompressionConfig = false,
-            enableSessionResumption = false,
-            enableContextCompression = false,
-            logFullSetupJson = true
-        )
-        fun withoutTranscriptionProfile() = SessionConfig(
-            sendTranscriptionConfig = false,
-            inputTranscription = false,
-            outputTranscription = false,
-            logFullSetupJson = true
-        )
-    }
-}
-
-enum class LatencyProfile(val thinkingLevel: String?, val displayName: String) {
-    Off      (null,      "Off — мгновенный ответ"),
-    UltraLow ("minimal", "Ultra Low — minimal thinking"),
-    Low      ("low",     "Low — light thinking"),
-    Balanced ("medium",  "Balanced — medium thinking"),
-    Reasoning("high",    "Reasoning — deep thinking")
 }
