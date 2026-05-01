@@ -715,6 +715,7 @@ class LearnCoreViewModel @Inject constructor(
         micJob = viewModelScope.launch {
             launch {
                 audioEngine.micOutput.collect { chunk ->
+                    val isTranslator = activeSession?.id == "translator"
                     val now = System.currentTimeMillis()
                     val sinceLastAi = now - lastAiAudioChunkAtMs
 
@@ -725,8 +726,9 @@ class LearnCoreViewModel @Inject constructor(
                         AI_AUDIO_TAIL_MS
                     }
 
-                    val aiActuallyAudible = lastAiAudioChunkAtMs > 0L &&
-                                            sinceLastAi < effectiveTailMs
+                    val aiActuallyAudible = !isTranslator &&
+                        lastAiAudioChunkAtMs > 0L &&
+                        sinceLastAi < effectiveTailMs
 
                     if (!aiActuallyAudible) {
                         liveClient.sendAudio(chunk)
@@ -738,7 +740,7 @@ class LearnCoreViewModel @Inject constructor(
                         droppedMicChunks++
                     }
 
-                    if (activeSession?.id == "translator") {
+                    if (isTranslator) {
                         translatorTextTranscriber.sendAudio(chunk)
                     }
                 }
