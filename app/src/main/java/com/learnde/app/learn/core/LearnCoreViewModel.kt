@@ -1153,11 +1153,6 @@ class LearnCoreViewModel @Inject constructor(
     }
 }
 
-5. SessionConfig.kt
-
-// Путь: app/src/main/java/com/learnde/app/domain/model/SessionConfig.kt
-package com.learnde.app.domain.model
-
 data class FunctionDeclarationConfig(
     val name: String,
     val description: String,
