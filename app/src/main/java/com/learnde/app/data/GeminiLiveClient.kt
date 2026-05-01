@@ -322,16 +322,18 @@ class GeminiLiveClient(
                         if (config.frequencyPenalty != 0f) put("frequencyPenalty", config.frequencyPenalty)
                     }
 
-                    put("speechConfig", buildJsonObject {
-                        put("voiceConfig", buildJsonObject {
-                            put("prebuiltVoiceConfig", buildJsonObject {
-                                put("voiceName", config.voiceId)
+                    if (config.responseModality == "AUDIO") {
+                        put("speechConfig", buildJsonObject {
+                            put("voiceConfig", buildJsonObject {
+                                put("prebuiltVoiceConfig", buildJsonObject {
+                                    put("voiceName", config.voiceId)
+                                })
                             })
+                            if (config.languageCode.isNotBlank()) {
+                                put("languageCode", config.languageCode)
+                            }
                         })
-                        if (config.languageCode.isNotBlank()) {
-                            put("languageCode", config.languageCode)
-                        }
-                    })
+                    }
 
                     // Off (thinkingLevel == null) → блок не шлём вообще, модель работает 
                     // в максимально быстром режиме без обдумывания.
