@@ -1,3 +1,4 @@
+// Путь: app/src/main/java/com/learnde/app/learn/sessions/translator/TranslateScreen.kt
 package com.learnde.app.learn.sessions.translator
 
 import android.Manifest
@@ -64,6 +65,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PointMode
@@ -251,22 +253,22 @@ fun TranslatorScreen(
 private fun NoiseLayer() {
     val noiseColor = TranslatorPalette.NoiseColor
     val noisePoints = remember {
-        val points = FloatArray(4000)
-        for (i in 0 until 2000) {
-            points[i * 2] = Random.nextFloat()
-            points[i * 2 + 1] = Random.nextFloat()
-        }
-        points
+        List(2000) { Offset(Random.nextFloat(), Random.nextFloat()) }
     }
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
-        val scaled = FloatArray(4000)
-        for (i in 0 until 2000) {
-            scaled[i * 2] = noisePoints[i * 2] * w
-            scaled[i * 2 + 1] = noisePoints[i * 2 + 1] * h
+        val scaled = ArrayList<Offset>(2000)
+        for (i in noisePoints.indices) {
+            val p = noisePoints[i]
+            scaled.add(Offset(p.x * w, p.y * h))
         }
-        drawPoints(scaled, PointMode.Points, color = noiseColor, strokeWidth = 2f)
+        drawPoints(
+            points = scaled,
+            pointMode = PointMode.Points,
+            color = noiseColor,
+            strokeWidth = 2f
+        )
     }
 }
 
