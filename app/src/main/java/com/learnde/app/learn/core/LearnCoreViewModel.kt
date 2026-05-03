@@ -393,9 +393,12 @@ class LearnCoreViewModel @Inject constructor(
 
         val finalLanguageCode = if (isTranslator) "" else cachedSettings.languageCode
         val finalVoiceId = if (isTranslator) "Puck" else cachedSettings.voiceId
-        val finalMaxTokens = if (isTranslator) 200 else cachedSettings.maxOutputTokens
+        val finalMaxTokens = if (isTranslator) 256 else cachedSettings.maxOutputTokens
         val finalTopP = if (isTranslator) 0.8f else cachedSettings.topP
         val finalTopK = if (isTranslator) 20 else cachedSettings.topK
+
+        val inputTranscr = if (isTranslator) true else cachedSettings.inputTranscription
+        val outputTranscr = if (isTranslator) true else cachedSettings.outputTranscription
 
         return SessionConfig(
             model = cachedSettings.model,
@@ -418,8 +421,8 @@ class LearnCoreViewModel @Inject constructor(
             vadSilenceDurationMs = finalSilenceMs,
             vadPrefixPaddingMs = prefixMs,
             systemInstruction = finalSystemInstruction,
-            inputTranscription = cachedSettings.inputTranscription,
-            outputTranscription = cachedSettings.outputTranscription,
+            inputTranscription = inputTranscr,
+            outputTranscription = outputTranscr,
             enableSessionResumption = false,
             sessionHandle = null,
             enableContextCompression = false,
