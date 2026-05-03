@@ -744,13 +744,8 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.TurnComplete -> {
-                        if (activeSession?.id == "translator") {
-                            transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
-                            transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
-                        } else {
-                            transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
-                            transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
-                        }
+                        transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
+                        transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
                         modelStartedSpeakingThisTurn = false
                         hasModelOutputThisTurn = false
                         cancelStuckTurnWatchdog()
