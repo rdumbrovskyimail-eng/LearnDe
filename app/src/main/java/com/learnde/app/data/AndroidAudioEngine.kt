@@ -351,12 +351,14 @@ class AndroidAudioEngine(
 
     override suspend fun enqueuePlayback(pcmData: ByteArray) {
         if (pcmData.isEmpty()) return
-        awaitingDrain = false
+        // Сначала помещаем в канал, потом сбрасываем флаг —
+        // чтобы playback loop не успел обработать chunk до того как мы убрали awaitingDrain
         val result = playbackChannel.trySend(pcmData)
         if (result.isFailure) {
             playbackChannel.tryReceive()
             playbackChannel.trySend(pcmData)
         }
+        awaitingDrain = false
     }
 
     override suspend fun flushPlayback() {
