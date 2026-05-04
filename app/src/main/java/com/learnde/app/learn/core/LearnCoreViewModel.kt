@@ -70,7 +70,7 @@ class LearnCoreViewModel @Inject constructor(
         private const val AI_AUDIO_TAIL_MS = 600L
         private const val AI_AUDIO_TAIL_INITIAL_MS = 1_500L
         private const val INITIAL_SESSION_GUARD_MS = 2_000L
-        private const val STUCK_TURN_TIMEOUT_MS = 3_500L
+        private const val STUCK_TURN_TIMEOUT_MS = 8_000L
         private const val TEXT_WITHOUT_AUDIO_TIMEOUT_MS = 1_500L
         private const val SILENCE_PROMPT_COOLDOWN_MS = 30_000L
         private const val FINISH_SESSION_GRACE_MS = 5_000L
@@ -306,6 +306,16 @@ class LearnCoreViewModel @Inject constructor(
         stuckTurnWatchdogJob?.cancel()
         stuckTurnWatchdogJob = viewModelScope.launch {
             delay(STUCK_TURN_TIMEOUT_MS)
+
+            // Не паникуем если модель ВСЁ ЕЩЁ играет аудио (просто длинный ответ)
+            val now = System.currentTimeMillis()
+            val sinceLastAudio = now - lastAiAudioChunkAtMs
+            if (lastAiAudioChunkAtMs > 0L && sinceLastAudio < 2_000L) {
+                logger.d("Stuck-turn watchdog: model still playing audio (${sinceLastAudio}ms ago), restarting watchdog")
+                startStuckTurnWatchdog()
+                return@launch
+            }
+
             if (hasModelOutputThisTurn) {
                 logger.w("⚠ STUCK_TURN_DETECTED — force-finalizing")
                 transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
