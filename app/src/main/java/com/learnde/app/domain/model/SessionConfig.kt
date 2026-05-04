@@ -71,6 +71,12 @@ data class SessionConfig(
     // ── Transcription ──
     val inputTranscription: Boolean = true,
     val outputTranscription: Boolean = true,
+    /**
+     * Список BCP-47 кодов языков для AudioTranscriptionConfig.languageCodes.
+     * Подсказка для ASR — ограничивает спекуляцию языка.
+     * Пустой = автоопределение (по умолчанию).
+     */
+    val transcriptionLanguageCodes: List<String> = emptyList(),
 
     // ── Session Management ──
     val enableSessionResumption: Boolean = true,
