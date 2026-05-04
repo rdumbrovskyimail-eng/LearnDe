@@ -436,6 +436,20 @@ class LearnCoreViewModel @Inject constructor(
                         it.copy(transcript = next, liveUserTranscript = "")
                     }
                 }
+
+                // Для translator: после функции явно завершаем turn локально и отправляем
+                // ToolResponse → сервер закончит генерацию и будет готов к следующей фразе.
+                // Без этого сервер "залипает" в режиме генерации, и модель не реагирует
+                // на новую речь пользователя в течение десятков секунд.
+                kotlinx.coroutines.delay(50) // даём ToolResponse уйти на сервер первым
+                runCatching { audioEngine.onTurnComplete() }
+                _state.update { it.copy(isAiSpeaking = false) }
+                modelStartedSpeakingThisTurn = false
+                hasModelOutputThisTurn = false
+                translatorFunctionFinalizedThisTurn = false
+                cancelStuckTurnWatchdog()
+                cancelTextWithoutAudioWatchdog()
+                lastAiAudioChunkAtMs = 0L
             }
         }
     }
