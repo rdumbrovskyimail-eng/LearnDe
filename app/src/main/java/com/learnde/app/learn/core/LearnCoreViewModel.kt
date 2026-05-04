@@ -794,6 +794,10 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.TurnComplete -> {
+                        // Для translator: если record_translation уже сработал —
+                        // observeTranslatorFunctionTranscripts уже добавил финальную пару.
+                        // Финализация буферов всё равно нужна — finalizeUserTurn/finalizeModelTurn
+                        // знают про anti-duplicate и пропустят дубль.
                         transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
                         transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
                         modelStartedSpeakingThisTurn = false
