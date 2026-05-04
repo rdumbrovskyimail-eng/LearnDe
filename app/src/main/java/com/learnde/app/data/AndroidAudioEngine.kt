@@ -17,6 +17,7 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.NoiseSuppressor
 import com.learnde.app.domain.AudioEngine
 import com.learnde.app.domain.model.SessionConfig
 import com.learnde.app.util.AppLogger
@@ -77,6 +78,7 @@ class AndroidAudioEngine(
 
     @Volatile private var audioRecord: AudioRecord? = null
     @Volatile private var echoCanceler: AcousticEchoCanceler? = null
+    @Volatile private var noiseSuppressor: NoiseSuppressor? = null
     @Volatile private var audioTrack: AudioTrack? = null
 
     @Volatile private var playbackChannel: Channel<ByteArray> =
@@ -171,7 +173,17 @@ class AndroidAudioEngine(
                 echoCanceler = AcousticEchoCanceler.create(recorder.audioSessionId)?.apply {
                     enabled = true
                 }
+                logger.d("AEC: enabled=${echoCanceler?.enabled}")
             }.onFailure { logger.e("AEC init error: ${it.message}") }
+        }
+
+        if (NoiseSuppressor.isAvailable()) {
+            runCatching {
+                noiseSuppressor = NoiseSuppressor.create(recorder.audioSessionId)?.apply {
+                    enabled = true
+                }
+                logger.d("NS: enabled=${noiseSuppressor?.enabled}")
+            }.onFailure { logger.e("NoiseSuppressor init error: ${it.message}") }
         }
 
         try {
@@ -285,10 +297,14 @@ class AndroidAudioEngine(
         captureJob = null
 
         // 3. Освобождаем ресурсы на IO.
+        val ns = noiseSuppressor
         withContext(Dispatchers.IO) {
             runCatching { aec?.enabled = false }
             runCatching { aec?.release() }
             echoCanceler = null
+            runCatching { ns?.enabled = false }
+            runCatching { ns?.release() }
+            noiseSuppressor = null
             runCatching { rec?.release() }
             audioRecord = null
         }
