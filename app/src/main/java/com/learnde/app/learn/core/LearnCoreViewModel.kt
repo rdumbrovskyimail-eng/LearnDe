@@ -195,13 +195,32 @@ class LearnCoreViewModel @Inject constructor(
 
         _state.update { it.copy(liveUserTranscript = "") }
 
-        if (bufferedText.isNotEmpty()) {
+        if (bufferedText.isEmpty()) return
+
+        // Для translator: если функция record_translation уже была вызвана,
+        // в transcript уже есть финальное user-сообщение.
+        // Не добавляем дубликат от inputAudioTranscription.
+        if (activeSession?.id == "translator") {
             transcriptMutex.withLock {
+                val lastUser = transcriptBuffer.lastOrNull { it.role == ConversationMessage.ROLE_USER }
+                if (lastUser != null && (System.currentTimeMillis() - lastUser.timestamp) < 3_000L) {
+                    // Пара уже добавлена через function call — дубль не нужен
+                    return@withLock
+                }
+                // Функция не пришла — это fallback, добавляем
                 val newMsg = ConversationMessage.user(bufferedText)
                 val next = (transcriptBuffer + newMsg).takeLast(MAX_TRANSCRIPT_SIZE)
                 transcriptBuffer = next
                 _state.update { it.copy(transcript = next) }
             }
+            return
+        }
+
+        transcriptMutex.withLock {
+            val newMsg = ConversationMessage.user(bufferedText)
+            val next = (transcriptBuffer + newMsg).takeLast(MAX_TRANSCRIPT_SIZE)
+            transcriptBuffer = next
+            _state.update { it.copy(transcript = next) }
         }
     }
 
