@@ -818,9 +818,14 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.Interrupted -> {
-                        transcriptChannel.trySend(TranscriptOp.ModelInterrupted)
+                        // При barge-in: модель НЕ успеет вызвать record_translation.
+                        // Финализируем то что собралось через input/outputTranscription
+                        // как fallback — иначе transcript останется пустым.
+                        transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
+                        transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
                         audioEngine.flushPlayback()
                         _state.update { it.copy(isAiSpeaking = false) }
+                        modelStartedSpeakingThisTurn = false
                         hasModelOutputThisTurn = false
                         cancelStuckTurnWatchdog()
                         cancelTextWithoutAudioWatchdog()
