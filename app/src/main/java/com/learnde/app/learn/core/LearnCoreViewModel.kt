@@ -71,7 +71,7 @@ class LearnCoreViewModel @Inject constructor(
         private const val AI_AUDIO_TAIL_INITIAL_MS = 1_500L
         private const val INITIAL_SESSION_GUARD_MS = 2_000L
         private const val STUCK_TURN_TIMEOUT_MS = 8_000L
-        private const val STUCK_TURN_TIMEOUT_TRANSLATOR_MS = 3_000L
+        private const val STUCK_TURN_TIMEOUT_TRANSLATOR_MS = 2_000L
         private const val TEXT_WITHOUT_AUDIO_TIMEOUT_MS = 1_500L
         private const val SILENCE_PROMPT_COOLDOWN_MS = 30_000L
         private const val FINISH_SESSION_GRACE_MS = 5_000L
