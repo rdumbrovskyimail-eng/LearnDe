@@ -27,6 +27,9 @@ local.properties
 proguard/
 *.log
 *.hprof
+# Vosk models — скачиваются в CI
+app/src/main/assets/vosk/ru/
+app/src/main/assets/vosk/de/
 
 # Ignore all jar files
 *.jar
