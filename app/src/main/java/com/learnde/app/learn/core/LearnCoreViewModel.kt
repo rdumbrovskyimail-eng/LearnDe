@@ -387,6 +387,140 @@ class LearnCoreViewModel @Inject constructor(
         textWithoutAudioJob = null
     }
 
+    // ════════════════════════════════════════════════════════════
+    //  TRANSCRIBER CLIENT — параллельный text-only поток
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * Запуск второго (текстового) клиента для translator-сессии.
+     * Работает параллельно voice-клиенту, слушает тот же микрофон,
+     * выдаёт ORIG/TRANS пары через GeminiEvent.ModelText.
+     *
+     * Полностью независим от voice-клиента: ошибки коннекта или
+     * disconnect транскриптора НЕ влияют на основной аудио-поток.
+     */
+    private suspend fun startTranscriberClient() {
+        if (transcriberEnabled) {
+            logger.d("Transcriber: already enabled, skipping start")
+            return
+        }
+        if (activeApiKey.isEmpty()) {
+            logger.w("Transcriber: no API key, skipping")
+            return
+        }
+
+        logger.d("▶ Transcriber.start")
+
+        // Observer событий транскриптора — отдельный job чтобы
+        // его можно было корректно остановить вместе с клиентом.
+        transcriberObserverJob?.cancel()
+        transcriberObserverJob = viewModelScope.launch {
+            transcriberClient.events.collect { event ->
+                handleTranscriberEvent(event)
+            }
+        }
+
+        runCatching {
+            transcriberClient.connect(
+                apiKey = activeApiKey,
+                config = buildTranscriberConfig(),
+                logRaw = false,
+            )
+            transcriberEnabled = true
+            logger.d("Transcriber: connect initiated")
+        }.onFailure { e ->
+            logger.e("Transcriber: connect failed: ${e.message}", e)
+            transcriberObserverJob?.cancel()
+            transcriberObserverJob = null
+            transcriberEnabled = false
+        }
+    }
+
+    /**
+     * Корректное завершение транскриптора.
+     * Сначала гасит observer (чтобы события disconnect не проходили
+     * как полезные), потом закрывает WS.
+     */
+    private suspend fun stopTranscriberClient() {
+        if (!transcriberEnabled && transcriberObserverJob == null) return
+
+        logger.d("▶ Transcriber.stop")
+        transcriberEnabled = false
+
+        transcriberObserverJob?.cancel()
+        transcriberObserverJob = null
+
+        runCatching { transcriberClient.disconnect() }
+            .onFailure { logger.w("Transcriber: disconnect error: ${it.message}") }
+
+        logger.d("◀ Transcriber.stop done")
+    }
+
+    /**
+     * Обработка событий второго клиента.
+     * Пока — только логирование. UI и парсинг ORIG/TRANS подключим
+     * на следующих шагах.
+     */
+    private fun handleTranscriberEvent(event: GeminiEvent) {
+        when (event) {
+            is GeminiEvent.Connected -> logger.d("Transcriber ← Connected")
+            is GeminiEvent.SetupComplete -> logger.d("Transcriber ← ✓ SetupComplete")
+            is GeminiEvent.ModelText -> logger.d("Transcriber ← TEXT: ${event.text}")
+            is GeminiEvent.TurnComplete -> logger.d("Transcriber ← TurnComplete")
+            is GeminiEvent.Disconnected -> {
+                logger.d("Transcriber ← Disconnected: ${event.code} ${event.reason}")
+                transcriberEnabled = false
+            }
+            is GeminiEvent.ConnectionError -> {
+                logger.e("Transcriber ← Error: ${event.message}")
+                transcriberEnabled = false
+            }
+            else -> { /* остальные события игнорируем */ }
+        }
+    }
+
+    /**
+     * Конфиг для текстового транскриптора.
+     * Полностью independent от translator config — другие промпт,
+     * modality, transcription-флаги.
+     */
+    private fun buildTranscriberConfig(): SessionConfig {
+        // На этом шаге используем заглушку-промпт для проверки коннекта.
+        // Полный промпт + парсер ORIG/TRANS — в Шаге 4.
+        val promptStub = "You are a transcriber. Stay silent for now."
+
+        return SessionConfig(
+            model = cachedSettings.model,
+            responseModality = "TEXT",
+            temperature = 0.3f,
+            topP = 0.9f,
+            topK = 0,
+            maxOutputTokens = 2048,
+            voiceId = "",
+            languageCode = "",
+            latencyProfile = LatencyProfile.UltraLow,
+            autoActivityDetection = true,
+            vadStartSensitivity = "START_SENSITIVITY_HIGH",
+            vadEndSensitivity = "END_SENSITIVITY_LOW",
+            vadSilenceDurationMs = 500,
+            vadPrefixPaddingMs = 150,
+            systemInstruction = promptStub,
+            inputTranscription = false,
+            outputTranscription = false,
+            transcriptionLanguageCodes = emptyList(),
+            enableSessionResumption = false,
+            sendSessionResumptionConfig = false,
+            sessionHandle = null,
+            enableContextCompression = false,
+            sendContextCompressionConfig = false,
+            enableGoogleSearch = false,
+            functionDeclarations = emptyList(),
+            sendAudioStreamEnd = false,
+            sendThinkingConfig = true,
+            sendTranscriptionConfig = false,
+        )
+    }
+
     private fun observeVocabularyViolations() {
         viewModelScope.launch {
             vocabularyEnforcer.violations.collect { violation ->
