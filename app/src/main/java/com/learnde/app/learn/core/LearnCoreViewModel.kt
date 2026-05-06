@@ -178,12 +178,20 @@ class LearnCoreViewModel @Inject constructor(
             is TranscriptOp.Reset -> {
                 userTurnBuffer.clear()
                 modelTurnBuffer.clear()
+                transcriberBuffer.clear()
                 liveModelMessageTs = 0L
                 translatorFunctionFinalizedThisTurn = false
                 transcriptMutex.withLock {
                     transcriptBuffer = emptyList()
                 }
-                _state.update { it.copy(transcript = emptyList(), liveUserTranscript = "") }
+                _state.update {
+                    it.copy(
+                        transcript = emptyList(),
+                        liveUserTranscript = "",
+                        translatorOriginal = "",
+                        translatorTranslation = "",
+                    )
+                }
             }
         }
     }
