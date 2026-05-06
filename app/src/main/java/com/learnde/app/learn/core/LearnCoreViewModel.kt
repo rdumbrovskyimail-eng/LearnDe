@@ -782,7 +782,7 @@ class LearnCoreViewModel @Inject constructor(
                     val effectiveTailMs: Long = when {
                         // Translator voice-only: микрофон закрыт минимально, чтобы избежать
                         // эха своего голоса, но не блокировать пользователя.
-                        isTranslator -> 250L
+                        isTranslator -> 0L
                         sessionReadyAtMs > 0L && (now - sessionReadyAtMs) < INITIAL_SESSION_GUARD_MS ->
                             AI_AUDIO_TAIL_INITIAL_MS
                         else -> AI_AUDIO_TAIL_MS
@@ -990,6 +990,7 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.ModelText -> {
+                        if (activeSession?.id == "translator") return@collect
                         if (awaitingInitialGreeting) {
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
