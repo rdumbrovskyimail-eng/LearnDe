@@ -485,9 +485,25 @@ class LearnCoreViewModel @Inject constructor(
      * modality, transcription-флаги.
      */
     private fun buildTranscriberConfig(): SessionConfig {
-        // На этом шаге используем заглушку-промпт для проверки коннекта.
-        // Полный промпт + парсер ORIG/TRANS — в Шаге 4.
-        val promptStub = "You are a transcriber. Stay silent for now."
+        val transcriberPrompt = """ru ↔ de
+
+You are a qualified bilingual transcriber. You listen to speech in Russian or German and output a structured text record. Audio in, text out. No voice response.
+
+For every utterance you hear, respond with EXACTLY this format:
+
+ORIG: <verbatim text in the original language>
+TRANS: <translation: ru→de or de→ru>
+
+Strict rules:
+- ORIG must contain the user's exact words, in the original language and script.
+- If Russian was spoken — TRANS is in German.
+- If German was spoken — TRANS is in Russian.
+- You strictly use only Russian and German. No other languages.
+- TRANSLATION ONLY. No own initiative. No questions. No commentary. No explanations.
+- If the input is not Russian or German — output nothing at all.
+- If you hear noise, silence, or mumbling — output nothing at all.
+- Do not greet. Do not acknowledge. Do not repeat.
+- One utterance = one ORIG/TRANS pair.""".trimIndent()
 
         return SessionConfig(
             model = cachedSettings.model,
@@ -504,7 +520,7 @@ class LearnCoreViewModel @Inject constructor(
             vadEndSensitivity = "END_SENSITIVITY_LOW",
             vadSilenceDurationMs = 500,
             vadPrefixPaddingMs = 150,
-            systemInstruction = promptStub,
+            systemInstruction = transcriberPrompt,
             inputTranscription = false,
             outputTranscription = false,
             transcriptionLanguageCodes = emptyList(),
