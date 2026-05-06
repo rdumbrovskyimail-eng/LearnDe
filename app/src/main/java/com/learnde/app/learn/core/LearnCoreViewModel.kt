@@ -44,7 +44,6 @@ import javax.inject.Inject
 class LearnCoreViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     @LearnScope private val liveClient: LiveClient,
-    @TranscriberScope private val transcriberClient: LiveClient,
     @LearnScope private val audioEngine: AudioEngine,
     private val settingsStore: DataStore<AppSettings>,
     private val logger: AppLogger,
@@ -107,13 +106,6 @@ class LearnCoreViewModel @Inject constructor(
 
     private var stuckTurnWatchdogJob: Job? = null
     private var textWithoutAudioJob: Job? = null
-    private var transcriberObserverJob: Job? = null
-    @Volatile private var transcriberEnabled: Boolean = false
-
-    // Буфер дельт текущего turn'а транскриптора (накапливается до TurnComplete).
-    private val transcriberBuffer = StringBuilder()
-    private val origRegex = Regex("""ORIG:\s*(.+?)(?=\n\s*TRANS:|$)""", RegexOption.DOT_MATCHES_ALL)
-    private val transRegex = Regex("""TRANS:\s*(.+?)$""", RegexOption.DOT_MATCHES_ALL)
 
     @Volatile private var lastInputTs: Long = 0L
     @Volatile private var modelStartedSpeakingThisTurn = false
@@ -178,20 +170,12 @@ class LearnCoreViewModel @Inject constructor(
             is TranscriptOp.Reset -> {
                 userTurnBuffer.clear()
                 modelTurnBuffer.clear()
-                transcriberBuffer.clear()
                 liveModelMessageTs = 0L
                 translatorFunctionFinalizedThisTurn = false
                 transcriptMutex.withLock {
                     transcriptBuffer = emptyList()
                 }
-                _state.update {
-                    it.copy(
-                        transcript = emptyList(),
-                        liveUserTranscript = "",
-                        translatorOriginal = "",
-                        translatorTranslation = "",
-                    )
-                }
+                _state.update { it.copy(transcript = emptyList(), liveUserTranscript = "") }
             }
         }
     }
@@ -398,201 +382,6 @@ class LearnCoreViewModel @Inject constructor(
     private fun cancelTextWithoutAudioWatchdog() {
         textWithoutAudioJob?.cancel()
         textWithoutAudioJob = null
-    }
-
-    // ════════════════════════════════════════════════════════════
-    //  TRANSCRIBER CLIENT — параллельный text-only поток
-    // ════════════════════════════════════════════════════════════
-
-    /**
-     * Запуск второго (текстового) клиента для translator-сессии.
-     * Работает параллельно voice-клиенту, слушает тот же микрофон,
-     * выдаёт ORIG/TRANS пары через GeminiEvent.ModelText.
-     *
-     * Полностью независим от voice-клиента: ошибки коннекта или
-     * disconnect транскриптора НЕ влияют на основной аудио-поток.
-     */
-    private suspend fun startTranscriberClient() {
-        if (transcriberEnabled) {
-            logger.d("Transcriber: already enabled, skipping start")
-            return
-        }
-        if (activeApiKey.isEmpty()) {
-            logger.w("Transcriber: no API key, skipping")
-            return
-        }
-
-        logger.d("▶ Transcriber.start")
-
-        // Observer событий транскриптора — отдельный job чтобы
-        // его можно было корректно остановить вместе с клиентом.
-        transcriberObserverJob?.cancel()
-        transcriberObserverJob = viewModelScope.launch {
-            transcriberClient.events.collect { event ->
-                handleTranscriberEvent(event)
-            }
-        }
-
-        val transcriberConfig = buildTranscriberConfig()
-        logger.d("🔍🔍🔍 TRANSCRIBER MODEL = '${transcriberConfig.model}' 🔍🔍🔍")
-        runCatching {
-            transcriberClient.connect(
-                apiKey = activeApiKey,
-                config = transcriberConfig,
-                logRaw = false,
-            )
-            transcriberEnabled = true
-            logger.d("Transcriber: connect initiated")
-        }.onFailure { e ->
-            logger.e("Transcriber: connect failed: ${e.message}", e)
-            transcriberObserverJob?.cancel()
-            transcriberObserverJob = null
-            transcriberEnabled = false
-        }
-    }
-
-    /**
-     * Корректное завершение транскриптора.
-     * Сначала гасит observer (чтобы события disconnect не проходили
-     * как полезные), потом закрывает WS.
-     */
-    private suspend fun stopTranscriberClient() {
-        if (!transcriberEnabled && transcriberObserverJob == null) return
-
-        logger.d("▶ Transcriber.stop")
-        transcriberEnabled = false
-
-        transcriberObserverJob?.cancel()
-        transcriberObserverJob = null
-
-        runCatching { transcriberClient.disconnect() }
-            .onFailure { logger.w("Transcriber: disconnect error: ${it.message}") }
-
-        logger.d("◀ Transcriber.stop done")
-    }
-
-    /**
-     * Обработка событий второго клиента.
-     * Пока — только логирование. UI и парсинг ORIG/TRANS подключим
-     * на следующих шагах.
-     */
-    private fun handleTranscriberEvent(event: GeminiEvent) {
-        when (event) {
-            is GeminiEvent.Connected -> logger.d("Transcriber ← Connected")
-            is GeminiEvent.SetupComplete -> logger.d("Transcriber ← ✓ SetupComplete")
-
-            is GeminiEvent.ModelText -> {
-                transcriberBuffer.append(event.text)
-                val partial = transcriberBuffer.toString()
-                // Live-обновление: показываем текущее состояние парсинга,
-                // даже если TRANS ещё не пришёл (юзер видит свой ORIG раньше).
-                val orig = origRegex.find(partial)?.groupValues?.get(1)?.trim().orEmpty()
-                val trans = transRegex.find(partial)?.groupValues?.get(1)?.trim().orEmpty()
-                if (orig.isNotEmpty() || trans.isNotEmpty()) {
-                    _state.update {
-                        it.copy(
-                            translatorOriginal = orig.ifEmpty { it.translatorOriginal },
-                            translatorTranslation = trans.ifEmpty { it.translatorTranslation },
-                        )
-                    }
-                }
-            }
-
-            is GeminiEvent.TurnComplete -> {
-                val full = transcriberBuffer.toString().trim()
-                transcriberBuffer.clear()
-                if (full.isEmpty()) {
-                    logger.d("Transcriber ← TurnComplete (empty)")
-                    return
-                }
-                val orig = origRegex.find(full)?.groupValues?.get(1)?.trim().orEmpty()
-                val trans = transRegex.find(full)?.groupValues?.get(1)?.trim().orEmpty()
-                logger.d("Transcriber ← PAIR: '$orig' → '$trans'")
-                _state.update {
-                    it.copy(
-                        translatorOriginal = orig,
-                        translatorTranslation = trans,
-                    )
-                }
-            }
-
-            is GeminiEvent.Interrupted -> {
-                logger.d("Transcriber ← Interrupted, dropping buffer")
-                transcriberBuffer.clear()
-            }
-
-            is GeminiEvent.Disconnected -> {
-                logger.d("Transcriber ← Disconnected: ${event.code} ${event.reason}")
-                transcriberEnabled = false
-                transcriberBuffer.clear()
-            }
-
-            is GeminiEvent.ConnectionError -> {
-                logger.e("Transcriber ← Error: ${event.message}")
-                transcriberEnabled = false
-                transcriberBuffer.clear()
-            }
-
-            else -> { /* остальное игнорируем */ }
-        }
-    }
-
-    /**
-     * Конфиг для текстового транскриптора.
-     * Полностью independent от translator config — другие промпт,
-     * modality, transcription-флаги.
-     */
-    private fun buildTranscriberConfig(): SessionConfig {
-        val transcriberPrompt = """ru ↔ de
-
-You are a qualified bilingual transcriber. You listen to speech in Russian or German and output a structured text record. Audio in, text out. No voice response.
-
-For every utterance you hear, respond with EXACTLY this format:
-
-ORIG: <verbatim text in the original language>
-TRANS: <translation: ru→de or de→ru>
-
-Strict rules:
-- ORIG must contain the user's exact words, in the original language and script.
-- If Russian was spoken — TRANS is in German.
-- If German was spoken — TRANS is in Russian.
-- You strictly use only Russian and German. No other languages.
-- TRANSLATION ONLY. No own initiative. No questions. No commentary. No explanations.
-- If the input is not Russian or German — output nothing at all.
-- If you hear noise, silence, or mumbling — output nothing at all.
-- Do not greet. Do not acknowledge. Do not repeat.
-- One utterance = one ORIG/TRANS pair.""".trimIndent()
-
-        return SessionConfig(
-            model = "gemini-live-2.5-flash-preview",
-            responseModality = "TEXT",
-            temperature = 0.3f,
-            topP = 0.9f,
-            topK = 0,
-            maxOutputTokens = 2048,
-            voiceId = "",
-            languageCode = "",
-            latencyProfile = LatencyProfile.UltraLow,
-            autoActivityDetection = true,
-            vadStartSensitivity = "START_SENSITIVITY_HIGH",
-            vadEndSensitivity = "END_SENSITIVITY_LOW",
-            vadSilenceDurationMs = 500,
-            vadPrefixPaddingMs = 150,
-            systemInstruction = transcriberPrompt,
-            inputTranscription = false,
-            outputTranscription = false,
-            transcriptionLanguageCodes = emptyList(),
-            enableSessionResumption = false,
-            sendSessionResumptionConfig = false,
-            sessionHandle = null,
-            enableContextCompression = false,
-            sendContextCompressionConfig = false,
-            enableGoogleSearch = false,
-            functionDeclarations = emptyList(),
-            sendAudioStreamEnd = false,
-            sendThinkingConfig = true,
-            sendTranscriptionConfig = false,
-        )
     }
 
     private fun observeVocabularyViolations() {
@@ -821,7 +610,6 @@ Strict rules:
         }
         safeStopForegroundService()
 
-        stopTranscriberClient()
         runCatching { liveClient.disconnect() }
         runCatching { session?.onExit() }
 
@@ -936,11 +724,8 @@ Strict rules:
             activeSession = null
         }
 
-        // Translator: запускаем параллельный text-клиент для качественного транскрипта.
-        // Failure здесь НЕ критичен — voice-клиент работает независимо.
-        if (session.id == "translator" && activeSession != null) {
-            startTranscriberClient()
-        }
+        // Translator работает на одном audio-клиенте с input/output audio transcription.
+        // Параллельный text-клиент отключён — он добавлял латентность из-за общего rate-pool.
 
         logger.d("◀ Learn.startInternal — awaiting SetupComplete")
     }
@@ -988,7 +773,6 @@ Strict rules:
         }
 
         micJob = viewModelScope.launch {
-            // Fan-out 1: voice-клиент (translator) — со всем gating и tail-логикой
             launch {
                 audioEngine.micOutput.collect { chunk ->
                     val isTranslator = activeSession?.id == "translator"
@@ -996,12 +780,17 @@ Strict rules:
                     val sinceLastAi = now - lastAiAudioChunkAtMs
 
                     val effectiveTailMs: Long = when {
+                        // Translator voice-only: микрофон закрыт минимально, чтобы избежать
+                        // эха своего голоса, но не блокировать пользователя.
                         isTranslator -> 0L
                         sessionReadyAtMs > 0L && (now - sessionReadyAtMs) < INITIAL_SESSION_GUARD_MS ->
                             AI_AUDIO_TAIL_INITIAL_MS
                         else -> AI_AUDIO_TAIL_MS
                     }
 
+                    // Принудительное открытие микрофона после record_translation —
+                    // позволяет пользователю говорить сразу следующую фразу,
+                    // не дожидаясь пока модель доиграет остаток своего аудио.
                     val forceOpen = isTranslator && now < translatorForceMicOpenUntilMs
 
                     val aiActuallyAudible =
@@ -1020,17 +809,6 @@ Strict rules:
                     }
                 }
             }
-
-            // Fan-out 2: transcriber-клиент (text-only). Без gating —
-            // эхо чужого аудио для текстовой ветки безопасно, AEC уже отрабатывает.
-            launch {
-                audioEngine.micOutput.collect { chunk ->
-                    if (transcriberEnabled && transcriberClient.isReady) {
-                        runCatching { transcriberClient.sendAudio(chunk) }
-                    }
-                }
-            }
-
             micOperationMutex.withLock {
                 audioEngine.startCapture()
             }
@@ -1491,7 +1269,6 @@ Strict rules:
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
         finishGraceJob?.cancel()
-        transcriberObserverJob?.cancel()
         cancelStuckTurnWatchdog()
         cancelTextWithoutAudioWatchdog()
         statusBus.reset()
