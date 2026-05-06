@@ -146,7 +146,7 @@ class LearnCoreViewModel @Inject constructor(
         observeGeminiEvents()
         observeArbiter()
         observeVocabularyViolations()
-        observeTranslatorFunctionTranscripts()
+        // observeTranslatorFunctionTranscripts() — убрано: voice-only режим без функций
         startTranscriptProcessor()
         viewModelScope.launch { audioEngine.initPlayback() }
     }
