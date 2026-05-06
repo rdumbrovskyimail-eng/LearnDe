@@ -747,6 +747,7 @@ class LearnCoreViewModel @Inject constructor(
         }
         safeStopForegroundService()
 
+        stopTranscriberClient()
         runCatching { liveClient.disconnect() }
         runCatching { session?.onExit() }
 
