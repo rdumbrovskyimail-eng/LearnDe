@@ -499,7 +499,7 @@ class LearnCoreViewModel @Inject constructor(
         val isTranslator = session.id == "translator"
 
         val profile = if (isTranslator) {
-            LatencyProfile.Off
+            LatencyProfile.UltraLow
         } else {
             runCatching { enumValueOf<LatencyProfile>(cachedSettings.latencyProfile) }
                 .getOrDefault(LatencyProfile.UltraLow)
@@ -519,7 +519,7 @@ class LearnCoreViewModel @Inject constructor(
         }
 
         val (silenceMs, prefixMs, temp) = when (session.id) {
-            "translator"   -> Triple(500, 150, 0.1f)  // быстрее реакция, ниже temp = меньше отсебятины
+            "translator"   -> Triple(500, 150, 1.0f)  // быстрее реакция, ниже temp = меньше отсебятины
             "a1_situation" -> Triple(1000, 300, cachedSettings.temperature)
             "a1_review"    -> Triple(1000, 300, cachedSettings.temperature)
             else           -> Triple(1000, 300, cachedSettings.temperature)
@@ -531,9 +531,9 @@ class LearnCoreViewModel @Inject constructor(
 
         val finalLanguageCode = if (isTranslator) "" else cachedSettings.languageCode
         val finalVoiceId = if (isTranslator) "Puck" else cachedSettings.voiceId
-        val finalMaxTokens = if (isTranslator) 256 else cachedSettings.maxOutputTokens
-        val finalTopP = if (isTranslator) 0.6f else cachedSettings.topP  // меньше отсебятины
-        val finalTopK = if (isTranslator) 20 else cachedSettings.topK
+        val finalMaxTokens = if (isTranslator) 8192 else cachedSettings.maxOutputTokens
+        val finalTopP = if (isTranslator) 0.95f else cachedSettings.topP  // меньше отсебятины
+        val finalTopK = if (isTranslator) 0 else cachedSettings.topK
 
         // Для translator транскрипция выключена — record_translation function call
         // даёт точный текст оригинала и перевода. ASR Gemini Live мисхёрит языки
@@ -575,7 +575,7 @@ class LearnCoreViewModel @Inject constructor(
             enableGoogleSearch = false,
             functionDeclarations = session.functionDeclarations,
             sendAudioStreamEnd = cachedSettings.sendAudioStreamEnd,
-            sendThinkingConfig = if (isTranslator) false else true,
+            sendThinkingConfig = true,
         )
     }
 
