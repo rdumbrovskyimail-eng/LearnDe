@@ -59,29 +59,7 @@ de → ru
 Если не русский и не немецкий — молчи.
 Если шум, тишина, бормотание — молчи."""
 
-    override val functionDeclarations: List<FunctionDeclarationConfig> = listOf(
-        FunctionDeclarationConfig(
-            name = "record_translation",
-            description = "Записывает в журнал пару (оригинал, перевод) после каждого успешного перевода. " +
-                "Вызывай ПОСЛЕ озвучки перевода, всегда.",
-            parameters = mapOf(
-                "original" to ParameterConfig(
-                    type = "STRING",
-                    description = "Точный текст того, что сказал говорящий, на исходном языке (русский, украинский или немецкий).",
-                ),
-                "translation" to ParameterConfig(
-                    type = "STRING",
-                    description = "Точный текст перевода, который ты только что озвучил.",
-                ),
-                "source_lang" to ParameterConfig(
-                    type = "STRING",
-                    description = "Код исходного языка: ru или de.",
-                    enumValues = listOf("ru", "de"),
-                ),
-            ),
-            required = listOf("original", "translation", "source_lang"),
-        ),
-    )
+    override val functionDeclarations: List<FunctionDeclarationConfig> = emptyList()
 
     override val initialUserMessage: String = ""
 
