@@ -63,6 +63,8 @@ If you hear noise, silence, or mumbling — stay silent."""
 
     override val initialUserMessage: String = ""
 
+    override val sendTranscriptionConfig: Boolean = false
+
     override suspend fun onEnter() {
         logger.d("TranslatorSession v11.0: function-call transcript architecture")
     }
