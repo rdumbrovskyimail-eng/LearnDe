@@ -44,6 +44,7 @@ import javax.inject.Inject
 class LearnCoreViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     @LearnScope private val liveClient: LiveClient,
+    @TranscriberScope private val transcriberClient: LiveClient,
     @LearnScope private val audioEngine: AudioEngine,
     private val settingsStore: DataStore<AppSettings>,
     private val logger: AppLogger,
