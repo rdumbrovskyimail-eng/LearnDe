@@ -65,6 +65,8 @@ If you hear noise, silence, or mumbling — stay silent."""
 
     override val sendTranscriptionConfig: Boolean = false
 
+    override val isTranslator: Long = 0L
+
     override suspend fun onEnter() {
         logger.d("TranslatorSession v11.0: function-call transcript architecture")
     }
