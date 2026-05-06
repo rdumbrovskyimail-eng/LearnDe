@@ -21,27 +21,47 @@ jobs:
           distribution: 'temurin'
 
       - uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-enabled: true
-          cache-read-only: false
-          gradle-home-cache-includes: |
-            caches
-            notifications
-            wrapper
-          gradle-home-cache-excludes: |
-            caches/build-cache-1
+        # ─── КЭШИРОВАНИЕ ВРЕМЕННО ОТКЛЮЧЕНО ДЛЯ ЧИСТОЙ СБОРКИ ───
+        # with:
+        #   cache-enabled: true
+        #   cache-read-only: false
+        #   gradle-home-cache-includes: |
+        #     caches
+        #     notifications
+        #     wrapper
+        #   gradle-home-cache-excludes: |
+        #     caches/build-cache-1
+
+      - name: Wipe Gradle caches
+        run: |
+          rm -rf ~/.gradle/caches
+          rm -rf ~/.gradle/wrapper/dists
+          rm -rf .gradle
+          rm -rf app/build
+          rm -rf build
+          echo "✓ Gradle caches and build dirs wiped"
+
+      - name: Clean Project
+        run: gradle clean --no-build-cache --no-configuration-cache
 
       - name: Build Debug APK
         run: |
           gradle assembleDebug \
             --no-build-cache \
             --no-configuration-cache \
+            --rerun-tasks \
             --parallel \
             --max-workers=4 \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m" \
             -Dorg.gradle.parallel=true \
             -Dkotlin.incremental=false \
             -Dandroid.enableJetifier=false
+
+      - name: Verify APK contents (model strings)
+        run: |
+          echo "=== Searching for model strings in APK ==="
+          unzip -p app/build/outputs/apk/debug/app-debug.apk classes.dex | strings | grep -E "gemini-(live-2\.5|3\.1)-flash" | sort -u || true
+          echo "=== End of search ==="
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -51,6 +71,7 @@ jobs:
           body: |
             **Commit:** `${{ github.event.head_commit.message }}`
             **SHA:** `${{ github.sha }}`
+            **Build:** Clean (no cache)
           files: app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
