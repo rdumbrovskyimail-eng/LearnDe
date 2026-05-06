@@ -18,8 +18,11 @@ data class LearnCoreState(
     val arbiterOwned: Boolean = false,
     val liveUserTranscript: String = "",
     // ФИНАЛ: Флаг для показа красивой анимации загрузки
-    val isPreparingSession: Boolean = false, 
+    val isPreparingSession: Boolean = false,
     val isFinishingSession: Boolean = false,
+    // Параллельный transcriber-клиент (translator-сессия): пара ORIG/TRANS
+    val translatorOriginal: String = "",
+    val translatorTranslation: String = "",
 )
 
 sealed class LearnCoreIntent {
