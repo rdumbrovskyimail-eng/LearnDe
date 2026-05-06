@@ -975,15 +975,18 @@ class LearnCoreViewModel @Inject constructor(
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
                         }
-                        // Для translator outputAudioTranscription выключен — событие приходить не должно.
-                        // Если вдруг придёт — игнорируем, чтобы не создать "хвостовых" пузырей.
-                        if (activeSession?.id == "translator") return@collect
-
-                        if (lastAiAudioChunkAtMs == 0L
-                            || (System.currentTimeMillis() - lastAiAudioChunkAtMs) > 500) {
-                            startTextWithoutAudioWatchdog()
+                        // Для translator OutputTranscript игнорируем —
+                        // record_translation function call даёт точный перевод.
+                        // Транскрипция Gemini Live мисхёрит и создаёт лишние пузыри.
+                        if (activeSession?.id == "translator") {
+                            // НЕ делаем return@collect — это прервёт другие события в том же frame
+                        } else {
+                            if (lastAiAudioChunkAtMs == 0L
+                                || (System.currentTimeMillis() - lastAiAudioChunkAtMs) > 500) {
+                                startTextWithoutAudioWatchdog()
+                            }
+                            transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "OutputTranscript"))
                         }
-                        transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "OutputTranscript"))
                     }
 
                     is GeminiEvent.ModelText -> {
