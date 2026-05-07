@@ -70,6 +70,14 @@ class VoskTranscriber @Inject constructor(
 
     @Volatile private var running = false
 
+    // Дедуп partial'ов: эмитим только когда текст изменился
+    @Volatile private var lastMicPartial: String = ""
+    @Volatile private var lastPlaybackPartial: String = ""
+
+    // Ссылки на playback-recognizer'ы для форсированного finalize
+    @Volatile private var recPbRuRef: Recognizer? = null
+    @Volatile private var recPbDeRef: Recognizer? = null
+
     /**
      * Стартует транскрайбер. Должен быть вызван ОДИН раз при старте
      * translator-сессии. Модели должны быть уже загружены через
@@ -123,6 +131,8 @@ class VoskTranscriber @Inject constructor(
         val recPbDe = Recognizer(modelDe, SAMPLE_RATE)
         runCatching { recPbRu.setWords(true) }
         runCatching { recPbDe.setWords(true) }
+        recPbRuRef = recPbRu
+        recPbDeRef = recPbDe
 
         playbackJob = scope.launch {
             try {
@@ -138,6 +148,8 @@ class VoskTranscriber @Inject constructor(
                     )
                 }
             } finally {
+                recPbRuRef = null
+                recPbDeRef = null
                 runCatching { recPbRu.close() }
                 runCatching { recPbDe.close() }
                 logger.d("VoskTranscriber: PLAYBACK channel closed")
@@ -154,7 +166,39 @@ class VoskTranscriber @Inject constructor(
         playbackJob?.cancel()
         micJob = null
         playbackJob = null
+        lastMicPartial = ""
+        lastPlaybackPartial = ""
         logger.d("VoskTranscriber: stopped")
+    }
+
+    /**
+     * Форсированно финализирует playback-recognizer'ы. Вызывать когда
+     * Gemini Live прислал TurnComplete — Vosk не услышит "тишину" сам,
+     * потому что просто перестаёт получать чанки.
+     *
+     * Без этого partial накапливается между фразами Gemini и склеивается
+     * с следующим ответом.
+     */
+    fun finalizePlayback() {
+        recPbRuRef?.let { rec ->
+            runCatching {
+                val finalJson = rec.finalResult
+                val text = extractText(finalJson)
+                if (text.isNotBlank()) {
+                    val ruText = text
+                    val deText = extractText(recPbDeRef?.finalResult)
+                    val (chosen, lang) = if (deText.length > ruText.length)
+                        deText to VoskLang.DE
+                    else
+                        ruText to VoskLang.RU
+                    if (chosen.isNotBlank()) {
+                        _events.tryEmit(VoskEvent.Final(VoskSource.PLAYBACK, chosen, lang))
+                    }
+                }
+            }
+        }
+        recPbDeRef?.let { runCatching { it.finalResult } }
+        lastPlaybackPartial = ""
     }
 
     // ════════════════════════════════════════════════════════════
@@ -192,9 +236,23 @@ class VoskTranscriber @Inject constructor(
         val partialRuJson = runCatching { recRu.partialResult }.getOrNull()
         val partialDeJson = runCatching { recDe.partialResult }.getOrNull()
         val (partialText, partialLang) = pickPartialByLength(partialRuJson, partialDeJson)
-        if (partialText.length >= MIN_PARTIAL_LEN) {
-            _events.tryEmit(VoskEvent.Partial(source, partialText, partialLang))
+
+        // Фильтр 1: минимальная длина (отсекает одиночные буквы)
+        if (partialText.length < MIN_PARTIAL_LEN) return
+
+        // Фильтр 2: дедуп — не эмитим повторяющийся текст
+        when (source) {
+            VoskSource.MIC -> {
+                if (partialText == lastMicPartial) return
+                lastMicPartial = partialText
+            }
+            VoskSource.PLAYBACK -> {
+                if (partialText == lastPlaybackPartial) return
+                lastPlaybackPartial = partialText
+            }
         }
+
+        _events.tryEmit(VoskEvent.Partial(source, partialText, partialLang))
     }
 
     /**
