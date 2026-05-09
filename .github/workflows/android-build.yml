@@ -1,19 +1,16 @@
+# Путь: .github/workflows/android-build.yml
 name: Android CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches:[ "main" ]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  prepare-vosk:
-    uses: ./.github/workflows/prepare-vosk-models.yml
-
   build-and-release:
-    needs: prepare-vosk
     runs-on: ubuntu-24.04
 
     steps:
@@ -23,19 +20,6 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - name: Download Vosk models
-        uses: actions/download-artifact@v4
-        with:
-          name: vosk-models
-          path: app/src/main/assets/vosk/
-
-      - name: Verify Vosk models in build tree
-        run: |
-          test -f app/src/main/assets/vosk/ru/am/final.mdl
-          test -f app/src/main/assets/vosk/de/am/final.mdl
-          echo "✓ Vosk models in place"
-          du -sh app/src/main/assets/vosk/ru app/src/main/assets/vosk/de
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -60,35 +44,16 @@ jobs:
             -Dorg.gradle.parallel=true \
             -Dandroid.enableJetifier=false
 
-      - name: Pack APK into compressed zip
+      - name: Calculate APK Size
         id: pack
         run: |
-          set -e
           APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
           APK_SIZE=$(stat -c%s "$APK_PATH")
-          APK_MB=$((APK_SIZE / 1024 / 1024))
+          # Считаем точный размер в мегабайтах (до 1 знака после запятой)
+          APK_MB=$(awk "BEGIN {printf \"%.1f\", $APK_SIZE / 1048576}")
           
-          echo "▶ Original APK: ${APK_MB} MB"
-          
-          # Создаём папку для архива
-          mkdir -p release-assets
-          
-          # Упаковываем APK с максимальным deflate-сжатием (-9).
-          # Используем zip как самый кросс-платформенный формат —
-          # любой пользователь распакует штатными средствами Windows/Mac/Linux/Android.
-          ZIP_NAME="LearnDe-v1.0.${{ github.run_number }}.zip"
-          zip -9 "release-assets/$ZIP_NAME" "$APK_PATH"
-          
-          ZIP_SIZE=$(stat -c%s "release-assets/$ZIP_NAME")
-          ZIP_MB=$((ZIP_SIZE / 1024 / 1024))
-          RATIO=$(echo "scale=1; ($APK_MB - $ZIP_MB) * 100 / $APK_MB" | bc)
-          
-          echo "✓ Compressed: ${ZIP_MB} MB (saved ${RATIO}%)"
-          echo "zip_path=release-assets/$ZIP_NAME" >> $GITHUB_OUTPUT
-          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+          echo "▶ APK Size: ${APK_MB} MB"
           echo "apk_mb=$APK_MB" >> $GITHUB_OUTPUT
-          echo "zip_mb=$ZIP_MB" >> $GITHUB_OUTPUT
-          echo "ratio=$RATIO" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -99,14 +64,11 @@ jobs:
             **Commit:** `${{ github.event.head_commit.message }}`
             **SHA:** `${{ github.sha }}`
             
-            **Размер:**
-            • APK (распакованный): ${{ steps.pack.outputs.apk_mb }} MB
-            • ZIP (для скачивания): ${{ steps.pack.outputs.zip_mb }} MB
-            • Экономия: ${{ steps.pack.outputs.ratio }}%
+            🚀 **Ультра-легкая версия (работает через Cloud Gemini Live)**
+            **Размер APK:** ${{ steps.pack.outputs.apk_mb }} MB
             
-            **Установка:** скачайте `${{ steps.pack.outputs.zip_name }}`, распакуйте, установите APK на телефон.
+            **Установка:** скачайте файл `.apk` ниже и установите на телефон (распаковывать ничего не нужно!).
           files: |
-            ${{ steps.pack.outputs.zip_path }}
             app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
