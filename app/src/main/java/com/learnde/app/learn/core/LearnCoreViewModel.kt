@@ -512,9 +512,9 @@ class LearnCoreViewModel @Inject constructor(
         val finalTopK = if (isTranslator) 0 else cachedSettings.topK
 
         // Включаем Input Transcription для Транслейтора, чтобы видеть живой драфт ASR пользователя
-        val inputTranscr = true 
-        val outputTranscr = if (isTranslator) false else true
-        val transcriptionLanguageCodes = if (isTranslator) listOf("ru-RU", "de-DE") else emptyList()
+        val inputTranscr = true
+        val outputTranscr = true
+        val transcriptionLanguageCodes = emptyList<String>()
 
         return SessionConfig(
             model = cachedSettings.model,
@@ -547,7 +547,7 @@ class LearnCoreViewModel @Inject constructor(
             sessionHandle = null,
             enableContextCompression = false,
             sendContextCompressionConfig = if (isTranslator) false else true,
-            sendTranscriptionConfig = if (isTranslator) false else true,
+            sendTranscriptionConfig = true,
             enableGoogleSearch = false,
             functionDeclarations = session.functionDeclarations,
             sendAudioStreamEnd = cachedSettings.sendAudioStreamEnd,
