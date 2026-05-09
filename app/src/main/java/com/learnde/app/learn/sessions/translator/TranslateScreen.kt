@@ -502,7 +502,8 @@ private fun BottomControlPanel(
                 .height(60.dp),
             contentAlignment = Alignment.Center
         ) {
-            AnimatedVisibility(
+            // ИСПОЛЬЗУЕМ ПОЛНЫЙ ПУТЬ, чтобы избежать конфликта с ColumnScope
+            androidx.compose.animation.AnimatedVisibility(
                 visible = isActive,
                 enter = fadeIn(tween(500)) + scaleIn(tween(500, easing = FastOutSlowInEasing)),
                 exit = fadeOut(tween(300)) + scaleOut(tween(300))
