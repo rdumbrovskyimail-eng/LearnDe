@@ -13,15 +13,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Translator v11.0 — function-call архитектура.
- *
- * Транскрипт приходит через function call `record_translation` —
- * модель сама пишет точный текст оригинала и перевода ПОСЛЕ озвучки.
- * Это даёт высшую точность транскрипта (модель пишет осознанно,
- * а не спекулятивно через ASR-слой).
- *
- * Fallback: outputAudioTranscription включён на случай если модель
- * пропустит вызов функции — UI не останется пустым.
+ * Translator v12.0 — Live ASR + Fast REST Reverse Architecture.
+ * Транскрипт пользователя собирается через inputAudioTranscription,
+ * а финальный точный текст восстанавливается через мгновенный REST API запрос (Reverse Translate).
  */
 @Singleton
 class TranslatorSession @Inject constructor(
@@ -29,21 +23,6 @@ class TranslatorSession @Inject constructor(
 ) : LearnSession {
 
     override val id: String = "translator"
-
-    /**
-     * События транскрипта, прилетающие через function call.
-     * Их слушает LearnCoreViewModel и пишет в transcript.
-     */
-    private val _functionTranscripts = MutableSharedFlow<TranslationPair>(
-        replay = 0, extraBufferCapacity = 32,
-    )
-    val functionTranscripts: SharedFlow<TranslationPair> = _functionTranscripts.asSharedFlow()
-
-    data class TranslationPair(
-        val original: String,
-        val translation: String,
-        val sourceLang: String, // "ru" | "uk" | "de"
-    )
 
     override val systemInstruction: String = """You are a real-time voice translator. Audio only.
 
@@ -58,11 +37,11 @@ You only use DE and RU. You strictly do not use other languages."""
     override val initialUserMessage: String = ""
 
     override suspend fun onEnter() {
-        logger.d("TranslatorSession v11.0: function-call transcript architecture")
+        logger.d("TranslatorSession v12.0: Live ASR + Fast REST Reverse Architecture")
     }
 
     override suspend fun onExit() {
-        logger.d("TranslatorSession v11.0: onExit")
+        logger.d("TranslatorSession v12.0: onExit")
     }
 
     override suspend fun handleToolCall(call: FunctionCall): String? {
