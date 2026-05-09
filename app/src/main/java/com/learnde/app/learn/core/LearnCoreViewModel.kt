@@ -420,6 +420,7 @@ class LearnCoreViewModel @Inject constructor(
     private fun observeVoskEvents() {
         viewModelScope.launch {
             voskTranscriber.events.collect { event ->
+                if (activeSession?.id != "translator") return@collect
                 when (event) {
                     is com.learnde.app.data.vosk.VoskEvent.Partial -> handleVoskPartial(event)
                     is com.learnde.app.data.vosk.VoskEvent.Final -> handleVoskFinal(event)
@@ -429,9 +430,7 @@ class LearnCoreViewModel @Inject constructor(
     }
 
     private fun handleVoskPartial(event: com.learnde.app.data.vosk.VoskEvent.Partial) {
-        if (activeSession?.id != "translator") return
         if (event.text.isBlank()) return
-
         when (event.source) {
             com.learnde.app.data.vosk.VoskSource.MIC -> {
                 val pairId = ensureOpenPairForMic()
@@ -440,24 +439,23 @@ class LearnCoreViewModel @Inject constructor(
                         originalText = event.text,
                         originalIsFinal = false,
                         originalIsRefined = false,
-                        originalLang = event.lang.tagOrEmpty().ifBlank { "RU" }
+                        originalLang = "Определяю..."
                     )
                 }
             }
-            com.learnde.app.data.vosk.VoskSource.PLAYBACK -> return
+            com.learnde.app.data.vosk.VoskSource.PLAYBACK -> return // ОТКЛЮЧЕНО НА ПЛЕЙБЕК (Берем из Socket ModelText)
         }
     }
 
     private fun handleVoskFinal(event: com.learnde.app.data.vosk.VoskEvent.Final) {
-        if (activeSession?.id != "translator") return
         when (event.source) {
             com.learnde.app.data.vosk.VoskSource.MIC -> {
                 val pairId = ensureOpenPairForMic()
                 updatePair(pairId) { pair ->
                     pair.copy(
                         originalText = event.text,
-                        originalIsFinal = true,
-                        originalIsRefined = false
+                        originalIsFinal = true, // Включаем серую Галочку (Пользовательская половина закрыта)
+                        originalIsRefined = false 
                     )
                 }
                 currentPairOriginalFinalized = true
@@ -466,48 +464,23 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Возвращает id пары для записи MIC-данных.
-     * Создаёт новую пару если предыдущая полностью закрыта.
-     */
     private fun ensureOpenPairForMic(): Long {
         val openId = currentOpenPairId
-        if (openId != null) {
-            // Если в открытой паре уже есть и MIC FINAL и PLAYBACK FINAL → она закрыта,
-            // новая MIC активность стартует НОВУЮ пару.
-            val isClosed = currentPairOriginalFinalized && currentPairTranslationFinalized
-            if (!isClosed) return openId
-        }
+        if (openId != null && !(currentPairOriginalFinalized && currentPairTranslationFinalized)) return openId
         return openNewPair()
     }
 
-    /**
-     * Возвращает id пары для записи PLAYBACK-данных.
-     * НЕ создаёт пары если её ещё нет (PLAYBACK без MIC = что-то странное).
-     */
-    private fun ensureOpenPairForPlayback(): Long? {
-        return currentOpenPairId
-    }
-
-    /** Создаёт новую пару, делает её текущей. Возвращает её id. */
     private fun openNewPair(): Long {
         val id = nextPairId++
         currentOpenPairId = id
         currentPairOriginalFinalized = false
         currentPairTranslationFinalized = false
-
-        val newPair = com.learnde.app.learn.core.TranslationPair(id = id)
-        _state.update { st ->
-            st.copy(translatorPairs = st.translatorPairs + newPair)
-        }
+        lastLiveInputTranscriptSnapshot = "" // Очищаем кеш предыдущего STT 
+        _state.update { st -> st.copy(translatorPairs = st.translatorPairs + com.learnde.app.learn.core.TranslationPair(id = id)) }
         return id
     }
 
-    /** Применяет трансформацию к паре с заданным id. */
-    private fun updatePair(
-        id: Long,
-        transform: (com.learnde.app.learn.core.TranslationPair) -> com.learnde.app.learn.core.TranslationPair,
-    ) {
+    private fun updatePair(id: Long, transform: (com.learnde.app.learn.core.TranslationPair) -> com.learnde.app.learn.core.TranslationPair) {
         _state.update { st ->
             val idx = st.translatorPairs.indexOfFirst { it.id == id }
             if (idx < 0) return@update st
@@ -517,11 +490,11 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    /** Очистка пар при старте новой сессии. */
     private fun resetTranslatorPairs() {
         currentOpenPairId = null
         currentPairOriginalFinalized = false
         currentPairTranslationFinalized = false
+        lastLiveInputTranscriptSnapshot = ""
         _state.update { it.copy(translatorPairs = emptyList()) }
     }
 
