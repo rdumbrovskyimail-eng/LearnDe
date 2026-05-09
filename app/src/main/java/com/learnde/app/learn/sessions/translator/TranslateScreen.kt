@@ -367,6 +367,10 @@ private fun PairsList(pairs: List<TranslationPair>) {
 //  КАРТОЧКА ПАРЫ (ПРЕМИУМ ДИЗАЙН)
 // ═══════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════
+//  КАРТОЧКА ПАРЫ (ПРЕМИУМ ДИЗАЙН И НОВАЯ ЛОГИКА ГАЛОЧЕК ✓✓)
+// ═══════════════════════════════════════════════════════════
+
 @Composable
 private fun PairCard(pair: TranslationPair) {
     Column(
@@ -383,12 +387,13 @@ private fun PairCard(pair: TranslationPair) {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Оригинал
+        // Оригинал (Ввод Микрофоном / Локальный Vosk)
         TranscriptBlock(
             text = pair.originalText,
             lang = pair.originalLang,
             isOriginal = true,
-            isFinal = pair.originalIsFinal
+            isFinal = pair.originalIsFinal,
+            isRefined = pair.originalIsRefined // <- ВНИМАНИЕ ПРОКИДЫВАЕМ
         )
 
         // Разделитель
@@ -399,12 +404,13 @@ private fun PairCard(pair: TranslationPair) {
                 .background(GeminiPalette.Divider),
         )
 
-        // Перевод
+        // Перевод (Live Web Socket -> Model Text + Flash)
         TranscriptBlock(
             text = pair.translationText,
             lang = pair.translationLang,
             isOriginal = false,
-            isFinal = pair.translationIsFinal
+            isFinal = pair.translationIsFinal,
+            isRefined = pair.translationIsRefined // <- ВНИМАНИЕ ПРОКИДЫВАЕМ
         )
     }
 }
@@ -414,24 +420,27 @@ private fun TranscriptBlock(
     text: String,
     lang: String,
     isOriginal: Boolean,
-    isFinal: Boolean
+    isFinal: Boolean, 
+    isRefined: Boolean 
 ) {
     Column(modifier = Modifier.animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessLow))) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val dotColor = if (isOriginal) GeminiPalette.TextMuted else GeminiPalette.BrandBlue
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(dotColor),
-            )
-            Spacer(Modifier.width(8.dp))
-
-            val label = buildString {
-                append(if (isOriginal) "Распознано" else "Перевод")
-                if (lang.isNotEmpty()) append(" · $lang")
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween // Разделяет статус с галочкой на разные концы карточки
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                val dotColor = if (isOriginal) GeminiPalette.TextMuted else GeminiPalette.BrandBlue
+                Box(
+                    modifier = Modifier.size(6.dp).clip(CircleShape).background(dotColor),
+                )
+                Spacer(Modifier.width(8.dp))
+
+                val label = buildString {
+                    append(if (isOriginal) "Распознано" else "Перевод")
+                    if (lang.isNotEmpty()) append(" · $lang")
+                }
+                
                 Text(
                     label,
                     fontSize = 12.sp,
@@ -439,18 +448,19 @@ private fun TranscriptBlock(
                     color = GeminiPalette.TextSecondary,
                     letterSpacing = 0.5.sp,
                 )
-                Spacer(Modifier.width(8.dp))
-                StatusIndicator(isFinal = isFinal)
             }
+            
+            // ПРОРИСОВКА ВЫЗОВ ЭФФЕКТОВ: ✓ ИЛИ ✓✓  
+            StatusIndicator(isFinal = isFinal, isRefined = isRefined)
         }
 
         Spacer(Modifier.height(8.dp))
 
         if (text.isBlank() && !isFinal) {
-            // Профессиональный скелетон-шиммер вместо пустоты или "..."
+            // Профессиональный скелетон-шиммер
             ShimmerPlaceholder()
         } else {
-            // Плавное появление текста
+            // Анимация бесшовной смены текста от Арбитра!
             Text(
                 text = text,
                 fontSize = if (isOriginal) 16.sp else 18.sp,
