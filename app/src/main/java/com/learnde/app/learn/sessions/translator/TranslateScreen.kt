@@ -345,7 +345,15 @@ private fun EmptyState(isActive: Boolean) {
 private fun PairsList(pairs: List<TranslationPair>) {
     val listState = rememberLazyListState()
 
-    LaunchedEffect(pairs.size, pairs.lastOrNull()?.translationText?.length) {
+    // Берем последнюю пару
+    val lastPair = pairs.lastOrNull()
+
+    // Триггерим скролл при добавлении новой пары, ИЛИ при печатании перевода, ИЛИ при печатании ASR-драфта пользователя
+    LaunchedEffect(
+        pairs.size, 
+        lastPair?.translationText?.length,
+        lastPair?.originalText?.length 
+    ) {
         if (pairs.isNotEmpty()) {
             listState.animateScrollToItem(pairs.size - 1)
         }
