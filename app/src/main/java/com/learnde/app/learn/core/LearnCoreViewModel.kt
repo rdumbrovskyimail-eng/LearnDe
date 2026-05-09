@@ -52,8 +52,6 @@ class LearnCoreViewModel @Inject constructor(
     private val registry: LearnSessionRegistry,
     private val vocabularyEnforcer: com.learnde.app.learn.domain.VocabularyEnforcer,
     private val translatorSession: com.learnde.app.learn.sessions.translator.TranslatorSession,
-    private val voskModelLoader: com.learnde.app.data.vosk.VoskModelLoader,
-    private val voskTranscriber: com.learnde.app.data.vosk.VoskTranscriber,
     private val translationClient: com.learnde.app.data.translator.GeminiTranslationClient,
 ) : ViewModel() {
 
