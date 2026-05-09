@@ -201,7 +201,12 @@ class LearnCoreViewModel @Inject constructor(
         // Просто аппендим, без перепроверок.
         userTurnBuffer.append(text)
 
-        _state.update { it.copy(liveUserTranscript = userTurnBuffer.toString()) }
+        val currentText = userTurnBuffer.toString()
+        _state.update { it.copy(liveUserTranscript = currentText) }
+
+        if (activeSession?.id == "translator" && currentOpenPairId != null) {
+            updatePair(currentOpenPairId!!) { it.copy(originalText = currentText) }
+        }
 
         lastInputTs = System.currentTimeMillis()
         silenceTimerJob?.cancel()
