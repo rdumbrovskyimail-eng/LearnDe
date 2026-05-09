@@ -993,6 +993,16 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.TurnComplete -> {
+                        // ТРАНСЛЭЙТОР: Когда Немец/Модель сказала последнее слово - закрываем ход и отправляем на 50мс ReverseAPI 
+                        if (activeSession?.id == "translator" && currentOpenPairId != null) {
+                            val pairId = currentOpenPairId!!
+                            updatePair(pairId) { it.copy(translationIsFinal = true, originalIsFinal = true) }
+                            
+                            val modelFinalVoiceText = _state.value.translatorPairs.find { it.id == pairId }?.translationText ?: ""
+                            triggerReverseTranslation(pairId, modelFinalVoiceText)
+                            
+                            currentOpenPairId = null // Перезаряжаем под следующую фразу пользователя!
+                        }
 
                         // Дефолтная очистка для обычного чата и Восков
                         transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
