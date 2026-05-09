@@ -34,8 +34,12 @@ class GeminiTranslationClient @Inject constructor(
     // Жесткие короткие таймауты: модель-лайт отвечает за миллисекунды!
     // Настраиваем ConnectionPool для повторного использования соединений (убирает 100-200мс на TLS-handshake)
     private val httpClient = OkHttpClient.Builder()
-        .callTimeout(5, TimeUnit.SECONDS)
-        .connectionPool(okhttp3.ConnectionPool(5, 5, TimeUnit.MINUTES))
+        .callTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .writeTimeout(3, TimeUnit.SECONDS)
+        .connectionPool(okhttp3.ConnectionPool(8, 5, TimeUnit.MINUTES))
+        .retryOnConnectionFailure(true)
         .build()
 
     suspend fun reverseTranslate(textFromSocket: String, apiKey: String): ReverseResult = withContext(Dispatchers.IO) {
@@ -58,27 +62,38 @@ class GeminiTranslationClient @Inject constructor(
         val request = Request.Builder().url("$ENDPOINT?key=$apiKey")
             .post(body.toString().toRequestBody("application/json".toMediaType())).build()
 
-        try {
-            val response = httpClient.newCall(request).execute().body?.string() ?: ""
-            
-            // Быстро вытаскиваем текст 
-            val resultText = json.parseToJsonElement(response)
-                .jsonObject["candidates"]?.jsonArray?.get(0)
-                ?.jsonObject?.get("content")?.jsonObject?.get("parts")
-                ?.jsonArray?.get(0)?.jsonObject?.get("text")?.jsonPrimitive?.content?.trim() ?: ""
-                
-            val time = System.currentTimeMillis() - reqStart
-            logger.d("ReverseTr ✓ (${time}ms): [$textFromSocket] -> [$resultText]")
-            
-            val isCyrl = resultText.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' }
-            ReverseResult(
-                reconstructedText = resultText, 
-                lang = if (isCyrl) "RU" else "DE"
-            )
-        } catch (e: Exception) {
-            logger.e("ReverseTr ✗ fallback: ${e.message}")
-            ReverseResult("", "")
+        suspend fun executeOnce(): String? = withContext(Dispatchers.IO) {
+            runCatching {
+                httpClient.newCall(request).execute().use { resp ->
+                    if (!resp.isSuccessful) return@runCatching null
+                    val responseText = resp.body?.string() ?: return@runCatching null
+                    json.parseToJsonElement(responseText)
+                        .jsonObject["candidates"]?.jsonArray?.firstOrNull()
+                        ?.jsonObject?.get("content")?.jsonObject?.get("parts")
+                        ?.jsonArray?.firstOrNull()?.jsonObject?.get("text")
+                        ?.jsonPrimitive?.content?.trim()
+                }
+            }.getOrNull()
         }
+
+        var resultText = executeOnce()
+        if (resultText.isNullOrEmpty()) {
+            logger.w("ReverseTr retry…")
+            resultText = executeOnce()
+        }
+
+        val time = System.currentTimeMillis() - reqStart
+        if (resultText.isNullOrEmpty()) {
+            logger.e("ReverseTr ✗ both attempts failed (${time}ms)")
+            return@withContext ReverseResult("", "")
+        }
+
+        logger.d("ReverseTr ✓ (${time}ms): [$textFromSocket] -> [$resultText]")
+        val isCyrl = resultText.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' }
+        ReverseResult(
+            reconstructedText = resultText,
+            lang = if (isCyrl) "RU" else "DE"
+        )
     }
 
     suspend fun warmUp(apiKey: String) = withContext(Dispatchers.IO) {
