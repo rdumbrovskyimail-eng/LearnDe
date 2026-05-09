@@ -994,23 +994,10 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.ModelText -> {
-                        // Пишем синхронно ПЕРЕВОД (за ~20мс по слогам) в момент, когда говорит нейросеть 
-                        if (activeSession?.id == "translator") {
-                            val pairId = currentOpenPairId ?: openNewPair()
-                            
-                            updatePair(pairId) { pair ->
-                                pair.copy(
-                                    translationText = pair.translationText + event.text,
-                                    translationIsFinal = false,
-                                    translationIsRefined = false,
-                                )
-                            }
-                            lastModelActivityAtMs = System.currentTimeMillis(); hasModelOutputThisTurn = true
-                            startStuckTurnWatchdog()
-                            return@collect
-                        }
+                        // Translator: ModelText не используется (responseModalities=AUDIO).
+                        // Источник перевода — outputTranscription.
+                        if (activeSession?.id == "translator") return@collect
 
-                        // ...стандартный дефолтный код transcriptChannel для обычного режима остался:
                         if (awaitingInitialGreeting) {
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
