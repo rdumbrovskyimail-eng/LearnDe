@@ -173,19 +173,38 @@ class NativeSpeechTranscriber @Inject constructor(
             val errName = errorToString(error)
             logger.d("NativeSpeech[$lang]: error $error ($errName)")
 
-            // Решаем, переключаться ли на другой язык
+            // Помечаем язык как неподдерживаемый и больше к нему не возвращаемся
+            val unsupported = when (error) {
+                SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED,           // 13 (API 31+)
+                SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> true       // 12 (API 31+)
+                else -> false
+            }
+
+            if (unsupported) {
+                when (lang) {
+                    "ru-RU" -> ruSupported = false
+                    "de-DE" -> deSupported = false
+                }
+                logger.w("NativeSpeech: $lang marked as unsupported (ru=$ruSupported, de=$deSupported)")
+
+                if (!ruSupported && !deSupported) {
+                    logger.e("NativeSpeech: NO supported languages, stopping recognition loop")
+                    running = false
+                    _events.tryEmit(TranscriptEvent.Error(error, lang))
+                    return
+                }
+            }
+
             val shouldSwitchLang = when (error) {
                 SpeechRecognizer.ERROR_NO_MATCH,
                 SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> true
                 else -> false
-            }
+            } || unsupported
 
             _events.tryEmit(TranscriptEvent.Error(error, lang))
 
             if (!running) return
-
-            // Авто-перезапуск
-            scheduleRestart(switchLang = shouldSwitchLang)
+            scheduleRestart(switchLang = shouldSwitchLang, errorBackoff = unsupported)
         }
 
         override fun onResults(results: Bundle?) {
@@ -210,18 +229,25 @@ class NativeSpeechTranscriber @Inject constructor(
         override fun onEvent(eventType: Int, params: Bundle?) { /* no-op */ }
     }
 
-    private fun scheduleRestart(switchLang: Boolean) {
+    private fun scheduleRestart(switchLang: Boolean, errorBackoff: Boolean = false) {
         if (!running || restartScheduled) return
         restartScheduled = true
         mainHandler.postDelayed({
             restartScheduled = false
             if (!running) return@postDelayed
             if (switchLang) {
-                activeLang = if (activeLang == "ru-RU") "de-DE" else "ru-RU"
-                logger.d("NativeSpeech: switching lang → $activeLang")
+                val nextLang = if (activeLang == "ru-RU") "de-DE" else "ru-RU"
+                val isNextSupported = if (nextLang == "ru-RU") ruSupported else deSupported
+                
+                if (isNextSupported) {
+                    activeLang = nextLang
+                    logger.d("NativeSpeech: switching lang → $activeLang")
+                } else {
+                    logger.d("NativeSpeech: next lang $nextLang not supported, staying on $activeLang")
+                }
             }
             startListeningInternal(activeLang)
-        }, 200L)
+        }, if (errorBackoff) 1000L else 200L)
     }
 
     private fun langCodeShort(full: String): String = when {
