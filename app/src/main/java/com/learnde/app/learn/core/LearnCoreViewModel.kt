@@ -203,8 +203,19 @@ class LearnCoreViewModel @Inject constructor(
         val currentText = userTurnBuffer.toString()
         _state.update { it.copy(liveUserTranscript = currentText) }
 
-        if (activeSession?.id == "translator" && currentOpenPairId != null) {
-            updatePair(currentOpenPairId!!) { it.copy(originalText = currentText) }
+        // Translator: открываем пару СРАЗУ как пользователь начал говорить.
+        // Левая колонка заполняется по мере прихода Gemini Live ASR-дельт,
+        // правая (перевод) присоединится позже из OutputTranscript.
+        if (activeSession?.id == "translator") {
+            val pairId = currentOpenPairId ?: openNewPair()
+            updatePair(pairId) { pair ->
+                pair.copy(
+                    originalText = currentText,
+                    originalLang = detectLangSimple(currentText),
+                    originalIsFinal = false,
+                    originalIsRefined = false,
+                )
+            }
         }
 
         lastInputTs = System.currentTimeMillis()
