@@ -66,6 +66,8 @@ class NativeSpeechTranscriber @Inject constructor(
     @Volatile private var running: Boolean = false
     @Volatile private var lastFinalText: String = ""
     @Volatile private var restartScheduled: Boolean = false
+    @Volatile private var ruSupported: Boolean = true
+    @Volatile private var deSupported: Boolean = true
 
     /**
      * Запускает транскрипцию. Поднимает оба recognizer (RU + DE),
@@ -81,7 +83,6 @@ class NativeSpeechTranscriber @Inject constructor(
         restartScheduled = false
 
         mainHandler.post {
-            // Проверяем доступность on-device
             val onDeviceAvailable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 runCatching {
                     SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext)
@@ -90,10 +91,14 @@ class NativeSpeechTranscriber @Inject constructor(
 
             logger.d("NativeSpeech: on-device available=$onDeviceAvailable, SDK=${Build.VERSION.SDK_INT}")
 
+            // Создаём оба recognizer'а; если on-device недоступен — оба будут сетевые.
             recognizerRu = createRecognizer(onDeviceAvailable)
             recognizerDe = createRecognizer(onDeviceAvailable)
 
-            // Стартуем с RU (можно начинать с любого, авто-переключение по ошибкам)
+            // По умолчанию доступны оба языка; флаги выключаются при первой ошибке 12/13.
+            ruSupported = true
+            deSupported = true
+
             activeLang = "ru-RU"
             startListeningInternal(activeLang)
         }
