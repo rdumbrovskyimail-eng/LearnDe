@@ -142,12 +142,35 @@ class NativeSpeechTranscriber @Inject constructor(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            // Длинные паузы между словами при разговоре через переводчик
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, lang == "ru-RU")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)  // <- 5 кандидатов вместо 1
+
+            // Длинные паузы для разговорного режима
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 300L)
+
+            // Биasing-строки: разговорные слова и фразы переводчика.
+            // Recognizer даст им повышенный приоритет → меньше "алло" hallucinations.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val biasingStrings = if (lang == "ru-RU") {
+                    arrayListOf(
+                        "как ты", "как дела", "что это", "это", "сейчас", "потом",
+                        "куда", "где", "когда", "почему", "сколько", "пожалуйста",
+                        "спасибо", "извините", "помогите", "хорошо", "плохо",
+                        "да", "нет", "может быть", "не знаю", "понятно",
+                        "Германия", "Берлин", "Россия", "Москва"
+                    )
+                } else {
+                    arrayListOf(
+                        "wie geht's", "was ist das", "wie viel", "wo ist", "wann",
+                        "warum", "bitte", "danke", "entschuldigung", "hallo",
+                        "tschüss", "ja", "nein", "vielleicht", "ich weiß nicht",
+                        "Deutschland", "Berlin", "Russland", "Moskau"
+                    )
+                }
+                putExtra("android.speech.extra.BIASING_STRINGS", biasingStrings)
+            }
         }
 
         recognizer.setRecognitionListener(makeListener(lang))
