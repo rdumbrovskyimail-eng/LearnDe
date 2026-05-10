@@ -1030,7 +1030,7 @@ class LearnCoreViewModel @Inject constructor(
                                     .find { it.id == pairId }?.translationText.orEmpty().trim()
                                 if (geminiAsrText.isNotEmpty()) {
                                     updatePair(pairId) { it.copy(translationIsFinal = true) }
-                                    triggerMirrorTranslation(pairId, geminiAsrText)
+                                    // triggerMirrorTranslation(pairId, geminiAsrText)
                                 }
                             }
                         }
