@@ -151,25 +151,24 @@ fun A0a1TestScreen(
     LaunchedEffect(state.finished, state.verdict) {
         if (state.finished && state.verdict != TestVerdict.NONE) {
             delay(1800)
-            if (state.verdict == TestVerdict.PASSED) {
-                learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
+            learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
 
-                // ФИКС: Ждем фактического отключения вместо хардкодного delay(400),
-                // чтобы избежать гонки (race condition) между Stop и Start.
-                androidx.compose.runtime.snapshotFlow { learnCoreViewModel.state.value.connectionStatus }
-                    .first { it == com.learnde.app.learn.core.LearnConnectionStatus.Disconnected }
+            // ФИКС: Ждем фактического отключения вместо хардкодного delay(400),
+            // чтобы избежать гонки (race condition) между Stop и Start.
+            androidx.compose.runtime.snapshotFlow { learnCoreViewModel.state.value.connectionStatus }
+                .first { it == com.learnde.app.learn.core.LearnConnectionStatus.Disconnected }
 
-                when (val step = viewModel.advanceToNextPhase()) {
-                    is A0a1TestViewModel.TestNextStep.StartSession ->
-                        learnCoreViewModel.onIntent(LearnCoreIntent.Start(step.sessionId))
-                    is A0a1TestViewModel.TestNextStep.NavigateRoute ->
-                        onNavigateToRoute(step.route)
-                    A0a1TestViewModel.TestNextStep.Graduated ->
-                        onNavigateToStudy("B2_GRADUATE")
-                }
-            } else {
-                learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
-                onNavigateToStudy(state.phase.name)
+            // Засчитываем тест при любом завершении
+            // (предполагается, что viewModel имеет доступ к настройкам или репозиторию)
+            viewModel.markTestPassed()
+
+            when (val step = viewModel.advanceToNextPhase()) {
+                is A0a1TestViewModel.TestNextStep.StartSession ->
+                    learnCoreViewModel.onIntent(LearnCoreIntent.Start(step.sessionId))
+                is A0a1TestViewModel.TestNextStep.NavigateRoute ->
+                    onNavigateToRoute(step.route)
+                A0a1TestViewModel.TestNextStep.Graduated ->
+                    onNavigateToStudy("B2_GRADUATE")
             }
         }
     }
