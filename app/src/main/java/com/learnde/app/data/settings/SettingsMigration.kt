@@ -26,6 +26,10 @@ object SettingsMigration {
             next = next.copy(latencyProfile = "Low"); changed = true
         }
 
+        if (current.tutorModel.startsWith("gemini-2.5")) {
+            next = next.copy(tutorModel = "gemini-3.1-flash-lite"); changed = true
+        }
+
         if (changed) {
             val finalNext = next
             runCatching {
