@@ -217,7 +217,6 @@ class LearnCoreViewModel @Inject constructor(
 
         lastModelActivityAtMs = System.currentTimeMillis()
         hasModelOutputThisTurn = true
-        startStuckTurnWatchdog()
 
         // Gemini Live шлёт incremental deltas (НЕ cumulative). Просто аппендим.
         modelTurnBuffer.append(text)
@@ -239,8 +238,6 @@ class LearnCoreViewModel @Inject constructor(
 
         liveModelMessageTs = 0L
         hasModelOutputThisTurn = false
-        cancelStuckTurnWatchdog()
-        cancelTextWithoutAudioWatchdog()
     }
 
     private suspend fun upsertLiveModelBubble(text: String) {
@@ -363,8 +360,6 @@ class LearnCoreViewModel @Inject constructor(
             topP = finalTopP,
             topK = finalTopK,
             maxOutputTokens = finalMaxTokens,
-            presencePenalty = cachedSettings.presencePenalty,
-            frequencyPenalty = cachedSettings.frequencyPenalty,
             voiceId = finalVoiceId,
             languageCode = finalLanguageCode,
             latencyProfile = profile,
@@ -380,15 +375,11 @@ class LearnCoreViewModel @Inject constructor(
             outputTranscription = outputTranscr,
             transcriptionLanguageCodes = transcriptionLanguageCodes,
             enableSessionResumption = false,
-            sendSessionResumptionConfig = true,
             sessionHandle = null,
             enableContextCompression = false,
-            sendContextCompressionConfig = true,
-            sendTranscriptionConfig = true,
             enableGoogleSearch = false,
             functionDeclarations = session.functionDeclarations,
             sendAudioStreamEnd = cachedSettings.sendAudioStreamEnd,
-            sendThinkingConfig = true,
         )
     }
 
@@ -510,9 +501,9 @@ class LearnCoreViewModel @Inject constructor(
             )
         }
 
-        orchestrator.onPauseAudio  = { pauseMicInternal() }
-        orchestrator.onResumeAudio = { resumeMicInternal() }
-        orchestrator.onPermanentFailure = { msg -> _state.update { it.copy(error = msg) } }
+        orchestrator.onPauseAudio = { stopMic() }
+        orchestrator.onResumeAudio = { startMic() }
+        orchestrator.onPermanentFailure = { msg -> _state.update { it.copy(error = UiText.Plain(msg)) } }
         orchestrator.start(viewModelScope, activeApiKey, buildLearnSessionConfig(session),
             maxAttempts = cachedSettings.maxReconnectAttempts,
             baseDelayMs = cachedSettings.reconnectBaseDelayMs,
@@ -659,6 +650,8 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.Connected ->
                         _state.update { it.copy(connectionStatus = LearnConnectionStatus.Negotiating) }
 
+                    is GeminiEvent.GoAway -> Unit
+
                     is GeminiEvent.SetupComplete -> handleSetupComplete()
 
                     is GeminiEvent.AudioChunk -> {
@@ -683,7 +676,7 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.Interrupted -> {
                         transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
                         transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
-                        audioEngine.flushPlayback()
+                        viewModelScope.launch { audioEngine.flushPlayback() }
                         _state.update { it.copy(isAiSpeaking = false) }
                         modelStartedSpeakingThisTurn = false
                         hasModelOutputThisTurn = false
@@ -934,8 +927,6 @@ class LearnCoreViewModel @Inject constructor(
         if (liveClient.isReady) {
             runCatching { liveClient.sendToolResponse(acks) }
                 .onFailure { logger.e("Learn: instant toolResponse failed: ${it.message}") }
-            lastModelActivityAtMs = System.currentTimeMillis()
-            startStuckTurnWatchdog()
         }
 
         // 2. ФОНОВАЯ обработка (Room, шины, прогресс) — голос уже свободен.
