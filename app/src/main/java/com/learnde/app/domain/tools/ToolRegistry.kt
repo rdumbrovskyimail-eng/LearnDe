@@ -16,11 +16,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
-import com.learnde.app.domain.functions.FunctionsEventBus
-import com.learnde.app.domain.functions.FunctionsRegistry
 import com.learnde.app.domain.model.FunctionCall
 import com.learnde.app.domain.model.FunctionDeclarationConfig
-import com.learnde.app.util.AppLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -64,35 +61,13 @@ class DeviceStatusTool @Inject constructor(
     }
 }
 
-/**
- * Тестовая функция — при вызове публикует событие в FunctionsEventBus.
- * UI (FunctionsTestScreen) слушает bus и зажигает соответствующие лампочки.
- */
-class TestFunctionTool(
-    private val fn: FunctionsRegistry.TestFunction,
-    private val bus: FunctionsEventBus,
-    private val logger: AppLogger
-) : ToolExecutor {
-    override val name: String = fn.name
-    override val description: String = fn.description
-    override suspend fun execute(args: Map<String, String>): String {
-        logger.d("▶ Test function executed: ${fn.name} (#${fn.number})")
-        bus.publish(fn)
-        return """{"status":"ok","function":${fn.number},"lights":${fn.colorIds.joinToString(",", "[", "]")}}"""
-    }
-}
-
 @Singleton
 class ToolRegistry @Inject constructor(
     private val timeTool: GetCurrentTimeTool,
-    private val deviceTool: DeviceStatusTool,
-    private val bus: FunctionsEventBus,
-    private val logger: AppLogger
+    private val deviceTool: DeviceStatusTool
 ) {
     private val executors: Map<String, ToolExecutor> by lazy {
-        val base = listOf<ToolExecutor>(timeTool, deviceTool)
-        val tests = FunctionsRegistry.ALL.map { TestFunctionTool(it, bus, logger) }
-        (base + tests).associateBy { it.name }
+        listOf<ToolExecutor>(timeTool, deviceTool).associateBy { it.name }
     }
 
     /**
@@ -113,14 +88,11 @@ class ToolRegistry @Inject constructor(
     suspend fun dispatch(call: FunctionCall): String {
         val executor = executors[call.name]
         if (executor == null) {
-            logger.w("Unknown tool: ${call.name}")
             return """{"error":"Function '${call.name}' not implemented"}"""
         }
         return try {
-            logger.d("Executing: ${call.name}(${call.args})")
             executor.execute(call.args)
         } catch (e: Exception) {
-            logger.e("Tool execution failed: ${call.name}", e)
             """{"error":"${e.message?.replace("\"", "'")}"}"""
         }
     }
