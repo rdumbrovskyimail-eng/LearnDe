@@ -2,6 +2,7 @@ package com.learnde.app.learn.test.a0a1
 
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -73,6 +75,7 @@ import com.learnde.app.learn.core.LearnCoreIntent
 import com.learnde.app.learn.core.LearnCoreViewModel
 import com.learnde.app.presentation.learn.components.AudioParticleBox
 import com.learnde.app.presentation.learn.components.CurrentFunctionBar
+import com.learnde.app.presentation.learn.components.MicPermissionRationaleDialog
 import com.learnde.app.presentation.learn.theme.LearnDim
 import com.learnde.app.presentation.learn.theme.LearnTokens
 import com.learnde.app.presentation.learn.theme.LearnType
@@ -106,7 +109,7 @@ fun A0a1TestScreen(
         }
     }
 
-    androidx.compose.runtime.BackHandler(onBack = exitAndBack)
+    BackHandler(onBack = exitAndBack)
 
     val activity = context as? android.app.Activity
     var showRationaleDialog by remember { mutableStateOf(false) }
@@ -127,7 +130,7 @@ fun A0a1TestScreen(
     }
 
     if (showRationaleDialog) {
-        com.learnde.app.presentation.learn.components.MicPermissionRationaleDialog(
+        MicPermissionRationaleDialog(
             showSettingsButton = rationaleIsPermanent,
             onDismiss = {
                 showRationaleDialog = false
@@ -141,7 +144,6 @@ fun A0a1TestScreen(
         )
     }
 
-    // Автозапуск теста при переходе на экран, если ключи заданы
     LaunchedEffect(learnState.apiKeySet) {
         if (learnState.apiKeySet) {
             val hasMic = ContextCompat.checkSelfPermission(
@@ -189,7 +191,6 @@ fun A0a1TestScreen(
         ) {
             Spacer(Modifier.height(LearnDim.PaddingSm))
 
-            // ─── Header ───
             TopHeader(
                 phaseName = state.phase.name,
                 currentQuestion = state.currentQuestion,
@@ -199,7 +200,6 @@ fun A0a1TestScreen(
 
             Spacer(Modifier.height(LearnDim.PaddingMd))
 
-            // ─── Welcome / No Key state ───
             AnimatedVisibility(
                 visible = !learnState.apiKeySet,
                 enter = fadeIn() + androidx.compose.animation.expandVertically(),
@@ -225,7 +225,7 @@ fun A0a1TestScreen(
                         text = "Для работы голосового ИИ-ассистента необходимо задать ваш личный API-ключ Gemini в Настройках.",
                         fontSize = LearnTokens.FontSizeBody,
                         color = colors.textMid,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        textAlign = TextAlign.Center,
                         lineHeight = 18.sp,
                     )
                     Spacer(Modifier.height(16.dp))
@@ -238,7 +238,6 @@ fun A0a1TestScreen(
                 }
             }
 
-            // ─── Error state ───
             AnimatedVisibility(
                 visible = learnState.apiKeySet && learnState.error != null,
                 enter = fadeIn() + androidx.compose.animation.expandVertically(),
@@ -258,7 +257,7 @@ fun A0a1TestScreen(
                             text = err.resolve(),
                             color = colors.error,
                             fontSize = LearnTokens.FontSizeBody,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            textAlign = TextAlign.Center,
                         )
                         Spacer(Modifier.height(8.dp))
                         Row(
@@ -281,7 +280,6 @@ fun A0a1TestScreen(
                 }
             }
 
-            // ─── Inline loader ───
             AnimatedVisibility(
                 visible = learnState.apiKeySet && learnState.isPreparingSession && learnState.transcript.isEmpty() && learnState.error == null,
                 enter = fadeIn() + androidx.compose.animation.expandVertically(),
@@ -298,14 +296,12 @@ fun A0a1TestScreen(
                 }
             }
 
-            // ─── Test Content ───
             AnimatedVisibility(
                 visible = learnState.apiKeySet && learnState.error == null && !learnState.isPreparingSession,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
                 Column {
-                    // ─── Question card + AudioParticleBox ───
                     Row(verticalAlignment = Alignment.Top) {
                         QuestionCard(
                             questionText = state.currentQuestionText
@@ -321,7 +317,6 @@ fun A0a1TestScreen(
 
                     Spacer(Modifier.weight(0.4f))
 
-                    // ─── ScoreCircle ───
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         ScoreCircle(
                             points = state.totalPoints,
@@ -332,7 +327,6 @@ fun A0a1TestScreen(
 
                     Spacer(Modifier.weight(0.4f))
 
-                    // ─── FeedbackCard ───
                     FeedbackCard(
                         verdictCorrect = state.lastAnswerCorrect,
                         reason = state.lastAnswerReason,
@@ -341,7 +335,6 @@ fun A0a1TestScreen(
 
                     Spacer(Modifier.height(LearnDim.PaddingMd))
 
-                    // ─── Goal chip ───
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         GoalChip(threshold = state.threshold, points = state.totalPoints)
                         Spacer(Modifier.weight(1f))
@@ -573,7 +566,6 @@ private fun ScoreCircle(points: Int, threshold: Int, lastPoints: Int?) {
                 )
             }
         }
-        // Всплывающее +N
         AnimatedVisibility(
             visible = lastPoints != null && lastPoints != 0,
             enter = fadeIn() + slideInVertically { it / 2 },
