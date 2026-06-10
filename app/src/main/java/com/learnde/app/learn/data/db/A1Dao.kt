@@ -230,6 +230,9 @@ interface A1ClusterDao {
         insertAllIgnoreConflicts(clusters)
     }
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertClusters(clusters: List<ClusterA1Entity>)
+
     @Query("""
         UPDATE a1_clusters
         SET titleDe = :titleDe, titleRu = :titleRu, lemmasJson = :lemmasJson,
