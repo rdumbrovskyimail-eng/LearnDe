@@ -272,6 +272,12 @@ class A1LearningViewModel @Inject constructor(
                             finalQuality = event.overallQuality,
                             finalFeedback = event.feedback,
                         )}
+
+                    is A1LearningEvent.GeminiInterrupted -> {
+                        _effects.tryEmit(A1LearningEffect.StopAudioPlayback)
+                        _effects.tryEmit(A1LearningEffect.ClearAudioQueue)
+                        _effects.tryEmit(A1LearningEffect.MarkTutorMessageClosed)
+                    }
                 }
             }
         }
@@ -303,5 +309,16 @@ class A1LearningViewModel @Inject constructor(
                 _state.update { it.copy(grammarIntroduced = count) }
             }
         }
+    }
+
+    private fun appendTranscript(current: String, chunk: String): String {
+        if (chunk.isEmpty()) return current
+        if (current.endsWith(chunk)) return current
+        val maxOverlap = minOf(current.length, chunk.length)
+        for (k in maxOverlap downTo 1) {
+            if (current.regionMatches(current.length - k, chunk, 0, k))
+                return current + chunk.substring(k)
+        }
+        return current + chunk
     }
 }
