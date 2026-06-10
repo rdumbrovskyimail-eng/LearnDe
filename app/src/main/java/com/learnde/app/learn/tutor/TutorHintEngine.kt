@@ -203,6 +203,7 @@ class TutorHintEngine @Inject constructor(
             apiKey = settings.tutorApiKey,
             model = settings.tutorModel,
             prompt = req.prompt,
+            thinkingLevel = if (req.type == TutorHintType.GRAMMAR) "low" else "minimal",
         ) ?: return
 
         if (!running.get()) return
