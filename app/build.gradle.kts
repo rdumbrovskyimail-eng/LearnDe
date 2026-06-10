@@ -143,6 +143,4 @@ dependencies {
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
 
-    // ====================== SCENEVIEW ======================
-    implementation("io.github.sceneview:arsceneview:3.5.2")
 }
