@@ -241,15 +241,10 @@ class GeminiLiveClient(
     // ════════════════════════════════════════════════════════════
 
     private fun sendSetup(config: SessionConfig) {
-        val msg = if (config.diagnosticMinimalSetup) {
-            buildMinimalSetup(config)
-        } else {
-            buildFullSetup(config)
-        }
+        val msg = buildFullSetup(config)
 
         val raw = msg.toString()
-        logger.d("SETUP → ${config.model} (${raw.length} chars)" +
-                if (config.diagnosticMinimalSetup) " [MINIMAL PROFILE]" else "")
+        logger.d("SETUP → ${config.model} (${raw.length} chars)")
 
         if (config.logFullSetupJson || logRawFrames) {
             // Принтим полный JSON построчно чтобы не обрезался в logcat
@@ -264,44 +259,6 @@ class GeminiLiveClient(
         webSocket?.send(raw)
     }
 
-    /**
-     * Минимальный setup — только абсолютно необходимые поля.
-     * Если с ним 1007 — значит проблема в model, responseModalities,
-     * speechConfig или systemInstruction (или в самом transport-е).
-     */
-    private fun buildMinimalSetup(config: SessionConfig): JsonObject =
-        buildJsonObject {
-            put("setup", buildJsonObject {
-                put("model", config.model)
-
-                put("generationConfig", buildJsonObject {
-                    put("responseModalities", buildJsonArray {
-                        add(JsonPrimitive(config.responseModality))
-                    })
-                    put("speechConfig", buildJsonObject {
-                        put("voiceConfig", buildJsonObject {
-                            put("prebuiltVoiceConfig", buildJsonObject {
-                                put("voiceName", config.voiceId)
-                            })
-                        })
-                    })
-                })
-
-                if (config.systemInstruction.isNotBlank()) {
-                    put("systemInstruction", buildJsonObject {
-                        put("parts", buildJsonArray {
-                            add(buildJsonObject {
-                                put("text", config.systemInstruction)
-                            })
-                        })
-                    })
-                }
-            })
-        }
-
-    /**
-     * Полный setup с возможностью отключения отдельных блоков через флаги.
-     */
     private fun buildFullSetup(config: SessionConfig): JsonObject =
         buildJsonObject {
             put("setup", buildJsonObject {
@@ -313,12 +270,10 @@ class GeminiLiveClient(
                         add(JsonPrimitive(config.responseModality))
                     })
 
-                    if (config.sendGenerationParams) {
-                        put("temperature", config.temperature)
-                        put("topP", config.topP)
-                        if (config.topK > 0) put("topK", config.topK)
-                        put("maxOutputTokens", config.maxOutputTokens)
-                    }
+                    put("temperature", config.temperature)
+                    put("topP", config.topP)
+                    if (config.topK > 0) put("topK", config.topK)
+                    put("maxOutputTokens", config.maxOutputTokens)
 
                     if (config.responseModality == "AUDIO") {
                         put("speechConfig", buildJsonObject {
@@ -327,16 +282,11 @@ class GeminiLiveClient(
                                     put("voiceName", config.voiceId)
                                 })
                             })
-                            if (config.languageCode.isNotBlank()) {
-                                put("languageCode", config.languageCode)
-                            }
                         })
                     }
 
-                    // Off (thinkingLevel == null) → блок не шлём вообще, модель работает 
-                    // в максимально быстром режиме без обдумывания.
                     val thinkingLevel = config.latencyProfile.thinkingLevel
-                    if (config.sendThinkingConfig && thinkingLevel != null) {
+                    if (thinkingLevel != null) {
                         put("thinkingConfig", buildJsonObject {
                             put("thinkingLevel", thinkingLevel)
                             if (config.thinkingIncludeThoughts) {
@@ -358,53 +308,42 @@ class GeminiLiveClient(
                 }
 
                 // ─── Tools ───
-                val hasTools = config.enableGoogleSearch ||
-                        config.functionDeclarations.isNotEmpty()
-                if (hasTools) {
-                    put("tools", buildJsonArray {
-                        if (config.enableGoogleSearch) {
-                            add(buildJsonObject {
-                                put("googleSearch", buildJsonObject {})
+                put("tools", buildJsonArray {
+                    if (config.enableGoogleSearch) {
+                        add(buildJsonObject {
+                            put("googleSearch", buildJsonObject {})
+                        })
+                    }
+                    if (config.functionDeclarations.isNotEmpty()) {
+                        add(buildJsonObject {
+                            put("functionDeclarations", buildJsonArray {
+                                for (decl in config.functionDeclarations) {
+                                    add(buildFunctionDeclaration(decl))
+                                }
                             })
-                        }
-                        if (config.functionDeclarations.isNotEmpty()) {
-                            add(buildJsonObject {
-                                put("functionDeclarations", buildJsonArray {
-                                    for (decl in config.functionDeclarations) {
-                                        add(buildFunctionDeclaration(decl))
-                                    }
-                                })
-                            })
-                        }
-                    })
-                }
+                        })
+                    }
+                })
 
                 // ─── realtimeInputConfig ───
-                if (config.sendVadConfig) {
-                    put("realtimeInputConfig", buildJsonObject {
-                        put("automaticActivityDetection", buildJsonObject {
-                            put("disabled", !config.autoActivityDetection)
-                            if (config.autoActivityDetection) {
-                                put("startOfSpeechSensitivity", config.vadStartSensitivity)
-                                put("endOfSpeechSensitivity", config.vadEndSensitivity)
-                                put("prefixPaddingMs", config.vadPrefixPaddingMs)
-                                put("silenceDurationMs", config.vadSilenceDurationMs)
-                            }
-                        })
+                put("realtimeInputConfig", buildJsonObject {
+                    put("automaticActivityDetection", buildJsonObject {
+                        put("disabled", !config.autoActivityDetection)
+                        if (config.autoActivityDetection) {
+                            put("startOfSpeechSensitivity", config.vadStartSensitivity)
+                            put("endOfSpeechSensitivity", config.vadEndSensitivity)
+                            put("prefixPaddingMs", config.vadPrefixPaddingMs)
+                            put("silenceDurationMs", config.vadSilenceDurationMs)
+                        }
                     })
-                }
+                })
 
                 // ─── Транскрипция ───
-                // Gemini API v1beta принимает только пустые объекты для inputAudioTranscription
-                // и outputAudioTranscription. Параметр languageCodes есть в Vertex AI, но
-                // отвергается Gemini API с ошибкой "Cannot find field".
-                if (config.sendTranscriptionConfig) {
-                    if (config.inputTranscription) {
-                        put("inputAudioTranscription", buildJsonObject {})
-                    }
-                    if (config.outputTranscription) {
-                        put("outputAudioTranscription", buildJsonObject {})
-                    }
+                if (config.inputTranscription) {
+                    put("inputAudioTranscription", buildJsonObject {})
+                }
+                if (config.outputTranscription) {
+                    put("outputAudioTranscription", buildJsonObject {})
                 }
 
                 // ─── History Config (Обязательно для Gemini 3.1) ───
@@ -413,14 +352,14 @@ class GeminiLiveClient(
                 })
 
                 // ─── Session Resumption ───
-                if (config.sendSessionResumptionConfig && config.enableSessionResumption) {
+                if (config.enableSessionResumption) {
                     put("sessionResumption", buildJsonObject {
                         config.sessionHandle?.let { put("handle", it) }
                     })
                 }
 
                 // ─── Context Window Compression ───
-                if (config.sendContextCompressionConfig && config.enableContextCompression) {
+                if (config.enableContextCompression) {
                     put("contextWindowCompression", buildJsonObject {
                         if (config.compressionTriggerTokens > 0L) {
                             put("triggerTokens", config.compressionTriggerTokens)
