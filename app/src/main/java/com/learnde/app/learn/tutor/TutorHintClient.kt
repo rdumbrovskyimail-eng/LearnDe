@@ -64,12 +64,13 @@ class TutorHintClient @Inject constructor(
         apiKey: String,
         model: String,
         prompt: String,
+        thinkingLevel: String = "minimal",
     ): TutorHintResponse? = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) return@withContext null
 
         var attempt = 0
         while (true) {
-            val result = executeOnce(apiKey, model, prompt)
+            val result = executeOnce(apiKey, model, prompt, thinkingLevel)
             when {
                 result.success != null -> return@withContext result.success
                 !result.retryable || attempt >= MAX_RETRIES -> return@withContext null
@@ -94,8 +95,9 @@ class TutorHintClient @Inject constructor(
         apiKey: String,
         model: String,
         prompt: String,
+        thinkingLevel: String,
     ): Attempt {
-        val body = buildRequestBody(prompt).toString()
+        val body = buildRequestBody(prompt, thinkingLevel).toString()
         val request = Request.Builder()
             .url("$BASE/$model:generateContent")
             .addHeader("x-goog-api-key", apiKey)
@@ -147,9 +149,8 @@ class TutorHintClient @Inject constructor(
             put("temperature", 0.4)
             put("maxOutputTokens", 512)
             put("responseMimeType", "application/json")
-            // flash-lite: thinkingBudget=0 → мгновенный ответ
             put("thinkingConfig", buildJsonObject {
-                put("thinkingBudget", 0)
+                put("thinkingLevel", thinkingLevel)
             })
         })
     }
