@@ -53,6 +53,7 @@ class LearnCoreViewModel @Inject constructor(
     private val vocabularyEnforcer: com.learnde.app.learn.domain.VocabularyEnforcer,
     private val translatorSession: com.learnde.app.learn.sessions.translator.TranslatorSession,
     private val translationClient: com.learnde.app.data.translator.GeminiTranslationClient,
+    private val orchestrator: ConnectionOrchestrator,
 ) : ViewModel() {
 
     companion object {
@@ -108,9 +109,6 @@ class LearnCoreViewModel @Inject constructor(
     private var greetingFallbackJob: Job? = null
     private var setupJob: Job? = null
     private var finishGraceJob: Job? = null
-
-    private var stuckTurnWatchdogJob: Job? = null
-    private var textWithoutAudioJob: Job? = null
 
     @Volatile private var lastInputTs: Long = 0L
     @Volatile private var modelStartedSpeakingThisTurn = false
@@ -329,65 +327,7 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    private fun startStuckTurnWatchdog() {
-        stuckTurnWatchdogJob?.cancel()
-        val timeout = if (activeSession?.id == "translator") STUCK_TURN_TIMEOUT_TRANSLATOR_MS
-                      else STUCK_TURN_TIMEOUT_MS
-        stuckTurnWatchdogJob = viewModelScope.launch {
-            delay(timeout)
 
-            // Не паникуем если модель ВСЁ ЕЩЁ играет аудио (просто длинный ответ)
-            val now = System.currentTimeMillis()
-            val sinceLastAudio = now - lastAiAudioChunkAtMs
-            if (lastAiAudioChunkAtMs > 0L && sinceLastAudio < 2_000L) {
-                logger.d("Stuck-turn watchdog: model still playing audio (${sinceLastAudio}ms ago), restarting watchdog")
-                startStuckTurnWatchdog()
-                return@launch
-            }
-
-            if (hasModelOutputThisTurn) {
-                logger.w("⚠ STUCK_TURN_DETECTED — force-finalizing")
-                transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
-                transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
-                runCatching { audioEngine.flushPlayback() }
-                runCatching { audioEngine.onTurnComplete() }
-                modelStartedSpeakingThisTurn = false
-                hasModelOutputThisTurn = false
-                translatorFunctionFinalizedThisTurn = false
-                _state.update { it.copy(isAiSpeaking = false) }
-                lastAiAudioChunkAtMs = 0L
-                // Принудительно открываем микрофон на 1 секунду — после watchdog
-                // пользователь должен сразу мочь говорить, без задержек.
-                if (activeSession?.id == "translator") {
-                    translatorForceMicOpenUntilMs = System.currentTimeMillis() + 1000L
-                }
-                cancelTextWithoutAudioWatchdog()
-            }
-        }
-    }
-
-    private fun cancelStuckTurnWatchdog() {
-        stuckTurnWatchdogJob?.cancel()
-        stuckTurnWatchdogJob = null
-    }
-
-    private fun startTextWithoutAudioWatchdog() {
-        textWithoutAudioJob?.cancel()
-        textWithoutAudioJob = viewModelScope.launch {
-            delay(TEXT_WITHOUT_AUDIO_TIMEOUT_MS)
-            val now = System.currentTimeMillis()
-            if (hasModelOutputThisTurn && (now - lastAiAudioChunkAtMs) > TEXT_WITHOUT_AUDIO_TIMEOUT_MS) {
-                logger.w("⚠ TEXT_WITHOUT_AUDIO — opening mic gate proactively")
-                lastAiAudioChunkAtMs = 0L
-                _state.update { it.copy(isAiSpeaking = false) }
-            }
-        }
-    }
-
-    private fun cancelTextWithoutAudioWatchdog() {
-        textWithoutAudioJob?.cancel()
-        textWithoutAudioJob = null
-    }
 
     private fun openNewPair(): Long {
         val id = nextPairId++
@@ -589,20 +529,18 @@ class LearnCoreViewModel @Inject constructor(
     private suspend fun stopInternal() = startStopMutex.withLock {
         logger.d("▶ Learn.stopInternal")
         val session = activeSession
+        orchestrator.stop()
         micJob?.cancel()
         silenceTimerJob?.cancel()
         greetingFallbackJob?.cancel()
         finishGraceJob?.cancel()
         finishGraceJob = null
-        cancelStuckTurnWatchdog()
-        cancelTextWithoutAudioWatchdog()
 
         micOperationMutex.withLock {
             audioEngine.stopCapture()
         }
         safeStopForegroundService()
 
-        runCatching { liveClient.disconnect() }
         runCatching { session?.onExit() }
 
         transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
@@ -655,7 +593,6 @@ class LearnCoreViewModel @Inject constructor(
         logger.d("▶ Learn.startInternal(${session.id})")
 
         arbiter.acquire(ClientOwner.LEARN)
-        runCatching { liveClient.disconnect() }
 
         contextSeeded = false
         statusBus.reset()
@@ -670,8 +607,6 @@ class LearnCoreViewModel @Inject constructor(
         hasModelOutputThisTurn = false
         lastSilencePromptAtMs = 0L
         droppedMicChunks = 0
-        cancelStuckTurnWatchdog()
-        cancelTextWithoutAudioWatchdog()
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
         setupJob = null
@@ -696,24 +631,13 @@ class LearnCoreViewModel @Inject constructor(
             )
         }
 
-        runCatching {
-            liveClient.connect(
-                apiKey = activeApiKey,
-                config = buildLearnSessionConfig(session),
-                logRaw = cachedSettings.logRawWebSocketFrames
-            )
-        }.onFailure { e ->
-            logger.e("Learn: connect failed: ${e.message}", e)
-            _state.update {
-                it.copy(
-                    connectionStatus = LearnConnectionStatus.Disconnected,
-                    isPreparingSession = false,
-                    error = UiText.Plain("Не удалось подключиться: ${e.message}")
-                )
-            }
-            arbiter.release(ClientOwner.LEARN)
-            activeSession = null
-        }
+        orchestrator.onPauseAudio  = { pauseMicInternal() }
+        orchestrator.onResumeAudio = { resumeMicInternal() }
+        orchestrator.onPermanentFailure = { msg -> _state.update { it.copy(error = msg) } }
+        orchestrator.start(viewModelScope, activeApiKey, buildLearnSessionConfig(session),
+            maxAttempts = cachedSettings.maxReconnectAttempts,
+            baseDelayMs = cachedSettings.reconnectBaseDelayMs,
+            maxDelayMs  = cachedSettings.reconnectMaxDelayMs)
 
         // Translator работает на одном audio-клиенте с input/output audio transcription.
         // Параллельный text-клиент отключён — он добавлял латентность из-за общего rate-pool.
@@ -827,7 +751,7 @@ class LearnCoreViewModel @Inject constructor(
                 cachedSettings.sendAudioStreamEnd -> liveClient.sendAudioStreamEnd()
                 else -> liveClient.sendTurnComplete()
             }
-            // Text-клиент отключён.
+            orchestrator.onUserTurnEnded()
             _state.update {
                 it.copy(
                     isMicActive = false,
@@ -869,6 +793,7 @@ class LearnCoreViewModel @Inject constructor(
     private fun observeGeminiEvents() {
         viewModelScope.launch {
             liveClient.events.collect { event ->
+                orchestrator.onEvent(event)
                 when (event) {
                     is GeminiEvent.Connected ->
                         _state.update { it.copy(connectionStatus = LearnConnectionStatus.Negotiating) }
@@ -880,6 +805,7 @@ class LearnCoreViewModel @Inject constructor(
                         lastAiAudioChunkAtMs = now
                         lastModelActivityAtMs = now
                         hasModelOutputThisTurn = true
+                        orchestrator.onModelActivity()
 
                         if (!modelStartedSpeakingThisTurn) {
                             modelStartedSpeakingThisTurn = true
@@ -891,9 +817,6 @@ class LearnCoreViewModel @Inject constructor(
                         }
                         _state.update { it.copy(isAiSpeaking = true, isPreparingSession = false) }
                         audioEngine.enqueuePlayback(event.pcmData)
-
-                        startStuckTurnWatchdog()
-                        cancelTextWithoutAudioWatchdog()
                     }
 
                     is GeminiEvent.Interrupted -> {
@@ -915,8 +838,6 @@ class LearnCoreViewModel @Inject constructor(
                         modelStartedSpeakingThisTurn = false
                         hasModelOutputThisTurn = false
                         translatorFunctionFinalizedThisTurn = false
-                        cancelStuckTurnWatchdog()
-                        cancelTextWithoutAudioWatchdog()
                     }
 
                     is GeminiEvent.TurnComplete -> {
@@ -941,8 +862,6 @@ class LearnCoreViewModel @Inject constructor(
                         hasModelOutputThisTurn = false
                         translatorFunctionFinalizedThisTurn = false
                         
-                        cancelStuckTurnWatchdog()
-                        cancelTextWithoutAudioWatchdog()
                         audioEngine.onTurnComplete()
                         _state.update { it.copy(isAiSpeaking = false) }
                         
@@ -979,8 +898,6 @@ class LearnCoreViewModel @Inject constructor(
 
                     is GeminiEvent.GenerationComplete -> {
                         _state.update { it.copy(isAiSpeaking = false) }
-                        cancelStuckTurnWatchdog()
-                        cancelTextWithoutAudioWatchdog()
 
                         // Translator: как только Gemini закончила генерацию — стартуем REST зеркальный перевод.
                         // Не ждём TurnComplete (там ещё ~500-1000мс на доигрывание audio buffer).
@@ -1019,14 +936,10 @@ class LearnCoreViewModel @Inject constructor(
                             }
                             lastModelActivityAtMs = System.currentTimeMillis()
                             hasModelOutputThisTurn = true
-                            startStuckTurnWatchdog()
+                            orchestrator.onModelActivity()
                             return@collect
                         }
 
-                        if (lastAiAudioChunkAtMs == 0L
-                            || (System.currentTimeMillis() - lastAiAudioChunkAtMs) > 500) {
-                            startTextWithoutAudioWatchdog()
-                        }
                         transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "OutputTranscript"))
                     }
 
@@ -1039,9 +952,7 @@ class LearnCoreViewModel @Inject constructor(
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
                         }
-                        if (lastAiAudioChunkAtMs == 0L || (System.currentTimeMillis() - lastAiAudioChunkAtMs) > 500) {
-                            startTextWithoutAudioWatchdog()
-                        }
+                        orchestrator.onModelActivity()
                         transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "ModelText"))
                     }
 
@@ -1063,8 +974,6 @@ class LearnCoreViewModel @Inject constructor(
 
                     is GeminiEvent.Disconnected -> {
                         greetingFallbackJob?.cancel()
-                        cancelStuckTurnWatchdog()
-                        cancelTextWithoutAudioWatchdog()
                         val isAbnormal = event.code != 1000 && event.code != 1001
                         val errorMsg = if (isAbnormal) "Соединение закрыто: ${event.reason} (Код: ${event.code}). Проверьте API-ключ." else null
 
@@ -1086,8 +995,6 @@ class LearnCoreViewModel @Inject constructor(
 
                     is GeminiEvent.ConnectionError -> {
                         greetingFallbackJob?.cancel()
-                        cancelStuckTurnWatchdog()
-                        cancelTextWithoutAudioWatchdog()
                         _state.update {
                             it.copy(
                                 connectionStatus = LearnConnectionStatus.Disconnected,
@@ -1104,10 +1011,7 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.SessionHandleUpdate,
                     is GeminiEvent.UsageMetadata,
                     is GeminiEvent.GroundingMetadata -> { }
-                    is GeminiEvent.GoAway -> {
-                        logger.d("Learn: GoAway(${event.timeLeft}) — transparent reconnect")
-                        viewModelScope.launch { transparentReconnect() }
-                    }
+
                 }
             }
         }
@@ -1210,15 +1114,7 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
-    private suspend fun transparentReconnect() {
-        val cfg = lastSessionConfig ?: return
-        // pauseMicInternal() // Assuming this exists as per instructions
-        liveClient.sendAudioStreamEnd()
-        val handle = liveClient.sessionHandle
-        liveClient.disconnect()
-        liveClient.connect(activeApiKey, cfg.copy(sessionHandle = handle))
-        // setupComplete-событие само вернёт isReady; микрофон возобновляем по нему
-    }
+
 
     /**
      * v6.0: МГНОВЕННЫЙ ACK + фоновая персистенция.
@@ -1310,8 +1206,6 @@ class LearnCoreViewModel @Inject constructor(
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
         finishGraceJob?.cancel()
-        cancelStuckTurnWatchdog()
-        cancelTextWithoutAudioWatchdog()
         statusBus.reset()
         safeStopForegroundService()
 
