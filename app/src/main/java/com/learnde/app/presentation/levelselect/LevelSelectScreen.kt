@@ -37,9 +37,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.learnde.app.learn.data.db.A1ClusterDao
 import com.learnde.app.learn.data.db.A1LemmaDao
+import com.learnde.app.learn.data.db.ClusterA1Entity
+import com.learnde.app.learn.data.db.LemmaA1Entity
 import com.learnde.app.presentation.learn.theme.learnColors
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -64,7 +67,7 @@ class LevelSelectViewModel @Inject constructor(
     lemmaDao: A1LemmaDao,
 ) : ViewModel() {
 
-    val state = combine(
+    val state = combine<List<ClusterA1Entity>, List<LemmaA1Entity>, LevelSelectState>(
         clusterDao.observeAll(),
         lemmaDao.observeAll(),
     ) { clusters, lemmas ->
@@ -78,7 +81,7 @@ class LevelSelectViewModel @Inject constructor(
             a1Completed = progress >= 0.9f,
         )
     }.stateIn(
-        scope = androidx.lifecycle.viewModelScope,
+        scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = LevelSelectState(),
     )
