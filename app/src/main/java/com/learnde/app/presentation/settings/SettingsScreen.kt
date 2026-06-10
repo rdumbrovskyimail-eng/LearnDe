@@ -75,7 +75,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.learnde.app.data.settings.ThemeMode
 import com.learnde.app.domain.model.LatencyProfile
-import com.learnde.app.domain.scene.SceneMode
 
 // ─── Единственная поддерживаемая модель (3.1) ───
 private val AVAILABLE_MODELS = listOf(
@@ -180,23 +179,6 @@ fun SettingsScreen(
                     onCheckedChange = { viewModel.update { copy(enableTutorHints = it) } }
                 )
                 Hint("Личный ключ Google AI Studio. Без него приложение не работает. aistudio.google.com → Get API key.")
-
-                SecureApiKeyField(
-                    value = s.apiKeyBackup,
-                    label = "Резервный API ключ",
-                    placeholder = "Опционально",
-                    onValueChange = {
-                        viewModel.update { copy(apiKeyBackup = it, autoRotateKeys = it.isNotEmpty()) }
-                    }
-                )
-                Hint("Используется автоматически при 429 (rate limit) на основном ключе.")
-
-                GeminiSwitch(
-                    title = "Авто-ротация ключей при 429",
-                    checked = s.autoRotateKeys,
-                    subtitle = "Переключаться на резервный ключ при исчерпании лимита.",
-                    onCheckedChange = { viewModel.update { copy(autoRotateKeys = it) } }
-                )
             }
 
             // ── 2. МОДЕЛЬ (только 3.1) ──
@@ -241,13 +223,6 @@ fun SettingsScreen(
                     viewModel.update { copy(maxOutputTokens = it) }
                 }
                 Hint("8192 — достаточно для разговора. 65536 — потолок 3.1.")
-
-                GeminiSlider("Presence penalty", s.presencePenalty, -2f..2f, "%.2f") {
-                    viewModel.update { copy(presencePenalty = it) }
-                }
-                GeminiSlider("Frequency penalty", s.frequencyPenalty, -2f..2f, "%.2f") {
-                    viewModel.update { copy(frequencyPenalty = it) }
-                }
             }
 
             // ── 4. ГОЛОС И ЯЗЫК ──
