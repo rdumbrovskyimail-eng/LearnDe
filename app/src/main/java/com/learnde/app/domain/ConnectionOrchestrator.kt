@@ -3,6 +3,7 @@ package com.learnde.app.domain
 import com.learnde.app.data.NetworkMonitor
 import com.learnde.app.domain.model.GeminiEvent
 import com.learnde.app.domain.model.SessionConfig
+import com.learnde.app.learn.core.LearnScope
 import com.learnde.app.util.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -31,7 +32,7 @@ enum class LinkState {
 
 @Singleton
 class ConnectionOrchestrator @Inject constructor(
-    private val liveClient: LiveClient,
+    @LearnScope private val liveClient: LiveClient,
     private val networkMonitor: NetworkMonitor,
     private val logger: AppLogger,
 ) {
