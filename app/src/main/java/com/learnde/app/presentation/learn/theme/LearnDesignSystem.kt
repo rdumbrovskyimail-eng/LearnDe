@@ -25,64 +25,68 @@ package com.learnde.app.presentation.learn.theme
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // ────────────────────────────────────────────────────────────
-//  ПАЛИТРА
+//  1. ЦВЕТА: класс с НОВЫМ API в конструкторе и СТАРЫМ API
+//     как вычисляемыми свойствами тела класса (видны всегда).
 // ────────────────────────────────────────────────────────────
 
-@Immutable
-data class LearnColors(
-    // Поверхности (4 ступени глубины)
-    val background: Color,      // экран
-    val surface: Color,         // карточка
-    val surfaceRaised: Color,   // карточка над карточкой / диалог
-    val surfaceSunken: Color,   // вдавленные зоны (поле чата)
-
-    // Текст
+class LearnColors(
+    // ── Новый API (v7 «Студия») ──
+    val background: Color,
+    val surface: Color,
+    val surfaceRaised: Color,
+    val surfaceSunken: Color,
     val textPrimary: Color,
     val textSecondary: Color,
-    val textTertiary: Color,    // подписи, таймштампы
-
-    // Линии
-    val divider: Color,         // hairline 1dp
-    val outline: Color,         // активные рамки
-
-    // Смысловые
-    val accent: Color,          // янтарь — действие, внимание, ученик
+    val textTertiary: Color,
+    val divider: Color,
+    val outline: Color,
+    val accent: Color,
     val onAccent: Color,
-    val accentSoft: Color,      // янтарь 12% — фоны чипов/бейджей
-    val success: Color,         // готовность, верный ответ
+    val accentSoft: Color,
+    val success: Color,
     val successSoft: Color,
-    val danger: Color,          // ошибка, обрыв
+    val danger: Color,
     val dangerSoft: Color,
-    val warning: Color,         // деградация, реконнект
+    val warning: Color,
+    val warningSoft: Color,
+    val bubbleTutor: Color,
+    val bubbleUser: Color,
+    val bubbleSystem: Color,
+) {
+    // ── Старый API: реальные свойства класса, импорт не нужен ──
+    val bg: Color            get() = background
+    val surfaceVar: Color    get() = surfaceRaised
+    val textHi: Color        get() = textPrimary
+    val textMid: Color       get() = textSecondary
+    val textLow: Color       get() = textTertiary
+    val stroke: Color        get() = divider
+    val strokeStrong: Color  get() = outline
+    val warn: Color          get() = warning
+    val warnSoft: Color      get() = warningSoft
+    val error: Color         get() = danger
+    val errorSoft: Color     get() = dangerSoft
+    val voiceStart: Color    get() = accent
+    val voiceEnd: Color      get() = warning
+}
 
-    // Чат
-    val bubbleTutor: Color,     // реплика репетитора
-    val bubbleUser: Color,      // реплика ученика
-    val bubbleSystem: Color,    // системные микро-события
-)
-
-/** ТЁМНАЯ — основная. «Студия». */
+/** ТЁМНАЯ — «Студия»: графит + янтарь. */
 val StudioDark = LearnColors(
     background     = Color(0xFF0E1014),
     surface        = Color(0xFF161A21),
     surfaceRaised  = Color(0xFF1D222B),
     surfaceSunken  = Color(0xFF0A0C0F),
-
     textPrimary    = Color(0xFFEDEFF3),
     textSecondary  = Color(0xFF9AA3B2),
     textTertiary   = Color(0xFF5C6470),
-
     divider        = Color(0xFF232934),
     outline        = Color(0xFF323A48),
-
     accent         = Color(0xFFFFB454),
     onAccent       = Color(0xFF231503),
     accentSoft     = Color(0x1FFFB454),
@@ -91,10 +95,10 @@ val StudioDark = LearnColors(
     danger         = Color(0xFFF87171),
     dangerSoft     = Color(0x1FF87171),
     warning        = Color(0xFFFBBF24),
-
+    warningSoft    = Color(0x24FBBF24),
     bubbleTutor    = Color(0xFF1A1F28),
-    bubbleUser     = Color(0xFF2B2415),   // тёплый графит с янтарным подтоном
-    bubbleSystem   = Color(0x00000000),   // прозрачно — только текст
+    bubbleUser     = Color(0xFF2B2415),
+    bubbleSystem   = Color(0x00000000),
 )
 
 /** СВЕТЛАЯ — «бумага и чернила». */
@@ -103,14 +107,11 @@ val StudioLight = LearnColors(
     surface        = Color(0xFFFFFFFF),
     surfaceRaised  = Color(0xFFFFFFFF),
     surfaceSunken  = Color(0xFFEFEDE8),
-
     textPrimary    = Color(0xFF1A1D23),
     textSecondary  = Color(0xFF5B6470),
     textTertiary   = Color(0xFF9AA1AC),
-
     divider        = Color(0xFFE5E2DB),
     outline        = Color(0xFFCBC7BE),
-
     accent         = Color(0xFFE08700),
     onAccent       = Color(0xFFFFFFFF),
     accentSoft     = Color(0x1AE08700),
@@ -119,17 +120,128 @@ val StudioLight = LearnColors(
     danger         = Color(0xFFDC2626),
     dangerSoft     = Color(0x14DC2626),
     warning        = Color(0xFFD97706),
-
+    warningSoft    = Color(0x1FD97706),
     bubbleTutor    = Color(0xFFFFFFFF),
     bubbleUser     = Color(0xFFFFF3E0),
     bubbleSystem   = Color(0x00000000),
 )
 
-private val LocalLearnColors = staticCompositionLocalOf { StudioDark }
-
 @Composable
+@ReadOnlyComposable
 fun learnColors(): LearnColors =
     if (isSystemInDarkTheme()) StudioDark else StudioLight
+
+/** Прямые ссылки на цвета (если где-то остались обращения к палитре). */
+object LearnPalette {
+    val BgLight        = StudioLight.background
+    val BgDark         = StudioDark.background
+    val SurfaceLight   = StudioLight.surface
+    val SurfaceDark    = StudioDark.surface
+    val SurfaceVarL    = StudioLight.surfaceRaised
+    val SurfaceVarD    = StudioDark.surfaceRaised
+    val TextHi_L       = StudioLight.textPrimary
+    val TextMid_L      = StudioLight.textSecondary
+    val TextLow_L      = StudioLight.textTertiary
+    val TextHi_D       = StudioDark.textPrimary
+    val TextMid_D      = StudioDark.textSecondary
+    val TextLow_D      = StudioDark.textTertiary
+    val Accent         = StudioDark.accent
+    val AccentSoft_L   = StudioLight.accentSoft
+    val AccentSoft_D   = StudioDark.accentSoft
+    val VoiceStart     = StudioDark.accent
+    val VoiceEnd       = StudioDark.warning
+    val Success        = StudioDark.success
+    val SuccessSoft    = StudioDark.successSoft
+    val Warn           = StudioDark.warning
+    val WarnSoft       = StudioDark.warningSoft
+    val Error          = StudioDark.danger
+    val ErrorSoft      = StudioDark.dangerSoft
+    val Stroke_L       = StudioLight.divider
+    val Stroke_D       = StudioDark.divider
+    val StrokeStrong_L = StudioLight.outline
+    val StrokeStrong_D = StudioDark.outline
+}
+
+// ────────────────────────────────────────────────────────────
+//  2. LearnTokens — ПОЛНЫЙ суперсет: старые имена + алиасы
+// ────────────────────────────────────────────────────────────
+
+object LearnTokens {
+    // ── Радиусы ──
+    val RadiusXxs = 4.dp
+    val RadiusXs  = 8.dp
+    val RadiusSm  = 12.dp
+    val RadiusMd  = 14.dp
+    val RadiusLg  = 18.dp
+    val RadiusXl  = 24.dp
+
+    // ── Отступы ──
+    val PaddingXs = 4.dp
+    val PaddingSm = 8.dp
+    val PaddingMd = 12.dp
+    val PaddingLg = 16.dp
+    val PaddingXl = 24.dp
+
+    // ── Линии ──
+    val BorderThin   = 1.dp
+    val BorderMedium = 1.5.dp
+
+    // ── Кнопки ──
+    val ButtonHeightSm = 40.dp
+    val ButtonHeightMd = 48.dp
+    val ButtonHeightLg = 56.dp
+
+    // ── Типографика: полные имена ──
+    val FontSizeMicro     = 9.sp
+    val FontSizeCaption   = 11.sp
+    val FontSizeBody      = 13.sp
+    val FontSizeBodyLarge = 15.sp
+    val FontSizeTitle     = 17.sp
+    val FontSizeTitleLg   = 22.sp
+    val FontSizeDisplay   = 26.sp
+
+    // ── Типографика: короткие алиасы ──
+    val Micro     = FontSizeMicro
+    val Caption   = FontSizeCaption
+    val Body      = FontSizeBody
+    val BodyLarge = FontSizeBodyLarge
+    val Title     = FontSizeTitle
+    val TitleLg   = FontSizeTitleLg
+    val Display   = FontSizeDisplay
+
+    val CapsLetterSpacing = 1.4.sp
+}
+
+// ────────────────────────────────────────────────────────────
+//  3. Plural — русская плюрализация (полный набор)
+// ────────────────────────────────────────────────────────────
+
+object Plural {
+    private fun pick(n: Int, one: String, few: String, many: String): String {
+        val mod10 = n % 10
+        val mod100 = n % 100
+        return when {
+            mod100 in 11..14 -> many
+            mod10 == 1       -> one
+            mod10 in 2..4    -> few
+            else             -> many
+        }
+    }
+
+    fun word(n: Int)     = pick(n, "слово", "слова", "слов")
+    fun lesson(n: Int)   = pick(n, "урок", "урока", "уроков")
+    fun rule(n: Int)     = pick(n, "правило", "правила", "правил")
+    fun minute(n: Int)   = pick(n, "минута", "минуты", "минут")
+    fun question(n: Int) = pick(n, "вопрос", "вопроса", "вопросов")
+    fun attempt(n: Int)  = pick(n, "попытка", "попытки", "попыток")
+    fun day(n: Int)      = pick(n, "день", "дня", "дней")
+    fun card(n: Int)     = pick(n, "карточка", "карточки", "карточек")
+    fun cluster(n: Int)  = pick(n, "тема", "темы", "тем")
+}
+
+// ────────────────────────────────────────────────────────────
+//  4. Токены v7 (используются новыми экранами «Студии»)
+// ────────────────────────────────────────────────────────────
 
 // ────────────────────────────────────────────────────────────
 //  ТИПОГРАФИКА (масштаб 11→26, как в редакторских системах)
