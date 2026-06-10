@@ -80,6 +80,8 @@ import com.learnde.app.presentation.learn.theme.LearnDim
 import com.learnde.app.presentation.learn.theme.LearnTokens
 import com.learnde.app.presentation.learn.theme.LearnType
 import com.learnde.app.presentation.learn.theme.learnColors
+import com.learnde.app.util.UiText
+import com.learnde.app.util.resolve // КРИТИЧЕСКИЙ ФИКС: Явный импорт функции-расширения resolve()
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 
@@ -130,7 +132,6 @@ fun A0a1TestScreen(
     }
 
     if (showRationaleDialog) {
-        // КРИТИЧЕСКИЙ ФИКС: Явный проброс контекста в диалог для предотвращения ошибок компиляции
         MicPermissionRationaleDialog(
             showSettingsButton = rationaleIsPermanent,
             onDismiss = {
@@ -154,7 +155,7 @@ fun A0a1TestScreen(
             if (hasMic) {
                 learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0_test"))
             } else {
-                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
             }
         }
     }
@@ -259,7 +260,7 @@ fun A0a1TestScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = err.resolve(),
+                            text = err.resolve(context), // КРИТИЧЕСКИЙ ФИКС: Явно передаем context для надежной компиляции
                             color = colors.error,
                             fontSize = LearnTokens.FontSizeBody,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
