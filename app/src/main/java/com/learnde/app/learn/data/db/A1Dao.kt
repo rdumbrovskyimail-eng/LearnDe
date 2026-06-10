@@ -63,7 +63,7 @@ interface A1LemmaDao {
     @Query("SELECT * FROM a1_lemmas ORDER BY lemma ASC")
     suspend fun getAll(): List<LemmaA1Entity>
 
-    @Query("SELECT * FROM a1_lemmas ORDER BY lemma ASC")
+    @Query("SELECT * FROM lemma_a1_table")
     fun observeAll(): Flow<List<LemmaA1Entity>>
 
     @Query("""
@@ -268,7 +268,7 @@ interface A1ClusterDao {
     @Query("SELECT * FROM a1_clusters ORDER BY difficulty ASC, id ASC")
     suspend fun getAllOrdered(): List<ClusterA1Entity>
 
-    @Query("SELECT * FROM a1_clusters ORDER BY difficulty ASC, id ASC")
+    @Query("SELECT * FROM cluster_a1_table")
     fun observeAll(): Flow<List<ClusterA1Entity>>
 
     @Query("SELECT * FROM a1_clusters WHERE category = :category ORDER BY difficulty ASC, id ASC")
