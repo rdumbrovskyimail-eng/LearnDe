@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.datastore.core.DataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.learnde.app.data.BackgroundImageStore
 import com.learnde.app.data.settings.AppSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -29,8 +28,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val settingsStore: DataStore<AppSettings>,
-    private val bgStore: BackgroundImageStore
+    private val settingsStore: DataStore<AppSettings>
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AppSettings())
@@ -73,21 +71,6 @@ class SettingsViewModel @Inject constructor(
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             runCatching { settingsStore.updateData { defaults } }
-            runCatching { bgStore.clear() }
-        }
-    }
-
-    fun importSceneBackground(uri: Uri) {
-        viewModelScope.launch {
-            val ok = bgStore.importFromUri(uri)
-            if (ok) update { copy(sceneBgHasImage = true) }
-        }
-    }
-
-    fun clearSceneBackground() {
-        viewModelScope.launch {
-            bgStore.clear()
-            update { copy(sceneBgHasImage = false) }
         }
     }
 
