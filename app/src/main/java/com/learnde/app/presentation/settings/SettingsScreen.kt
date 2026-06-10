@@ -34,7 +34,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -121,12 +120,6 @@ private val THEME_MODES = listOf(
     ThemeMode.DARK  to "Тёмная"
 )
 
-private val SCENE_MODES = listOf(
-    SceneMode.AVATAR       to "3D-аватар",
-    SceneMode.VISUALIZER   to "Радужный визуализатор",
-    SceneMode.CUSTOM_IMAGE to "Своя картинка (PNG)"
-)
-
 // ════════════════════════════════════════════════════════════
 //  MAIN
 // ════════════════════════════════════════════════════════════
@@ -143,13 +136,6 @@ fun SettingsScreen(
     val s by viewModel.settings.collectAsStateWithLifecycle()
     val accent = MaterialTheme.colorScheme.primary
     val error  = MaterialTheme.colorScheme.error
-
-    // SAF-лаунчер для выбора PNG фона
-    val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) viewModel.importSceneBackground(uri)
-    }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
