@@ -87,12 +87,17 @@ fun AppNavGraph(
         }
 
         composable(Routes.A0A1_TEST) {
-            A0a1TestScreen(
-                onFinished = {
-                    navController.navigate(Routes.LEVEL_SELECT) {
-                        popUpTo(Routes.A0A1_TEST) { inclusive = true }
-                    }
+            val learnCoreViewModel: LearnCoreViewModel = hiltViewModel()
+            val goToLevels: () -> Unit = {
+                navController.navigate(Routes.LEVEL_SELECT) {
+                    popUpTo(Routes.A0A1_TEST) { inclusive = true }
                 }
+            }
+            A0a1TestScreen(
+                onBack = goToLevels,
+                onNavigateToStudy = { _ -> goToLevels() },
+                onNavigateToRoute = { _ -> goToLevels() },
+                learnCoreViewModel = learnCoreViewModel,
             )
         }
 
