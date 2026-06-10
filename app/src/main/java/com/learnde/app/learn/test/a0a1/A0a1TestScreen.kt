@@ -1,17 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v5.0 (Voice-First Minimalism)
-// Путь: app/src/main/java/com/learnde/app/learn/test/a0a1/A0a1TestScreen.kt
-//
-// КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ v5.0:
-//   1. Полностью убрана тёмная "космическая" тема + serpentines
-//      → используем единый LearnColors (light/dark по системе).
-//   2. Убран SessionLoadingOverlay → ничего не появляется при подготовке
-//      (тест просто стартует с placeholder'ом).
-//   3. ScoreDial превращён в компактный ScoreCircle (140dp).
-//   4. FeedbackBoard минимизирован и встроен в общий стиль.
-//   5. Без эмодзи как UI; всё через Material иконки и weight-контраст.
-//   6. Совместимая с системной темой реализация.
-// ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.test.a0a1
 
 import android.Manifest
@@ -51,9 +37,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.QuestionMark
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,14 +57,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -82,24 +75,12 @@ import com.learnde.app.presentation.learn.components.AudioParticleBox
 import com.learnde.app.presentation.learn.components.CurrentFunctionBar
 import com.learnde.app.presentation.learn.theme.LearnDim
 import com.learnde.app.presentation.learn.theme.LearnTokens
-import com.learnde.app.presentation.learn.theme.LearnTokens.Body
-import com.learnde.app.presentation.learn.theme.LearnTokens.BodyLarge
-import com.learnde.app.presentation.learn.theme.LearnTokens.BorderThin
-import com.learnde.app.presentation.learn.theme.LearnTokens.Caption
-import com.learnde.app.presentation.learn.theme.LearnTokens.CapsLetterSpacing
-import com.learnde.app.presentation.learn.theme.LearnTokens.Micro
-import com.learnde.app.presentation.learn.theme.LearnTokens.PaddingLg
-import com.learnde.app.presentation.learn.theme.LearnTokens.PaddingMd
-import com.learnde.app.presentation.learn.theme.LearnTokens.PaddingSm
-import com.learnde.app.presentation.learn.theme.LearnTokens.RadiusMd
-import com.learnde.app.presentation.learn.theme.LearnTokens.RadiusXs
-import com.learnde.app.presentation.learn.theme.LearnTokens.Title
 import com.learnde.app.presentation.learn.theme.LearnType
-import com.learnde.app.presentation.learn.theme.Plural
 import com.learnde.app.presentation.learn.theme.learnColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun A0a1TestScreen(
     onBack: () -> Unit,
@@ -119,7 +100,13 @@ fun A0a1TestScreen(
         onBack()
     }
 
-    androidx.activity.compose.BackHandler(onBack = exitAndBack)
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
+        }
+    }
+
+    androidx.compose.runtime.BackHandler(onBack = exitAndBack)
 
     val activity = context as? android.app.Activity
     var showRationaleDialog by remember { mutableStateOf(false) }
@@ -154,12 +141,18 @@ fun A0a1TestScreen(
         )
     }
 
-    LaunchedEffect(Unit) {
-        val hasMic = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.RECORD_AUDIO,
-        ) == PackageManager.PERMISSION_GRANTED
-        if (hasMic) learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0_test"))
-        else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    // Автозапуск теста при переходе на экран, если ключи заданы
+    LaunchedEffect(learnState.apiKeySet) {
+        if (learnState.apiKeySet) {
+            val hasMic = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
+            if (hasMic) {
+                learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0_test"))
+            } else {
+                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
     }
 
     LaunchedEffect(state.finished, state.verdict) {
@@ -167,13 +160,9 @@ fun A0a1TestScreen(
             delay(1800)
             learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
 
-            // ФИКС: Ждем фактического отключения вместо хардкодного delay(400),
-            // чтобы избежать гонки (race condition) между Stop и Start.
             androidx.compose.runtime.snapshotFlow { learnCoreViewModel.state.value.connectionStatus }
                 .first { it == com.learnde.app.learn.core.LearnConnectionStatus.Disconnected }
 
-            // Засчитываем тест при любом завершении
-            // (предполагается, что viewModel имеет доступ к настройкам или репозиторию)
             viewModel.markTestPassed()
 
             when (val step = viewModel.advanceToNextPhase()) {
@@ -210,9 +199,91 @@ fun A0a1TestScreen(
 
             Spacer(Modifier.height(LearnDim.PaddingMd))
 
+            // ─── Welcome / No Key state ───
+            AnimatedVisibility(
+                visible = !learnState.apiKeySet,
+                enter = fadeIn() + androidx.compose.animation.expandVertically(),
+                exit = fadeOut() + androidx.compose.animation.shrinkVertically(),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(LearnDim.RadiusMd))
+                        .background(colors.surface)
+                        .border(LearnDim.BorderThin, colors.stroke, RoundedCornerShape(LearnDim.RadiusMd))
+                        .padding(LearnDim.PaddingLg),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Добро пожаловать в CopyM!",
+                        fontSize = LearnTokens.FontSizeTitle,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textHi,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Для работы голосового ИИ-ассистента необходимо задать ваш личный API-ключ Gemini в Настройках.",
+                        fontSize = LearnTokens.FontSizeBody,
+                        color = colors.textMid,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 18.sp,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = { exitAndBack() },
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
+                    ) {
+                        Text("Перейти в Настройки", color = Color.White)
+                    }
+                }
+            }
+
+            // ─── Error state ───
+            AnimatedVisibility(
+                visible = learnState.apiKeySet && learnState.error != null,
+                enter = fadeIn() + androidx.compose.animation.expandVertically(),
+                exit = fadeOut() + androidx.compose.animation.shrinkVertically(),
+            ) {
+                learnState.error?.let { err ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(LearnDim.RadiusMd))
+                            .background(colors.errorSoft)
+                            .border(LearnDim.BorderThin, colors.error.copy(alpha = 0.3f), RoundedCornerShape(LearnDim.RadiusMd))
+                            .padding(LearnDim.PaddingMd),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = err.resolve(),
+                            color = colors.error,
+                            fontSize = LearnTokens.FontSizeBody,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0_test"))
+                                }
+                            ) {
+                                Text("Повторить", color = colors.error, fontWeight = FontWeight.SemiBold)
+                            }
+                            TextButton(
+                                onClick = { exitAndBack() }
+                            ) {
+                                Text("В настройки", color = colors.textMid)
+                            }
+                        }
+                    }
+                }
+            }
+
             // ─── Inline loader ───
             AnimatedVisibility(
-                visible = learnState.isPreparingSession && learnState.transcript.isEmpty(),
+                visible = learnState.apiKeySet && learnState.isPreparingSession && learnState.transcript.isEmpty() && learnState.error == null,
                 enter = fadeIn() + androidx.compose.animation.expandVertically(),
                 exit = fadeOut() + androidx.compose.animation.shrinkVertically(),
             ) {
@@ -227,46 +298,55 @@ fun A0a1TestScreen(
                 }
             }
 
-            // ─── Question card + AudioParticleBox ───
-            Row(verticalAlignment = Alignment.Top) {
-                QuestionCard(
-                    questionText = state.currentQuestionText
-                        ?: "Подождите, вопрос подбирается…",
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(LearnDim.PaddingSm))
-                AudioParticleBox(
-                    playbackSync = learnCoreViewModel.audioPlaybackFlow,
-                    size = 56.dp,
-                )
-            }
+            // ─── Test Content ───
+            AnimatedVisibility(
+                visible = learnState.apiKeySet && learnState.error == null && !learnState.isPreparingSession,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Column {
+                    // ─── Question card + AudioParticleBox ───
+                    Row(verticalAlignment = Alignment.Top) {
+                        QuestionCard(
+                            questionText = state.currentQuestionText
+                                ?: "Подождите, вопрос подбирается…",
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(LearnDim.PaddingSm))
+                        AudioParticleBox(
+                            playbackSync = learnCoreViewModel.audioPlaybackFlow,
+                            size = 56.dp,
+                        )
+                    }
 
-            Spacer(Modifier.weight(0.4f))
+                    Spacer(Modifier.weight(0.4f))
 
-            // ─── ScoreCircle ───
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                ScoreCircle(
-                    points = state.totalPoints,
-                    threshold = state.threshold,
-                    lastPoints = state.lastPoints,
-                )
-            }
+                    // ─── ScoreCircle ───
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        ScoreCircle(
+                            points = state.totalPoints,
+                            threshold = state.threshold,
+                            lastPoints = state.lastPoints,
+                        )
+                    }
 
-            Spacer(Modifier.weight(0.4f))
+                    Spacer(Modifier.weight(0.4f))
 
-            // ─── FeedbackCard ───
-            FeedbackCard(
-                verdictCorrect = state.lastAnswerCorrect,
-                reason = state.lastAnswerReason,
-                scoreRationale = state.lastScoreRationale,
-            )
+                    // ─── FeedbackCard ───
+                    FeedbackCard(
+                        verdictCorrect = state.lastAnswerCorrect,
+                        reason = state.lastAnswerReason,
+                        scoreRationale = state.lastScoreRationale,
+                    )
 
-            Spacer(Modifier.height(LearnDim.PaddingMd))
+                    Spacer(Modifier.height(LearnDim.PaddingMd))
 
-            // ─── Goal chip ───
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                GoalChip(threshold = state.threshold, points = state.totalPoints)
-                Spacer(Modifier.weight(1f))
+                    // ─── Goal chip ───
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GoalChip(threshold = state.threshold, points = state.totalPoints)
+                        Spacer(Modifier.weight(1f))
+                    }
+                }
             }
 
             Spacer(Modifier.height(LearnDim.PaddingSm))
