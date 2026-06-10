@@ -113,14 +113,18 @@ fun LevelSelectScreen(
             Column(Modifier.weight(1f)) {
                 Text(
                     text = "Deutsch",
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary,
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary,
+                    ),
                 )
                 Text(
                     text = "Выберите уровень",
-                    fontSize = 13.sp,
-                    color = colors.textSecondary,
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontSize = 13.sp,
+                        color = colors.textSecondary,
+                    ),
                 )
             }
             IconButton(onClick = onOpenSettings) {
@@ -182,8 +186,10 @@ fun LevelSelectScreen(
 
         Text(
             text = "Вступительный тест пройден. Пройти его повторно можно из настроек.",
-            fontSize = 11.sp,
-            color = colors.textSecondary,
+            style = androidx.compose.ui.text.TextStyle(
+                fontSize = 11.sp,
+                color = colors.textSecondary,
+            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 24.dp),
@@ -239,9 +245,11 @@ private fun LevelCard(
             ) {
                 Text(
                     text = code,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (enabled) colors.accent else colors.textSecondary,
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (enabled) colors.accent else colors.textSecondary,
+                    ),
                 )
             }
 
@@ -251,9 +259,11 @@ private fun LevelCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = title,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.textPrimary,
+                        style = androidx.compose.ui.text.TextStyle(
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textPrimary,
+                        ),
                     )
                     if (completed) {
                         Spacer(Modifier.width(8.dp))
@@ -265,9 +275,11 @@ private fun LevelCard(
                         ) {
                             Text(
                                 text = "ПРОЙДЕН",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.accent,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.accent,
+                                ),
                             )
                         }
                     }
@@ -275,9 +287,11 @@ private fun LevelCard(
                 Spacer(Modifier.height(2.dp))
                 Text(
                     text = subtitle,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                    color = colors.textSecondary,
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        color = colors.textSecondary,
+                    ),
                 )
             }
 
@@ -307,8 +321,10 @@ private fun LevelCard(
             Spacer(Modifier.height(6.dp))
             Text(
                 text = progressLabel,
-                fontSize = 11.sp,
-                color = colors.textSecondary,
+                style = androidx.compose.ui.text.TextStyle(
+                    fontSize = 11.sp,
+                    color = colors.textSecondary,
+                ),
             )
         }
     }
