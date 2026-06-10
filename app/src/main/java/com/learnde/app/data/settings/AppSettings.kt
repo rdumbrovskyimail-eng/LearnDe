@@ -22,17 +22,19 @@ data class AppSettings(
 
     // ═══════════════════ 1. AUTH ═══════════════════
     val apiKey: String = "",
-    val apiKeyBackup: String = "",
-    val autoRotateKeys: Boolean = false,
+
+    // ═══════════════ 1b. TUTOR-INFO MODEL (параллельная) ═══════════════
+    /** Отдельный ключ для информирующей модели gemini-2.5-flash-lite. */
+    val tutorApiKey: String = "",
+    val tutorModel: String = "gemini-2.5-flash-lite",
+    val enableTutorHints: Boolean = true,
 
     // ═══════════════════ 2. MODEL (только 3.1) ═══════════════════
     val model: String = "models/gemini-3.1-flash-live-preview",
-    val temperature: Float = 1.0f,
+    val temperature: Float = 0.8f,     // стабильность речи репетитора
     val topP: Float = 0.95f,
     val topK: Int = 0,
     val maxOutputTokens: Int = 8192,
-    val presencePenalty: Float = 0.0f,
-    val frequencyPenalty: Float = 0.0f,
     val responseModality: String = "AUDIO",
 
     // ═══════════════════ 3. VOICE ═══════════════════
@@ -71,18 +73,15 @@ data class AppSettings(
 
     // ═══════════════════ 8. TOOLS ═══════════════════
     val enableGoogleSearch: Boolean = false,
-    val enableTestFunctions: Boolean = true,
 
     // ═══════════════════ 9. THINKING ═══════════════════
-    val latencyProfile: String = "UltraLow",
+    val latencyProfile: String = "Low",
 
     // ═══════════════════ 10. SYSTEM ═══════════════════
     val systemInstruction: String = DEFAULT_SYSTEM_INSTRUCTION,
 
     // ═══════════════════ 11. UI / THEME ═══════════════════
     val themeMode: ThemeMode = ThemeMode.AUTO,
-    val sceneMode: String = "avatar",
-    val sceneBgHasImage: Boolean = false,
 
     // ═══════════════════ 12. CHAT ═══════════════════
     val chatFontScale: Float = 1.0f,
@@ -92,7 +91,6 @@ data class AppSettings(
     val chatBackgroundAlpha: Int = 30,
 
     // ═══════════════════ 13. LEARN ═══════════════════
-    val learnConfirmSwitch: Boolean = true,
 
     // ═══════════════════ 14. DEBUG ═══════════════════
     val showDebugLog: Boolean = false,
@@ -101,13 +99,7 @@ data class AppSettings(
 ) {
     companion object {
         const val DEFAULT_SYSTEM_INSTRUCTION =
-            "Ты русскоязычный голосовой ассистент. " +
-            "Всегда отвечай только на русском языке. " +
-            "Слушай и понимай русскую речь. " +
-            "Отвечай кратко и по делу, не более 2-3 предложений, " +
-            "если пользователь не просит подробного ответа. " +
-            "Если пользователь говорит «выполни функцию N» или «вызови функцию N», " +
-            "ты ОБЯЗАТЕЛЬНО вызываешь соответствующий tool test_function_N через function calling, " +
-            "а не отвечаешь текстом."
+            "Ты — голосовой репетитор немецкого языка для русскоязычного ученика уровня A1. " +
+            "Говори коротко, дружелюбно и в темпе. Всё, что пишешь, ты озвучиваешь."
     }
 }
