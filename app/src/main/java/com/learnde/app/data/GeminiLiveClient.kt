@@ -239,11 +239,11 @@ class GeminiLiveClient(
     // ════════════════════════════════════════════════════════════
 
     private fun sendSetup(config: SessionConfig) {
-        val msg = buildFullSetup(config)
+        val setupJson = buildFullSetup(config)
 
-        val raw = msg.toString()
+        val raw = setupJson.toString()
         logger.d("SETUP → ${config.model} (${raw.length} chars)")
-        logger.d("Live setup: ${raw.take(600)}")
+        logger.d("Live setup: ${setupJson.toString().take(600)}")
 
         trackSentFrame(raw)
         webSocket?.send(raw)
@@ -287,15 +287,13 @@ class GeminiLiveClient(
                 })
 
                 // ─── systemInstruction ───
-                if (config.systemInstruction.isNotBlank()) {
-                    put("systemInstruction", buildJsonObject {
-                        put("parts", buildJsonArray {
-                            add(buildJsonObject {
-                                put("text", config.systemInstruction)
-                            })
+                put("systemInstruction", buildJsonObject {
+                    put("parts", buildJsonArray {
+                        add(buildJsonObject {
+                            put("text", config.systemInstruction)
                         })
                     })
-                }
+                })
 
                 // ─── Tools ───
                 put("tools", buildJsonArray {
@@ -329,12 +327,8 @@ class GeminiLiveClient(
                 })
 
                 // ─── Транскрипция ───
-                if (config.inputTranscription) {
-                    put("inputAudioTranscription", buildJsonObject {})
-                }
-                if (config.outputTranscription) {
-                    put("outputAudioTranscription", buildJsonObject {})
-                }
+                put("inputAudioTranscription", buildJsonObject {})
+                put("outputAudioTranscription", buildJsonObject {})
 
                 // ─── History Config (Обязательно для Gemini 3.1) ───
                 put("historyConfig", buildJsonObject {
@@ -342,30 +336,24 @@ class GeminiLiveClient(
                 })
 
                 // ─── Session Resumption ───
-                if (config.enableSessionResumption) {
-                    put("sessionResumption", buildJsonObject {
-                        config.sessionHandle?.let { put("handle", it) }
-                    })
-                }
+                put("sessionResumption", buildJsonObject {
+                    config.sessionHandle?.let { put("handle", it) }
+                })
 
                 // ─── Context Window Compression ───
-                if (config.enableContextCompression) {
-                    put("contextWindowCompression", buildJsonObject {
-                        if (config.compressionTriggerTokens > 0L) {
-                            put("triggerTokens", config.compressionTriggerTokens)
+                put("contextWindowCompression", buildJsonObject {
+                    if (config.compressionTriggerTokens > 0L) {
+                        put("triggerTokens", config.compressionTriggerTokens)
+                    }
+                    put("slidingWindow", buildJsonObject {
+                        if (config.compressionTargetTokens > 0L) {
+                            put("targetTokens", config.compressionTargetTokens)
                         }
-                        put("slidingWindow", buildJsonObject {
-                            if (config.compressionTargetTokens > 0L) {
-                                put("targetTokens", config.compressionTargetTokens)
-                            }
-                        })
                     })
-                }
+                })
 
                 // ─── mediaResolution (корневой уровень) ───
-                if (config.mediaResolution.isNotBlank()) {
-                    put("mediaResolution", config.mediaResolution)
-                }
+                put("mediaResolution", config.mediaResolution)
             })
         }
 
