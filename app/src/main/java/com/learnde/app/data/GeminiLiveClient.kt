@@ -24,7 +24,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
@@ -34,7 +33,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
@@ -42,17 +40,6 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import java.util.concurrent.TimeUnit
 
-/**
- * Клиент Gemini Live API v1beta с ДИАГНОСТИЧЕСКИМ sendSetup.
- *
- * Каждый блок setup может быть выключен флагом в SessionConfig для
- * поиска источника close code 1007 "Invalid JSON payload".
- *
- * Алгоритм поиска:
- *   1. Запусти с SessionConfig.baselineProfile() — должно работать
- *   2. Если baseline OK — используй withoutXxx-профили по одному
- *   3. Тот профиль, с которым setup проходит — указывает на виновника
- */
 class GeminiLiveClient(
     private val logger: AppLogger
 ) : LiveClient {
@@ -106,10 +93,6 @@ class GeminiLiveClient(
             lastSentFrames.offerLast(raw.take(2000))
         }
     }
-
-    // ════════════════════════════════════════════════════════════
-    //  CONNECT / DISCONNECT
-    // ════════════════════════════════════════════════════════════
 
     override suspend fun connect(apiKey: String, config: SessionConfig, logRaw: Boolean) {
         if (webSocket != null) disconnect()
@@ -234,16 +217,11 @@ class GeminiLiveClient(
         closeCompletion = null
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  SETUP — с диагностическими флагами
-    // ════════════════════════════════════════════════════════════
-
     private fun sendSetup(config: SessionConfig) {
         val setupJson = buildFullSetup(config)
-
         val raw = setupJson.toString()
         logger.d("SETUP → ${config.model} (${raw.length} chars)")
-        logger.d("Live setup: ${setupJson.toString().take(600)}")
+        logger.d("Live setup context sanitized.")
 
         trackSentFrame(raw)
         webSocket?.send(raw)
@@ -284,34 +262,45 @@ class GeminiLiveClient(
                             }
                         })
                     }
+
+                    // КРИТИЧЕСКИЙ ФИКС №1: mediaResolution должен передаваться строго внутри generationConfig
+                    // и только если он явно задан!
+                    if (config.mediaResolution.isNotBlank()) {
+                        put("mediaResolution", config.mediaResolution)
+                    }
                 })
 
                 // ─── systemInstruction ───
-                put("systemInstruction", buildJsonObject {
-                    put("parts", buildJsonArray {
-                        add(buildJsonObject {
-                            put("text", config.systemInstruction)
-                        })
-                    })
-                })
-
-                // ─── Tools ───
-                put("tools", buildJsonArray {
-                    if (config.enableGoogleSearch) {
-                        add(buildJsonObject {
-                            put("googleSearch", buildJsonObject {})
-                        })
-                    }
-                    if (config.functionDeclarations.isNotEmpty()) {
-                        add(buildJsonObject {
-                            put("functionDeclarations", buildJsonArray {
-                                for (decl in config.functionDeclarations) {
-                                    add(buildFunctionDeclaration(decl))
-                                }
+                if (config.systemInstruction.isNotBlank()) {
+                    put("systemInstruction", buildJsonObject {
+                        put("parts", buildJsonArray {
+                            add(buildJsonObject {
+                                put("text", config.systemInstruction)
                             })
                         })
-                    }
-                })
+                    })
+                }
+
+                // ─── Tools ───
+                // КРИТИЧЕСКИЙ ФИКС №2: tools передаются только если они не пустые, чтобы избежать ошибок парсера схем
+                if (config.enableGoogleSearch || config.functionDeclarations.isNotEmpty()) {
+                    put("tools", buildJsonArray {
+                        if (config.enableGoogleSearch) {
+                            add(buildJsonObject {
+                                put("googleSearch", buildJsonObject {})
+                            })
+                        }
+                        if (config.functionDeclarations.isNotEmpty()) {
+                            add(buildJsonObject {
+                                put("functionDeclarations", buildJsonArray {
+                                    for (decl in config.functionDeclarations) {
+                                        add(buildFunctionDeclaration(decl))
+                                    }
+                                })
+                            })
+                        }
+                    })
+                }
 
                 // ─── realtimeInputConfig ───
                 put("realtimeInputConfig", buildJsonObject {
@@ -326,34 +315,41 @@ class GeminiLiveClient(
                     })
                 })
 
-                // ─── Транскрипция ───
-                put("inputAudioTranscription", buildJsonObject {})
-                put("outputAudioTranscription", buildJsonObject {})
+                // ─── Транскрипция (передаем только при активации) ───
+                if (config.inputTranscription) {
+                    put("inputAudioTranscription", buildJsonObject {})
+                }
+                if (config.outputTranscription) {
+                    put("outputAudioTranscription", buildJsonObject {})
+                }
 
-                // ─── History Config (Обязательно для Gemini 3.1) ───
-                put("historyConfig", buildJsonObject {
-                    put("initialHistoryInClientContent", true)
-                })
+                // ─── History Config (Только для моделей Gemini 3.1) ───
+                if (config.model.contains("3.1")) {
+                    put("historyConfig", buildJsonObject {
+                        put("initialHistoryInClientContent", true)
+                    })
+                }
 
                 // ─── Session Resumption ───
-                put("sessionResumption", buildJsonObject {
-                    config.sessionHandle?.let { put("handle", it) }
-                })
+                if (config.enableSessionResumption && config.sessionHandle != null) {
+                    put("sessionResumption", buildJsonObject {
+                        put("handle", config.sessionHandle)
+                    })
+                }
 
                 // ─── Context Window Compression ───
-                put("contextWindowCompression", buildJsonObject {
-                    if (config.compressionTriggerTokens > 0L) {
-                        put("triggerTokens", config.compressionTriggerTokens)
-                    }
-                    put("slidingWindow", buildJsonObject {
+                if (config.enableContextCompression && (config.compressionTriggerTokens > 0L || config.compressionTargetTokens > 0L)) {
+                    put("contextWindowCompression", buildJsonObject {
+                        if (config.compressionTriggerTokens > 0L) {
+                            put("triggerTokens", config.compressionTriggerTokens)
+                        }
                         if (config.compressionTargetTokens > 0L) {
-                            put("targetTokens", config.compressionTargetTokens)
+                            put("slidingWindow", buildJsonObject {
+                                put("targetTokens", config.compressionTargetTokens)
+                            })
                         }
                     })
-                })
-
-                // ─── mediaResolution (корневой уровень) ───
-                put("mediaResolution", config.mediaResolution)
+                }
             })
         }
 
@@ -397,15 +393,11 @@ class GeminiLiveClient(
                 })
                 if (param.required.isNotEmpty()) {
                     put("required", buildJsonArray {
-                        param.required.forEach { add(JsonPrimitive(it)) }
+                        param.required.forEach { param.required.forEach { add(JsonPrimitive(it)) } }
                     })
                 }
             }
         }
-
-    // ════════════════════════════════════════════════════════════
-    //  CLIENT → SERVER
-    // ════════════════════════════════════════════════════════════
 
     override fun sendAudio(pcmData: ByteArray) {
         if (!isReady) return
@@ -522,10 +514,6 @@ class GeminiLiveClient(
         trackSentFrame(raw)
         webSocket?.send(raw)
     }
-
-    // ════════════════════════════════════════════════════════════
-    //  SERVER → CLIENT (parse)
-    // ════════════════════════════════════════════════════════════
 
     private fun parseServerMessage(raw: String) {
         try {
@@ -697,7 +685,7 @@ class GeminiLiveClient(
         1003 -> "[Unsupported Data]"
         1006 -> "[Abnormal Closure]"
         1007 -> "[Invalid Frame Payload — невалидный JSON / неизвестное поле в setup / неверный enum]"
-        1008 -> "[Policy Violation — модель недоступна ключу / неверный model ID]"
+        1008 -> "[Policy Violation — модель не поддерживается или неверный ID модели]"
         1011 -> "[Internal Server Error]"
         1013 -> "[Try Again Later]"
         4000 -> "[Gemini: Session expired]"
