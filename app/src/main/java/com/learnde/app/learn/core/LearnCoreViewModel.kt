@@ -51,8 +51,6 @@ class LearnCoreViewModel @Inject constructor(
     private val statusBus: LearnFunctionStatusBus,
     private val registry: LearnSessionRegistry,
     private val vocabularyEnforcer: com.learnde.app.learn.domain.VocabularyEnforcer,
-    private val translatorSession: com.learnde.app.learn.sessions.translator.TranslatorSession,
-    private val translationClient: com.learnde.app.data.translator.GeminiTranslationClient,
     private val orchestrator: ConnectionOrchestrator,
 ) : ViewModel() {
 
@@ -73,15 +71,10 @@ class LearnCoreViewModel @Inject constructor(
         private const val AI_AUDIO_TAIL_INITIAL_MS = 1_500L
         private const val INITIAL_SESSION_GUARD_MS = 2_000L
         private const val STUCK_TURN_TIMEOUT_MS = 8_000L
-        private const val STUCK_TURN_TIMEOUT_TRANSLATOR_MS = 5_000L
         private const val TEXT_WITHOUT_AUDIO_TIMEOUT_MS = 1_500L
         private const val SILENCE_PROMPT_COOLDOWN_MS = 30_000L
         private const val FINISH_SESSION_GRACE_MS = 5_000L
 
-        // Translator: максимальный размер буфера PCM фразы.
-        // 6 сек × 16000 Hz × 2 байта = 192000 байт. Защищает от раздувания
-        // буфера фоновой тишиной между фразами.
-        private const val MAX_PHRASE_BUFFER_BYTES = 192_000
     }
 
     private val _state = MutableStateFlow(LearnCoreState())
@@ -121,15 +114,6 @@ class LearnCoreViewModel @Inject constructor(
     @Volatile private var lastModelActivityAtMs: Long = 0L
     @Volatile private var sessionReadyAtMs: Long = 0L
     @Volatile private var hasModelOutputThisTurn: Boolean = false
-    @Volatile private var translatorForceMicOpenUntilMs: Long = 0L
-    @Volatile private var restTranslationTriggeredThisTurn = false
-
-    // ════════════════════════════════════════════════════════════
-    //  Translator: Optimistic UI & Validation (Gemini API)
-    // ════════════════════════════════════════════════════════════
-
-    @Volatile private var nextPairId: Long = 1L
-    @Volatile private var currentOpenPairId: Long? = null
 
     private val transcriptMutex = Mutex()
     @Volatile private var transcriptBuffer: List<ConversationMessage> = emptyList()
@@ -150,7 +134,6 @@ class LearnCoreViewModel @Inject constructor(
     private val modelTurnBuffer = StringBuilder()
 
     @Volatile private var liveModelMessageTs: Long = 0L
-    @Volatile private var translatorFunctionFinalizedThisTurn: Boolean = false
 
     init {
         observeSettings()
@@ -181,7 +164,6 @@ class LearnCoreViewModel @Inject constructor(
                 userTurnBuffer.clear()
                 modelTurnBuffer.clear()
                 liveModelMessageTs = 0L
-                translatorFunctionFinalizedThisTurn = false
                 transcriptMutex.withLock {
                     transcriptBuffer = emptyList()
                 }
@@ -200,21 +182,6 @@ class LearnCoreViewModel @Inject constructor(
         val currentText = userTurnBuffer.toString()
         _state.update { it.copy(liveUserTranscript = currentText) }
 
-        // Translator: открываем пару СРАЗУ как пользователь начал говорить.
-        // Левая колонка заполняется по мере прихода Gemini Live ASR-дельт,
-        // правая (перевод) присоединится позже из OutputTranscript.
-        if (activeSession?.id == "translator") {
-            val pairId = currentOpenPairId ?: openNewPair()
-            updatePair(pairId) { pair ->
-                pair.copy(
-                    originalText = currentText,
-                    originalLang = detectLangSimple(currentText),
-                    originalIsFinal = false,
-                    originalIsRefined = false,
-                )
-            }
-        }
-
         lastInputTs = System.currentTimeMillis()
         silenceTimerJob?.cancel()
     }
@@ -226,12 +193,6 @@ class LearnCoreViewModel @Inject constructor(
         _state.update { it.copy(liveUserTranscript = "") }
 
         if (bufferedText.isEmpty()) return
-
-        // Для translator: мы собираем текст напрямую в translatorPairs, 
-        // поэтому в общий transcript (для истории) писать не нужно, чтобы не было конфликтов.
-        if (activeSession?.id == "translator") {
-            return
-        }
 
         transcriptMutex.withLock {
             val newMsg = ConversationMessage.user(bufferedText)
@@ -246,10 +207,6 @@ class LearnCoreViewModel @Inject constructor(
 
         if (cachedSettings.outputTranscription && source == "ModelText") return
         if (!cachedSettings.outputTranscription && source == "OutputTranscript") return
-
-        if (activeSession?.id == "translator") {
-            return // Мы уже обрабатываем перевод напрямую в GeminiEvent.ModelText
-        }
 
         // Первая дельта модели = модель начала отвечать = user-turn закончен.
         // Финализируем user СНАЧАЛА, чтобы он попал в transcript ПЕРЕД model-bubble.
@@ -274,14 +231,6 @@ class LearnCoreViewModel @Inject constructor(
     private suspend fun finalizeModelTurn() {
         val finalText = modelTurnBuffer.toString().trim()
         modelTurnBuffer.clear()
-
-        if (activeSession?.id == "translator") {
-            liveModelMessageTs = 0L
-            hasModelOutputThisTurn = false
-            cancelStuckTurnWatchdog()
-            cancelTextWithoutAudioWatchdog()
-            return
-        }
 
         if (finalText.isNotEmpty() && liveModelMessageTs != 0L) {
             upsertLiveModelBubble(finalText)
@@ -329,66 +278,7 @@ class LearnCoreViewModel @Inject constructor(
 
 
 
-    private fun openNewPair(): Long {
-        val id = nextPairId++
-        currentOpenPairId = id
-        _state.update { st -> st.copy(translatorPairs = st.translatorPairs + com.learnde.app.learn.core.TranslationPair(id = id)) }
-        return id
-    }
 
-    private fun triggerMirrorTranslation(pairId: Long, geminiVoiceText: String) {
-        // ═══════════════════════════════════════════════════════════
-        // ВРЕМЕННО ОТКЛЮЧЕНО (2026-05-10)
-        // Причина: транскрипт пользователя теперь приходит из системного
-        // Android SpeechRecognizer (NativeSpeechTranscriber) — он точнее
-        // и быстрее, чем reverse-translate через Gemini Flash Lite.
-        // Код ниже сохранён для возможного возврата.
-        // ═══════════════════════════════════════════════════════════
-        logger.d("triggerMirrorTranslation: DISABLED (using NativeSpeechTranscriber)")
-        return
-
-        /*
-        if (geminiVoiceText.isBlank() || activeApiKey.isEmpty()) return
-
-        viewModelScope.launch {
-            runCatching {
-                translationClient.reverseTranslate(geminiVoiceText, activeApiKey)
-            }.onSuccess { res ->
-                if (res.reconstructedText.isBlank()) return@onSuccess
-                updatePair(pairId) { pair ->
-                    val translationLang = detectLangSimple(geminiVoiceText)
-                    pair.copy(
-                        originalText = res.reconstructedText,
-                        originalLang = res.lang,
-                        translationLang = if (translationLang.isNotEmpty()) translationLang else pair.translationLang,
-                        originalIsRefined = true,
-                        translationIsRefined = true,
-                    )
-                }
-            }.onFailure { logger.w("Mirror translation failed: ${it.message}") }
-        }
-        */
-    }
-    
-    private fun resetTranslatorPairs() {
-        currentOpenPairId = null
-        _state.update { it.copy(translatorPairs = emptyList()) }
-    }
-
-    private fun updatePair(id: Long, transform: (com.learnde.app.learn.core.TranslationPair) -> com.learnde.app.learn.core.TranslationPair) {
-        _state.update { st ->
-            val idx = st.translatorPairs.indexOfFirst { it.id == id }
-            if (idx < 0) return@update st
-            val updated = transform(st.translatorPairs[idx])
-            val newList = st.translatorPairs.toMutableList().apply { set(idx, updated) }
-            st.copy(translatorPairs = newList)
-        }
-    }
-    private fun detectLangSimple(text: String): String {
-        if (text.isBlank()) return ""
-        val hasCyrillic = text.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' }
-        return if (hasCyrillic) "RU" else "DE"
-    }
 
     private fun observeVocabularyViolations() {
         viewModelScope.launch {
@@ -429,14 +319,9 @@ class LearnCoreViewModel @Inject constructor(
     }
 
     private fun buildLearnSessionConfig(session: LearnSession): SessionConfig {
-        val isTranslator = session.id == "translator"
 
-        val profile = if (isTranslator) {
-            LatencyProfile.UltraLow
-        } else {
-            runCatching { enumValueOf<LatencyProfile>(cachedSettings.latencyProfile) }
+        val profile = runCatching { enumValueOf<LatencyProfile>(cachedSettings.latencyProfile) }
                 .getOrDefault(LatencyProfile.UltraLow)
-        }
 
         val userInfo = buildString {
             if (cachedSettings.userName.isNotBlank()) append("Имя ученика: ${cachedSettings.userName}. ")
@@ -444,7 +329,7 @@ class LearnCoreViewModel @Inject constructor(
             if (cachedSettings.learningTopics.isNotBlank()) append("Интересные темы: ${cachedSettings.learningTopics}. ")
         }
 
-        val finalSystemInstruction = if (userInfo.isNotBlank() && !isTranslator) {
+        val finalSystemInstruction = if (userInfo.isNotBlank()) {
             "${session.systemInstruction}\n\n[ДАННЫЕ ПОЛЬЗОВАТЕЛЯ]:\n" +
                 "Обращайся к ученику по имени. Учитывай эти данные: $userInfo"
         } else {
@@ -452,23 +337,21 @@ class LearnCoreViewModel @Inject constructor(
         }
 
         val (silenceMs, prefixMs, temp) = when (session.id) {
-            "translator"   -> Triple(500, 150, 1.0f)  // быстрее реакция, ниже temp = меньше отсебятины
             "a1_situation" -> Triple(1000, 300, cachedSettings.temperature)
             "a1_review"    -> Triple(1000, 300, cachedSettings.temperature)
             else           -> Triple(1000, 300, cachedSettings.temperature)
         }
 
-        val finalSilenceMs = if (cachedSettings.vadSilenceTimeoutMs > 0 && !isTranslator)
+        val finalSilenceMs = if (cachedSettings.vadSilenceTimeoutMs > 0)
             maxOf(cachedSettings.vadSilenceTimeoutMs, 500)
         else silenceMs
 
-        val finalLanguageCode = if (isTranslator) "" else cachedSettings.languageCode
-        val finalVoiceId = if (isTranslator) "Puck" else cachedSettings.voiceId
-        val finalMaxTokens = if (isTranslator) 8192 else cachedSettings.maxOutputTokens
-        val finalTopP = if (isTranslator) 0.95f else cachedSettings.topP  // меньше отсебятины
-        val finalTopK = if (isTranslator) 0 else cachedSettings.topK
+        val finalLanguageCode = cachedSettings.languageCode
+        val finalVoiceId = cachedSettings.voiceId
+        val finalMaxTokens = cachedSettings.maxOutputTokens
+        val finalTopP = cachedSettings.topP
+        val finalTopK = cachedSettings.topK
 
-        // Включаем Input Transcription для Транслейтора, чтобы видеть живой драфт ASR пользователя
         val inputTranscr = true
         val outputTranscr = true
         val transcriptionLanguageCodes = emptyList<String>()
@@ -485,13 +368,9 @@ class LearnCoreViewModel @Inject constructor(
             languageCode = finalLanguageCode,
             latencyProfile = profile,
             autoActivityDetection = cachedSettings.enableServerVad,
-            // Для переводчика на расстоянии: HIGH чувствительность старта (быстро реагирует на тихую речь)
-            // и LOW конца (даём договорить до конца перед концом фразы)
-            vadStartSensitivity = if (isTranslator) "START_SENSITIVITY_HIGH"
-                else if (cachedSettings.vadStartOfSpeechSensitivity > 0.5f) "START_SENSITIVITY_HIGH"
+            vadStartSensitivity = if (cachedSettings.vadStartOfSpeechSensitivity > 0.5f) "START_SENSITIVITY_HIGH"
                 else "START_SENSITIVITY_LOW",
-            vadEndSensitivity = if (isTranslator) "END_SENSITIVITY_LOW"
-                else if (cachedSettings.vadEndOfSpeechSensitivity > 0.5f) "END_SENSITIVITY_HIGH"
+            vadEndSensitivity = if (cachedSettings.vadEndOfSpeechSensitivity > 0.5f) "END_SENSITIVITY_HIGH"
                 else "END_SENSITIVITY_LOW",
             vadSilenceDurationMs = finalSilenceMs,
             vadPrefixPaddingMs = prefixMs,
@@ -500,10 +379,10 @@ class LearnCoreViewModel @Inject constructor(
             outputTranscription = outputTranscr,
             transcriptionLanguageCodes = transcriptionLanguageCodes,
             enableSessionResumption = false,
-            sendSessionResumptionConfig = if (isTranslator) false else true,
+            sendSessionResumptionConfig = true,
             sessionHandle = null,
             enableContextCompression = false,
-            sendContextCompressionConfig = if (isTranslator) false else true,
+            sendContextCompressionConfig = true,
             sendTranscriptionConfig = true,
             enableGoogleSearch = false,
             functionDeclarations = session.functionDeclarations,
@@ -559,7 +438,6 @@ class LearnCoreViewModel @Inject constructor(
         lastModelActivityAtMs = 0L
         sessionReadyAtMs = 0L
         hasModelOutputThisTurn = false
-        restTranslationTriggeredThisTurn = false
         lastSilencePromptAtMs = 0L
         droppedMicChunks = 0
         setupJob?.cancel()
@@ -639,14 +517,6 @@ class LearnCoreViewModel @Inject constructor(
             baseDelayMs = cachedSettings.reconnectBaseDelayMs,
             maxDelayMs  = cachedSettings.reconnectMaxDelayMs)
 
-        // Translator работает на одном audio-клиенте с input/output audio transcription.
-        // Параллельный text-клиент отключён — он добавлял латентность из-за общего rate-pool.
-
-        // Translator: ресет пар
-        if (session.id == "translator") {
-            resetTranslatorPairs()
-        }
-
         logger.d("◀ Learn.startInternal — awaiting SetupComplete")
     }
 
@@ -695,26 +565,16 @@ class LearnCoreViewModel @Inject constructor(
         micJob = viewModelScope.launch {
             launch {
                 audioEngine.micOutput.collect { chunk ->
-                    val isTranslator = activeSession?.id == "translator"
                     val now = System.currentTimeMillis()
                     val sinceLastAi = now - lastAiAudioChunkAtMs
 
                     val effectiveTailMs: Long = when {
-                        // Translator voice-only: микрофон закрыт минимально, чтобы избежать
-                        // эха своего голоса, но не блокировать пользователя.
-                        isTranslator -> 0L
                         sessionReadyAtMs > 0L && (now - sessionReadyAtMs) < INITIAL_SESSION_GUARD_MS ->
                             AI_AUDIO_TAIL_INITIAL_MS
                         else -> AI_AUDIO_TAIL_MS
                     }
 
-                    // Принудительное открытие микрофона после record_translation —
-                    // позволяет пользователю говорить сразу следующую фразу,
-                    // не дожидаясь пока модель доиграет остаток своего аудио.
-                    val forceOpen = isTranslator && now < translatorForceMicOpenUntilMs
-
                     val aiActuallyAudible =
-                        !forceOpen &&
                         lastAiAudioChunkAtMs > 0L &&
                         sinceLastAi < effectiveTailMs
 
@@ -820,47 +680,21 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.Interrupted -> {
-                        if (activeSession?.id == "translator" && currentOpenPairId != null) {
-                            val pairId = currentOpenPairId!!
-                            updatePair(pairId) { it.copy(
-                                originalIsFinal = true,
-                                translationIsFinal = true,
-                                originalIsRefined = true,
-                                translationIsRefined = true,
-                            ) }
-                            currentOpenPairId = null
-                        }
-
                         transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
                         transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
                         audioEngine.flushPlayback()
                         _state.update { it.copy(isAiSpeaking = false) }
                         modelStartedSpeakingThisTurn = false
                         hasModelOutputThisTurn = false
-                        translatorFunctionFinalizedThisTurn = false
                     }
 
                     is GeminiEvent.TurnComplete -> {
-                        // Translator: REST-перевод уже стартовал в GenerationComplete.
-                        // Здесь просто закрываем пару под следующую фразу пользователя.
-                        if (activeSession?.id == "translator" && currentOpenPairId != null) {
-                            val pairId = currentOpenPairId!!
-                            updatePair(pairId) { it.copy(
-                                originalIsFinal = true,
-                                translationIsFinal = true,
-                                originalIsRefined = true,   // ✓✓ — Gemini ASR это и есть финал
-                                translationIsRefined = true,
-                            ) }
-                            currentOpenPairId = null
-                        }
-
                         // Дефолтная очистка для обычного чата
                         transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
                         transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
                         
                         modelStartedSpeakingThisTurn = false
                         hasModelOutputThisTurn = false
-                        translatorFunctionFinalizedThisTurn = false
                         
                         audioEngine.onTurnComplete()
                         _state.update { it.copy(isAiSpeaking = false) }
@@ -872,7 +706,6 @@ class LearnCoreViewModel @Inject constructor(
                         val cooldownPassed = (now - lastSilencePromptAtMs) > SILENCE_PROMPT_COOLDOWN_MS
 
                         if (_state.value.isMicActive && !sessionFinished && cooldownPassed
-                            && activeSession?.id != "translator"
                         ) {
                             silenceTimerJob?.cancel()
                             silenceTimerJob = viewModelScope.launch {
@@ -882,7 +715,6 @@ class LearnCoreViewModel @Inject constructor(
                                     && liveClient.isReady
                                     && _state.value.isMicActive
                                     && !sessionFinished
-                                    && activeSession?.id != "translator"
                                 ) {
                                     logger.d("Learn: silence detected (${quietFor}ms), prompting AI")
                                     lastSilencePromptAtMs = System.currentTimeMillis()
@@ -898,20 +730,6 @@ class LearnCoreViewModel @Inject constructor(
 
                     is GeminiEvent.GenerationComplete -> {
                         _state.update { it.copy(isAiSpeaking = false) }
-
-                        // Translator: как только Gemini закончила генерацию — стартуем REST зеркальный перевод.
-                        // Не ждём TurnComplete (там ещё ~500-1000мс на доигрывание audio buffer).
-                        if (activeSession?.id == "translator") {
-                            val pairId = currentOpenPairId
-                            if (pairId != null) {
-                                val geminiAsrText = _state.value.translatorPairs
-                                    .find { it.id == pairId }?.translationText.orEmpty().trim()
-                                if (geminiAsrText.isNotEmpty()) {
-                                    updatePair(pairId) { it.copy(translationIsFinal = true) }
-                                    // triggerMirrorTranslation(pairId, geminiAsrText)
-                                }
-                            }
-                        }
                     }
 
                     is GeminiEvent.InputTranscript -> {
@@ -924,30 +742,10 @@ class LearnCoreViewModel @Inject constructor(
                             greetingFallbackJob?.cancel()
                         }
 
-                        if (activeSession?.id == "translator") {
-                            // Translator: outputTranscription = ASR того что Gemini сказала голосом.
-                            // Сразу льём в правую колонку (translationText) — это финальный текст перевода.
-                            val pairId = currentOpenPairId ?: openNewPair()
-                            updatePair(pairId) { pair ->
-                                pair.copy(
-                                    translationText = pair.translationText + event.text,
-                                    translationLang = detectLangSimple(pair.translationText + event.text),
-                                )
-                            }
-                            lastModelActivityAtMs = System.currentTimeMillis()
-                            hasModelOutputThisTurn = true
-                            orchestrator.onModelActivity()
-                            return@collect
-                        }
-
                         transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "OutputTranscript"))
                     }
 
                     is GeminiEvent.ModelText -> {
-                        // Translator: ModelText не используется (responseModalities=AUDIO).
-                        // Источник перевода — outputTranscription.
-                        if (activeSession?.id == "translator") return@collect
-
                         if (awaitingInitialGreeting) {
                             awaitingInitialGreeting = false
                             greetingFallbackJob?.cancel()
@@ -1022,7 +820,6 @@ class LearnCoreViewModel @Inject constructor(
         sessionReadyAtMs = System.currentTimeMillis()
         val session = activeSession ?: return
 
-        // REST warmup отключён вместе с reverseTranslate (используем NativeSpeechTranscriber).
         contextSeeded = true
         modelStartedSpeakingThisTurn = false
 
@@ -1035,7 +832,7 @@ class LearnCoreViewModel @Inject constructor(
                 return@launch
             }
 
-            if (session.id == "translator" || session.initialUserMessage.isBlank()) {
+            if (session.initialUserMessage.isBlank()) {
                 logger.d("Learn: no initial greeting → enabling mic only")
                 delay(50)
                 if (activeSession == session && !_state.value.isMicActive
