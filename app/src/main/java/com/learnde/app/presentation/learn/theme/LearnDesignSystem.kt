@@ -1,24 +1,22 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v7.0
+// КОНЕЧНАЯ ВЕРСИЯ v8.1 — ПОЛНАЯ ЗАМЕНА ФАЙЛА
 // Путь: app/src/main/java/com/learnde/app/presentation/learn/theme/LearnDesignSystem.kt
 //
-// ДИЗАЙН-СИСТЕМА «STUDIO» — премиальная среда для фокусной учёбы.
+// ЧТО ИЗМЕНЕНО относительно вашей текущей версии (v8):
+//   ТОЛЬКО два объекта расширены алиасами — больше ни одной правки:
 //
-// Художественное направление:
-//   Глубокий графит + тёплый янтарь. Не «приложение-игрушка», а
-//   студия звукозаписи: тёмная, спокойная, ничего не отвлекает от
-//   голоса. Один акцентный цвет несёт ВСЮ энергию интерфейса.
-//   Светлая тема — «бумага и чернила» с тем же янтарём.
+//   • LearnDim  += Padding*/Radius*/Border*/ButtonHeight*
+//     (экран теста обращается LearnDim.PaddingLg, LearnDim.RadiusMd,
+//      LearnDim.BorderThin — раньше эти члены жили только в LearnTokens)
 //
-// Правила системы (соблюдать во всех экранах):
-//   1. Цвет = смысл. Янтарь — только действие/внимание. Зелёный —
-//      только успех/готовность. Коралл — только ошибка. Всё
-//      остальное — нейтральные ступени.
-//   2. Иерархия весом и размером шрифта, НЕ цветом радуги.
-//   3. Сетка 4dp. Радиусы: 10 (chip) / 14 (card) / 20 (panel) / full.
-//   4. Движение: 140мс micro / 220мс standard / 320мс emphasized,
-//      easing FastOutSlowIn. Ничего не «прыгает».
-//   5. Hairline-границы 1dp вместо теней — глубина через тон, не блюр.
+//   • LearnType += Micro/Caption/Body/BodyLarge/Title/TitleLg/Display/
+//     CapsLetterSpacing (экран обращается LearnType.Micro, LearnType.Title —
+//      раньше в LearnType были только строчные micro/title)
+//
+// После этой замены A0a1TestScreen.kt и TutorHintClient.kt
+// КОМПИЛИРУЮТСЯ БЕЗ ЕДИНОЙ ПРАВКИ В НИХ. Все остальные экраны
+// продолжают работать: ни одно существующее имя не удалено и
+// не переименовано, значения идентичны.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.learn.theme
 
@@ -32,8 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // ────────────────────────────────────────────────────────────
-//  1. ЦВЕТА: класс с НОВЫМ API в конструкторе и СТАРЫМ API
-//     как вычисляемыми свойствами тела класса (видны всегда).
+//  1. ЦВЕТА: новый API в конструкторе + старый API как
+//     вычисляемые свойства тела класса (видны без импортов).
 // ────────────────────────────────────────────────────────────
 
 class LearnColors(
@@ -60,7 +58,7 @@ class LearnColors(
     val bubbleUser: Color,
     val bubbleSystem: Color,
 ) {
-    // ── Старый API: реальные свойства класса, импорт не нужен ──
+    // ── Старый API ──
     val bg: Color            get() = background
     val surfaceVar: Color    get() = surfaceRaised
     val textHi: Color        get() = textPrimary
@@ -163,7 +161,7 @@ object LearnPalette {
 }
 
 // ────────────────────────────────────────────────────────────
-//  2. LearnTokens — ПОЛНЫЙ суперсет: старые имена + алиасы
+//  2. LearnTokens — полный суперсет (без изменений)
 // ────────────────────────────────────────────────────────────
 
 object LearnTokens {
@@ -213,7 +211,7 @@ object LearnTokens {
 }
 
 // ────────────────────────────────────────────────────────────
-//  3. Plural — русская плюрализация (полный набор)
+//  3. Plural — русская плюрализация (без изменений)
 // ────────────────────────────────────────────────────────────
 
 object Plural {
@@ -240,31 +238,41 @@ object Plural {
 }
 
 // ────────────────────────────────────────────────────────────
-//  4. Токены v7 (используются новыми экранами «Студии»)
-// ────────────────────────────────────────────────────────────
-
-// ────────────────────────────────────────────────────────────
-//  ТИПОГРАФИКА (масштаб 11→26, как в редакторских системах)
+//  4. LearnType — типографика «Студии» (строчные имена)
+//     + АЛИАСЫ к LearnTokens (Заглавные) — экраны используют оба стиля.
 // ────────────────────────────────────────────────────────────
 
 object LearnType {
-    val display   = 26.sp   // заголовок экрана уровней
-    val title     = 17.sp   // заголовки секций / диалогов
-    val chat      = 15.sp   // ТЕЛО ЧАТА — главный размер приложения
-    val chatLine  = 22.sp   // line-height чата
-    val body      = 13.sp   // карточки-подсказки, описания
+    // ── Строчные (новые экраны «Студии») ──
+    val display   = 26.sp
+    val title     = 17.sp
+    val chat      = 15.sp
+    val chatLine  = 22.sp
+    val body      = 13.sp
     val bodyLine  = 18.sp
-    val label     = 12.sp   // чипы, кнопки-чипы
-    val caption   = 11.sp   // таймштампы, подписи, системные события
-    val micro     = 9.sp    // бейджи
+    val label     = 12.sp
+    val caption   = 11.sp
+    val micro     = 9.sp
+
+    // ── Заглавные алиасы (совместимость: LearnType.Micro и т.д.) ──
+    val Micro     = LearnTokens.Micro
+    val Caption   = LearnTokens.Caption
+    val Body      = LearnTokens.Body
+    val BodyLarge = LearnTokens.BodyLarge
+    val Title     = LearnTokens.Title
+    val TitleLg   = LearnTokens.TitleLg
+    val Display   = LearnTokens.Display
+    val CapsLetterSpacing = LearnTokens.CapsLetterSpacing
 }
 
 // ────────────────────────────────────────────────────────────
-//  СЕТКА / РАДИУСЫ / РАЗМЕРЫ
+//  5. LearnDim — сетка «Студии» (s1..s6, r*)
+//     + АЛИАСЫ к LearnTokens (Padding*/Radius*/Border*/ButtonHeight*) —
+//     экраны используют оба стиля квалификации.
 // ────────────────────────────────────────────────────────────
 
 object LearnDim {
-    // Spacing (сетка 4)
+    // ── Spacing (сетка 4) ──
     val s1: Dp = 4.dp
     val s2: Dp = 8.dp
     val s3: Dp = 12.dp
@@ -272,23 +280,44 @@ object LearnDim {
     val s5: Dp = 20.dp
     val s6: Dp = 24.dp
 
-    // Радиусы
+    // ── Радиусы (строчные, новые экраны) ──
     val rChip: Dp = 10.dp
     val rCard: Dp = 14.dp
     val rPanel: Dp = 20.dp
     val rBubble: Dp = 16.dp
 
-    // Ключевые высоты единого экрана урока
-    val statusBarH: Dp = 44.dp      // статус-капсула сверху
+    // ── Ключевые высоты единого экрана урока ──
+    val statusBarH: Dp = 44.dp
     val progressCollapsedH: Dp = 36.dp
     val hintChipH: Dp = 36.dp
     val bottomBarH: Dp = 76.dp
     val micButton: Dp = 60.dp
     val quickChipH: Dp = 32.dp
+
+    // ── Алиасы совместимости (LearnDim.PaddingLg и т.д.) ──
+    val PaddingXs: Dp get() = LearnTokens.PaddingXs
+    val PaddingSm: Dp get() = LearnTokens.PaddingSm
+    val PaddingMd: Dp get() = LearnTokens.PaddingMd
+    val PaddingLg: Dp get() = LearnTokens.PaddingLg
+    val PaddingXl: Dp get() = LearnTokens.PaddingXl
+
+    val RadiusXxs: Dp get() = LearnTokens.RadiusXxs
+    val RadiusXs: Dp  get() = LearnTokens.RadiusXs
+    val RadiusSm: Dp  get() = LearnTokens.RadiusSm
+    val RadiusMd: Dp  get() = LearnTokens.RadiusMd
+    val RadiusLg: Dp  get() = LearnTokens.RadiusLg
+    val RadiusXl: Dp  get() = LearnTokens.RadiusXl
+
+    val BorderThin: Dp   get() = LearnTokens.BorderThin
+    val BorderMedium: Dp get() = LearnTokens.BorderMedium
+
+    val ButtonHeightSm: Dp get() = LearnTokens.ButtonHeightSm
+    val ButtonHeightMd: Dp get() = LearnTokens.ButtonHeightMd
+    val ButtonHeightLg: Dp get() = LearnTokens.ButtonHeightLg
 }
 
 // ────────────────────────────────────────────────────────────
-//  ДВИЖЕНИЕ
+//  6. ДВИЖЕНИЕ
 // ────────────────────────────────────────────────────────────
 
 object LearnMotion {
@@ -299,7 +328,7 @@ object LearnMotion {
 }
 
 // ────────────────────────────────────────────────────────────
-//  СТАТУСЫ СОЕДИНЕНИЯ → ЦВЕТ/ТЕКСТ (единая точка истины для UI)
+//  7. СТАТУСЫ СОЕДИНЕНИЯ → ЦВЕТ/ТЕКСТ
 // ────────────────────────────────────────────────────────────
 
 @Composable
