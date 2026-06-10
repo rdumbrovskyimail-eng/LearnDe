@@ -183,7 +183,7 @@ fun SettingsScreen(
                 )
                 SecureApiKeyField(
                     value = s.tutorApiKey,
-                    label = "API-ключ №2 — подсказки (gemini-2.5-flash-lite)",
+                    label = "API-ключ №2 — ассистент (Gemini 3.1 Flash-Lite)",
                     placeholder = "AIza…",
                     onValueChange = { viewModel.update { copy(tutorApiKey = it) } }
                 )
