@@ -14,7 +14,6 @@ import com.learnde.app.learn.sessions.a0a1.B1LearnSession
 import com.learnde.app.learn.sessions.a0a1.B2LearnSession
 import com.learnde.app.learn.sessions.a1.A1ReviewSession
 import com.learnde.app.learn.sessions.a1.A1SituationSession
-import com.learnde.app.learn.sessions.translator.TranslatorSession
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,8 +28,6 @@ class LearnSessionRegistry @Inject constructor(
     // Учебные сессии A1
     a1Learning: A1SituationSession,
     a1Review: A1ReviewSession,                // v3.2: NEW
-    // Живой переводчик
-    translator: TranslatorSession,
 ) {
     private val sessions: Map<String, LearnSession> = mapOf(
         a0.id         to a0,
@@ -40,7 +37,6 @@ class LearnSessionRegistry @Inject constructor(
         b2.id         to b2,
         a1Learning.id to a1Learning,
         a1Review.id   to a1Review,             // v3.2: NEW
-        translator.id to translator,
     )
 
     fun get(id: String): LearnSession? = sessions[id]
