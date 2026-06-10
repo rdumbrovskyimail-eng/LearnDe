@@ -26,8 +26,7 @@ data class AppSettings(
     // ═══════════════ 1b. TUTOR-INFO MODEL (параллельная) ═══════════════
     /** Отдельный ключ для информирующей модели gemini-2.5-flash-lite. */
     val tutorApiKey: String = "",
-    val tutorModel: String = TutorHintClient.DEFAULT_MODEL,
-    // = "gemini-3.1-flash-lite"
+    val tutorModel: String = "gemini-3.1-flash-lite",
     val enableTutorHints: Boolean = true,
 
     // ═══════════════════ 2. MODEL (только 3.1) ═══════════════════
