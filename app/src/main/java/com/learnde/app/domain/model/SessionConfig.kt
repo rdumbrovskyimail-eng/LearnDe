@@ -40,10 +40,10 @@ data class SessionConfig(
 
     // ── Generation Config ──
     val responseModality: String = "AUDIO",
-    val temperature: Float = 1.0f,
+    val temperature: Float = 0.7f,
     val topP: Float = 0.95f,
     val topK: Int = 0,
-    val maxOutputTokens: Int = 8192,
+    val maxOutputTokens: Int = 4096,
     val presencePenalty: Float = 0.0f,
     val frequencyPenalty: Float = 0.0f,
 
