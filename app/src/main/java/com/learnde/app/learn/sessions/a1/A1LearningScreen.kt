@@ -109,8 +109,12 @@ fun A1LearningScreen(
 @Composable
 private fun ChatSection(transcript: List<ConversationMessage>, isAiSpeaking: Boolean, isMicActive: Boolean, modifier: Modifier) {
     val listState = rememberLazyListState()
-    LaunchedEffect(transcript.size) { if (transcript.isNotEmpty()) listState.animateScrollToItem(transcript.size - 1) }
-    
+    val lastIndex by remember(transcript) { derivedStateOf { transcript.size - 1 } }
+
+    LaunchedEffect(lastIndex) {
+        if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
+    }
+
     Column(modifier) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Диалог", style = MaterialTheme.typography.labelSmall)
