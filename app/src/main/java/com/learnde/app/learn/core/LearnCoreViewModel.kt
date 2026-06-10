@@ -214,7 +214,6 @@ class LearnCoreViewModel @Inject constructor(
             finalizeUserTurn()
         }
 
-        lastModelActivityAtMs = System.currentTimeMillis()
         hasModelOutputThisTurn = true
 
         // Gemini Live шлёт incremental deltas (НЕ cumulative). Просто аппендим.
