@@ -112,7 +112,6 @@ class LearnCoreViewModel @Inject constructor(
     @Volatile private var lastSilencePromptAtMs: Long = 0L
     @Volatile private var droppedMicChunks: Int = 0
 
-    @Volatile private var lastModelActivityAtMs: Long = 0L
     @Volatile private var sessionReadyAtMs: Long = 0L
     @Volatile private var hasModelOutputThisTurn: Boolean = false
 
@@ -427,7 +426,6 @@ class LearnCoreViewModel @Inject constructor(
         awaitingInitialGreeting = false
         sessionFinished = false
         lastAiAudioChunkAtMs = 0L
-        lastModelActivityAtMs = 0L
         sessionReadyAtMs = 0L
         hasModelOutputThisTurn = false
         lastSilencePromptAtMs = 0L
@@ -472,7 +470,6 @@ class LearnCoreViewModel @Inject constructor(
         awaitingInitialGreeting = false
         sessionFinished = false
         lastAiAudioChunkAtMs = 0L
-        lastModelActivityAtMs = 0L
         sessionReadyAtMs = 0L
         hasModelOutputThisTurn = false
         lastSilencePromptAtMs = 0L
@@ -501,9 +498,11 @@ class LearnCoreViewModel @Inject constructor(
             )
         }
 
-        orchestrator.onPauseAudio = { stopMic() }
+        orchestrator.onPauseAudio  = { stopMic() }
         orchestrator.onResumeAudio = { startMic() }
-        orchestrator.onPermanentFailure = { msg -> _state.update { it.copy(error = UiText.Plain(msg)) } }
+        orchestrator.onPermanentFailure = { msg ->
+            _state.update { it.copy(error = UiText.Plain(msg)) }
+        }
         orchestrator.start(viewModelScope, activeApiKey, buildLearnSessionConfig(session),
             maxAttempts = cachedSettings.maxReconnectAttempts,
             baseDelayMs = cachedSettings.reconnectBaseDelayMs,
@@ -657,7 +656,6 @@ class LearnCoreViewModel @Inject constructor(
                     is GeminiEvent.AudioChunk -> {
                         val now = System.currentTimeMillis()
                         lastAiAudioChunkAtMs = now
-                        lastModelActivityAtMs = now
                         hasModelOutputThisTurn = true
                         orchestrator.onModelActivity()
 
@@ -749,9 +747,7 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.ToolCall -> {
-                        lastModelActivityAtMs = System.currentTimeMillis()
                         hasModelOutputThisTurn = true
-                        startStuckTurnWatchdog()
 
                         if (awaitingInitialGreeting) {
                             awaitingInitialGreeting = false
