@@ -131,7 +131,7 @@ class TutorHintClient @Inject constructor(
     //  REQUEST
     // ────────────────────────────────────────────────────────
 
-    private fun buildRequestBody(prompt: String) = buildJsonObject {
+    private fun buildRequestBody(prompt: String, thinkingLevel: String) = buildJsonObject {
         put("systemInstruction", buildJsonObject {
             put("parts", buildJsonArray {
                 add(buildJsonObject { put("text", SYSTEM_PROMPT) })
