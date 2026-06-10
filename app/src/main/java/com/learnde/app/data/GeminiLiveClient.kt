@@ -157,6 +157,11 @@ class GeminiLiveClient(
                 }
             }
 
+            override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                logger.d("WS closing: $code '$reason' — acknowledging")
+                runCatching { ws.close(1000, null) }
+            }
+
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 val desc = describeCloseCode(code)
                 logger.d("WS closed: $code $desc reason='$reason'")
@@ -506,8 +511,10 @@ class GeminiLiveClient(
                         add(buildJsonObject {
                             put("name", resp.name)
                             put("id", resp.id)
-                            put("response", buildJsonObject {
-                                put("result", resp.result)
+                            put("response", runCatching {
+                                json.parseToJsonElement(resp.result).jsonObject
+                            }.getOrElse {
+                                buildJsonObject { put("output", resp.result) }
                             })
                         })
                     }
