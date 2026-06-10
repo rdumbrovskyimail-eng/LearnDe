@@ -122,13 +122,6 @@ class GeminiLiveClient(
 
         val url = "wss://${SessionConfig.WS_HOST}/${SessionConfig.WS_PATH}?key=$apiKey"
         logger.d("Connecting to ${config.model}…")
-        logger.d("Diagnostic flags: minimal=${config.diagnosticMinimalSetup} " +
-                "thinking=${config.sendThinkingConfig} " +
-                "vad=${config.sendVadConfig} " +
-                "transcr=${config.sendTranscriptionConfig} " +
-                "resumption=${config.sendSessionResumptionConfig} " +
-                "compression=${config.sendContextCompressionConfig} " +
-                "genParams=${config.sendGenerationParams}")
 
         val request = Request.Builder().url(url).build()
 
@@ -250,15 +243,7 @@ class GeminiLiveClient(
 
         val raw = msg.toString()
         logger.d("SETUP → ${config.model} (${raw.length} chars)")
-
-        if (config.logFullSetupJson || logRawFrames) {
-            // Принтим полный JSON построчно чтобы не обрезался в logcat
-            logger.d("SETUP_RAW BEGIN ─────────────────")
-            raw.chunked(500).forEachIndexed { i, chunk ->
-                logger.d("  [$i] $chunk")
-            }
-            logger.d("SETUP_RAW END ───────────────────")
-        }
+        logger.d("Live setup: ${raw.take(600)}")
 
         trackSentFrame(raw)
         webSocket?.send(raw)
