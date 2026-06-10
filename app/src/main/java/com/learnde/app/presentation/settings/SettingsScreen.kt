@@ -181,6 +181,18 @@ fun SettingsScreen(
                     placeholder = "AIza…",
                     onValueChange = { viewModel.update { copy(apiKey = it) } }
                 )
+                SecureApiKeyField(
+                    value = s.tutorApiKey,
+                    label = "API-ключ №2 — подсказки (gemini-2.5-flash-lite)",
+                    placeholder = "AIza…",
+                    onValueChange = { viewModel.update { copy(tutorApiKey = it) } }
+                )
+                GeminiSwitch(
+                    title = "Информирующие карточки во время урока",
+                    checked = s.enableTutorHints,
+                    subtitle = "Показывать подсказки и карточки в процессе обучения.",
+                    onCheckedChange = { viewModel.update { copy(enableTutorHints = it) } }
+                )
                 Hint("Личный ключ Google AI Studio. Без него приложение не работает. aistudio.google.com → Get API key.")
 
                 SecureApiKeyField(
@@ -398,22 +410,6 @@ fun SettingsScreen(
                 }
             }
 
-            // ── 10. ИНСТРУМЕНТЫ ──
-            GeminiSection("10. Инструменты и функции") {
-                GeminiSwitch(
-                    title = "Поиск в Google",
-                    checked = s.enableGoogleSearch,
-                    subtitle = "Модель может искать актуальную информацию.",
-                    onCheckedChange = { viewModel.update { copy(enableGoogleSearch = it) } }
-                )
-                GeminiSwitch(
-                    title = "Включить 10 тестовых функций",
-                    checked = s.enableTestFunctions,
-                    subtitle = "Передать декларации test_function_1..10 в сессию. Без этого тест не работает.",
-                    onCheckedChange = { viewModel.update { copy(enableTestFunctions = it) } }
-                )
-            }
-
             // ── 11. ТЕМА ──
             GeminiSection("11. Тема оформления") {
                 GeminiDropdown(
@@ -427,42 +423,6 @@ fun SettingsScreen(
                     }
                 )
                 Hint("«По системе» — следует системной теме Android.")
-            }
-
-            // ── 12. СЦЕНА АВАТАРА ──
-            GeminiSection("12. Сцена аватара") {
-                GeminiDropdown(
-                    label = "Режим отображения",
-                    selected = s.sceneMode,
-                    options = SCENE_MODES.map { it.first.id },
-                    displayNames = SCENE_MODES.map { it.second },
-                    onSelected = { viewModel.update { copy(sceneMode = it) } }
-                )
-                Hint("3D-аватар (как сейчас), радужный визуализатор (чёрный фон + анимация) " +
-                        "или своя PNG-картинка.")
-
-                if (s.sceneMode == SceneMode.CUSTOM_IMAGE.id) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = { imagePicker.launch("image/png") },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Filled.Image, contentDescription = null)
-                            Spacer(Modifier.size(6.dp))
-                            Text(if (s.sceneBgHasImage) "Заменить картинку" else "Выбрать PNG")
-                        }
-                        if (s.sceneBgHasImage) {
-                            OutlinedButton(onClick = { viewModel.clearSceneBackground() }) {
-                                Text("Удалить", color = error)
-                            }
-                        }
-                    }
-                    Hint("Поддерживается PNG из галереи. Максимум 2560×2560.")
-                }
             }
 
             // ── 13. ЧАТ ──
