@@ -130,6 +130,7 @@ fun A0a1TestScreen(
     }
 
     if (showRationaleDialog) {
+        // КРИТИЧЕСКИЙ ФИКС: Явный проброс контекста в диалог для предотвращения ошибок компиляции
         MicPermissionRationaleDialog(
             showSettingsButton = rationaleIsPermanent,
             onDismiss = {
@@ -140,10 +141,11 @@ fun A0a1TestScreen(
                 showRationaleDialog = false
                 micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
             },
-            context = context,
+            context = context
         )
     }
 
+    // Автозапуск теста при переходе на экран, если ключи заданы
     LaunchedEffect(learnState.apiKeySet) {
         if (learnState.apiKeySet) {
             val hasMic = ContextCompat.checkSelfPermission(
@@ -191,6 +193,7 @@ fun A0a1TestScreen(
         ) {
             Spacer(Modifier.height(LearnDim.PaddingSm))
 
+            // ─── Header ───
             TopHeader(
                 phaseName = state.phase.name,
                 currentQuestion = state.currentQuestion,
@@ -200,6 +203,7 @@ fun A0a1TestScreen(
 
             Spacer(Modifier.height(LearnDim.PaddingMd))
 
+            // ─── Welcome / No Key state ───
             AnimatedVisibility(
                 visible = !learnState.apiKeySet,
                 enter = fadeIn() + androidx.compose.animation.expandVertically(),
@@ -225,7 +229,7 @@ fun A0a1TestScreen(
                         text = "Для работы голосового ИИ-ассистента необходимо задать ваш личный API-ключ Gemini в Настройках.",
                         fontSize = LearnTokens.FontSizeBody,
                         color = colors.textMid,
-                        textAlign = TextAlign.Center,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         lineHeight = 18.sp,
                     )
                     Spacer(Modifier.height(16.dp))
@@ -238,6 +242,7 @@ fun A0a1TestScreen(
                 }
             }
 
+            // ─── Error state ───
             AnimatedVisibility(
                 visible = learnState.apiKeySet && learnState.error != null,
                 enter = fadeIn() + androidx.compose.animation.expandVertically(),
@@ -257,7 +262,7 @@ fun A0a1TestScreen(
                             text = err.resolve(),
                             color = colors.error,
                             fontSize = LearnTokens.FontSizeBody,
-                            textAlign = TextAlign.Center,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                         Spacer(Modifier.height(8.dp))
                         Row(
@@ -280,6 +285,7 @@ fun A0a1TestScreen(
                 }
             }
 
+            // ─── Inline loader ───
             AnimatedVisibility(
                 visible = learnState.apiKeySet && learnState.isPreparingSession && learnState.transcript.isEmpty() && learnState.error == null,
                 enter = fadeIn() + androidx.compose.animation.expandVertically(),
@@ -296,12 +302,14 @@ fun A0a1TestScreen(
                 }
             }
 
+            // ─── Test Content ───
             AnimatedVisibility(
                 visible = learnState.apiKeySet && learnState.error == null && !learnState.isPreparingSession,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
                 Column {
+                    // ─── Question card + AudioParticleBox ───
                     Row(verticalAlignment = Alignment.Top) {
                         QuestionCard(
                             questionText = state.currentQuestionText
@@ -317,6 +325,7 @@ fun A0a1TestScreen(
 
                     Spacer(Modifier.weight(0.4f))
 
+                    // ─── ScoreCircle ───
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         ScoreCircle(
                             points = state.totalPoints,
@@ -327,6 +336,7 @@ fun A0a1TestScreen(
 
                     Spacer(Modifier.weight(0.4f))
 
+                    // ─── FeedbackCard ───
                     FeedbackCard(
                         verdictCorrect = state.lastAnswerCorrect,
                         reason = state.lastAnswerReason,
@@ -335,6 +345,7 @@ fun A0a1TestScreen(
 
                     Spacer(Modifier.height(LearnDim.PaddingMd))
 
+                    // ─── Goal chip ───
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         GoalChip(threshold = state.threshold, points = state.totalPoints)
                         Spacer(Modifier.weight(1f))
@@ -438,6 +449,7 @@ private fun TopHeader(
 @Composable
 private fun QuestionCard(questionText: String, modifier: Modifier = Modifier) {
     val colors = learnColors()
+    @Suppress("AnimateAsStateLabel")
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(LearnDim.RadiusMd))
@@ -493,6 +505,7 @@ private fun QuestionCard(questionText: String, modifier: Modifier = Modifier) {
 private fun ScoreCircle(points: Int, threshold: Int, lastPoints: Int?) {
     val colors = learnColors()
     val progress = if (threshold > 0) (points.toFloat() / threshold).coerceIn(0f, 1f) else 0f
+    @Suppress("AnimateAsStateLabel")
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
         animationSpec = tween(900, easing = FastOutSlowInEasing),
@@ -639,7 +652,7 @@ private fun FeedbackCard(
                         "Разбор Gemini",
                         color = colors.textLow,
                         fontSize = LearnType.Micro,
-                        letterSpacing = LearnType.CapsLetterSpacing,
+                        letterSpacing = LearnTokens.CapsLetterSpacing,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
@@ -677,7 +690,7 @@ private fun FeedbackRow(label: String, body: String) {
             label.uppercase(),
             color = colors.textLow,
             fontSize = LearnType.Micro,
-            letterSpacing = LearnType.CapsLetterSpacing,
+            letterSpacing = LearnTokens.CapsLetterSpacing,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(3.dp))
@@ -707,7 +720,7 @@ private fun GoalChip(threshold: Int, points: Int) {
                 "ЦЕЛЬ",
                 color = colors.textLow,
                 fontSize = LearnType.Micro,
-                letterSpacing = LearnType.CapsLetterSpacing,
+                letterSpacing = LearnTokens.CapsLetterSpacing,
                 fontWeight = FontWeight.SemiBold,
             )
             Row(verticalAlignment = Alignment.Bottom) {
