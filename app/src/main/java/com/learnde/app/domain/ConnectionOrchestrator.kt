@@ -197,9 +197,9 @@ class ConnectionOrchestrator @Inject constructor(
         runCatching { liveClient.disconnect() }
 
         for (attempt in 1..maxAttempts) {
-            val online = withTimeoutOrNull(NETWORK_WAIT_MS) {
-                networkMonitor.isOnline.first { it }
-            } != null
+            val online: Boolean = withTimeoutOrNull(NETWORK_WAIT_MS) {
+                networkMonitor.isConnected.first { connected -> connected }
+            } ?: false
             if (!online) {
                 logger.e("Link: no network ${NETWORK_WAIT_MS / 1000}s — abort")
                 break
