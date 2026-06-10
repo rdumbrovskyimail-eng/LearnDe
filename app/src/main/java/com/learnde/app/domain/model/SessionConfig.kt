@@ -60,10 +60,15 @@ data class SessionConfig(
 
     // ── VAD ──
     val autoActivityDetection: Boolean = true,
-    val vadStartSensitivity: String = "START_SENSITIVITY_LOW",
+    // Оптимум для начинающего ученика (официальные enum'ы AutomaticActivityDetection):
+    // START HIGH  — ловить тихую, неуверенную речь ученика;
+    // END LOW     — НЕ обрывать ученика, когда он думает над словом;
+    // prefix 300  — не терять первый слог;
+    // silence 900 — дать ученику паузу почти в секунду до окончания хода.
+    val vadStartSensitivity: String = "START_SENSITIVITY_HIGH",
     val vadEndSensitivity: String = "END_SENSITIVITY_LOW",
-    val vadPrefixPaddingMs: Int = 20,
-    val vadSilenceDurationMs: Int = 100,
+    val vadPrefixPaddingMs: Int = 300,
+    val vadSilenceDurationMs: Int = 900,
 
     // ── System Instruction ──
     val systemInstruction: String = DEFAULT_SYSTEM_INSTRUCTION,
@@ -94,41 +99,7 @@ data class SessionConfig(
     val sendAudioStreamEnd: Boolean = true,
 
     // ── Connection timeout ──
-    val setupTimeoutMs: Long = 10_000L,
-
-    // ═══════════════════════════════════════════════════════════
-    //  ДИАГНОСТИЧЕСКИЕ ФЛАГИ для поиска источника 1007
-    // ═══════════════════════════════════════════════════════════
-
-    /**
-     * Если true — отправляется ТОЛЬКО минимальный setup:
-     *   model + responseModalities + speechConfig + systemInstruction.
-     * Все остальные блоки игнорируются, даже если их флаги true.
-     *
-     * Используй для baseline-теста.
-     */
-    val diagnosticMinimalSetup: Boolean = false,
-
-    /** Отправлять ли generationConfig.thinkingConfig */
-    val sendThinkingConfig: Boolean = true,
-
-    /** Отправлять ли temperature/topP/topK/maxTokens в generationConfig */
-    val sendGenerationParams: Boolean = true,
-
-    /** Отправлять ли realtimeInputConfig с VAD */
-    val sendVadConfig: Boolean = true,
-
-    /** Отправлять ли transcription блоки */
-    val sendTranscriptionConfig: Boolean = true,
-
-    /** Отправлять ли sessionResumption */
-    val sendSessionResumptionConfig: Boolean = true,
-
-    /** Отправлять ли contextWindowCompression */
-    val sendContextCompressionConfig: Boolean = true,
-
-    /** Логировать ПОЛНЫЙ JSON setup (длинный!) */
-    val logFullSetupJson: Boolean = true
+    val setupTimeoutMs: Long = 10_000L
 ) {
     companion object {
 
@@ -138,68 +109,13 @@ data class SessionConfig(
          */
         const val DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
 
-        const val DEFAULT_SYSTEM_INSTRUCTION =
-            "Ты русскоязычный голосовой ассистент. " +
-            "Всегда отвечай только на русском языке. " +
-            "Слушай и понимай русскую речь. " +
-            "Отвечай кратко и по делу, не более 2-3 предложений, " +
-            "если пользователь не просит подробного ответа."
+        const val DEFAULT_SYSTEM_INSTRUCTION = "Ты — полезный голосовой ассистент."
 
         const val INPUT_SAMPLE_RATE = 16_000
         const val OUTPUT_SAMPLE_RATE = 24_000
 
         const val WS_HOST = "generativelanguage.googleapis.com"
         const val WS_PATH = "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
-
-        // ═════════════════════════════════════════════════════
-        //  ДИАГНОСТИЧЕСКИЕ ПРОФИЛИ — используй для поиска 1007
-        // ═════════════════════════════════════════════════════
-
-        /**
-         * 🟢 BASELINE — минимальный setup.
-         * Только model + responseModalities + speechConfig + systemInstruction.
-         *
-         * Если С ЭТИМ ПРОФИЛЕМ setup проходит и статус зелёный —
-         * значит 1007 ломает один из опциональных блоков.
-         * Далее используй withoutXxx-профили для точной локализации.
-         */
-        fun baselineProfile() = SessionConfig(
-            diagnosticMinimalSetup = true,
-            enableSessionResumption = false,
-            enableContextCompression = false,
-            inputTranscription = false,
-            outputTranscription = false,
-            logFullSetupJson = true
-        )
-
-        /** Убираем только thinking — если работает, проблема в thinkingConfig */
-        fun withoutThinkingProfile() = SessionConfig(
-            sendThinkingConfig = false,
-            logFullSetupJson = true
-        )
-
-        /** Убираем только VAD config — если работает, проблема в sensitivity-enum */
-        fun withoutVadProfile() = SessionConfig(
-            sendVadConfig = false,
-            logFullSetupJson = true
-        )
-
-        /** Убираем session mgmt — если работает, проблема в resumption/compression */
-        fun withoutSessionMgmtProfile() = SessionConfig(
-            sendSessionResumptionConfig = false,
-            sendContextCompressionConfig = false,
-            enableSessionResumption = false,
-            enableContextCompression = false,
-            logFullSetupJson = true
-        )
-
-        /** Убираем транскрипцию — если работает, проблема в transcription-блоках */
-        fun withoutTranscriptionProfile() = SessionConfig(
-            sendTranscriptionConfig = false,
-            inputTranscription = false,
-            outputTranscription = false,
-            logFullSetupJson = true
-        )
     }
 }
 
