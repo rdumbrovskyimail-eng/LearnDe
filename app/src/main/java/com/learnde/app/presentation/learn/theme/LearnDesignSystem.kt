@@ -1,22 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// КОНЕЧНАЯ ВЕРСИЯ v8.1 — ПОЛНАЯ ЗАМЕНА ФАЙЛА
+// КОНЕЧНАЯ ВЕРСИЯ v8.2 — ПОЛНАЯ ЗАМЕНА ФАЙЛА
 // Путь: app/src/main/java/com/learnde/app/presentation/learn/theme/LearnDesignSystem.kt
 //
-// ЧТО ИЗМЕНЕНО относительно вашей текущей версии (v8):
-//   ТОЛЬКО два объекта расширены алиасами — больше ни одной правки:
-//
-//   • LearnDim  += Padding*/Radius*/Border*/ButtonHeight*
-//     (экран теста обращается LearnDim.PaddingLg, LearnDim.RadiusMd,
-//      LearnDim.BorderThin — раньше эти члены жили только в LearnTokens)
-//
-//   • LearnType += Micro/Caption/Body/BodyLarge/Title/TitleLg/Display/
-//     CapsLetterSpacing (экран обращается LearnType.Micro, LearnType.Title —
-//      раньше в LearnType были только строчные micro/title)
-//
-// После этой замены A0a1TestScreen.kt и TutorHintClient.kt
-// КОМПИЛИРУЮТСЯ БЕЗ ЕДИНОЙ ПРАВКИ В НИХ. Все остальные экраны
-// продолжают работать: ни одно существующее имя не удалено и
-// не переименовано, значения идентичны.
+// ЧТО ИЗМЕНЕНО относительно v8.1:
+//   Фикс Platform declaration clash в LearnType:
+//   добавлены @get:JvmName к строчным свойствам display/title/body/caption/micro
+//   чтобы их JVM-сигнатуры не совпадали с заглавными алиасами Display/Title/Body/Caption/Micro.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.learn.theme
 
@@ -30,12 +19,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // ────────────────────────────────────────────────────────────
-//  1. ЦВЕТА: новый API в конструкторе + старый API как
-//     вычисляемые свойства тела класса (видны без импортов).
+//  1. ЦВЕТА
 // ────────────────────────────────────────────────────────────
 
 class LearnColors(
-    // ── Новый API (v7 «Студия») ──
     val background: Color,
     val surface: Color,
     val surfaceRaised: Color,
@@ -58,7 +45,6 @@ class LearnColors(
     val bubbleUser: Color,
     val bubbleSystem: Color,
 ) {
-    // ── Старый API ──
     val bg: Color            get() = background
     val surfaceVar: Color    get() = surfaceRaised
     val textHi: Color        get() = textPrimary
@@ -74,7 +60,6 @@ class LearnColors(
     val voiceEnd: Color      get() = warning
 }
 
-/** ТЁМНАЯ — «Студия»: графит + янтарь. */
 val StudioDark = LearnColors(
     background     = Color(0xFF0E1014),
     surface        = Color(0xFF161A21),
@@ -99,7 +84,6 @@ val StudioDark = LearnColors(
     bubbleSystem   = Color(0x00000000),
 )
 
-/** СВЕТЛАЯ — «бумага и чернила». */
 val StudioLight = LearnColors(
     background     = Color(0xFFF7F6F3),
     surface        = Color(0xFFFFFFFF),
@@ -129,7 +113,6 @@ val StudioLight = LearnColors(
 fun learnColors(): LearnColors =
     if (isSystemInDarkTheme()) StudioDark else StudioLight
 
-/** Прямые ссылки на цвета (если где-то остались обращения к палитре). */
 object LearnPalette {
     val BgLight        = StudioLight.background
     val BgDark         = StudioDark.background
@@ -161,11 +144,10 @@ object LearnPalette {
 }
 
 // ────────────────────────────────────────────────────────────
-//  2. LearnTokens — полный суперсет (без изменений)
+//  2. LearnTokens
 // ────────────────────────────────────────────────────────────
 
 object LearnTokens {
-    // ── Радиусы ──
     val RadiusXxs = 4.dp
     val RadiusXs  = 8.dp
     val RadiusSm  = 12.dp
@@ -173,23 +155,19 @@ object LearnTokens {
     val RadiusLg  = 18.dp
     val RadiusXl  = 24.dp
 
-    // ── Отступы ──
     val PaddingXs = 4.dp
     val PaddingSm = 8.dp
     val PaddingMd = 12.dp
     val PaddingLg = 16.dp
     val PaddingXl = 24.dp
 
-    // ── Линии ──
     val BorderThin   = 1.dp
     val BorderMedium = 1.5.dp
 
-    // ── Кнопки ──
     val ButtonHeightSm = 40.dp
     val ButtonHeightMd = 48.dp
     val ButtonHeightLg = 56.dp
 
-    // ── Типографика: полные имена ──
     val FontSizeMicro     = 9.sp
     val FontSizeCaption   = 11.sp
     val FontSizeBody      = 13.sp
@@ -198,7 +176,6 @@ object LearnTokens {
     val FontSizeTitleLg   = 22.sp
     val FontSizeDisplay   = 26.sp
 
-    // ── Типографика: короткие алиасы ──
     val Micro     = FontSizeMicro
     val Caption   = FontSizeCaption
     val Body      = FontSizeBody
@@ -211,7 +188,7 @@ object LearnTokens {
 }
 
 // ────────────────────────────────────────────────────────────
-//  3. Plural — русская плюрализация (без изменений)
+//  3. Plural
 // ────────────────────────────────────────────────────────────
 
 object Plural {
@@ -238,41 +215,44 @@ object Plural {
 }
 
 // ────────────────────────────────────────────────────────────
-//  4. LearnType — типографика «Студии» (строчные имена)
-//     + АЛИАСЫ к LearnTokens (Заглавные) — экраны используют оба стиля.
+//  4. LearnType
+//     ФИКС v8.2: @get:JvmName на строчных свойствах,
+//     конфликтующих с заглавными алиасами.
 // ────────────────────────────────────────────────────────────
 
 object LearnType {
     // ── Строчные (новые экраны «Студии») ──
+    @get:JvmName("displaySp")
     val display   = 26.sp
+    @get:JvmName("titleSp")
     val title     = 17.sp
     val chat      = 15.sp
     val chatLine  = 22.sp
+    @get:JvmName("bodySp")
     val body      = 13.sp
     val bodyLine  = 18.sp
     val label     = 12.sp
+    @get:JvmName("captionSp")
     val caption   = 11.sp
+    @get:JvmName("microSp")
     val micro     = 9.sp
 
-    // ── Заглавные алиасы (совместимость: LearnType.Micro и т.д.) ──
-    val Micro     = LearnTokens.Micro
-    val Caption   = LearnTokens.Caption
-    val Body      = LearnTokens.Body
-    val BodyLarge = LearnTokens.BodyLarge
-    val Title     = LearnTokens.Title
-    val TitleLg   = LearnTokens.TitleLg
-    val Display   = LearnTokens.Display
+    // ── Заглавные алиасы (LearnType.Micro, LearnType.Title и т.д.) ──
+    val Micro             = LearnTokens.Micro
+    val Caption           = LearnTokens.Caption
+    val Body              = LearnTokens.Body
+    val BodyLarge         = LearnTokens.BodyLarge
+    val Title             = LearnTokens.Title
+    val TitleLg           = LearnTokens.TitleLg
+    val Display           = LearnTokens.Display
     val CapsLetterSpacing = LearnTokens.CapsLetterSpacing
 }
 
 // ────────────────────────────────────────────────────────────
-//  5. LearnDim — сетка «Студии» (s1..s6, r*)
-//     + АЛИАСЫ к LearnTokens (Padding*/Radius*/Border*/ButtonHeight*) —
-//     экраны используют оба стиля квалификации.
+//  5. LearnDim
 // ────────────────────────────────────────────────────────────
 
 object LearnDim {
-    // ── Spacing (сетка 4) ──
     val s1: Dp = 4.dp
     val s2: Dp = 8.dp
     val s3: Dp = 12.dp
@@ -280,21 +260,18 @@ object LearnDim {
     val s5: Dp = 20.dp
     val s6: Dp = 24.dp
 
-    // ── Радиусы (строчные, новые экраны) ──
-    val rChip: Dp = 10.dp
-    val rCard: Dp = 14.dp
-    val rPanel: Dp = 20.dp
+    val rChip: Dp   = 10.dp
+    val rCard: Dp   = 14.dp
+    val rPanel: Dp  = 20.dp
     val rBubble: Dp = 16.dp
 
-    // ── Ключевые высоты единого экрана урока ──
-    val statusBarH: Dp = 44.dp
+    val statusBarH: Dp         = 44.dp
     val progressCollapsedH: Dp = 36.dp
-    val hintChipH: Dp = 36.dp
-    val bottomBarH: Dp = 76.dp
-    val micButton: Dp = 60.dp
-    val quickChipH: Dp = 32.dp
+    val hintChipH: Dp          = 36.dp
+    val bottomBarH: Dp         = 76.dp
+    val micButton: Dp          = 60.dp
+    val quickChipH: Dp         = 32.dp
 
-    // ── Алиасы совместимости (LearnDim.PaddingLg и т.д.) ──
     val PaddingXs: Dp get() = LearnTokens.PaddingXs
     val PaddingSm: Dp get() = LearnTokens.PaddingSm
     val PaddingMd: Dp get() = LearnTokens.PaddingMd
@@ -321,14 +298,14 @@ object LearnDim {
 // ────────────────────────────────────────────────────────────
 
 object LearnMotion {
-    const val micro = 140       // нажатия, переключатели
-    const val standard = 220    // раскрытие панелей, появление пузырей
-    const val emphasized = 320  // смена экранов, диалоги
+    const val micro      = 140
+    const val standard   = 220
+    const val emphasized = 320
     val easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 }
 
 // ────────────────────────────────────────────────────────────
-//  7. СТАТУСЫ СОЕДИНЕНИЯ → ЦВЕТ/ТЕКСТ
+//  7. СТАТУСЫ СОЕДИНЕНИЯ
 // ────────────────────────────────────────────────────────────
 
 @Composable
@@ -336,7 +313,7 @@ fun linkColor(stateName: String): Color {
     val c = learnColors()
     return when (stateName) {
         "READY"      -> c.success
-        "ROTATING"   -> c.success            // ротация незаметна — остаёмся зелёными
+        "ROTATING"   -> c.success
         "CONNECTING" -> c.warning
         "RECOVERING" -> c.warning
         "FAILED"     -> c.danger
