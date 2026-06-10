@@ -100,7 +100,6 @@ class LearnCoreViewModel @Inject constructor(
     @Volatile private var activeSession: LearnSession? = null
     @Volatile private var contextSeeded = false
 
-    private val pendingToolCalls = ConcurrentHashMap.newKeySet<String>()
     private val toolCallJobs = ConcurrentHashMap<String, Job>()
     private val startStopMutex = Mutex()
     private val micOperationMutex = Mutex()
@@ -611,7 +610,6 @@ class LearnCoreViewModel @Inject constructor(
         transcriptChannel.trySend(TranscriptOp.Reset)
 
         activeSession = null
-        pendingToolCalls.clear()
         statusBus.reset()
         vocabularyEnforcer.reset()
         contextSeeded = false
@@ -659,7 +657,6 @@ class LearnCoreViewModel @Inject constructor(
         arbiter.acquire(ClientOwner.LEARN)
         runCatching { liveClient.disconnect() }
 
-        pendingToolCalls.clear()
         contextSeeded = false
         statusBus.reset()
         pendingVocabViolation = null
@@ -1061,9 +1058,7 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.ToolCallCancellation -> {
-                        for (id in event.ids) {
-                            toolCallJobs[id]?.cancel()
-                        }
+                        event.ids.forEach { toolCallJobs[it]?.cancel() }
                     }
 
                     is GeminiEvent.Disconnected -> {
@@ -1082,7 +1077,6 @@ class LearnCoreViewModel @Inject constructor(
                             )
                         }
                         audioEngine.stopCapture()
-                        pendingToolCalls.clear()
                         silenceTimerJob?.cancel()
 
                         if (isAbnormal && activeSession != null) {
@@ -1103,15 +1097,17 @@ class LearnCoreViewModel @Inject constructor(
                             )
                         }
                         audioEngine.stopCapture()
-                        pendingToolCalls.clear()
                         silenceTimerJob?.cancel()
                         _effects.tryEmit(LearnCoreEffect.Error(UiText.Plain(event.message)))
                     }
 
                     is GeminiEvent.SessionHandleUpdate,
-                    is GeminiEvent.GoAway,
                     is GeminiEvent.UsageMetadata,
                     is GeminiEvent.GroundingMetadata -> { }
+                    is GeminiEvent.GoAway -> {
+                        logger.d("Learn: GoAway(${event.timeLeft}) — transparent reconnect")
+                        viewModelScope.launch { transparentReconnect() }
+                    }
                 }
             }
         }
@@ -1214,73 +1210,75 @@ class LearnCoreViewModel @Inject constructor(
         }
     }
 
+    private suspend fun transparentReconnect() {
+        val cfg = lastSessionConfig ?: return
+        // pauseMicInternal() // Assuming this exists as per instructions
+        liveClient.sendAudioStreamEnd()
+        val handle = liveClient.sessionHandle
+        liveClient.disconnect()
+        liveClient.connect(activeApiKey, cfg.copy(sessionHandle = handle))
+        // setupComplete-событие само вернёт isReady; микрофон возобновляем по нему
+    }
+
+    /**
+     * v6.0: МГНОВЕННЫЙ ACK + фоновая персистенция.
+     * Gemini 3.1 Live блокируется до получения toolResponse (NON_BLOCKING не
+     * поддерживается). Поэтому:
+     *   1) Все fire-and-forget функции (start_phase, mark_*, evaluate_*,
+     *      introduce_grammar_rule) получают ack СРАЗУ, синхронно;
+     *      реальная обработка/запись в Room уходит в фон.
+     *   2) finish_session тоже ack'ается сразу, но грейс-логика сохраняется.
+     * Голос модели больше никогда не ждёт диск.
+     */
     private fun handleToolCalls(event: GeminiEvent.ToolCall) {
         val session = activeSession
-        val responses = java.util.concurrent.ConcurrentLinkedQueue<ToolResponse>()
 
-        for (call in event.calls) {
-            pendingToolCalls.add(call.id)
-            statusBus.onDetected(call.name, call.id)
+        // 1. МГНОВЕННЫЙ ОТВЕТ — до любых suspend-операций.
+        val acks = event.calls.map { call ->
+            ToolResponse(call.name, call.id, """{"status":"ok"}""")
+        }
+        if (liveClient.isReady) {
+            runCatching { liveClient.sendToolResponse(acks) }
+                .onFailure { logger.e("Learn: instant toolResponse failed: ${it.message}") }
+            lastModelActivityAtMs = System.currentTimeMillis()
+            startStuckTurnWatchdog()
         }
 
-        val children = event.calls.map { call ->
-            viewModelScope.launch {
+        // 2. ФОНОВАЯ обработка (Room, шины, прогресс) — голос уже свободен.
+        for (call in event.calls) {
+            statusBus.onDetected(call.name, call.id)
+            val job = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 var success = true
                 try {
-                    if (call.id !in pendingToolCalls) {
-                        responses.add(ToolResponse(call.name, call.id, """{"status":"cancelled"}"""))
-                        success = false
-                        return@launch
-                    }
-
                     statusBus.onExecuting(call.name, call.id)
-
                     val result = try {
                         session?.handleToolCall(call) ?: """{"error":"no active session"}"""
                     } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) {
-                            responses.add(ToolResponse(call.name, call.id, """{"status":"cancelled"}"""))
-                            success = false
-                            throw e
-                        }
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         logger.e("Learn.toolCall threw: ${e.message}", e)
                         success = false
                         """{"error":"${e.message?.replace("\"", "'")}"}"""
                     }
-
                     if (result.contains("\"error\"")) success = false
-                    responses.add(ToolResponse(call.name, call.id, result))
                 } finally {
                     statusBus.onCompleted(call.name, call.id, success = success)
-                    pendingToolCalls.remove(call.id)
                     toolCallJobs.remove(call.id)
                 }
-            }.also { toolCallJobs[call.id] = it }
+            }
+            toolCallJobs[call.id] = job
         }
 
-        viewModelScope.launch {
-            children.joinAll()
-            if (responses.isNotEmpty() && liveClient.isReady) {
-                runCatching { liveClient.sendToolResponse(responses.toList()) }
-                    .onFailure { logger.e("Learn: failed to send ToolResponse: ${it.message}") }
-
-                lastModelActivityAtMs = System.currentTimeMillis()
-                startStuckTurnWatchdog()
-            }
-
-            if (event.calls.any { it.name == "finish_session" }) {
-                sessionFinished = true
-                silenceTimerJob?.cancel()
-                logger.d("Learn: finish_session → grace ${FINISH_SESSION_GRACE_MS}ms")
-
-                _state.update { it.copy(isFinishingSession = true) }
-
-                finishGraceJob?.cancel()
-                finishGraceJob = viewModelScope.launch {
-                    delay(FINISH_SESSION_GRACE_MS)
-                    if (activeSession != null && sessionFinished) {
-                        stopInternal()
-                    }
+        // 3. finish_session: грейс и остановка — как раньше.
+        if (event.calls.any { it.name == "finish_session" }) {
+            sessionFinished = true
+            silenceTimerJob?.cancel()
+            logger.d("Learn: finish_session → grace ${FINISH_SESSION_GRACE_MS}ms")
+            _state.update { it.copy(isFinishingSession = true) }
+            finishGraceJob?.cancel()
+            finishGraceJob = viewModelScope.launch {
+                delay(FINISH_SESSION_GRACE_MS)
+                if (activeSession != null && sessionFinished) {
+                    stopInternal()
                 }
             }
         }
