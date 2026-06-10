@@ -80,7 +80,8 @@ import com.learnde.app.learn.core.LearnCoreIntent
 import com.learnde.app.learn.core.LearnCoreViewModel
 import com.learnde.app.presentation.learn.components.AudioParticleBox
 import com.learnde.app.presentation.learn.components.CurrentFunctionBar
-import com.learnde.app.presentation.learn.theme.LearnTokens
+import com.learnde.app.presentation.learn.theme.LearnDim
+import com.learnde.app.presentation.learn.theme.LearnType
 import com.learnde.app.presentation.learn.theme.Plural
 import com.learnde.app.presentation.learn.theme.learnColors
 import kotlinx.coroutines.delay
@@ -181,10 +182,10 @@ fun A0a1TestScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = LearnTokens.PaddingLg)
+                .padding(horizontal = LearnDim.PaddingLg)
                 .padding(top = 4.dp),
         ) {
-            Spacer(Modifier.height(LearnTokens.PaddingSm))
+            Spacer(Modifier.height(LearnDim.PaddingSm))
 
             // ─── Header ───
             TopHeader(
@@ -194,7 +195,7 @@ fun A0a1TestScreen(
                 onBack = exitAndBack,
             )
 
-            Spacer(Modifier.height(LearnTokens.PaddingMd))
+            Spacer(Modifier.height(LearnDim.PaddingMd))
 
             // ─── Inline loader ───
             AnimatedVisibility(
@@ -205,7 +206,7 @@ fun A0a1TestScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = LearnTokens.PaddingMd),
+                        .padding(bottom = LearnDim.PaddingMd),
                 ) {
                     com.learnde.app.presentation.learn.components.InlineLoadingBar(
                         modifier = Modifier.fillMaxWidth()
@@ -220,7 +221,7 @@ fun A0a1TestScreen(
                         ?: "Подождите, вопрос подбирается…",
                     modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.width(LearnTokens.PaddingSm))
+                Spacer(Modifier.width(LearnDim.PaddingSm))
                 AudioParticleBox(
                     playbackSync = learnCoreViewModel.audioPlaybackFlow,
                     size = 56.dp,
@@ -247,7 +248,7 @@ fun A0a1TestScreen(
                 scoreRationale = state.lastScoreRationale,
             )
 
-            Spacer(Modifier.height(LearnTokens.PaddingMd))
+            Spacer(Modifier.height(LearnDim.PaddingMd))
 
             // ─── Goal chip ───
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -255,7 +256,7 @@ fun A0a1TestScreen(
                 Spacer(Modifier.weight(1f))
             }
 
-            Spacer(Modifier.height(LearnTokens.PaddingSm))
+            Spacer(Modifier.height(LearnDim.PaddingSm))
 
             CurrentFunctionBar(
                 status = fnStatus,
@@ -264,7 +265,7 @@ fun A0a1TestScreen(
                     .padding(vertical = 4.dp),
             )
 
-            Spacer(Modifier.height(LearnTokens.PaddingSm))
+            Spacer(Modifier.height(LearnDim.PaddingSm))
         }
     }
 }
@@ -294,29 +295,29 @@ private fun TopHeader(
             Text(
                 "Тестирование · $phaseName",
                 color = colors.textLow,
-                fontSize = LearnTokens.FontSizeMicro,
-                letterSpacing = LearnTokens.CapsLetterSpacing,
+                fontSize = LearnType.Micro,
+                letterSpacing = LearnType.CapsLetterSpacing,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 "Вопрос $currentQuestion из $totalQuestions",
                 color = colors.textHi,
-                fontSize = LearnTokens.FontSizeBodyLarge,
+                fontSize = LearnType.BodyLarge,
                 fontWeight = FontWeight.SemiBold,
             )
         }
 
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(LearnTokens.RadiusXs))
+                .clip(RoundedCornerShape(LearnDim.RadiusXs))
                 .background(colors.accentSoft)
                 .padding(horizontal = 10.dp, vertical = 4.dp),
         ) {
             Text(
                 "$phaseName-Test",
                 color = colors.accent,
-                fontSize = LearnTokens.FontSizeMicro,
-                letterSpacing = LearnTokens.CapsLetterSpacing,
+                fontSize = LearnType.Micro,
+                letterSpacing = LearnType.CapsLetterSpacing,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -353,10 +354,10 @@ private fun QuestionCard(questionText: String, modifier: Modifier = Modifier) {
     val colors = learnColors()
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(LearnTokens.RadiusMd))
+            .clip(RoundedCornerShape(LearnDim.RadiusMd))
             .background(colors.surface)
-            .border(LearnTokens.BorderThin, colors.stroke, RoundedCornerShape(LearnTokens.RadiusMd))
-            .padding(LearnTokens.PaddingMd),
+            .border(LearnDim.BorderThin, colors.stroke, RoundedCornerShape(LearnDim.RadiusMd))
+            .padding(LearnDim.PaddingMd),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -372,16 +373,16 @@ private fun QuestionCard(questionText: String, modifier: Modifier = Modifier) {
                     modifier = Modifier.size(11.dp),
                 )
             }
-            Spacer(Modifier.width(LearnTokens.PaddingSm))
+            Spacer(Modifier.width(LearnDim.PaddingSm))
             Text(
                 "Вопрос от Gemini",
                 color = colors.textLow,
-                fontSize = LearnTokens.FontSizeMicro,
-                letterSpacing = LearnTokens.CapsLetterSpacing,
+                fontSize = LearnType.Micro,
+                letterSpacing = LearnType.CapsLetterSpacing,
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        Spacer(Modifier.height(LearnTokens.PaddingSm))
+        Spacer(Modifier.height(LearnDim.PaddingSm))
 
         AnimatedContent(
             targetState = questionText,
@@ -394,7 +395,7 @@ private fun QuestionCard(questionText: String, modifier: Modifier = Modifier) {
             Text(
                 text = q,
                 color = colors.textHi,
-                fontSize = LearnTokens.FontSizeTitle,
+                fontSize = LearnType.Title,
                 lineHeight = 22.sp,
                 fontWeight = FontWeight.Medium,
             )
@@ -474,7 +475,7 @@ private fun ScoreCircle(points: Int, threshold: Int, lastPoints: Int?) {
                 Text(
                     gradeLabel,
                     color = colors.accent,
-                    fontSize = LearnTokens.FontSizeMicro,
+                    fontSize = LearnType.Micro,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -495,13 +496,13 @@ private fun ScoreCircle(points: Int, threshold: Int, lastPoints: Int?) {
                     modifier = Modifier
                         .clip(RoundedCornerShape(100))
                         .background(c.copy(alpha = 0.15f))
-                        .border(LearnTokens.BorderThin, c.copy(alpha = 0.5f), RoundedCornerShape(100))
+                        .border(LearnDim.BorderThin, c.copy(alpha = 0.5f), RoundedCornerShape(100))
                         .padding(horizontal = 8.dp, vertical = 3.dp),
                 ) {
                     Text(
                         "$sign$lp",
                         color = c,
-                        fontSize = LearnTokens.FontSizeBody,
+                        fontSize = LearnType.Body,
                         fontWeight = FontWeight.Bold,
                     )
                 }
@@ -532,10 +533,10 @@ private fun FeedbackCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(LearnTokens.RadiusMd))
+                .clip(RoundedCornerShape(LearnDim.RadiusMd))
                 .background(accentSoft)
-                .border(LearnTokens.BorderThin, accent.copy(alpha = 0.3f), RoundedCornerShape(LearnTokens.RadiusMd))
-                .padding(LearnTokens.PaddingMd),
+                .border(LearnDim.BorderThin, accent.copy(alpha = 0.3f), RoundedCornerShape(LearnDim.RadiusMd))
+                .padding(LearnDim.PaddingMd),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -547,25 +548,25 @@ private fun FeedbackCard(
                 ) {
                     Icon(icon, null, tint = Color.White, modifier = Modifier.size(13.dp))
                 }
-                Spacer(Modifier.width(LearnTokens.PaddingSm))
+                Spacer(Modifier.width(LearnDim.PaddingSm))
                 Column(Modifier.weight(1f)) {
                     Text(
                         "Разбор Gemini",
                         color = colors.textLow,
-                        fontSize = 9.sp,
-                        letterSpacing = LearnTokens.CapsLetterSpacing,
+                        fontSize = LearnType.Micro,
+                        letterSpacing = LearnType.CapsLetterSpacing,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         title,
                         color = accent,
-                        fontSize = LearnTokens.FontSizeBody,
+                        fontSize = LearnType.Body,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
             if (!reason.isNullOrBlank()) {
-                Spacer(Modifier.height(LearnTokens.PaddingSm))
+                Spacer(Modifier.height(LearnDim.PaddingSm))
                 FeedbackRow(label = "Почему", body = reason)
             }
             if (!scoreRationale.isNullOrBlank()) {
@@ -582,23 +583,23 @@ private fun FeedbackRow(label: String, body: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(LearnTokens.RadiusXs))
+            .clip(RoundedCornerShape(LearnDim.RadiusXs))
             .background(colors.surface)
-            .border(LearnTokens.BorderThin, colors.stroke, RoundedCornerShape(LearnTokens.RadiusXs))
+            .border(LearnDim.BorderThin, colors.stroke, RoundedCornerShape(LearnDim.RadiusXs))
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Text(
             label.uppercase(),
             color = colors.textLow,
-            fontSize = 9.sp,
-            letterSpacing = LearnTokens.CapsLetterSpacing,
+            fontSize = LearnType.Micro,
+            letterSpacing = LearnType.CapsLetterSpacing,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(3.dp))
         Text(
             body,
             color = colors.textHi,
-            fontSize = LearnTokens.FontSizeBody,
+            fontSize = LearnType.Body,
             lineHeight = 18.sp,
         )
     }
@@ -611,24 +612,24 @@ private fun GoalChip(threshold: Int, points: Int) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(LearnTokens.RadiusXs))
+            .clip(RoundedCornerShape(LearnDim.RadiusXs))
             .background(colors.surfaceVar)
-            .border(LearnTokens.BorderThin, colors.stroke, RoundedCornerShape(LearnTokens.RadiusXs))
+            .border(LearnDim.BorderThin, colors.stroke, RoundedCornerShape(LearnDim.RadiusXs))
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Column {
             Text(
                 "ЦЕЛЬ",
                 color = colors.textLow,
-                fontSize = 9.sp,
-                letterSpacing = LearnTokens.CapsLetterSpacing,
+                fontSize = LearnType.Micro,
+                letterSpacing = LearnType.CapsLetterSpacing,
                 fontWeight = FontWeight.SemiBold,
             )
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     "$threshold",
                     color = colors.textHi,
-                    fontSize = LearnTokens.FontSizeTitle,
+                    fontSize = LearnType.Title,
                     fontWeight = FontWeight.Bold,
                 )
 
@@ -642,14 +643,14 @@ private fun GoalChip(threshold: Int, points: Int) {
                 Text(
                     " $pointsStr",
                     color = colors.textMid,
-                    fontSize = LearnTokens.FontSizeCaption,
+                    fontSize = LearnType.Caption,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(bottom = 1.dp),
                 )
             }
         }
         if (need > 0) {
-            Spacer(Modifier.width(LearnTokens.PaddingSm))
+            Spacer(Modifier.width(LearnDim.PaddingSm))
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(100))
@@ -659,7 +660,7 @@ private fun GoalChip(threshold: Int, points: Int) {
                 Text(
                     "осталось $need",
                     color = colors.accent,
-                    fontSize = LearnTokens.FontSizeMicro,
+                    fontSize = LearnType.Micro,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
