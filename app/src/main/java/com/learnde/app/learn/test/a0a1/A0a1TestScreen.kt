@@ -81,6 +81,7 @@ import com.learnde.app.learn.core.LearnCoreViewModel
 import com.learnde.app.presentation.learn.components.AudioParticleBox
 import com.learnde.app.presentation.learn.components.CurrentFunctionBar
 import com.learnde.app.presentation.learn.theme.LearnDim
+import com.learnde.app.presentation.learn.theme.LearnTokens
 import com.learnde.app.presentation.learn.theme.LearnType
 import com.learnde.app.presentation.learn.theme.Plural
 import com.learnde.app.presentation.learn.theme.learnColors
