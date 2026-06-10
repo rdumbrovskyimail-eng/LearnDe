@@ -273,11 +273,7 @@ class A1LearningViewModel @Inject constructor(
                             finalFeedback = event.feedback,
                         )}
 
-                    is A1LearningEvent.GeminiInterrupted -> {
-                        _effects.tryEmit(A1LearningEffect.StopAudioPlayback)
-                        _effects.tryEmit(A1LearningEffect.ClearAudioQueue)
-                        _effects.tryEmit(A1LearningEffect.MarkTutorMessageClosed)
-                    }
+
                 }
             }
         }
