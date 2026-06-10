@@ -25,13 +25,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.learnde.app.learn.core.LearnCoreViewModel
-import com.learnde.app.presentation.editor.ModelEditorScreen
+import com.learnde.app.learn.test.a0a1.A0a1TestScreen
 import com.learnde.app.presentation.functions.FunctionsTestScreen
 import com.learnde.app.presentation.learn.LearnHubScreen
+import com.learnde.app.presentation.levelselect.LevelSelectScreen
 import com.learnde.app.presentation.onboarding.OnboardingScreen
 import com.learnde.app.presentation.settings.SettingsScreen
-import com.learnde.app.presentation.voice.VoiceScreen
 import com.learnde.app.presentation.learn.theme.learnColors
 
 object Routes {
@@ -281,13 +282,7 @@ fun AppNavGraph(
                 val level = entry.arguments?.getString("level") ?: "A0"
                 com.learnde.app.presentation.learn.StudyScreen(
                     level = level,
-                    onBack = { navController.popBackStack(Routes.LEARN_HUB, inclusive = false) },
-                    onOpenTranslator = {
-                        navController.navigate(Routes.LEARN_TRANSLATOR) { launchSingleTop = true }
-                    },
-                    onOpenFreeDialog = {
-                        navController.navigate(Routes.VOICE) { launchSingleTop = true }
-                    }
+                    onBack = { navController.popBackStack(Routes.LEARN_HUB, inclusive = false) }
                 )
             }
         }
