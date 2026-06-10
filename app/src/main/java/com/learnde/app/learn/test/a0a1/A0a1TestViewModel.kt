@@ -141,6 +141,10 @@ class A0a1TestViewModel @Inject constructor(
         _state.value = A0a1TestUiState(phase = TestPhase.A0)
     }
 
+    fun markTestPassed() {
+        viewModelScope.launch { settingsStore.updateData { it.copy(testPassed = true) } }
+    }
+
     override fun onCleared() {
         super.onCleared()
         autoFinishJob?.cancel()
