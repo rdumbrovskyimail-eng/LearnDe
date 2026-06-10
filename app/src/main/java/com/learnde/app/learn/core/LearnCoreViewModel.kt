@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.learnde.app.data.settings.AppSettings
 import com.learnde.app.domain.AudioEngine
+import com.learnde.app.domain.ConnectionOrchestrator
 import com.learnde.app.domain.LiveClient
 import com.learnde.app.domain.ToolResponse
 import com.learnde.app.domain.model.ConversationMessage
