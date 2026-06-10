@@ -104,9 +104,7 @@ class A0a1TestViewModel @Inject constructor(
             val passed = _state.value.isPassed
             val verdict = if (passed) TestVerdict.PASSED else TestVerdict.FAILED
             _state.update { it.copy(verdict = verdict, finished = true) }
-            if (passed) {
-                runCatching { settingsStore.updateData { it.copy(testPassed = true) } }
-            }
+            runCatching { settingsStore.updateData { it.copy(testPassed = true) } }
         }
     }
 
