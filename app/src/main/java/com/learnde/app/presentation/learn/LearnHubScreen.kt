@@ -86,10 +86,8 @@ private fun iconFor(key: String): ImageVector = when (key) {
 @Composable
 fun LearnHubScreen(
     onBack: () -> Unit,
-    onOpenTranslator: () -> Unit,
     onOpenA0a1Test: () -> Unit,
     onOpenA1Learning: () -> Unit,
-    onOpenVoiceClient: () -> Unit,
     onOpenGrammar: () -> Unit = {},
     onOpenDebugLogs: () -> Unit = {},
     learnCoreViewModel: LearnCoreViewModel,
@@ -106,7 +104,6 @@ fun LearnHubScreen(
                 is LearnHubEffect.ShowToast ->
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 is LearnHubEffect.NavigateToItem -> when (effect.route) {
-                    "learn/translator" -> onOpenTranslator()
                     "learn/a0a1" -> onOpenA0a1Test()
                     "learn/a1" -> onOpenA1Learning()
                     "learn/a1/grammar" -> onOpenGrammar()
