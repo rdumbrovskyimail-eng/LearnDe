@@ -32,7 +32,7 @@ fun MicPermissionRationaleDialog(
     showSettingsButton: Boolean,
     onDismiss: () -> Unit,
     onRequestAgain: () -> Unit,
-    context: Context = LocalContext.current, // Добавлен аргумент по умолчанию
+    context: Context = LocalContext.current, // Явный аргумент по умолчанию с поддержкой LocalContext
 ) {
     val colors = learnColors()
     AlertDialog(
