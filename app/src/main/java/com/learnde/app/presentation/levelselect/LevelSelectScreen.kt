@@ -40,6 +40,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.learnde.app.learn.data.db.A1ClusterDao
+import kotlinx.coroutines.flow.Flow
 import com.learnde.app.learn.data.db.A1LemmaDao
 import com.learnde.app.learn.data.db.ClusterA1Entity
 import com.learnde.app.learn.data.db.LemmaA1Entity
@@ -67,10 +68,10 @@ class LevelSelectViewModel @Inject constructor(
     lemmaDao: A1LemmaDao,
 ) : ViewModel() {
 
-    val state = combine<List<ClusterA1Entity>, List<LemmaA1Entity>, LevelSelectState>(
+    val state: kotlinx.coroutines.flow.StateFlow<LevelSelectState> = combine(
         clusterDao.observeAll(),
         lemmaDao.observeAll(),
-    ) { clusters, lemmas ->
+    ) { clusters: List<ClusterA1Entity>, lemmas: List<LemmaA1Entity> ->
         val mastered = clusters.count { it.masteryScore >= 0.7f }
         val total = clusters.size.coerceAtLeast(1)
         val progress = mastered.toFloat() / total
