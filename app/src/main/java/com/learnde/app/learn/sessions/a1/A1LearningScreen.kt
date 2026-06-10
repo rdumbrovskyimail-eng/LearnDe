@@ -21,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.*
 import androidx.compose.ui.text.font.FontWeight
@@ -134,7 +135,7 @@ private fun MicLevelIndicator(isMicActive: Boolean) {
     val infinite = rememberInfiniteTransition(label = "mic")
     val scale by infinite.animateFloat(0.8f, 1.2f, infiniteRepeatable(tween(500), RepeatMode.Reverse), label = "scale")
     if (isMicActive) {
-        Icon(Icons.Filled.Mic, null, tint = Color.Red, modifier = Modifier.scale(scale))
+        Icon(imageVector = Icons.Filled.Mic, contentDescription = null, tint = Color.Red, modifier = Modifier.scale(scale))
     }
 }
 
