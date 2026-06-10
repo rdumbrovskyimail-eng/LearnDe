@@ -109,10 +109,12 @@ fun A1LearningScreen(
 @Composable
 private fun ChatSection(transcript: List<ConversationMessage>, isAiSpeaking: Boolean, isMicActive: Boolean, modifier: Modifier) {
     val listState = rememberLazyListState()
-    val lastIndex by remember(transcript) { derivedStateOf { transcript.size - 1 } }
+    val isPinnedToBottom by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == transcript.lastIndex } }
 
-    LaunchedEffect(lastIndex) {
-        if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
+    LaunchedEffect(transcript.size) {
+        if (isPinnedToBottom) {
+            listState.animateScrollToItem(transcript.size.coerceAtLeast(0))
+        }
     }
 
     Column(modifier) {
