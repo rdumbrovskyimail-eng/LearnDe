@@ -87,16 +87,6 @@
     <init>(...);
 }
 
-# ═══════════════════════════════════════════════════════════
-#  SceneView / Filament / ARCore
-# ═══════════════════════════════════════════════════════════
--keep class com.google.android.filament.** { *; }
--keep class com.google.android.filament.utils.** { *; }
--keep class io.github.sceneview.** { *; }
--keep class com.google.ar.** { *; }
--dontwarn com.google.ar.core.**
--dontwarn com.google.ar.sceneform.**
--dontwarn com.google.android.filament.**
 
 # ═══════════════════════════════════════════════════════════
 #  Timber
