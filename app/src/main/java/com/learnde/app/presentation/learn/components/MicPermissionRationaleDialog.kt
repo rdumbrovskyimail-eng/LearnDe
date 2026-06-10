@@ -1,7 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v5.0 (Voice-First Minimalism)
-// Путь: app/src/main/java/com/learnde/app/presentation/learn/components/MicPermissionRationaleDialog.kt
-// ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.learn.components
 
 import android.app.Activity
@@ -23,6 +19,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,7 +32,7 @@ fun MicPermissionRationaleDialog(
     showSettingsButton: Boolean,
     onDismiss: () -> Unit,
     onRequestAgain: () -> Unit,
-    context: Context,
+    context: Context = LocalContext.current, // Добавлен аргумент по умолчанию
 ) {
     val colors = learnColors()
     AlertDialog(
