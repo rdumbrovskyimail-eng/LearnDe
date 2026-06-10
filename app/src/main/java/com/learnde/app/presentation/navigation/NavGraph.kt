@@ -35,25 +35,21 @@ import com.learnde.app.presentation.voice.VoiceScreen
 import com.learnde.app.presentation.learn.theme.learnColors
 
 object Routes {
-    const val ONBOARDING = "onboarding"
-    const val SETTINGS   = "settings"
-    const val VOICE      = "voice"
-    const val EDITOR     = "editor"
-    const val FUNCTIONS  = "functions"
+    const val GATE          = "gate"            // решает: тест или выбор уровня
+    const val A0A1_TEST     = "test/a0a1"
+    const val LEVEL_SELECT  = "levels"
+    const val SETTINGS      = "settings"
 
-    // ── Learn graph ──
     const val LEARN_GRAPH   = "learn_graph"
     const val LEARN_HUB     = "learn/hub"
-    const val LEARN_TRANSLATOR = "learn/translator"
-    const val LEARN_A0A1    = "learn/a0a1"
     const val LEARN_A1      = "learn/a1"
     const val LEARN_A1_WITH_CLUSTER = "learn/a1?clusterId={clusterId}"
     const val LEARN_A1_HISTORY = "learn/a1/history"
     const val LEARN_A1_VOCABULARY = "learn/a1/vocabulary"
     const val LEARN_A1_SESSION_DETAILS = "learn/a1/session/{sessionId}"
-    const val DEBUG_LOGS = "debug/logs"
     const val LEARN_A1_COURSE_MAP = "learn/a1/coursemap"
     const val LEARN_A1_GRAMMAR = "learn/a1/grammar"
+    const val DEBUG_LOGS = "debug/logs"
 }
 
 object VoiceGender {
@@ -74,20 +70,35 @@ fun AppNavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Routes.ONBOARDING,
+        startDestination = Routes.GATE,
     ) {
-        composable(
-            route = Routes.ONBOARDING,
-            enterTransition = { fadeIn(tween(250)) },
-            exitTransition  = { fadeOut(tween(200)) },
-        ) {
-            OnboardingScreen(
-                onNavigateToSettings = {
-                    navController.navigate(Routes.SETTINGS) {
-                        launchSingleTop = true
-                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+        composable(Routes.GATE) {
+            val settingsVm: GateViewModel = hiltViewModel()
+            val testPassed by settingsVm.testPassed.collectAsStateWithLifecycle(initialValue = null)
+            LaunchedEffect(testPassed) {
+                when (testPassed) {
+                    true  -> navController.navigate(Routes.LEVEL_SELECT) { popUpTo(Routes.GATE) { inclusive = true } }
+                    false -> navController.navigate(Routes.A0A1_TEST)    { popUpTo(Routes.GATE) { inclusive = true } }
+                    null  -> Unit // ждём чтения настроек
+                }
+            }
+            Box(Modifier.fillMaxSize().background(learnColors().background))
+        }
+
+        composable(Routes.A0A1_TEST) {
+            A0a1TestScreen(
+                onFinished = {
+                    navController.navigate(Routes.LEVEL_SELECT) {
+                        popUpTo(Routes.A0A1_TEST) { inclusive = true }
                     }
                 }
+            )
+        }
+
+        composable(Routes.LEVEL_SELECT) {
+            LevelSelectScreen(
+                onOpenA1 = { navController.navigate(Routes.LEARN_GRAPH) { launchSingleTop = true } },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) { launchSingleTop = true } },
             )
         }
 
@@ -107,50 +118,6 @@ fun AppNavGraph(
             )
         }
 
-        composable(
-            route = Routes.VOICE,
-            enterTransition = { slideInHorizontally(tween(300)) { -it } },
-            exitTransition  = { slideOutHorizontally(tween(300)) { -it } },
-        ) {
-            VoiceScreen(
-                onOpenEditor   = {
-                    navController.navigate(Routes.EDITOR) { launchSingleTop = true }
-                },
-                onOpenSettings = {
-                    navController.navigate(Routes.SETTINGS) {
-                        launchSingleTop = true
-                        popUpTo(Routes.SETTINGS) {
-                            inclusive = false
-                            saveState = true
-                        }
-                        restoreState = true
-                    }
-                },
-                onOpenFunctions = {
-                    navController.navigate(Routes.FUNCTIONS) { launchSingleTop = true }
-                },
-                onOpenLearnHub = {
-                    navController.navigate(Routes.LEARN_GRAPH) { launchSingleTop = true }
-                },
-            )
-        }
-
-        composable(
-            route = Routes.EDITOR,
-            enterTransition = { fadeIn(tween(250)) },
-            exitTransition  = { fadeOut(tween(200)) },
-        ) {
-            ModelEditorScreen(onBack = { navController.popBackStack() })
-        }
-
-        composable(
-            route = Routes.FUNCTIONS,
-            enterTransition = { fadeIn(tween(250)) },
-            exitTransition  = { fadeOut(tween(200)) },
-        ) {
-            FunctionsTestScreen(onBack = { navController.popBackStack() })
-        }
-
         navigation(
             route = Routes.LEARN_GRAPH,
             startDestination = Routes.LEARN_HUB,
@@ -161,53 +128,18 @@ fun AppNavGraph(
                 val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
                 LearnHubScreen(
                     onBack = {
-                        navController.navigate(Routes.SETTINGS) {
-                            popUpTo(Routes.SETTINGS) { inclusive = true }
+                        navController.navigate(Routes.LEVEL_SELECT) {
+                            popUpTo(Routes.LEVEL_SELECT) { inclusive = true }
                         }
-                    },
-                    onOpenTranslator = {
-                        navController.navigate(Routes.LEARN_TRANSLATOR) { launchSingleTop = true }
-                    },
-                    onOpenA0a1Test = {
-                        navController.navigate(Routes.LEARN_A0A1) { launchSingleTop = true }
                     },
                     onOpenA1Learning = {
                         navController.navigate(Routes.LEARN_A1) { launchSingleTop = true }
-                    },
-                    onOpenVoiceClient = {
-                        navController.navigate(Routes.VOICE) { launchSingleTop = true }
                     },
                     onOpenGrammar = {
                         navController.navigate(Routes.LEARN_A1_GRAMMAR) { launchSingleTop = true }
                     },
                     onOpenDebugLogs = {
                         navController.navigate(Routes.DEBUG_LOGS) { launchSingleTop = true }
-                    },
-                    learnCoreViewModel = learnCoreVm,
-                )
-            }
-
-            composable(Routes.LEARN_TRANSLATOR) { entry ->
-                val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
-                com.learnde.app.learn.sessions.translator.TranslatorScreen(
-                    onBack = { navController.popBackStack() },
-                    learnCoreViewModel = learnCoreVm,
-                )
-            }
-
-            composable(Routes.LEARN_A0A1) { entry ->
-                val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
-                com.learnde.app.learn.test.a0a1.A0a1TestScreen(
-                    onBack = { navController.popBackStack() },
-                    onNavigateToStudy = { level ->
-                        navController.navigate("learn/study/$level") {
-                            popUpTo(Routes.LEARN_HUB)
-                        }
-                    },
-                    onNavigateToRoute = { route ->
-                        navController.navigate(route) {
-                            popUpTo(Routes.LEARN_A0A1) { inclusive = true }
-                        }
                     },
                     learnCoreViewModel = learnCoreVm,
                 )
