@@ -505,7 +505,8 @@ class LearnCoreViewModel @Inject constructor(
         orchestrator.start(viewModelScope, activeApiKey, buildLearnSessionConfig(session),
             maxAttempts = cachedSettings.maxReconnectAttempts,
             baseDelayMs = cachedSettings.reconnectBaseDelayMs,
-            maxDelayMs  = cachedSettings.reconnectMaxDelayMs)
+            maxDelayMs  = cachedSettings.reconnectMaxDelayMs,
+            logRaw = cachedSettings.logRawWebSocketFrames)
 
         logger.d("◀ Learn.startInternal — awaiting SetupComplete")
     }
@@ -851,7 +852,7 @@ class LearnCoreViewModel @Inject constructor(
             }
 
             logger.d("Learn: sending initial greeting trigger")
-            liveClient.sendText(session.initialUserMessage)
+            liveClient.sendRealtimeText(session.initialUserMessage)
 
             greetingFallbackJob?.cancel()
             greetingFallbackJob = viewModelScope.launch {
