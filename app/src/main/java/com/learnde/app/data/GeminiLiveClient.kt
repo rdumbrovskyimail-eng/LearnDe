@@ -1,3 +1,25 @@
+// ═══════════════════════════════════════════════════════════
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/data/GeminiLiveClient.kt
+//
+// ФИКСЫ (сверено с официальной документацией ai.google.dev/api/live,
+// ai.google.dev/gemini-api/docs/live-api/* от 2026-06):
+//   [1] Schema types в functionDeclarations — ВЕРХНИЙ регистр
+//       ("OBJECT", "STRING", "INTEGER", "BOOLEAN"), как в официальной
+//       спецификации Schema.Type. Нижний регистр мог отвергаться
+//       парсером setup → close 1007 "Invalid JSON payload".
+//   [2] УДАЛЁН баг с дублированием required во вложенных object-схемах
+//       (был вложенный двойной forEach → n² дубликатов значений).
+//   [3] contextWindowCompression — это proto oneof (compressionMechanism):
+//       можно отправлять ТОЛЬКО ОДНО из {triggerTokens, slidingWindow}.
+//       Раньше при обоих > 0 отправлялись оба поля → invalid payload.
+//   [4] model нормализуется к формату "models/{model}" — официальное
+//       требование BidiGenerateContentSetup.model (Format: models/{model}).
+//   [5] Диагностика 1007/1008: setup-фрейм теперь сохраняется ВСЕГДА
+//       (независимо от logRaw) и при закрытии 1007/1008 логируется
+//       целиком (чанками), а не первые 2000 символов, в которые
+//       раньше не попадал блок tools из-за длинного systemInstruction.
+// ═══════════════════════════════════════════════════════════
 package com.learnde.app.data
 
 import android.util.Base64
@@ -84,6 +106,14 @@ class GeminiLiveClient(
     @Volatile
     private var setupWatchdog: Job? = null
 
+    /**
+     * [5] Setup — самый частый источник close 1007. Храним его ВСЕГДА,
+     * полностью, независимо от logRaw, чтобы диагностика работала
+     * «из коробки».
+     */
+    @Volatile
+    private var lastSetupFrame: String = ""
+
     private val lastSentFrames = java.util.ArrayDeque<String>(3)
 
     private fun trackSentFrame(raw: String) {
@@ -101,6 +131,7 @@ class GeminiLiveClient(
         logRawFrames = logRaw
         isReady = false
         synchronized(lastSentFrames) { lastSentFrames.clear() }
+        lastSetupFrame = ""
         closeCompletion = CompletableDeferred()
 
         val url = "wss://${SessionConfig.WS_HOST}/${SessionConfig.WS_PATH}?key=$apiKey"
@@ -143,16 +174,7 @@ class GeminiLiveClient(
                 logger.d("WS closed: $code $desc reason='$reason'")
 
                 if (code == 1007 || code == 1008) {
-                    synchronized(lastSentFrames) {
-                        if (lastSentFrames.isNotEmpty()) {
-                            logger.e("⚠ LAST SENT FRAMES before close $code:")
-                            lastSentFrames.forEachIndexed { i, frame ->
-                                logger.e("  [$i] $frame")
-                            }
-                        } else {
-                            logger.e("⚠ No frames tracked (enable logRaw to capture)")
-                        }
-                    }
+                    dumpDiagnostics(code)
                 }
 
                 cancelSetupWatchdog()
@@ -177,6 +199,34 @@ class GeminiLiveClient(
                 _events.tryEmit(GeminiEvent.ConnectionError(t.message ?: "Unknown error"))
             }
         })
+    }
+
+    /**
+     * [5] Полный дамп setup-фрейма + последних фреймов при 1007/1008.
+     * Setup логируется чанками по 3500 символов, чтобы logcat не резал.
+     */
+    private fun dumpDiagnostics(code: Int) {
+        val setup = lastSetupFrame
+        if (setup.isNotEmpty()) {
+            logger.e("⚠ FULL SETUP FRAME before close $code (${setup.length} chars):")
+            var i = 0
+            var part = 0
+            while (i < setup.length) {
+                val end = minOf(i + 3500, setup.length)
+                logger.e("  [setup ${part++}] ${setup.substring(i, end)}")
+                i = end
+            }
+        } else {
+            logger.e("⚠ No setup frame captured before close $code")
+        }
+        synchronized(lastSentFrames) {
+            if (lastSentFrames.isNotEmpty()) {
+                logger.e("⚠ LAST SENT FRAMES before close $code:")
+                lastSentFrames.forEachIndexed { i, frame ->
+                    logger.e("  [$i] $frame")
+                }
+            }
+        }
     }
 
     private fun startSetupWatchdog(timeoutMs: Long) {
@@ -221,8 +271,8 @@ class GeminiLiveClient(
         val setupJson = buildFullSetup(config)
         val raw = setupJson.toString()
         logger.d("SETUP → ${config.model} (${raw.length} chars)")
-        logger.d("Live setup context sanitized.")
 
+        lastSetupFrame = raw           // [5] всегда, не только при logRaw
         trackSentFrame(raw)
         webSocket?.send(raw)
     }
@@ -230,7 +280,13 @@ class GeminiLiveClient(
     private fun buildFullSetup(config: SessionConfig): JsonObject =
         buildJsonObject {
             put("setup", buildJsonObject {
-                put("model", config.model)
+                // [4] Официальный формат: "models/{model}".
+                // Нормализуем, чтобы конфиг был валиден независимо от того,
+                // пришла модель с префиксом или без.
+                val modelName =
+                    if (config.model.startsWith("models/")) config.model
+                    else "models/${config.model}"
+                put("model", modelName)
 
                 // ─── generationConfig ───
                 put("generationConfig", buildJsonObject {
@@ -253,6 +309,7 @@ class GeminiLiveClient(
                         })
                     }
 
+                    // Gemini 3.1: thinkingLevel ∈ { "minimal", "low", "medium", "high" }
                     val thinkingLevel = config.latencyProfile.thinkingLevel
                     if (thinkingLevel != null) {
                         put("thinkingConfig", buildJsonObject {
@@ -263,8 +320,8 @@ class GeminiLiveClient(
                         })
                     }
 
-                    // КРИТИЧЕСКИЙ ФИКС №1: mediaResolution должен передаваться строго внутри generationConfig
-                    // и только если он явно задан!
+                    // mediaResolution — только если явно задан валидный enum
+                    // (MEDIA_RESOLUTION_LOW / _MEDIUM / _HIGH).
                     if (config.mediaResolution.isNotBlank()) {
                         put("mediaResolution", config.mediaResolution)
                     }
@@ -282,7 +339,7 @@ class GeminiLiveClient(
                 }
 
                 // ─── Tools ───
-                // КРИТИЧЕСКИЙ ФИКС №2: tools передаются только если они не пустые, чтобы избежать ошибок парсера схем
+                // tools передаются только если они не пустые.
                 if (config.enableGoogleSearch || config.functionDeclarations.isNotEmpty()) {
                     put("tools", buildJsonArray {
                         if (config.enableGoogleSearch) {
@@ -315,7 +372,7 @@ class GeminiLiveClient(
                     })
                 })
 
-                // ─── Транскрипция (передаем только при активации) ───
+                // ─── Транскрипция (AudioTranscriptionConfig — пустой объект) ───
                 if (config.inputTranscription) {
                     put("inputAudioTranscription", buildJsonObject {})
                 }
@@ -323,7 +380,9 @@ class GeminiLiveClient(
                     put("outputAudioTranscription", buildJsonObject {})
                 }
 
-                // ─── History Config (Только для моделей Gemini 3.1) ───
+                // ─── History Config (только Gemini 3.1 Live) ───
+                // Официально: clientContent в 3.1 разрешён только для seeding
+                // начальной истории и требует history_config.
                 if (config.model.contains("3.1")) {
                     put("historyConfig", buildJsonObject {
                         put("initialHistoryInClientContent", true)
@@ -331,22 +390,26 @@ class GeminiLiveClient(
                 }
 
                 // ─── Session Resumption ───
-                if (config.enableSessionResumption && config.sessionHandle != null) {
+                if (config.enableSessionResumption) {
                     put("sessionResumption", buildJsonObject {
-                        put("handle", config.sessionHandle)
+                        // handle == null → новая сессия, но сервер начнёт
+                        // присылать SessionResumptionUpdate (нужно для rotate()).
+                        config.sessionHandle?.let { put("handle", it) }
                     })
                 }
 
                 // ─── Context Window Compression ───
-                if (config.enableContextCompression && (config.compressionTriggerTokens > 0L || config.compressionTargetTokens > 0L)) {
+                // [3] compressionMechanism — это oneof: ТОЛЬКО ОДНО поле.
+                if (config.enableContextCompression &&
+                    (config.compressionTriggerTokens > 0L || config.compressionTargetTokens > 0L)
+                ) {
                     put("contextWindowCompression", buildJsonObject {
-                        if (config.compressionTriggerTokens > 0L) {
-                            put("triggerTokens", config.compressionTriggerTokens)
-                        }
                         if (config.compressionTargetTokens > 0L) {
                             put("slidingWindow", buildJsonObject {
                                 put("targetTokens", config.compressionTargetTokens)
                             })
+                        } else {
+                            put("triggerTokens", config.compressionTriggerTokens)
                         }
                     })
                 }
@@ -358,7 +421,8 @@ class GeminiLiveClient(
             put("name", decl.name)
             put("description", decl.description)
             put("parameters", buildJsonObject {
-                put("type", "object")
+                // [1] Официальный Schema.Type — ВЕРХНИЙ регистр.
+                put("type", "OBJECT")
                 put("properties", buildJsonObject {
                     for ((pName, pConfig) in decl.parameters) {
                         put(pName, buildParameterSchema(pConfig))
@@ -374,8 +438,9 @@ class GeminiLiveClient(
 
     private fun buildParameterSchema(param: ParameterConfig): JsonObject =
         buildJsonObject {
-            val lowerType = param.type.lowercase()
-            put("type", lowerType)
+            // [1] STRING | NUMBER | INTEGER | BOOLEAN | ARRAY | OBJECT
+            val upperType = param.type.uppercase()
+            put("type", upperType)
             if (param.description.isNotBlank()) {
                 put("description", param.description)
             }
@@ -384,16 +449,18 @@ class GeminiLiveClient(
                     param.enumValues.forEach { add(JsonPrimitive(it)) }
                 })
             }
-            if (lowerType == "array" && param.items != null) {
+            if (upperType == "ARRAY" && param.items != null) {
                 put("items", buildParameterSchema(param.items))
             }
-            if (lowerType == "object" && param.properties.isNotEmpty()) {
+            if (upperType == "OBJECT" && param.properties.isNotEmpty()) {
                 put("properties", buildJsonObject {
                     param.properties.forEach { (k, v) -> put(k, buildParameterSchema(v)) }
                 })
                 if (param.required.isNotEmpty()) {
+                    // [2] ФИКС: раньше был вложенный двойной forEach,
+                    // создававший n² дубликатов в required.
                     put("required", buildJsonArray {
-                        param.required.forEach { param.required.forEach { add(JsonPrimitive(it)) } }
+                        param.required.forEach { add(JsonPrimitive(it)) }
                     })
                 }
             }
