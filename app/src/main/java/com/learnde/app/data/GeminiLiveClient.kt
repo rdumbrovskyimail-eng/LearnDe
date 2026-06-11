@@ -48,6 +48,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
@@ -519,18 +520,6 @@ class GeminiLiveClient(
         if (!isReady) return
         val raw = """{"realtimeInput":{"audioStreamEnd":true}}"""
         logger.d("AUDIO_STREAM_END →")
-        trackSentFrame(raw)
-        webSocket?.send(raw)
-    }
-
-    override fun sendTurnComplete() {
-        if (!isReady) return
-        val msg = buildJsonObject {
-            put("clientContent", buildJsonObject {
-                put("turnComplete", true)
-            })
-        }
-        val raw = msg.toString()
         trackSentFrame(raw)
         webSocket?.send(raw)
     }
