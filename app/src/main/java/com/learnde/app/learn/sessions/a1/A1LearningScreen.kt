@@ -62,6 +62,29 @@ fun A1LearningScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        vm.effects.collect { effect ->
+            when (effect) {
+                A1LearningEffect.RequestStartSession,
+                A1LearningEffect.RequestStartReviewSession -> {
+                    val sessionId = if (effect is A1LearningEffect.RequestStartReviewSession)
+                        "a1_review" else "a1_situation"
+                    val hasMic = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (hasMic) learnCoreViewModel.onIntent(LearnCoreIntent.Start(sessionId))
+                    else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+                A1LearningEffect.RequestStopSession ->
+                    learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
+                is A1LearningEffect.SendSystemTextToGemini ->
+                    learnCoreViewModel.sendSystemText(effect.text)
+                is A1LearningEffect.ShowToast ->
+                    Toast.makeText(context, effect.msg, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     Scaffold(
         containerColor = colors.bg,
         topBar = {
@@ -86,6 +109,13 @@ fun A1LearningScreen(
             }
 
             // Progress
+            if (state.loading) {
+                LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = LearnTokens.PaddingSm))
+            }
+            state.error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(vertical = LearnTokens.PaddingSm))
+            }
             CompactProgressRow(state)
             
             // Cluster Card
@@ -152,8 +182,81 @@ private fun ChatBubble(msg: ConversationMessage) {
 }
 
 @Composable
-private fun CompactProgressRow(state: A1LearningState) { /* ... implementation ... */ }
+private fun CompactProgressRow(state: A1LearningState) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        StatChip("Слова", "${state.lemmasSeen}/${state.totalLemmas}")
+        StatChip("Освоено", "${state.lemmasMastered}")
+        StatChip("Кластеры", "${state.clustersMastered}/${state.totalClusters}")
+        if (state.weakLemmasCount > 0) StatChip("Повторить", "${state.weakLemmasCount}")
+    }
+}
+
 @Composable
-private fun CompactClusterCard(cluster: Any, active: Boolean, expanded: Boolean, onToggle: () -> Unit) { /* ... implementation ... */ }
+private fun StatChip(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontWeight = FontWeight.SemiBold)
+        Text(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
 @Composable
-private fun BottomActionButton(state: A1LearningState, vm: A1LearningViewModel, core: LearnCoreViewModel) { /* ... implementation ... */ }
+private fun CompactClusterCard(
+    cluster: com.learnde.app.learn.data.db.ClusterA1Entity,
+    active: Boolean,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onToggle() }
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(cluster.titleRu, fontWeight = FontWeight.SemiBold)
+            Text(cluster.titleDe, style = MaterialTheme.typography.bodySmall)
+            if (active) Text("Урок идёт…", style = MaterialTheme.typography.labelSmall)
+            AnimatedVisibility(expanded) {
+                Column {
+                    Text("Грамматика: ${cluster.grammarFocus}",
+                        style = MaterialTheme.typography.bodySmall)
+                    Text("Категория: ${cluster.category} · сложность ${cluster.difficulty}/4",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomActionButton(
+    state: A1LearningState,
+    vm: A1LearningViewModel,
+    core: LearnCoreViewModel,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (state.sessionActive) {
+            Button(
+                onClick = { vm.onIntent(A1LearningIntent.StopSession) },
+                modifier = Modifier.weight(1f)
+            ) { Text("Завершить урок") }
+        } else {
+            Button(
+                onClick = { vm.onIntent(A1LearningIntent.StartNextCluster) },
+                enabled = !state.loading,
+                modifier = Modifier.weight(1f)
+            ) { Text("Начать урок") }
+            if (state.weakLemmasCount > 0) {
+                OutlinedButton(
+                    onClick = { vm.onIntent(A1LearningIntent.StartReviewSession) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Повторить (${state.weakLemmasCount})") }
+            }
+        }
+    }
+}
