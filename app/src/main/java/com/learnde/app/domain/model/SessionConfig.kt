@@ -29,9 +29,6 @@ data class ParameterConfig(
  *
  * ДИАГНОСТИЧЕСКИЕ ФЛАГИ (sendXxx) позволяют выключать отдельные блоки
  * setup для поиска источника close code 1007 "Invalid JSON payload".
- *
- * По умолчанию все блоки включены — если 1007, используй готовые
- * профили: baselineProfile(), withoutThinkingProfile(), и т.д.
  */
 data class SessionConfig(
 
@@ -44,8 +41,6 @@ data class SessionConfig(
     val topP: Float = 0.95f,
     val topK: Int = 0,
     val maxOutputTokens: Int = 4096,
-    val presencePenalty: Float = 0.0f,
-    val frequencyPenalty: Float = 0.0f,
 
     // ── Speech Config ──
     val voiceId: String = "Aoede",
@@ -76,16 +71,9 @@ data class SessionConfig(
     // ── Transcription ──
     val inputTranscription: Boolean = true,
     val outputTranscription: Boolean = true,
-    /**
-     * Список BCP-47 кодов языков для AudioTranscriptionConfig.languageCodes.
-     * Подсказка для ASR — ограничивает спекуляцию языка.
-     * Пустой = автоопределение (по умолчанию).
-     */
-    val transcriptionLanguageCodes: List<String> = emptyList(),
 
     // ── Session Management ──
     val enableSessionResumption: Boolean = true,
-    val transparentResumption: Boolean = true,
     val sessionHandle: String? = null,
     val enableContextCompression: Boolean = true,
     val compressionTriggerTokens: Long = 0L,
