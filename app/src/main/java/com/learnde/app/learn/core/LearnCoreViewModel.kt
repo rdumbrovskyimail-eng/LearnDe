@@ -342,7 +342,6 @@ class LearnCoreViewModel @Inject constructor(
             maxOf(cachedSettings.vadSilenceTimeoutMs, 500)
         else silenceMs
 
-        val finalLanguageCode = cachedSettings.languageCode
         val finalVoiceId = cachedSettings.voiceId
         val finalMaxTokens = cachedSettings.maxOutputTokens
         val finalTopP = cachedSettings.topP
@@ -350,7 +349,6 @@ class LearnCoreViewModel @Inject constructor(
 
         val inputTranscr = true
         val outputTranscr = true
-        val transcriptionLanguageCodes = emptyList<String>()
 
         return SessionConfig(
             model = cachedSettings.model,
@@ -359,7 +357,6 @@ class LearnCoreViewModel @Inject constructor(
             topK = finalTopK,
             maxOutputTokens = finalMaxTokens,
             voiceId = finalVoiceId,
-            languageCode = finalLanguageCode,
             latencyProfile = profile,
             autoActivityDetection = cachedSettings.enableServerVad,
             vadStartSensitivity = if (cachedSettings.vadStartOfSpeechSensitivity > 0.5f) "START_SENSITIVITY_HIGH"
@@ -371,7 +368,6 @@ class LearnCoreViewModel @Inject constructor(
             systemInstruction = finalSystemInstruction,
             inputTranscription = inputTranscr,
             outputTranscription = outputTranscr,
-            transcriptionLanguageCodes = transcriptionLanguageCodes,
             enableSessionResumption = false,
             sessionHandle = null,
             enableContextCompression = false,
@@ -598,10 +594,7 @@ class LearnCoreViewModel @Inject constructor(
             micOperationMutex.withLock {
                 audioEngine.stopCapture()
             }
-            when {
-                cachedSettings.sendAudioStreamEnd -> liveClient.sendAudioStreamEnd()
-                else -> liveClient.sendTurnComplete()
-            }
+            liveClient.sendAudioStreamEnd()
             orchestrator.onUserTurnEnded()
             _state.update {
                 it.copy(
