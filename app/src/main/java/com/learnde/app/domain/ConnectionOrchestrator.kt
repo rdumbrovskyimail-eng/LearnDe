@@ -1,3 +1,13 @@
+// ═══════════════════════════════════════════════════════════
+// ПОЛНАЯ ЗАМЕНА
+// Путь: app/src/main/java/com/learnde/app/domain/ConnectionOrchestrator.kt
+//
+// ФИКС:
+//   [1] connect() теперь получает logRaw из настроек. Раньше параметр
+//       никогда не передавался → переключатель «Логировать WebSocket-
+//       фреймы» не работал, и при close 1007 в логе было
+//       "No frames tracked" вместо диагностики.
+// ═══════════════════════════════════════════════════════════
 package com.learnde.app.domain
 
 import com.learnde.app.data.NetworkMonitor
@@ -60,6 +70,9 @@ class ConnectionOrchestrator @Inject constructor(
     private var baseDelayMs: Long = 2_000L
     private var maxDelayMs: Long = 30_000L
 
+    /** [1] Прокидывается во ВСЕ connect() (start / rotate / recover). */
+    private var logRaw: Boolean = false
+
     private var stuckJob: Job? = null
     @Volatile private var lastUserTurnEndedAt = 0L
     @Volatile private var modelRespondedSinceUserTurn = true
@@ -76,6 +89,7 @@ class ConnectionOrchestrator @Inject constructor(
         maxAttempts: Int,
         baseDelayMs: Long,
         maxDelayMs: Long,
+        logRaw: Boolean = false,
     ) {
         this.scope = scope
         this.apiKey = apiKey
@@ -83,11 +97,12 @@ class ConnectionOrchestrator @Inject constructor(
         this.maxAttempts = maxAttempts
         this.baseDelayMs = baseDelayMs
         this.maxDelayMs = maxDelayMs
+        this.logRaw = logRaw
         _rotations.value = 0
 
         opMutex.withLock {
             transition(LinkState.CONNECTING, "start")
-            liveClient.connect(apiKey, config)
+            liveClient.connect(apiKey, config, logRaw)
         }
     }
 
@@ -172,7 +187,7 @@ class ConnectionOrchestrator @Inject constructor(
             val handle = liveClient.sessionHandle
             liveClient.disconnect()
 
-            liveClient.connect(apiKey, cfg.copy(sessionHandle = handle))
+            liveClient.connect(apiKey, cfg.copy(sessionHandle = handle), logRaw)
             val ok = awaitReady(cfg.setupTimeoutMs + 2_000L)
             if (ok) {
                 _rotations.value += 1
@@ -212,7 +227,7 @@ class ConnectionOrchestrator @Inject constructor(
             delay(jittered)
 
             val handle = if (attempt == 1) liveClient.sessionHandle else null
-            runCatching { liveClient.connect(apiKey, cfg.copy(sessionHandle = handle)) }
+            runCatching { liveClient.connect(apiKey, cfg.copy(sessionHandle = handle), logRaw) }
 
             if (awaitReady(cfg.setupTimeoutMs + 2_000L)) {
                 logger.d("Link: recovered on attempt $attempt (handle=${handle != null})")
