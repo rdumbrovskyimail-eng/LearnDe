@@ -237,7 +237,7 @@ fun SettingsScreen(
                 Hint("Смена голоса автоматически меняет пол 3D-аватара.")
 
                 GeminiDropdown(
-                    label = "Язык ответа",
+                    label = "Язык ответа (не используется)",
                     selected = s.languageCode,
                     options = AVAILABLE_LANGUAGES.map { it.first },
                     displayNames = AVAILABLE_LANGUAGES.map { it.second },
@@ -341,12 +341,7 @@ fun SettingsScreen(
                     subtitle = "При обрыве сети диалог продолжится.",
                     onCheckedChange = { viewModel.update { copy(enableSessionResumption = it) } }
                 )
-                GeminiSwitch(
-                    title = "Прозрачное восстановление",
-                    checked = s.transparentResumption,
-                    subtitle = "Не терять сообщения при reconnect.",
-                    onCheckedChange = { viewModel.update { copy(transparentResumption = it) } }
-                )
+
                 GeminiSwitch(
                     title = "Сжатие контекста",
                     checked = s.enableContextCompression,
