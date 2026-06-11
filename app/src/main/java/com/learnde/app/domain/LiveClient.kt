@@ -94,7 +94,6 @@ interface LiveClient {
      */
     fun sendAudioStreamEnd()
 
-    fun sendTurnComplete()
     fun sendToolResponse(responses: List<ToolResponse>)
 
     /**
