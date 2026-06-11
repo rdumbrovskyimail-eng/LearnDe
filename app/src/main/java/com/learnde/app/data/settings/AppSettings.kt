@@ -39,7 +39,6 @@ data class AppSettings(
 
     // ═══════════════════ 3. VOICE ═══════════════════
     val voiceId: String = "Aoede",
-    val languageCode: String = "",
 
     // ═══════════════════ 4. AUDIO ═══════════════════
     val useAec: Boolean = true,
