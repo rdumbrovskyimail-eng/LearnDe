@@ -943,7 +943,7 @@ class LearnCoreViewModel @Inject constructor(
         }
 
         // 3. finish_session: грейс и остановка — как раньше.
-        if (event.calls.any { it.name == "finish_session" }) {
+        if (event.calls.any { it.name == "finish_session" || it.name == "finish_test" }) {
             sessionFinished = true
             silenceTimerJob?.cancel()
             logger.d("Learn: finish_session → grace ${FINISH_SESSION_GRACE_MS}ms")
