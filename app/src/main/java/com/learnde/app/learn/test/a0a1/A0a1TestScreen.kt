@@ -165,8 +165,11 @@ fun A0a1TestScreen(
             delay(1800)
             learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
 
-            androidx.compose.runtime.snapshotFlow { learnCoreViewModel.state.value.connectionStatus }
-                .first { it == com.learnde.app.learn.core.LearnConnectionStatus.Disconnected }
+            kotlinx.coroutines.withTimeoutOrNull(5_000) {
+                learnCoreViewModel.state.first {
+                    it.connectionStatus == com.learnde.app.learn.core.LearnConnectionStatus.Disconnected
+                }
+            }
 
             viewModel.markTestPassed()
 
