@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -160,28 +161,52 @@ fun A0a1TestScreen(
         }
     }
 
+    var showFailedDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(state.finished, state.verdict) {
         if (state.finished && state.verdict != TestVerdict.NONE) {
             delay(1800)
             learnCoreViewModel.onIntent(LearnCoreIntent.Stop)
-
             kotlinx.coroutines.withTimeoutOrNull(5_000) {
                 learnCoreViewModel.state.first {
                     it.connectionStatus == com.learnde.app.learn.core.LearnConnectionStatus.Disconnected
                 }
             }
-
-            viewModel.markTestPassed()
-
-            when (val step = viewModel.advanceToNextPhase()) {
-                is A0a1TestViewModel.TestNextStep.StartSession ->
-                    learnCoreViewModel.onIntent(LearnCoreIntent.Start(step.sessionId))
-                is A0a1TestViewModel.TestNextStep.NavigateRoute ->
-                    onNavigateToRoute(step.route)
-                A0a1TestViewModel.TestNextStep.Graduated ->
-                    onNavigateToStudy("B2_GRADUATE")
+            if (state.verdict == TestVerdict.PASSED) {
+                viewModel.markTestPassed()
+                when (val step = viewModel.advanceToNextPhase()) {
+                    is A0a1TestViewModel.TestNextStep.StartSession ->
+                        learnCoreViewModel.onIntent(LearnCoreIntent.Start(step.sessionId))
+                    is A0a1TestViewModel.TestNextStep.NavigateRoute ->
+                        onNavigateToRoute(step.route)
+                    A0a1TestViewModel.TestNextStep.Graduated ->
+                        onNavigateToStudy("B2_GRADUATE")
+                }
+            } else {
+                showFailedDialog = true
             }
         }
+    }
+
+    if (showFailedDialog) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Тест не пройден") },
+            text = { Text("Набрано ${state.totalPoints} из ${state.maxPoints} " +
+                "(порог ${state.threshold}). Попробуем ещё раз?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showFailedDialog = false
+                    viewModel.resetUiState()
+                    learnCoreViewModel.onIntent(LearnCoreIntent.Start("a0_test"))
+                }) { Text("Пересдать") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFailedDialog = false; exitAndBack() }) {
+                    Text("Выйти")
+                }
+            },
+        )
     }
 
     Box(
