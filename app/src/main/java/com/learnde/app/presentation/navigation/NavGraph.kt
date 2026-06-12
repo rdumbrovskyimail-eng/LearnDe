@@ -110,7 +110,7 @@ fun AppNavGraph(
 
         composable(Routes.LEVEL_SELECT) {
             LevelSelectScreen(
-                onOpenA1 = { navController.navigate(Routes.LEARN_GRAPH) { launchSingleTop = true } },
+                onOpenA1 = { navController.navigate(Routes.LEARN_A1) { launchSingleTop = true } },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) { launchSingleTop = true } },
             )
         }
