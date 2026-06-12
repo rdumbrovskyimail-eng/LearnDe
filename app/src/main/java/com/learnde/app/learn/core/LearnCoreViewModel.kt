@@ -121,8 +121,15 @@ class LearnCoreViewModel @Inject constructor(
 
     private val transcriptChannel = Channel<TranscriptOp>(Channel.UNLIMITED)
 
-    private sealed class TranscriptOp {
-        data class UserDelta(val text: String) : TranscriptOp()
+    private val fnNamePattern = Regex(
+        "\\b(introduce_grammar_rule|evaluate_and_update_lemma|mark_lemma_heard|" +
+        "mark_lemma_produced|start_phase|finish_session|ask_question|" +
+        "evaluate_answer|finish_test)\\b[ _]*[a-z0-9_]*"
+    )
+    private fun sanitizeModelText(t: String): String =
+        fnNamePattern.replace(t, "").trim()
+    
+    private sealed class TranscriptOp {        data class UserDelta(val text: String) : TranscriptOp()
         data class ModelDelta(val text: String, val source: String) : TranscriptOp()
         object UserTurnComplete : TranscriptOp()
         object ModelTurnComplete : TranscriptOp()
@@ -352,23 +359,21 @@ class LearnCoreViewModel @Inject constructor(
 
         return SessionConfig(
             model = cachedSettings.model,
-            temperature = temp,
+            temperature = 0.7f,
             topP = finalTopP,
             topK = finalTopK,
-            maxOutputTokens = finalMaxTokens,
+            maxOutputTokens = 4096,
             voiceId = finalVoiceId,
             latencyProfile = profile,
             autoActivityDetection = cachedSettings.enableServerVad,
-            vadStartSensitivity = if (cachedSettings.vadStartOfSpeechSensitivity > 0.5f) "START_SENSITIVITY_HIGH"
-                else "START_SENSITIVITY_LOW",
-            vadEndSensitivity = if (cachedSettings.vadEndOfSpeechSensitivity > 0.5f) "END_SENSITIVITY_HIGH"
-                else "END_SENSITIVITY_LOW",
-            vadSilenceDurationMs = finalSilenceMs,
-            vadPrefixPaddingMs = prefixMs,
+            vadStartSensitivity = "START_SENSITIVITY_HIGH",
+            vadEndSensitivity = "END_SENSITIVITY_LOW",
+            vadSilenceDurationMs = 900,
+            vadPrefixPaddingMs = 300,
             systemInstruction = finalSystemInstruction,
             inputTranscription = inputTranscr,
             outputTranscription = outputTranscr,
-            enableSessionResumption = false,
+            enableSessionResumption = true,
             sessionHandle = null,
             enableContextCompression = false,
             enableGoogleSearch = false,
@@ -727,7 +732,7 @@ class LearnCoreViewModel @Inject constructor(
                             greetingFallbackJob?.cancel()
                         }
 
-                        transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "OutputTranscript"))
+                        transcriptChannel.trySend(TranscriptOp.ModelDelta(sanitizeModelText(event.text), "OutputTranscript"))
                     }
 
                     is GeminiEvent.ModelText -> {
@@ -736,7 +741,7 @@ class LearnCoreViewModel @Inject constructor(
                             greetingFallbackJob?.cancel()
                         }
                         orchestrator.onModelActivity()
-                        transcriptChannel.trySend(TranscriptOp.ModelDelta(event.text, "ModelText"))
+                        transcriptChannel.trySend(TranscriptOp.ModelDelta(sanitizeModelText(event.text), "ModelText"))
                     }
 
                     is GeminiEvent.ToolCall -> {
