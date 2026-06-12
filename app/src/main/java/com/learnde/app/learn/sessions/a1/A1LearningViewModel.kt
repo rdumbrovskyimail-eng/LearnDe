@@ -1,11 +1,15 @@
 // ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА v3.2
+// ПОЛНАЯ ЗАМЕНА — v4
 // Путь: app/src/main/java/com/learnde/app/learn/sessions/a1/A1LearningViewModel.kt
 //
-// ИЗМЕНЕНИЯ v3.2:
-//   - Поддержка StartReviewSession — подготавливает A1ReviewSession и стартует
-//   - Расчёт weakLemmasCount (лемм с productionScore < 0.5)
-//   - Флаг isReviewMode в state
+// ИЗМЕНЕНИЯ v4:
+//   [1] Интегрирован TutorHintEngine (Gemini 3.1 Flash Lite, второй контур):
+//       стартует вместе с уроком, наполняет карточки-подсказки параллельно
+//       голосовой модели, останавливается при завершении/выходе.
+//       UI получает hintCards / hintUnread, бейдж сбрасывается markHintsRead().
+//   [2] Страховка данных: если версия данных актуальна, а БД пуста
+//       (прерванный импорт, очистка) — принудительный реимпорт.
+//   [3] TutorHintEngine получает леммы кластера для контекста подсказок.
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1
 
@@ -19,6 +23,8 @@ import com.learnde.app.learn.data.db.A1UserProgressDao
 import com.learnde.app.learn.domain.A1SessionPlanner
 import com.learnde.app.learn.domain.ErrorDiagnosis
 import com.learnde.app.learn.domain.Intervention
+import com.learnde.app.learn.tutor.TutorHintCard
+import com.learnde.app.learn.tutor.TutorHintEngine
 import com.learnde.app.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -29,6 +35,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
 @HiltViewModel
@@ -40,8 +48,9 @@ class A1LearningViewModel @Inject constructor(
     private val grammarDao: A1GrammarDao,
     private val progressDao: A1UserProgressDao,
     private val session: A1SituationSession,
-    private val reviewSession: A1ReviewSession,    // v3.2: NEW
+    private val reviewSession: A1ReviewSession,
     private val bus: A1LearningBus,
+    private val tutorHintEngine: TutorHintEngine,   // v4: NEW — контур подсказок
     private val logger: AppLogger,
 ) : ViewModel() {
 
@@ -54,17 +63,32 @@ class A1LearningViewModel @Inject constructor(
     )
     val effects: SharedFlow<A1LearningEffect> = _effects.asSharedFlow()
 
+    // ─── v4: Карточки второго контура (3.1 Flash Lite) — прямо в UI ───
+    val hintCards: StateFlow<List<TutorHintCard>> = tutorHintEngine.cards
+    val hintUnread: StateFlow<Int> = tutorHintEngine.unreadCount
+
+    /** Панель раскрыта — бейдж непрочитанного сбрасывается. */
+    fun markHintsRead() = tutorHintEngine.markAllRead()
+
+    private val lemmasJson = Json { ignoreUnknownKeys = true }
+
     init {
         viewModelScope.launch {
             runCatching {
                 importer.importIfNeeded()
+                // [2] Страховка: флаг записан, а данных нет → реимпорт.
                 if (clusterDao.getTotalCount() == 0) {
                     logger.w("A1ViewModel: БД пуста при актуальной версии — принудительный реимпорт")
                     importer.forceReimport()
                 }
             }.onFailure {
                 logger.e("A1ViewModel: import failed: ${it.message}", it)
-                _state.update { s -> s.copy(loading = false, error = "Не удалось загрузить данные A1: ${it.message}") }
+                _state.update { s ->
+                    s.copy(
+                        loading = false,
+                        error = "Не удалось загрузить данные A1: ${it.message}"
+                    )
+                }
                 return@launch
             }
             refresh()
@@ -82,19 +106,16 @@ class A1LearningViewModel @Inject constructor(
             is A1LearningIntent.StopSession -> {
                 _effects.tryEmit(A1LearningEffect.RequestStopSession)
                 _state.update { it.copy(sessionActive = false, isReviewMode = false) }
+                tutorHintEngine.stopAndClear()                       // v4
             }
             is A1LearningIntent.DisputeEvaluation -> viewModelScope.launch {
-                // Для review — пропускаем, у неё своя логика (TODO если понадобится)
                 if (!_state.value.isReviewMode) {
                     session.disputeEvaluation(intent.lemma)
                 }
-
-                // ФИКС: Сообщаем Gemini о disputed evaluation.
                 _effects.tryEmit(A1LearningEffect.SendSystemTextToGemini(
                     "[СИСТЕМА]: Ученик оспорил твою оценку слова '${intent.lemma}'. " +
                     "Считай ответ правильным, кратко извинись по-русски и продолжай урок."
                 ))
-
                 _effects.tryEmit(A1LearningEffect.ShowToast("Оценка исправлена!"))
                 _state.update { s ->
                     val ev = s.lastEvaluation
@@ -137,7 +158,6 @@ class A1LearningViewModel @Inject constructor(
         val next = planner.pickNextCluster()
         val userProgress = progressDao.get()
 
-        // v3.2: Посчитать weak lemmas для UI-бейджа "Повторить"
         val weakCount = lemmaDao.getWeakestLemmas(limit = 50).size +
                        lemmaDao.getDueForReview(limit = 50).size
 
@@ -199,12 +219,18 @@ class A1LearningViewModel @Inject constructor(
                 finalFeedback = null,
             )
         }
+
+        // v4 [1]+[3]: второй контур стартует синхронно с уроком,
+        // зная тему и слова кластера.
+        tutorHintEngine.start(
+            scope = viewModelScope,
+            topic = cluster.titleRu,
+            lemmas = parseLemmas(cluster.lemmasJson),
+        )
+
         _effects.tryEmit(A1LearningEffect.RequestStartSession)
     }
 
-    /**
-     * v3.2: Стартуем быструю review-сессию.
-     */
     private suspend fun startReviewSession() {
         val weakCount = _state.value.weakLemmasCount
         if (weakCount == 0) {
@@ -214,7 +240,6 @@ class A1LearningViewModel @Inject constructor(
             return
         }
 
-        // Подготавливаем леммы в самой сессии (вызывается до LearnCoreIntent.Start)
         reviewSession.prepareLemmas(limit = 15)
 
         _state.update {
@@ -231,6 +256,13 @@ class A1LearningViewModel @Inject constructor(
                 finalFeedback = null,
             )
         }
+
+        // v4: подсказки в режиме повторения — по слабым леммам.
+        tutorHintEngine.start(
+            scope = viewModelScope,
+            topic = "Повторение слабых слов",
+            lemmas = lemmaDao.getWeakestLemmas(limit = 15).map { it.lemma },
+        )
 
         _effects.tryEmit(A1LearningEffect.RequestStartReviewSession)
     }
@@ -270,15 +302,18 @@ class A1LearningViewModel @Inject constructor(
                     is A1LearningEvent.GrammarIntroduced ->
                         _state.update { it.copy(grammarIntroducedInSession = event.ruleName) }
 
-                    is A1LearningEvent.SessionFinished ->
+                    is A1LearningEvent.SessionFinished -> {
                         _state.update { it.copy(
                             sessionFinished = true,
                             sessionActive = false,
                             finalQuality = event.overallQuality,
                             finalFeedback = event.feedback,
                         )}
-
-
+                        // v4: урок закончился — контур подсказок больше не нужен.
+                        // Карточки оставляем видимыми до закрытия финального диалога?
+                        // Нет: stopAndClear чистит список — ученик уже получил итог.
+                        tutorHintEngine.stopAndClear()
+                    }
                 }
             }
         }
@@ -312,6 +347,10 @@ class A1LearningViewModel @Inject constructor(
         }
     }
 
+    private fun parseLemmas(json: String): List<String> =
+        runCatching { lemmasJson.decodeFromString<List<String>>(json) }
+            .getOrElse { emptyList() }
+
     private fun appendTranscript(current: String, chunk: String): String {
         if (chunk.isEmpty()) return current
         if (current.endsWith(chunk)) return current
@@ -321,5 +360,10 @@ class A1LearningViewModel @Inject constructor(
                 return current + chunk.substring(k)
         }
         return current + chunk
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        tutorHintEngine.stopAndClear()   // v4: не оставляем висящий контур
     }
 }
