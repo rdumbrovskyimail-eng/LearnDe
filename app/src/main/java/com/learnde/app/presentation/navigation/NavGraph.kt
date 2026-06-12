@@ -97,7 +97,13 @@ fun AppNavGraph(
             A0a1TestScreen(
                 onBack = goToLevels,
                 onNavigateToStudy = { _ -> goToLevels() },
-                onNavigateToRoute = { _ -> goToLevels() },
+                onNavigateToRoute = { route ->
+                    // Кладём LEVEL_SELECT в backstack, чтобы «Назад» из A1 не закрывал приложение
+                    navController.navigate(Routes.LEVEL_SELECT) {
+                        popUpTo(Routes.A0A1_TEST) { inclusive = true }
+                    }
+                    navController.navigate(route) { launchSingleTop = true }
+                },
                 learnCoreViewModel = learnCoreViewModel,
             )
         }
