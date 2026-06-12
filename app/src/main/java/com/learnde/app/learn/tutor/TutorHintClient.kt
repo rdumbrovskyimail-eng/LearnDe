@@ -56,7 +56,7 @@ class TutorHintClient @Inject constructor(
      * Запросить одну карточку.
      *
      * @param apiKey  отдельный ключ информирующей модели
-     * @param model   id модели (по умолчанию gemini-2.5-flash-lite)
+     * @param model   id модели (по умолчанию gemini-3.1-flash-lite)
      * @param prompt  пользовательский промт (контекст события урока)
      * @return карточка или null (любая ошибка деградирует молча — урок важнее)
      */
