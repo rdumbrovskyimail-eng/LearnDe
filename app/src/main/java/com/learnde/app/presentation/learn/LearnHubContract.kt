@@ -57,30 +57,6 @@ data class LearnHubState(
                 ),
                 implemented = true,
             ),
-            LearnHubItem(
-                id = "translator",
-                title = "Переводчик Live",
-                subtitle = "Двусторонний перевод в реальном времени",
-                badge = "LIVE",
-                iconKey = "Translate",
-                accentKey = "Accent",
-                detailStats = listOf(
-                    "RU/UA" to "ваш язык",
-                    "↔" to "",
-                    "DE" to "немецкий",
-                ),
-                implemented = true,
-            ),
-            LearnHubItem(
-                id = "grammar_book",
-                title = "Грамматика A1",
-                subtitle = "Все правила · вне диалога",
-                badge = "REFERENCE",
-                iconKey = "Book",
-                accentKey = "Accent",
-                detailStats = emptyList(),
-                implemented = true,
-            ),
         )
     }
 }
