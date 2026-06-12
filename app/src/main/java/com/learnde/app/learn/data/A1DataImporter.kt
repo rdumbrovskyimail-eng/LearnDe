@@ -16,6 +16,7 @@ import com.learnde.app.learn.data.db.A1UserProgressDao
 import com.learnde.app.learn.data.db.A1UserProgressEntity
 import com.learnde.app.learn.data.db.ClusterA1Entity
 import com.learnde.app.learn.data.db.LemmaA1Entity
+import com.learnde.app.learn.data.foundation.A1FoundationsCatalog
 import com.learnde.app.learn.data.grammar.A1GrammarCatalog
 import com.learnde.app.util.AppLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -104,6 +105,7 @@ class A1DataImporter @Inject constructor(
         try {
             importLemmas()
             importClusters()
+            A1FoundationsCatalog.ensureInserted(clusterDao, logger)
             importGrammar()
             ensureUserProgress()
 
@@ -218,5 +220,10 @@ class A1DataImporter @Inject constructor(
             progressDao.upsert(A1UserProgressEntity())
             logger.d("A1Importer: created user progress record")
         }
+    }
+
+    suspend fun forceReimport() = withContext(Dispatchers.IO) {
+        settingsStore.updateData { it.copy(a1DataImported = false, a1DataVersion = 0) }
+        importIfNeeded()
     }
 }
