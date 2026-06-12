@@ -56,12 +56,17 @@ class A1LearningViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            runCatching { importer.importIfNeeded() }
-                .onFailure {
-                    logger.e("A1ViewModel: import failed: ${it.message}", it)
-                    _state.update { s -> s.copy(loading = false, error = "Не удалось загрузить данные A1: ${it.message}") }
-                    return@launch
+            runCatching {
+                importer.importIfNeeded()
+                if (clusterDao.getTotalCount() == 0) {
+                    logger.w("A1ViewModel: БД пуста при актуальной версии — принудительный реимпорт")
+                    importer.forceReimport()
                 }
+            }.onFailure {
+                logger.e("A1ViewModel: import failed: ${it.message}", it)
+                _state.update { s -> s.copy(loading = false, error = "Не удалось загрузить данные A1: ${it.message}") }
+                return@launch
+            }
             refresh()
         }
         observeBus()
