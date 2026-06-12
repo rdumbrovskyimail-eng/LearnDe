@@ -221,6 +221,11 @@ class A1DataImporter @Inject constructor(
         }
     }
 
+    /**
+     * Принудительный реимпорт: сбрасывает флаги версии и запускает
+     * importIfNeeded() заново. Используется как страховка, когда флаг
+     * импорта записан, а таблицы пусты (прерванный импорт/очистка).
+     */
     suspend fun forceReimport() = withContext(Dispatchers.IO) {
         settingsStore.updateData { it.copy(a1DataImported = false, a1DataVersion = 0) }
         importIfNeeded()
