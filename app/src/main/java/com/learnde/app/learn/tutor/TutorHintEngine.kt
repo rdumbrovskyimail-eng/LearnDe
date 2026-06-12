@@ -194,13 +194,14 @@ class TutorHintEngine @Inject constructor(
 
         val settings = runCatching { settingsStore.data.first() }.getOrNull() ?: return
         if (!settings.enableTutorHints) return
-        if (settings.tutorApiKey.isBlank()) {
-            logger.d("TutorHint: tutorApiKey не задан — карточки выключены")
+        val effectiveKey = settings.tutorApiKey.ifBlank { settings.apiKey }
+        if (effectiveKey.isBlank()) {
+            logger.d("TutorHint: ключ не задан — карточки выключены")
             return
         }
 
         val response = client.fetchHint(
-            apiKey = settings.tutorApiKey,
+            apiKey = effectiveKey,
             model = settings.tutorModel,
             prompt = req.prompt,
             thinkingLevel = if (req.type == TutorHintType.GRAMMAR) "low" else "minimal",
