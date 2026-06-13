@@ -9,7 +9,7 @@ import com.learnde.app.learn.sessions.a1.A1LearningEvent
 import com.learnde.app.learn.sessions.a1.v2.A1AdaptiveSession
 import com.learnde.app.learn.sessions.a1.v2.SessionControlAction
 import com.learnde.app.learn.sessions.a1.v2.SessionControlBus
-import com.learnde.app.learn.util.AppLogger
+import com.learnde.app.util.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
