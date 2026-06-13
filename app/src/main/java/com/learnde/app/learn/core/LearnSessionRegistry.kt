@@ -14,6 +14,7 @@ import com.learnde.app.learn.sessions.a0a1.B1LearnSession
 import com.learnde.app.learn.sessions.a0a1.B2LearnSession
 import com.learnde.app.learn.sessions.a1.A1ReviewSession
 import com.learnde.app.learn.sessions.a1.A1SituationSession
+import com.learnde.app.learn.sessions.a1.v2.A1AdaptiveSession
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,6 +29,7 @@ class LearnSessionRegistry @Inject constructor(
     // Учебные сессии A1
     a1Learning: A1SituationSession,
     a1Review: A1ReviewSession,                // v3.2: NEW
+    a1Adaptive: A1AdaptiveSession,
 ) {
     private val sessions: Map<String, LearnSession> = mapOf(
         a0.id         to a0,
@@ -37,6 +39,7 @@ class LearnSessionRegistry @Inject constructor(
         b2.id         to b2,
         a1Learning.id to a1Learning,
         a1Review.id   to a1Review,             // v3.2: NEW
+        a1Adaptive.id to a1Adaptive,
     )
 
     fun get(id: String): LearnSession? = sessions[id]
