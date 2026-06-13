@@ -122,7 +122,7 @@ class LearnHubViewModel @Inject constructor(
                 }
                 val route = when (intent.itemId) {
                     "a0a1_test" -> "learn/a0a1"
-                    "a1_learning" -> "learn/a1"
+                    "a1_learning" -> "learn/studio" // ИСПРАВЛЕНО: Теперь открывает Студию
                     "translator" -> "learn/translator"
                     "grammar_book" -> "learn/a1/grammar"
                     else -> return
