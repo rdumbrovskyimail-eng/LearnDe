@@ -39,17 +39,9 @@ jobs:
           mkdir -p ~/.android
           echo "${{ secrets.DEBUG_KEYSTORE_B64 }}" | base64 -d > ~/.android/debug.keystore
 
-      - name: Provision Gradle Wrapper Jar
-        run: |
-          mkdir -p gradle/wrapper
-          curl -sLo gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.11.1/gradle/wrapper/gradle-wrapper.jar
-
-      - name: Make gradlew executable
-        run: chmod +x gradlew
-
       - name: Build Debug APK
         run: |
-          ./gradlew assembleDebug \
+          gradle assembleDebug \
             --parallel \
             --max-workers=4 \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m" \
@@ -77,7 +69,7 @@ jobs:
             🚀 **Ультра-легкая версия (работает через Cloud Gemini Live)**
             **Размер APK:** ${{ steps.pack.outputs.apk_mb }} MB
             
-            **Установка:** скачайте файл `.apk` ниже и установите на телефон.
+            **Установка:** скачайте файл `.apk` ниже и установите на телефон (распаковывать ничего не нужно!).
           files: |
             app/build/outputs/apk/debug/app-debug.apk
         env:
