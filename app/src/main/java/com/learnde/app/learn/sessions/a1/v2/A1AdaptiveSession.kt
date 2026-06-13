@@ -287,7 +287,7 @@ class A1AdaptiveSession @Inject constructor(
         val lemma = call.args["lemma"]?.trim() ?: return err("no lemma")
         heardLemmas.add(lemma)
         bus.emit(A1LearningEvent.LemmaHeard(lemma))
-        runCatching { lemmaDao.markHeard(lemma, System.currentTimeMillis()) }
+        runCatching { lemmaDao.incrementTimesHeard(lemma, System.currentTimeMillis()) }
         return ok()
     }
 
