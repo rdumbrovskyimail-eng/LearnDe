@@ -119,11 +119,11 @@ class LessonScriptPlanner @Inject constructor(
                     add(
                         kind = StepKind.RETRIEVE_NEW,
                         lemma = target,
-                    instruction = "Спроси по-русски: «Как сказать " +
-                        "‘${translationHint(target)}’?» Жди ответа. " +
-                        "После ответа ОБЯЗАТЕЛЬНО evaluate_and_update_lemma " +
-                        "(lemma=\"${target.lemma}\"), затем step_done.",
-                )
+                        instruction = "Спроси по-русски: «Как сказать " +
+                            "‘${translationHint(target)}’?» Жди ответа. " +
+                            "После ответа ОБЯЗАТЕЛЬНО evaluate_and_update_lemma " +
+                            "(lemma=\"${target.lemma}\"), затем step_done.",
+                    )
                     pendingUse.addLast(target)
                 }
             }
@@ -295,7 +295,7 @@ class LessonScriptPlanner @Inject constructor(
         val full = fullForm(n)
         return "Введи слово «$full» (${n.pos}): произнеси его чётко, " +
             "дай русский перевод, ОДИН живой пример-микрофразу на немецком " +
-            "с переводом. mark_lemma_heard("${n.lemma}"). Спроси, понятно ли. " +
+            "с переводом. mark_lemma_heard(\"${n.lemma}\"). Спроси, понятно ли. " +
             "Затем step_done."
     }
 
