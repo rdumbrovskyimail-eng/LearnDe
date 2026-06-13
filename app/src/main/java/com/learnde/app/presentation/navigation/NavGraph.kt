@@ -128,7 +128,7 @@ fun AppNavGraph(
 
         composable(Routes.LEVEL_SELECT) {
             LevelSelectScreen(
-                onOpenA1 = { navController.navigate(Routes.LEARN_A1) { launchSingleTop = true } },
+                onOpenA1 = { navController.navigate(Routes.LEARN_STUDIO) { launchSingleTop = true } }, // ИСПРАВЛЕНО: Открывает Студию
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) { launchSingleTop = true } },
             )
         }
@@ -164,7 +164,7 @@ fun AppNavGraph(
                         }
                     },
                     onOpenA1Learning = {
-                        navController.navigate(Routes.LEARN_A1) { launchSingleTop = true }
+                        navController.navigate(Routes.LEARN_STUDIO) { launchSingleTop = true } // ИСПРАВЛЕНО: Переход на Студию
                     },
                     onOpenGrammar = {
                         navController.navigate(Routes.LEARN_A1_GRAMMAR) { launchSingleTop = true }
@@ -238,7 +238,7 @@ fun AppNavGraph(
                 com.learnde.app.learn.sessions.a1.history.A1HistoryScreen(
                     onBack = { navController.popBackStack() },
                     onRepeatCluster = { clusterId ->
-                        navController.navigate("learn/a1?clusterId=$clusterId") {
+                        navController.navigate("learn/studio?clusterId=$clusterId") { // ИСПРАВЛЕНО
                             popUpTo(Routes.LEARN_A1_HISTORY) { inclusive = true }
                         }
                     },
@@ -268,7 +268,17 @@ fun AppNavGraph(
                 }
             }
 
-            composable(Routes.LEARN_STUDIO) { entry ->
+            // Добавлена поддержка опционального аргумента clusterId для Студии
+            composable(
+                route = "learn/studio?clusterId={clusterId}",
+                arguments = listOf(
+                    navArgument("clusterId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { entry ->
                 val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
                 com.learnde.app.presentation.learn.v2.StudioScreen(
                     onBack = { navController.popBackStack() },
@@ -301,12 +311,12 @@ fun AppNavGraph(
                     sessionId = sessionId,
                     onBack = { navController.popBackStack() },
                     onRepeatCluster = { clusterId ->
-                        navController.navigate("learn/a1?clusterId=$clusterId") {
+                        navController.navigate("learn/studio?clusterId=$clusterId") { // ИСПРАВЛЕНО
                             popUpTo(Routes.LEARN_A1_HISTORY) { inclusive = true }
                         }
                     },
                     onStartNewReview = {
-                        navController.navigate(Routes.LEARN_A1) {
+                        navController.navigate("learn/studio?clusterId=") { // ИСПРАВЛЕНО
                             launchSingleTop = true
                         }
                     }
