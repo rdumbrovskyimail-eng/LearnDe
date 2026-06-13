@@ -33,8 +33,12 @@ import javax.inject.Singleton
         GrammarRuleA1Entity::class,
         A1SessionLogEntity::class,
         A1UserProgressEntity::class,
+        // ── V2: три новых entity ──
+        com.learnde.app.learn.data.db.v2.A1AssociationEntity::class,
+        com.learnde.app.learn.data.db.v2.LessonPlanStateEntity::class,
+        com.learnde.app.learn.data.db.v2.LearnerProfileEntity::class,
     ],
-    version = 4, // v3.1.2: grammarRuleId в a1_clusters
+    version = 5,            // было 4
     exportSchema = false
 )
 @TypeConverters(A1Converters::class)
@@ -44,6 +48,10 @@ abstract class A1Database : RoomDatabase() {
     abstract fun grammarDao(): A1GrammarDao
     abstract fun sessionDao(): A1SessionDao
     abstract fun userProgressDao(): A1UserProgressDao
+    // ── V2 ──
+    abstract fun associationDao(): com.learnde.app.learn.data.db.v2.A1AssociationDao
+    abstract fun lessonPlanDao(): com.learnde.app.learn.data.db.v2.A1LessonPlanDao
+    abstract fun learnerProfileDao(): com.learnde.app.learn.data.db.v2.LearnerProfileDao
 }
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
