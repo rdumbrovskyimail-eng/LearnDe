@@ -119,11 +119,11 @@ class LessonScriptPlanner @Inject constructor(
                     add(
                         kind = StepKind.RETRIEVE_NEW,
                         lemma = target,
-                        instruction = "Спроси по-русски: «Как сказать " +
-                            "‘${translationHint(target)}’?» Жди ответа. " +
-                            "После ответа ОБЯЗАТЕЛЬНО evaluate_and_update_lemma " +
-                            "(lemma="${target.lemma}"), затем step_done.",
-                    )
+                    instruction = "Спроси по-русски: «Как сказать " +
+                        "‘${translationHint(target)}’?» Жди ответа. " +
+                        "После ответа ОБЯЗАТЕЛЬНО evaluate_and_update_lemma " +
+                        "(lemma=\"${target.lemma}\"), затем step_done.",
+                )
                     pendingUse.addLast(target)
                 }
             }
@@ -306,7 +306,7 @@ class LessonScriptPlanner @Inject constructor(
             " Если не вспомнит — подскажи первый слог."
         return "Повторение: спроси перевод «${translationHint(r)}» на немецкий." +
             hint + " После ответа ОБЯЗАТЕЛЬНО evaluate_and_update_lemma " +
-            "(lemma="${r.lemma}"), затем step_done."
+            "(lemma=\"${r.lemma}\"), затем step_done."
     }
 
     private fun flexInstruction(lemmas: List<String>): String =
@@ -322,7 +322,7 @@ class LessonScriptPlanner @Inject constructor(
         "Грамматическая вставка: «${rule.nameRu}». Объясни по-русски в 2-3 " +
         "коротких предложениях: ${rule.shortExplanation}. Дай 1 пример на " +
         "немецком. Спроси, понятно ли; ответь на вопросы если есть. " +
-        "Затем introduce_grammar_rule(rule_id="${rule.id}") и step_done."
+        "Затем introduce_grammar_rule(rule_id=\"${rule.id}\") и step_done."
 
     // ─────────────────────────────────────────────────────────────
     //  Helpers
