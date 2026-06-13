@@ -38,6 +38,7 @@ import com.learnde.app.presentation.learn.theme.learnColors
 
 object Routes {
     const val GATE          = "gate"            // решает: тест или выбор уровня
+    const val ONBOARDING    = "onboarding"
     const val A0A1_TEST     = "test/a0a1"
     const val LEVEL_SELECT  = "levels"
     const val SETTINGS      = "settings"
@@ -77,15 +78,31 @@ fun AppNavGraph(
     ) {
         composable(Routes.GATE) {
             val settingsVm: GateViewModel = hiltViewModel()
+            val userName by settingsVm.userName.collectAsStateWithLifecycle(initialValue = null)
             val testPassed by settingsVm.testPassed.collectAsStateWithLifecycle(initialValue = null)
-            LaunchedEffect(testPassed) {
-                when (testPassed) {
-                    true  -> navController.navigate(Routes.LEVEL_SELECT) { popUpTo(Routes.GATE) { inclusive = true } }
-                    false -> navController.navigate(Routes.A0A1_TEST)    { popUpTo(Routes.GATE) { inclusive = true } }
-                    null  -> Unit // ждём чтения настроек
+            
+            LaunchedEffect(userName, testPassed) {
+                if (userName != null && testPassed != null) {
+                    if (userName!!.isBlank()) {
+                        navController.navigate(Routes.ONBOARDING) { popUpTo(Routes.GATE) { inclusive = true } }
+                    } else if (testPassed == true) {
+                        navController.navigate(Routes.LEVEL_SELECT) { popUpTo(Routes.GATE) { inclusive = true } }
+                    } else {
+                        navController.navigate(Routes.A0A1_TEST) { popUpTo(Routes.GATE) { inclusive = true } }
+                    }
                 }
             }
             Box(Modifier.fillMaxSize().background(learnColors().background))
+        }
+
+        composable(Routes.ONBOARDING) {
+            com.learnde.app.presentation.onboarding.OnboardingScreen(
+                onNavigateToSettings = {
+                    navController.navigate(Routes.GATE) {
+                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    }
+                }
+            )
         }
 
         composable(Routes.A0A1_TEST) {

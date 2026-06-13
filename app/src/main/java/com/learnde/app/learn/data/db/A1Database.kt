@@ -82,6 +82,50 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `a1_associations` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                `lemma` TEXT NOT NULL, 
+                `text` TEXT NOT NULL, 
+                `createdAt` INTEGER NOT NULL, 
+                `timesHelped` INTEGER NOT NULL
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_a1_associations_lemma` ON `a1_associations` (`lemma`)")
+        
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `a1_lesson_plans` (
+                `planId` TEXT NOT NULL, 
+                `clusterId` TEXT NOT NULL, 
+                `scriptJson` TEXT NOT NULL, 
+                `cursor` INTEGER NOT NULL, 
+                `isFinished` INTEGER NOT NULL, 
+                `startedAt` INTEGER NOT NULL, 
+                `updatedAt` INTEGER NOT NULL, 
+                PRIMARY KEY(`planId`)
+            )
+        """)
+        
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `a1_learner_profile` (
+                `id` TEXT NOT NULL, 
+                `displayName` TEXT NOT NULL, 
+                `interestsCsv` TEXT NOT NULL, 
+                `paceLevel` TEXT NOT NULL, 
+                `blindMaxChainedSessions` INTEGER NOT NULL, 
+                `blindBreakSeconds` INTEGER NOT NULL, 
+                `blindReviewEvery` INTEGER NOT NULL, 
+                `totalBlindSessions` INTEGER NOT NULL, 
+                `totalFlexMs` INTEGER NOT NULL, 
+                `updatedAt` INTEGER NOT NULL, 
+                PRIMARY KEY(`id`)
+            )
+        """)
+    }
+}
+
 class A1Converters {
     @TypeConverter
     fun listToJson(list: List<String>?): String =
@@ -103,7 +147,7 @@ object A1DatabaseModule {
     @Singleton
     fun provideA1Database(@ApplicationContext ctx: Context): A1Database =
         Room.databaseBuilder(ctx, A1Database::class.java, "a1_learning.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
 

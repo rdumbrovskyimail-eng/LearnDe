@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.ConcurrentLinkedDeque
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -48,7 +47,7 @@ class LogBuffer @Inject constructor() {
         private const val MAX_SIZE = 500
     }
 
-    private val deque = ConcurrentLinkedDeque<LogEntry>()
+    private val buffer = ArrayDeque<LogEntry>(MAX_SIZE + 10)
     private val _entries = MutableStateFlow<List<LogEntry>>(emptyList())
     val entries: StateFlow<List<LogEntry>> = _entries.asStateFlow()
 
@@ -59,20 +58,25 @@ class LogBuffer @Inject constructor() {
             message = message,
             throwable = throwable?.let { "${it.javaClass.simpleName}: ${it.message}" },
         )
-        deque.addLast(entry)
-        while (deque.size > MAX_SIZE) {
-            deque.pollFirst()
+        synchronized(this) {
+            buffer.addLast(entry)
+            while (buffer.size > MAX_SIZE) {
+                buffer.removeFirst()
+            }
+            _entries.value = buffer.toList()
         }
-        _entries.value = deque.toList()
     }
 
     fun clear() {
-        deque.clear()
-        _entries.value = emptyList()
+        synchronized(this) {
+            buffer.clear()
+            _entries.value = emptyList()
+        }
     }
 
-    /** Экспортировать все логи в строку для копирования/шаринга. */
-    fun exportAsText(): String = buildString {
-        deque.forEach { appendLine(it.formatted()) }
+    fun exportAsText(): String = synchronized(this) {
+        buildString {
+            buffer.forEach { appendLine(it.formatted()) }
+        }
     }
 }

@@ -88,6 +88,7 @@ fun LearnHubScreen(
     onBack: () -> Unit,
     onOpenA1Learning: () -> Unit,
     onOpenGrammar: () -> Unit = {},
+    onOpenStudio: () -> Unit = {},
     onOpenDebugLogs: () -> Unit = {},
     learnCoreViewModel: LearnCoreViewModel,
 ) {
@@ -105,6 +106,7 @@ fun LearnHubScreen(
                 is LearnHubEffect.NavigateToItem -> when (effect.route) {
                     "learn/a1" -> onOpenA1Learning()
                     "learn/a1/grammar" -> onOpenGrammar()
+                    "learn/studio" -> onOpenStudio()
                 }
             }
         }

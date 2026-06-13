@@ -41,7 +41,7 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          gradle assembleDebug \
+          ./gradlew assembleDebug \
             --parallel \
             --max-workers=4 \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m" \
@@ -69,7 +69,7 @@ jobs:
             🚀 **Ультра-легкая версия (работает через Cloud Gemini Live)**
             **Размер APK:** ${{ steps.pack.outputs.apk_mb }} MB
             
-            **Установка:** скачайте файл `.apk` ниже и установите на телефон (распаковывать ничего не нужно!).
+            **Установка:** скачайте файл `.apk` ниже и установите на телефон.
           files: |
             app/build/outputs/apk/debug/app-debug.apk
         env:

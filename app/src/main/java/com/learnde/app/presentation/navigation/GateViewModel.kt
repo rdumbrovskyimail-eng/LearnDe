@@ -12,5 +12,6 @@ import javax.inject.Inject
 class GateViewModel @Inject constructor(
     settingsStore: DataStore<AppSettings>,
 ) : ViewModel() {
+    val userName: Flow<String> = settingsStore.data.map { it.userName }
     val testPassed: Flow<Boolean> = settingsStore.data.map { it.testPassed }
 }
