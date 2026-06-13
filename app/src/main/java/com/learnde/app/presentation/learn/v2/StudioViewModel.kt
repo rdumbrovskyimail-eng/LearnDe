@@ -44,6 +44,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class StudioViewModel @Inject constructor(
+    private val savedStateHandle: androidx.lifecycle.SavedStateHandle,
     private val importer: A1DataImporter,
     private val planner: A1SessionPlanner,
     private val adaptiveSession: A1AdaptiveSession,
@@ -425,7 +426,14 @@ class StudioViewModel @Inject constructor(
     }
 
     private suspend fun startLesson() {
-        val cluster = planner.pickNextCluster()
+        // Читаем clusterId, если перешли из истории или карты курса
+        val targetClusterId = savedStateHandle.get<String>("clusterId")
+        val cluster = if (!targetClusterId.isNullOrBlank()) {
+            clusterDao.getById(targetClusterId) ?: planner.pickNextCluster()
+        } else {
+            planner.pickNextCluster()
+        }
+
         if (cluster == null) {
             // Возможно, всё пройдено — но проверим, есть ли что повторить.
             val due = lemmaDao.getDueForReview(limit = 15)
