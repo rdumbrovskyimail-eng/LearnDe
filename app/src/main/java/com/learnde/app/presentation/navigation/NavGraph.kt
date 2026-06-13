@@ -51,6 +51,7 @@ object Routes {
     const val LEARN_A1_SESSION_DETAILS = "learn/a1/session/{sessionId}"
     const val LEARN_A1_COURSE_MAP = "learn/a1/coursemap"
     const val LEARN_A1_GRAMMAR = "learn/a1/grammar"
+    const val LEARN_STUDIO = "learn/studio"
     const val DEBUG_LOGS = "debug/logs"
 }
 
@@ -151,6 +152,9 @@ fun AppNavGraph(
                     onOpenGrammar = {
                         navController.navigate(Routes.LEARN_A1_GRAMMAR) { launchSingleTop = true }
                     },
+                    onOpenStudio = {
+                        navController.navigate(Routes.LEARN_STUDIO) { launchSingleTop = true }
+                    },
                     onOpenDebugLogs = {
                         navController.navigate(Routes.DEBUG_LOGS) { launchSingleTop = true }
                     },
@@ -245,6 +249,14 @@ fun AppNavGraph(
                         onDismiss = { navController.popBackStack() }
                     )
                 }
+            }
+
+            composable(Routes.LEARN_STUDIO) { entry ->
+                val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
+                com.learnde.app.presentation.learn.v2.StudioScreen(
+                    onBack = { navController.popBackStack() },
+                    learnCoreViewModel = learnCoreVm,
+                )
             }
 
             composable(Routes.LEARN_A1_COURSE_MAP) {
