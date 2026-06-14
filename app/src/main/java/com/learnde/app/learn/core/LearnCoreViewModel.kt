@@ -566,9 +566,14 @@ class LearnCoreViewModel @Inject constructor(
                         else -> AI_AUDIO_TAIL_MS
                     }
 
+                    // ФИКС обрыва фразы: чанки приходят пачкой быстрее реального
+                    // времени, поэтому lastAiAudioChunkAtMs «устаревает» раньше,
+                    // чем динамик домолчал. Держим mic-gate закрытым пока есть
+                    // несыгранный буфер, плюс короткий хвост на затухание эха.
+                    val remainingPlaybackMs = audioEngine.remainingPlaybackMs()
                     val aiActuallyAudible =
                         lastAiAudioChunkAtMs > 0L &&
-                        sinceLastAi < effectiveTailMs
+                        (remainingPlaybackMs > 0L || sinceLastAi < effectiveTailMs)
 
                     if (!aiActuallyAudible) {
                         liveClient.sendAudio(chunk)
