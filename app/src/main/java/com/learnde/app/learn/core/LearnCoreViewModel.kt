@@ -919,24 +919,13 @@ class LearnCoreViewModel @Inject constructor(
     private fun handleToolCalls(event: GeminiEvent.ToolCall) {
         val session = activeSession
 
-        // 1. ЗАДЕРЖАННЫЙ ОТВЕТ — ждем окончания физического проигрывания аудио.
-        // Это не позволяет серверу Gemini начать следующий ход до того, как ученик дослушает фразу.
-        viewModelScope.launch {
-            val remainingMs = (audioEngine.playbackAudibleUntilMs - System.currentTimeMillis())
-                .coerceIn(0L, 5000L) // защитный лимит в 5 секунд, чтобы не зависнуть при сбоях
-            
-            if (remainingMs > 0L) {
-                logger.d("TutorHint: delaying toolResponse by ${remainingMs}ms until audio finishes")
-                delay(remainingMs)
-            }
-
-            val acks = event.calls.map { call ->
-                ToolResponse(call.name, call.id, """{"status":"ok"}""")
-            }
-            if (liveClient.isReady) {
-                runCatching { liveClient.sendToolResponse(acks) }
-                    .onFailure { logger.e("Learn: delayed toolResponse failed: ${it.message}") }
-            }
+        // 1. МГНОВЕННЫЙ ОТВЕТ — до любых suspend-операций.
+        val acks = event.calls.map { call ->
+            ToolResponse(call.name, call.id, """{"status":"ok"}""")
+        }
+        if (liveClient.isReady) {
+            runCatching { liveClient.sendToolResponse(acks) }
+                .onFailure { logger.e("Learn: instant toolResponse failed: ${it.message}") }
         }
 
         // 2. ФОНОВАЯ обработка (Room, шины, прогресс) — голос уже свободен.
