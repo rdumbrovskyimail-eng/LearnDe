@@ -290,8 +290,7 @@ fun AppNavGraph(
                 com.learnde.app.learn.sessions.a1.coursemap.A1CourseMapScreen(
                     onBack = { navController.popBackStack() },
                     onClusterClick = { clusterId ->
-                        navController.navigate("learn/a1?clusterId=$clusterId") {
-                            popUpTo(Routes.LEARN_A1) { inclusive = true }
+                        navController.navigate("learn/studio?clusterId=$clusterId") {
                             launchSingleTop = true
                         }
                     }
