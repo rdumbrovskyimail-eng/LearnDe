@@ -4,7 +4,7 @@ import com.learnde.app.learn.data.db.v2.LearnerProfileDao
 import com.learnde.app.learn.data.db.v2.LearnerProfileEntity
 import com.learnde.app.learn.domain.A1SessionPlanner
 import com.learnde.app.learn.domain.v2.LessonDirector
-import com.learnde.app.settings.AppSettings
+import com.learnde.app.data.settings.AppSettings
 import com.learnde.app.learn.sessions.a1.A1LearningBus
 import androidx.datastore.core.DataStore
 import com.learnde.app.learn.sessions.a1.A1LearningEvent
