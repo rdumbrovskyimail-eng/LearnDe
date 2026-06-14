@@ -3,6 +3,7 @@ package com.learnde.app.learn.sessions.a1.v2
 import com.learnde.app.domain.model.FunctionCall
 import com.learnde.app.domain.model.FunctionDeclarationConfig
 import com.learnde.app.learn.core.LearnSession
+import com.learnde.app.learn.data.db.A1ClusterDao
 import com.learnde.app.learn.data.db.A1GrammarDao
 import com.learnde.app.learn.data.db.A1LemmaDao
 import com.learnde.app.learn.data.db.A1SessionDao
@@ -55,6 +56,7 @@ class A1AdaptiveSession @Inject constructor(
     private val systemTextBus: SystemTextBus,
     private val controlBus: SessionControlBus,
     private val lemmaDao: A1LemmaDao,
+    private val clusterDao: A1ClusterDao,
     private val grammarDao: A1GrammarDao,
     private val sessionDao: A1SessionDao,
     private val associationDao: A1AssociationDao,
@@ -109,7 +111,19 @@ class A1AdaptiveSession @Inject constructor(
     }
 
     @Volatile private var resumeRequested = false
-    fun prepareResume() { resumeRequested = true }
+    suspend fun prepareResume() {
+        resumeRequested = true
+        // Восстанавливаем pendingScript/cluster/snapshot из Room, чтобы:
+        //   1) systemInstruction отдал полноценный промпт урока (не fallback);
+        //   2) handleFinish() смог обновить mastery кластера через planner.
+        val restored = director.peekActivePlan() ?: return
+        pendingScript = restored
+        mode = if (restored.clusterId == "review") AdaptiveMode.REVIEW else AdaptiveMode.CLUSTER
+        cluster = if (restored.clusterId == "review") null
+                  else runCatching { clusterDao.getById(restored.clusterId) }.getOrNull()
+        snapshot = buildSnapshot(restored)
+        logger.d("AdaptiveSession: prepareResume — restored ${restored.planId} (${restored.totalSteps} steps)")
+    }
 
     override val systemInstruction: String
         get() {
