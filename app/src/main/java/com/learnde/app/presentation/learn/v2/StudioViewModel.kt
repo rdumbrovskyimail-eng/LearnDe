@@ -428,6 +428,31 @@ class StudioViewModel @Inject constructor(
     private suspend fun startLesson() {
         // Читаем clusterId, если перешли из истории или карты курса
         val targetClusterId = savedStateHandle.get<String>("clusterId")
+
+        // ФИКС «обучение начинается сначала»: если есть незавершённый план
+        // (того же кластера, либо пользователь не указал конкретный) —
+        // ВОЗОБНОВЛЯЕМ его, а не строим новый. Новый шёл через
+        // LessonDirector.start → markAllFinished и затирал прогресс.
+        val activeClusterId = director.peekActivePlanClusterId()
+        val canResume = activeClusterId != null &&
+            (targetClusterId.isNullOrBlank() || targetClusterId == activeClusterId)
+        if (canResume) {
+            logger.i("Studio: resuming interrupted plan (cluster=$activeClusterId)")
+            adaptiveSession.prepareResume()
+            _state.update {
+                it.copy(
+                    isReviewMode = activeClusterId == "review",
+                    sessionFinished = false,
+                    lastEvaluation = null,
+                    grammarIntroduced = null,
+                    finalQuality = null,
+                    finalFeedback = null,
+                )
+            }
+            _effects.tryEmit(StudioEffect.RequestStartSession)
+            return
+        }
+
         val cluster = if (!targetClusterId.isNullOrBlank()) {
             clusterDao.getById(targetClusterId) ?: planner.pickNextCluster()
         } else {
