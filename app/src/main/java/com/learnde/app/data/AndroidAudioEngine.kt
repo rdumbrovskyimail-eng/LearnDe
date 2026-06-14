@@ -82,11 +82,15 @@ class AndroidAudioEngine(
     @Volatile private var audioTrack: AudioTrack? = null
 
     @Volatile private var playbackChannel: Channel<ByteArray> =
-        Channel(playbackQueueCapacity, BufferOverflow.DROP_OLDEST)
+        Channel(Channel.UNLIMITED)
+
     @Volatile private var isFirstBatch = true
     @Volatile private var awaitingDrain = false
     /** Оценка момента (ms, wall clock) окончания воспроизведения очереди. */
     @Volatile private var estimatedPlaybackEndMs = 0L
+
+    @Volatile private var audibleUntilMs: Long = 0L
+    override val playbackAudibleUntilMs: Long get() = audibleUntilMs
 
     private fun newEngineScope(): CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -326,7 +330,7 @@ class AndroidAudioEngine(
         }
         if (!engineScope.isActive) engineScope = newEngineScope()
         if (playbackChannel.isClosedForSend) {
-            playbackChannel = Channel(playbackQueueCapacity, BufferOverflow.DROP_OLDEST)
+            playbackChannel = Channel(Channel.UNLIMITED)
         }
 
         val sampleRate = SessionConfig.OUTPUT_SAMPLE_RATE
@@ -404,13 +408,15 @@ class AndroidAudioEngine(
     override suspend fun enqueuePlayback(pcmData: ByteArray) {
         if (pcmData.isEmpty()) return
 
-        // Накапливаем оценку конца воспроизведения. 16-bit mono → 2 байта/сэмпл.
-        val durationMs = (pcmData.size / 2) * 1000L / SessionConfig.OUTPUT_SAMPLE_RATE
+        // 24kHz, 16-bit mono -> 48 байт на миллисекунду. Продлеваем слышимое окно
+        val durationMs = pcmData.size / 48L
         val now = System.currentTimeMillis()
-        estimatedPlaybackEndMs = maxOf(estimatedPlaybackEndMs, now) + durationMs
+        audibleUntilMs = maxOf(audibleUntilMs, now) + durationMs
 
-        // Сначала помещаем в канал, потом сбрасываем флаг —
-        // чтобы playback loop не успел обработать chunk до того как мы убрали awaitingDrain
+        // Накапливаем оценку конца воспроизведения. 16-bit mono → 2 байта/сэмпл.
+        val durationLegacyMs = (pcmData.size / 2) * 1000L / SessionConfig.OUTPUT_SAMPLE_RATE
+        estimatedPlaybackEndMs = maxOf(estimatedPlaybackEndMs, now) + durationLegacyMs
+
         val result = playbackChannel.trySend(pcmData)
         if (result.isFailure) {
             playbackChannel.tryReceive()
@@ -426,7 +432,8 @@ class AndroidAudioEngine(
         while (playbackChannel.tryReceive().isSuccess) { /* drain */ }
         isFirstBatch = true
         awaitingDrain = false
-        estimatedPlaybackEndMs = 0L          // буфер сброшен — динамик молчит
+        estimatedPlaybackEndMs = 0L
+        audibleUntilMs = 0L
         audioTrack?.apply {
             runCatching { pause(); flush(); play() }
         }
@@ -434,6 +441,11 @@ class AndroidAudioEngine(
 
     override suspend fun onTurnComplete() {
         awaitingDrain = true
+        runCatching {
+            val padMs = 120
+            val silence = ByteArray((SessionConfig.OUTPUT_SAMPLE_RATE * 2 * padMs) / 1000)
+            audioTrack?.write(silence, 0, silence.size)
+        }
     }
 
     override suspend fun releaseAll() {

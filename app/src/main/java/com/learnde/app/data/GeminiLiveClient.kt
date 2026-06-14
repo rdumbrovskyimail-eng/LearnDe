@@ -371,6 +371,9 @@ class GeminiLiveClient(
                             put("silenceDurationMs", config.vadSilenceDurationMs)
                         }
                     })
+                    if (config.activityHandling.isNotBlank()) {
+                        put("activityHandling", config.activityHandling)
+                    }
                 })
 
                 // ─── Транскрипция (AudioTranscriptionConfig — пустой объект) ───

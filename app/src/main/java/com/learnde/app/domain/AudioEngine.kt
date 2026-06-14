@@ -19,6 +19,7 @@ interface AudioEngine {
     val micOutput: Flow<ByteArray>
     val isCapturing: Boolean
     val isPlaying: Boolean
+    val playbackAudibleUntilMs: Long
 
     suspend fun startCapture()
     suspend fun stopCapture()

@@ -166,6 +166,23 @@ class LessonDirector @Inject constructor(
         runCatching { planDao.getActivePlan() != null }.getOrDefault(false)
 
     /**
+     * Читает активный план из Room без его изменения или активации.
+     */
+    suspend fun peekActivePlan(): LessonScript? {
+        val saved = planDao.getActivePlan() ?: return null
+        return runCatching {
+            json.decodeFromString<LessonScript>(saved.scriptJson)
+        }.getOrNull()
+    }
+
+    /**
+     * clusterId незавершённого плана в Room (без подъёма в активное состояние),
+     * или null, если активного плана нет.
+     */
+    suspend fun peekActivePlanClusterId(): String? =
+        runCatching { planDao.getActivePlan()?.clusterId }.getOrNull()
+
+    /**
      * Инструкция возврата для модели после reconnect — отправляется
      * сессией как initialUserMessage / системный текст.
      */

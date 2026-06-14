@@ -64,6 +64,11 @@ data class SessionConfig(
     val vadEndSensitivity: String = "END_SENSITIVITY_LOW",
     val vadPrefixPaddingMs: Int = 300,
     val vadSilenceDurationMs: Int = 900,
+    /**
+     * Поведение при детекции активности ученика во время речи модели.
+     * "NO_INTERRUPTION" — модель ВСЕГДА договаривает шаг.
+     */
+    val activityHandling: String = "NO_INTERRUPTION",
 
     // ── System Instruction ──
     val systemInstruction: String = DEFAULT_SYSTEM_INSTRUCTION,

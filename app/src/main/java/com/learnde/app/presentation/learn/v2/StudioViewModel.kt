@@ -496,6 +496,11 @@ class StudioViewModel @Inject constructor(
             _effects.tryEmit(StudioEffect.ShowToast("Нет слов для повторения — отличная работа!"))
             return
         }
+
+        val resumeReview = runCatching {
+            director.peekActivePlanClusterId() == "review"
+        }.getOrDefault(false)
+
         _state.update {
             it.copy(
                 isReviewMode = true,
@@ -511,6 +516,11 @@ class StudioViewModel @Inject constructor(
                 _effects.tryEmit(StudioEffect.ShowToast("Не удалось подготовить повторение"))
                 return
             }
+
+        if (resumeReview) {
+            adaptiveSession.prepareResume()
+            logger.d("Studio: RESUME in-progress review plan")
+        }
         _effects.tryEmit(StudioEffect.RequestStartSession)
     }
 
