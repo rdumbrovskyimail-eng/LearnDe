@@ -85,6 +85,8 @@ class AndroidAudioEngine(
         Channel(playbackQueueCapacity, BufferOverflow.DROP_OLDEST)
     @Volatile private var isFirstBatch = true
     @Volatile private var awaitingDrain = false
+    /** Оценка момента (ms, wall clock) окончания воспроизведения очереди. */
+    @Volatile private var estimatedPlaybackEndMs = 0L
 
     private fun newEngineScope(): CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -401,6 +403,12 @@ class AndroidAudioEngine(
 
     override suspend fun enqueuePlayback(pcmData: ByteArray) {
         if (pcmData.isEmpty()) return
+
+        // Накапливаем оценку конца воспроизведения. 16-bit mono → 2 байта/сэмпл.
+        val durationMs = (pcmData.size / 2) * 1000L / SessionConfig.OUTPUT_SAMPLE_RATE
+        val now = System.currentTimeMillis()
+        estimatedPlaybackEndMs = maxOf(estimatedPlaybackEndMs, now) + durationMs
+
         // Сначала помещаем в канал, потом сбрасываем флаг —
         // чтобы playback loop не успел обработать chunk до того как мы убрали awaitingDrain
         val result = playbackChannel.trySend(pcmData)
@@ -411,10 +419,14 @@ class AndroidAudioEngine(
         awaitingDrain = false
     }
 
+    override fun remainingPlaybackMs(): Long =
+        (estimatedPlaybackEndMs - System.currentTimeMillis()).coerceAtLeast(0L)
+
     override suspend fun flushPlayback() {
         while (playbackChannel.tryReceive().isSuccess) { /* drain */ }
         isFirstBatch = true
         awaitingDrain = false
+        estimatedPlaybackEndMs = 0L          // буфер сброшен — динамик молчит
         audioTrack?.apply {
             runCatching { pause(); flush(); play() }
         }
@@ -427,6 +439,7 @@ class AndroidAudioEngine(
     override suspend fun releaseAll() {
         stopCapture()
         isPlaying = false
+        estimatedPlaybackEndMs = 0L
         runCatching { playbackChannel.close() }
         runCatching {
             withTimeoutOrNull(800L) { playbackJob?.cancelAndJoin() }
