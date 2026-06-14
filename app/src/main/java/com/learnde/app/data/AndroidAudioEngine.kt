@@ -81,7 +81,7 @@ class AndroidAudioEngine(
     @Volatile private var noiseSuppressor: NoiseSuppressor? = null
     @Volatile private var audioTrack: AudioTrack? = null
 
-    @Volatile private var playbackChannel: Channel<ByteArray> =
+    private var playbackChannel: Channel<ByteArray> =
         Channel(Channel.UNLIMITED)
 
     @Volatile private var isFirstBatch = true
@@ -408,12 +408,11 @@ class AndroidAudioEngine(
     override suspend fun enqueuePlayback(pcmData: ByteArray) {
         if (pcmData.isEmpty()) return
 
-        // 24kHz, 16-bit mono -> 48 байт на миллисекунду. Продлеваем слышимое окно
+        // 16-bit mono 24kHz -> 48 байт/мс. Рассчитываем точную физическую длительность чанка
         val durationMs = pcmData.size / 48L
         val now = System.currentTimeMillis()
         audibleUntilMs = maxOf(audibleUntilMs, now) + durationMs
 
-        // Накапливаем оценку конца воспроизведения. 16-bit mono → 2 байта/сэмпл.
         val durationLegacyMs = (pcmData.size / 2) * 1000L / SessionConfig.OUTPUT_SAMPLE_RATE
         estimatedPlaybackEndMs = maxOf(estimatedPlaybackEndMs, now) + durationLegacyMs
 
@@ -424,9 +423,6 @@ class AndroidAudioEngine(
         }
         awaitingDrain = false
     }
-
-    override fun remainingPlaybackMs(): Long =
-        (estimatedPlaybackEndMs - System.currentTimeMillis()).coerceAtLeast(0L)
 
     override suspend fun flushPlayback() {
         while (playbackChannel.tryReceive().isSuccess) { /* drain */ }
@@ -452,6 +448,7 @@ class AndroidAudioEngine(
         stopCapture()
         isPlaying = false
         estimatedPlaybackEndMs = 0L
+        audibleUntilMs = 0L
         runCatching { playbackChannel.close() }
         runCatching {
             withTimeoutOrNull(800L) { playbackJob?.cancelAndJoin() }
