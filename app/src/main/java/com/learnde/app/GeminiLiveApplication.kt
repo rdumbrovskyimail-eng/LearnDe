@@ -23,6 +23,16 @@ class GeminiLiveApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            runCatching {
+                java.io.File(filesDir, "last_crash.txt").writeText(
+                    "ts=${System.currentTimeMillis()}\nthread=${t.name}\n" +
+                    android.util.Log.getStackTraceString(e)
+                )
+            }
+            prev?.uncaughtException(t, e)
+        }
         appLogger.init()
         appLogger.d("=== APP STARTED (Gemini 3.1 Flash Live — MVI/Compose) ===")
 

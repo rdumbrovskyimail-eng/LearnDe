@@ -59,6 +59,7 @@ data class AppSettings(
     val maxReconnectAttempts: Int = 5,
     val reconnectBaseDelayMs: Long = 2000L,
     val reconnectMaxDelayMs: Long = 30000L,
+    val sessionHeartbeatMs: Long = 0L,
 
     // ═══════════════════ 6. VAD ═══════════════════
     val enableServerVad: Boolean = true,

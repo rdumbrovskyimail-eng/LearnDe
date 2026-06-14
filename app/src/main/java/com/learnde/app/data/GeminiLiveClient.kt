@@ -131,6 +131,7 @@ class GeminiLiveClient(
         currentConfig = config
         logRawFrames = logRaw
         isReady = false
+        sessionHandle = config.sessionHandle
         synchronized(lastSentFrames) { lastSentFrames.clear() }
         lastSetupFrame = ""
         closeCompletion = CompletableDeferred()

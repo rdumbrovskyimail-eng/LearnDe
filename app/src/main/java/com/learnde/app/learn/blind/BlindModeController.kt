@@ -4,7 +4,9 @@ import com.learnde.app.learn.data.db.v2.LearnerProfileDao
 import com.learnde.app.learn.data.db.v2.LearnerProfileEntity
 import com.learnde.app.learn.domain.A1SessionPlanner
 import com.learnde.app.learn.domain.v2.LessonDirector
+import com.learnde.app.settings.AppSettings
 import com.learnde.app.learn.sessions.a1.A1LearningBus
+import androidx.datastore.core.DataStore
 import com.learnde.app.learn.sessions.a1.A1LearningEvent
 import com.learnde.app.learn.sessions.a1.v2.A1AdaptiveSession
 import com.learnde.app.learn.sessions.a1.v2.SessionControlAction
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -62,6 +65,7 @@ class BlindModeController @Inject constructor(
     private val bus: A1LearningBus,
     private val controlBus: SessionControlBus,
     private val profileDao: LearnerProfileDao,
+    private val settingsStore: DataStore<AppSettings>,
     private val earcons: BlindEarcons,
     private val logger: AppLogger,
 ) {
@@ -299,11 +303,16 @@ class BlindModeController @Inject constructor(
             val profile = profileDao.get() ?: LearnerProfileEntity()
 
             try {
-                if (firstInChain && director.tryPeekActivePlanExists()) {
-                    logger.i("BlindMode: resuming interrupted plan")
+                val heartbeat = settingsStore.data.first().sessionHeartbeatMs
+                val recentlyKilled = heartbeat != 0L &&
+                    (System.currentTimeMillis() - heartbeat) < 2 * 60_000L
+                if (firstInChain && recentlyKilled && director.tryPeekActivePlanExists()) {
+                    logger.i("BlindMode: resuming interrupted plan (crash recovery)")
                     adaptiveSession.prepareResume()
                     requestStart()
                     return@launch
+                } else if (firstInChain) {
+                    runCatching { director.discardActivePlan() }
                 }
 
                 val every = profile.blindReviewEvery.coerceIn(2, 10)

@@ -111,6 +111,7 @@ class LearnCoreViewModel @Inject constructor(
     @Volatile private var sessionFinished: Boolean = false
     @Volatile private var lastSilencePromptAtMs: Long = 0L
     @Volatile private var droppedMicChunks: Int = 0
+    @Volatile private var speakingOffJob: Job? = null
 
     @Volatile private var sessionReadyAtMs: Long = 0L
     @Volatile private var hasModelOutputThisTurn: Boolean = false
@@ -359,17 +360,17 @@ class LearnCoreViewModel @Inject constructor(
 
         return SessionConfig(
             model = cachedSettings.model,
-            temperature = 0.7f,
+            temperature = temp,
             topP = finalTopP,
             topK = finalTopK,
-            maxOutputTokens = 4096,
+            maxOutputTokens = finalMaxTokens,
             voiceId = finalVoiceId,
             latencyProfile = profile,
             autoActivityDetection = cachedSettings.enableServerVad,
             vadStartSensitivity = "START_SENSITIVITY_HIGH",
             vadEndSensitivity = "END_SENSITIVITY_LOW",
-            vadSilenceDurationMs = 900,
-            vadPrefixPaddingMs = 300,
+            vadSilenceDurationMs = finalSilenceMs,
+            vadPrefixPaddingMs = prefixMs,
             systemInstruction = finalSystemInstruction,
             inputTranscription = inputTranscr,
             outputTranscription = outputTranscr,
@@ -671,6 +672,7 @@ class LearnCoreViewModel @Inject constructor(
                             }
                         }
                         _state.update { it.copy(isAiSpeaking = true, isPreparingSession = false) }
+                        speakingOffJob?.cancel()
                         audioEngine.enqueuePlayback(event.pcmData)
                     }
 
@@ -679,6 +681,7 @@ class LearnCoreViewModel @Inject constructor(
                         transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
                         viewModelScope.launch { audioEngine.flushPlayback() }
                         _state.update { it.copy(isAiSpeaking = false) }
+                        speakingOffJob?.cancel()
                         modelStartedSpeakingThisTurn = false
                         hasModelOutputThisTurn = false
                     }
@@ -692,7 +695,7 @@ class LearnCoreViewModel @Inject constructor(
                         hasModelOutputThisTurn = false
                         
                         audioEngine.onTurnComplete()
-                        _state.update { it.copy(isAiSpeaking = false) }
+                        scheduleSpeakingOff()
                         
                         flushPendingVocabViolation()
                         
@@ -713,7 +716,7 @@ class LearnCoreViewModel @Inject constructor(
                                 ) {
                                     logger.d("Learn: silence detected (${quietFor}ms), prompting AI")
                                     lastSilencePromptAtMs = System.currentTimeMillis()
-                                    liveClient.sendRealtimeText(
+                                    sendRealtimeTextSafe(
                                         "[СИСТЕМА]: Ученик молчит. Коротко подбодри его по-русски, " +
                                             "дай подсказку или назови правильный ответ и попроси повторить."
                                     )
@@ -860,21 +863,14 @@ class LearnCoreViewModel @Inject constructor(
             greetingFallbackJob?.cancel()
             greetingFallbackJob = viewModelScope.launch {
                 delay(GREETING_RETRY_MS)
-                if (awaitingInitialGreeting && liveClient.isReady && activeSession == session) {
-                    logger.w("Learn: no audio from model in ${GREETING_RETRY_MS}ms — retrying")
+                val sawAnyOutput = lastAiAudioChunkAtMs > 0L || hasModelOutputThisTurn
+                if (awaitingInitialGreeting && !sawAnyOutput
+                    && liveClient.isReady && activeSession == session) {
                     runCatching { sendSilenceWarmup() }
                     if (activeSession != session) return@launch
-
-                    liveClient.sendRealtimeText(
-                        "Ты меня слышишь? Поприветствуй ученика сейчас по-русски и " +
-                            "задай первый вопрос."
-                    )
-
+                    sendRealtimeTextSafe("Поприветствуй ученика и задай первый вопрос.")
                     delay(GREETING_FINAL_MS - GREETING_RETRY_MS)
-                    if (awaitingInitialGreeting && activeSession == session) {
-                        logger.w("Learn: model stayed silent, giving up greeting flow")
-                        awaitingInitialGreeting = false
-                    }
+                    if (awaitingInitialGreeting && activeSession == session) awaitingInitialGreeting = false
                 }
             }
         }
@@ -900,7 +896,7 @@ class LearnCoreViewModel @Inject constructor(
             && liveClient.isReady) {
             val prompt = vocabularyEnforcer.buildCorrectionPrompt(violation)
             logger.d("Learn: sending buffered vocab correction (${violation.violatingWords})")
-            liveClient.sendRealtimeText(prompt)
+            viewModelScope.launch { sendRealtimeTextSafe(prompt) }
         }
     }
 
@@ -973,18 +969,27 @@ class LearnCoreViewModel @Inject constructor(
             logger.w("Learn.sendSystemText: liveClient not ready, dropping: $text")
             return
         }
-        viewModelScope.launch {
-            if (_state.value.isAiSpeaking) {
-                var waited = 0L
-                val maxWaitMs = 4_000L
-                while (_state.value.isAiSpeaking && waited < maxWaitMs) {
-                    delay(120)
-                    waited += 120
-                }
+        viewModelScope.launch { sendRealtimeTextSafe(text) }
+    }
+
+    private fun scheduleSpeakingOff() {
+        speakingOffJob?.cancel()
+        speakingOffJob = viewModelScope.launch {
+            while (true) {
+                val left = audioEngine.playbackAudibleUntilMs - System.currentTimeMillis()
+                if (left <= 0) break
+                delay(left.coerceAtMost(250L))
             }
-            runCatching { liveClient.sendRealtimeText(text) }
-                .onFailure { logger.e("Learn.sendSystemText failed: ${it.message}") }
+            _state.update { it.copy(isAiSpeaking = false) }
         }
+    }
+
+    private suspend fun sendRealtimeTextSafe(text: String) {
+        var waited = 0L
+        while (_state.value.isAiSpeaking
+            && System.currentTimeMillis() < audioEngine.playbackAudibleUntilMs
+            && waited < 5_000L) { delay(120); waited += 120 }
+        runCatching { liveClient.sendRealtimeText(text) }
     }
 
     override fun onCleared() {
@@ -994,6 +999,7 @@ class LearnCoreViewModel @Inject constructor(
         greetingFallbackJob?.cancel()
         setupJob?.cancel()
         finishGraceJob?.cancel()
+        speakingOffJob?.cancel()
         statusBus.reset()
         safeStopForegroundService()
 

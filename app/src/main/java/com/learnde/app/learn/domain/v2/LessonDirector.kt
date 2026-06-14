@@ -207,6 +207,11 @@ class LessonDirector @Inject constructor(
         logger.d("Director: stopped (discard=$discardPlan)")
     }
 
+    suspend fun discardActivePlan() = mutex.withLock {
+        runCatching { planDao.markAllFinished() }
+        logger.d("Director: active plan discarded (fresh start)")
+    }
+
     // ─────────────────────────────────────────────────────────────
     //  Входящие сигналы от модели (через сессию)
     // ─────────────────────────────────────────────────────────────

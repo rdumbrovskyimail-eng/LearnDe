@@ -86,6 +86,7 @@ class AndroidAudioEngine(
 
     @Volatile private var isFirstBatch = true
     @Volatile private var awaitingDrain = false
+    @Volatile private var playbackLoopGen = 0
     /** Оценка момента (ms, wall clock) окончания воспроизведения очереди. */
     @Volatile private var estimatedPlaybackEndMs = 0L
 
@@ -112,7 +113,7 @@ class AndroidAudioEngine(
     }
 
     override fun setMicGain(gain: Float) {
-        micGain = gain.coerceIn(0.5f, 2.0f)
+        micGain = gain.coerceIn(0.5f, 1.5f)
     }
 
     override fun setSpeakerRouting(forceSpeaker: Boolean) {
@@ -218,9 +219,9 @@ class AndroidAudioEngine(
             val targetPeak = 24000        // ~73% от Short.MAX, чуть ближе к пику
             val agcAttack = 0.4f          // быстрее реакция на изменение громкости
             val agcRelease = 0.015f       // ещё медленнее спад — стабильнее усиление
-            val agcMaxBoost = 8.0f        // ВДВОЕ больший boost для тихих фраз с 40см
+            val agcMaxBoost = 4.0f        // ВДВОЕ больший boost для тихих фраз с 40см
             val agcMinBoost = 0.6f
-            val noiseFloor = 300          // вдвое ниже порог — захватываем тихую речь
+            val noiseFloor = 500          // вдвое ниже порог — захватываем тихую речь
 
             try {
                 while (isActive && isCapturing) {
@@ -367,11 +368,11 @@ class AndroidAudioEngine(
         track.play()
         isPlaying = true
         logger.d("Speaker ready (rate=$sampleRate)")
-
+        val myGen = ++playbackLoopGen
         playbackJob = engineScope.launch {
             try {
                 for (chunk in playbackChannel) {
-                    if (!isActive) break
+                    if (!isActive || myGen != playbackLoopGen) break
                     if (isFirstBatch) {
                         val preBuffer = mutableListOf(chunk)
                         repeat(jitterPreBufferChunks - 1) {
@@ -417,10 +418,7 @@ class AndroidAudioEngine(
         estimatedPlaybackEndMs = maxOf(estimatedPlaybackEndMs, now) + durationLegacyMs
 
         val result = playbackChannel.trySend(pcmData)
-        if (result.isFailure) {
-            playbackChannel.tryReceive()
-            playbackChannel.trySend(pcmData)
-        }
+        if (result.isFailure) logger.w("enqueuePlayback: channel closed, chunk dropped")
         awaitingDrain = false
     }
 
@@ -445,6 +443,7 @@ class AndroidAudioEngine(
     }
 
     override suspend fun releaseAll() {
+        playbackLoopGen++
         stopCapture()
         isPlaying = false
         estimatedPlaybackEndMs = 0L
