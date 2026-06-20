@@ -1,1 +1,235 @@
-{}
+{
+  "schema_version": "1.0",
+  "kurs": "A1.1",
+  "lehrwerk_bezug": {
+    "titel": "Schritte plus Neu 1 — A1.1",
+    "lektion": 5,
+    "lektion_titel": "Mein Tag",
+    "folge_titel_de": "Folge 5: Von früh bis spät",
+    "seiten_ca": "58–69",
+    "hinweis_ru": "Собственный тренировочный материал, привязанный к структуре и порядку тем урока. Грамматика — факты немецкого языка; диалоги и задания оригинальные, не из учебника."
+  },
+  "lektion": {
+    "nummer": 5,
+    "thema_de": "Mein Tag",
+    "thema_ru": "Мой день",
+    "folge_titel_de": "Folge 5: Von früh bis spät",
+    "lernziele_ru": [
+      "называть время (который час)",
+      "называть дни недели",
+      "рассказывать о распорядке дня",
+      "использовать отделяемые глаголы (рамочная конструкция)",
+      "использовать предлоги времени am / um / von … bis",
+      "отрицать с nicht"
+    ],
+    "abschnitte": [
+      { "id": "5A", "titel_de": "Wie spät ist es?", "titel_ru": "Время. Дни недели" },
+      { "id": "5B", "titel_de": "Von früh bis spät", "titel_ru": "Распорядок дня. Отделяемые глаголы" },
+      { "id": "5C", "titel_de": "Wann fängt der Kurs an?", "titel_ru": "Предлоги времени. Отрицание nicht" }
+    ],
+
+    "wortschatz": [
+      { "de": "die Uhr", "ru": "часы; час", "wortart": "Nomen", "artikel": "die", "plural": "die Uhren", "abschnitt": "5A" },
+      { "de": "die Uhrzeit", "ru": "время (на часах)", "wortart": "Nomen", "artikel": "die", "plural": "die Uhrzeiten", "abschnitt": "5A" },
+      { "de": "der Morgen", "ru": "утро", "wortart": "Nomen", "artikel": "der", "plural": "die Morgen", "abschnitt": "5B" },
+      { "de": "der Vormittag", "ru": "первая половина дня", "wortart": "Nomen", "artikel": "der", "plural": "die Vormittage", "abschnitt": "5B" },
+      { "de": "der Mittag", "ru": "полдень", "wortart": "Nomen", "artikel": "der", "plural": "die Mittage", "abschnitt": "5B" },
+      { "de": "der Nachmittag", "ru": "вторая половина дня", "wortart": "Nomen", "artikel": "der", "plural": "die Nachmittage", "abschnitt": "5B" },
+      { "de": "der Abend", "ru": "вечер", "wortart": "Nomen", "artikel": "der", "plural": "die Abende", "abschnitt": "5B" },
+      { "de": "die Nacht", "ru": "ночь", "wortart": "Nomen", "artikel": "die", "plural": "die Nächte", "abschnitt": "5B" },
+      { "de": "aufstehen", "ru": "вставать", "wortart": "Verb (trennbar)", "beispiel_de": "Ich stehe um 7 Uhr auf.", "beispiel_ru": "Я встаю в 7.", "abschnitt": "5B" },
+      { "de": "frühstücken", "ru": "завтракать", "wortart": "Verb", "beispiel_de": "Ich frühstücke um 8 Uhr.", "beispiel_ru": "Я завтракаю в 8.", "abschnitt": "5B" },
+      { "de": "arbeiten", "ru": "работать", "wortart": "Verb", "abschnitt": "5B" },
+      { "de": "anfangen", "ru": "начинаться", "wortart": "Verb (trennbar)", "beispiel_de": "Der Kurs fängt um 8 an.", "beispiel_ru": "Курс начинается в 8.", "abschnitt": "5C" },
+      { "de": "einkaufen", "ru": "делать покупки", "wortart": "Verb (trennbar)", "beispiel_de": "Ich kaufe am Samstag ein.", "beispiel_ru": "Я закупаюсь в субботу.", "abschnitt": "5B" },
+      { "de": "fernsehen", "ru": "смотреть телевизор", "wortart": "Verb (trennbar)", "beispiel_de": "Am Abend sehe ich fern.", "beispiel_ru": "Вечером я смотрю ТВ.", "abschnitt": "5B" },
+      { "de": "schlafen", "ru": "спать", "wortart": "Verb", "abschnitt": "5B" },
+      { "de": "der Montag", "ru": "понедельник", "wortart": "Wochentag", "abschnitt": "5A" },
+      { "de": "der Dienstag", "ru": "вторник", "wortart": "Wochentag", "abschnitt": "5A" },
+      { "de": "der Mittwoch", "ru": "среда", "wortart": "Wochentag", "abschnitt": "5A" },
+      { "de": "der Donnerstag", "ru": "четверг", "wortart": "Wochentag", "abschnitt": "5A" },
+      { "de": "der Freitag", "ru": "пятница", "wortart": "Wochentag", "abschnitt": "5A" },
+      { "de": "der Samstag", "ru": "суббота", "wortart": "Wochentag", "abschnitt": "5A" },
+      { "de": "der Sonntag", "ru": "воскресенье", "wortart": "Wochentag", "abschnitt": "5A" },
+      { "de": "früh", "ru": "рано", "wortart": "Adverb", "abschnitt": "5B" },
+      { "de": "spät", "ru": "поздно", "wortart": "Adverb", "abschnitt": "5B" }
+    ],
+
+    "grammatik": [
+      {
+        "id": "G5.1",
+        "titel_de": "Die Uhrzeit",
+        "titel_ru": "Время (который час)",
+        "erklaerung_ru": "Есть разговорный и официальный способ. Внимание: «halb neun» = 8:30 (половина ДО девяти, а не после восьми!).",
+        "tabelle": {
+          "spalten": ["Время", "Разговорно", "Официально"],
+          "zeilen": [
+            ["8:00", "acht Uhr", "acht Uhr"],
+            ["8:15", "Viertel nach acht", "acht Uhr fünfzehn"],
+            ["8:30", "halb neun", "acht Uhr dreißig"],
+            ["8:45", "Viertel vor neun", "acht Uhr fünfundvierzig"],
+            ["8:20", "zwanzig nach acht", "acht Uhr zwanzig"]
+          ]
+        },
+        "beispiele": [
+          { "de": "Wie spät ist es?", "ru": "Который час?" },
+          { "de": "Es ist halb neun.", "ru": "Сейчас 8:30." }
+        ],
+        "merke_ru": "halb + СЛЕДУЮЩИЙ час: halb neun = 8:30, halb zehn = 9:30."
+      },
+      {
+        "id": "G5.2",
+        "titel_de": "Trennbare Verben",
+        "titel_ru": "Отделяемые глаголы — рамка предложения",
+        "erklaerung_ru": "У отделяемых глаголов приставка в предложении уходит в КОНЕЦ. Спрягается основная часть, приставка стоит последней (Satzklammer).",
+        "tabelle": {
+          "spalten": ["Infinitiv", "В предложении"],
+          "zeilen": [
+            ["aufstehen", "Ich stehe um 7 Uhr auf."],
+            ["anfangen", "Der Kurs fängt um 8 an."],
+            ["einkaufen", "Wir kaufen am Samstag ein."],
+            ["fernsehen", "Er sieht am Abend fern."]
+          ]
+        },
+        "merke_ru": "Глагол — на 2-м месте, приставка (auf-, an-, ein-, fern-) — в самом конце."
+      },
+      {
+        "id": "G5.3",
+        "titel_de": "Präpositionen: am / um / von … bis",
+        "titel_ru": "Предлоги времени",
+        "erklaerung_ru": "am — для дней и частей суток; um — для часов; von … bis — для промежутка.",
+        "tabelle": {
+          "spalten": ["Предлог", "Когда", "Пример"],
+          "zeilen": [
+            ["am", "день недели / часть суток", "am Montag, am Abend"],
+            ["um", "точное время", "um 8 Uhr"],
+            ["von … bis", "промежуток", "von 9 bis 11 Uhr"]
+          ]
+        },
+        "merke_ru": "Исключение: in der Nacht (не «am Nacht»)."
+      },
+      {
+        "id": "G5.4",
+        "titel_de": "Negation: nicht",
+        "titel_ru": "Отрицание nicht",
+        "erklaerung_ru": "nicht отрицает глагол/всё высказывание (в отличие от kein, который отрицает существительное). Обычно стоит в конце или перед отрицаемой частью.",
+        "beispiele": [
+          { "de": "Ich arbeite heute nicht.", "ru": "Сегодня я не работаю." },
+          { "de": "Der Kurs fängt nicht um 8 an.", "ru": "Курс начинается не в 8." },
+          { "de": "Das Zimmer ist nicht groß.", "ru": "Комната не большая." }
+        ],
+        "merke_ru": "Существительное → kein; глагол/прилагательное/время → nicht."
+      }
+    ],
+
+    "dialoge": [
+      {
+        "id": "D5.1",
+        "titel_de": "Wann fängt der Kurs an?",
+        "situation_ru": "Двое уточняют расписание курса (оригинальный диалог).",
+        "modus": "hoeren_nachsprechen",
+        "turns": [
+          { "sprecher": "A", "de": "Wann fängt der Deutschkurs an?", "ru": "Когда начинается курс немецкого?" },
+          { "sprecher": "B", "de": "Er fängt um halb neun an.", "ru": "Он начинается в 8:30." },
+          { "sprecher": "A", "de": "Und wie lange?", "ru": "А как долго?" },
+          { "sprecher": "B", "de": "Von halb neun bis Viertel vor zwölf.", "ru": "С 8:30 до 11:45." }
+        ]
+      },
+      {
+        "id": "D5.2",
+        "titel_de": "Mein Tag",
+        "situation_ru": "Рассказ о распорядке дня (оригинальный диалог).",
+        "modus": "hoeren_nachsprechen",
+        "turns": [
+          { "sprecher": "A", "de": "Wann stehst du auf?", "ru": "Когда ты встаёшь?" },
+          { "sprecher": "B", "de": "Ich stehe um sieben Uhr auf.", "ru": "Я встаю в семь." },
+          { "sprecher": "A", "de": "Und am Abend?", "ru": "А вечером?" },
+          { "sprecher": "B", "de": "Am Abend sehe ich fern. Um elf gehe ich schlafen.", "ru": "Вечером смотрю ТВ. В одиннадцать ложусь спать." }
+        ]
+      }
+    ],
+
+    "voice_aufgaben": [
+      {
+        "id": "V5.1", "typ": "frage_antwort", "abschnitt": "5A",
+        "anweisung_ru": "Скажи время: 8:30 (разговорно).",
+        "prompt_de": "Wie spät ist es? (8:30)",
+        "erwartet_de": "Es ist halb neun.",
+        "akzeptiert": ["halb neun", "acht Uhr dreißig"],
+        "hinweis_ru": "8:30 = halb neun (половина до девяти)."
+      },
+      {
+        "id": "V5.2", "typ": "frage_antwort", "abschnitt": "5A",
+        "anweisung_ru": "Скажи время: 8:15 (разговорно).",
+        "prompt_de": "Wie spät ist es? (8:15)",
+        "erwartet_de": "Es ist Viertel nach acht.",
+        "akzeptiert": ["Viertel nach acht", "acht Uhr fünfzehn"],
+        "hinweis_ru": "8:15 = Viertel nach acht."
+      },
+      {
+        "id": "V5.3", "typ": "satz_bilden", "abschnitt": "G5.2",
+        "anweisung_ru": "Составь предложение из: ich / aufstehen / um 7 Uhr.",
+        "prompt_de": "ich + aufstehen + um 7 Uhr →",
+        "erwartet_de": "Ich stehe um 7 Uhr auf.",
+        "akzeptiert": ["Ich stehe um sieben Uhr auf."],
+        "hinweis_ru": "Приставка auf- в конец."
+      },
+      {
+        "id": "V5.4", "typ": "luecke", "abschnitt": "G5.2",
+        "anweisung_ru": "Поставь приставку: Der Kurs fängt um 8 ___.",
+        "prompt_de": "Der Kurs fängt um 8 ___.",
+        "erwartet_de": "an",
+        "akzeptiert": [],
+        "hinweis_ru": "anfangen → приставка an в конце."
+      },
+      {
+        "id": "V5.5", "typ": "luecke", "abschnitt": "G5.3",
+        "anweisung_ru": "Вставь предлог: ___ Montag (в понедельник).",
+        "prompt_de": "___ Montag habe ich Kurs.",
+        "erwartet_de": "Am",
+        "akzeptiert": ["am"],
+        "hinweis_ru": "День недели → am."
+      },
+      {
+        "id": "V5.6", "typ": "luecke", "abschnitt": "G5.3",
+        "anweisung_ru": "Вставь предлог: ___ 8 Uhr (в 8 часов).",
+        "prompt_de": "Der Kurs fängt ___ 8 Uhr an.",
+        "erwartet_de": "um",
+        "akzeptiert": [],
+        "hinweis_ru": "Точное время → um."
+      },
+      {
+        "id": "V5.7", "typ": "uebersetzung_ru_de", "abschnitt": "G5.4",
+        "anweisung_ru": "Переведи на немецкий.",
+        "prompt_ru": "Сегодня я не работаю.",
+        "erwartet_de": "Ich arbeite heute nicht.",
+        "akzeptiert": ["Heute arbeite ich nicht."],
+        "hinweis_ru": "глагол → nicht (в конце)."
+      },
+      {
+        "id": "V5.8", "typ": "frage_antwort", "abschnitt": "5B",
+        "anweisung_ru": "Ответь, когда ты встаёшь.",
+        "prompt_de": "Wann stehst du auf?",
+        "erwartet_de": "Ich stehe um sieben Uhr auf.",
+        "akzeptiert": ["Ich stehe um 6 Uhr auf", "Um sieben Uhr"],
+        "hinweis_ru": "Ich stehe um … auf."
+      },
+      {
+        "id": "V5.9", "typ": "uebersetzung_ru_de", "abschnitt": "5B",
+        "anweisung_ru": "Переведи на немецкий.",
+        "prompt_ru": "Вечером я смотрю телевизор.",
+        "erwartet_de": "Am Abend sehe ich fern.",
+        "akzeptiert": ["Ich sehe am Abend fern."],
+        "hinweis_ru": "fernsehen → fern в конце."
+      },
+      {
+        "id": "V5.10", "typ": "frage_antwort", "abschnitt": "5A",
+        "anweisung_ru": "Назови сегодняшний день недели (например, среда).",
+        "prompt_de": "Welcher Tag ist heute?",
+        "erwartet_de": "Heute ist Mittwoch.",
+        "akzeptiert": ["Mittwoch", "Heute ist Montag", "Heute ist Dienstag"],
+        "hinweis_ru": "Heute ist + день недели."
+      }
+    ]
+  }
+}
