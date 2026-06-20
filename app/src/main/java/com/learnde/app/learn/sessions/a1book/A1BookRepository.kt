@@ -122,8 +122,10 @@ class A1BookRepository @Inject constructor(
 
     // ── Парсеры ──
 
-    private fun JSONArray?.toStringList(): List<String> =
-        if (this == null) emptyList() else (0 until length()).map { getString(it) }
+    private fun JSONArray?.toStringList(): List<String> {
+        val array = this ?: return emptyList()
+        return (0 until array.length()).map { array.getString(it) }
+    }
 
     private fun JSONArray.toGrammar(): List<A1BookGrammar> = (0 until length()).map { i ->
         val o = getJSONObject(i)
