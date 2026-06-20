@@ -1,0 +1,173 @@
+{
+  "schema_version": "1.0",
+  "kurs": "A1.1",
+  "lehrwerk": "Schritte plus Neu 1 — A1.1 (Lektionen 1–7)",
+  "hinweis_ru": "Индекс уроков книжного A1. Грамматика — факты немецкого языка; диалоги и задания оригинальные, привязаны к структуре и порядку учебника.",
+  "voice_aufgaben_typen": {
+    "frage_antwort": "вопрос → свободный ответ (сверка с erwartet_de + akzeptiert)",
+    "uebersetzung_ru_de": "перевод RU→DE",
+    "luecke": "вставить пропущенную форму",
+    "satz_bilden": "собрать предложение из слов",
+    "plural_bilden": "образовать множественное число",
+    "partizip_bilden": "образовать Partizip II",
+    "frage_bilden": "задать вопрос",
+    "reaktion": "отреагировать в ситуации",
+    "buchstabieren": "произнести по буквам",
+    "zahlen": "назвать число"
+  },
+  "summe": {
+    "lektionen": 7,
+    "grammatik": 34,
+    "wortschatz": 168,
+    "dialoge": 14,
+    "voice_aufgaben": 78
+  },
+  "lektionen": [
+    {
+      "nummer": 1,
+      "datei": "a1_lektion_01.json",
+      "thema_de": "Guten Tag. Mein Name ist …",
+      "thema_ru": "Здравствуйте. Меня зовут …",
+      "folge": "Folge 1: Das bin ich",
+      "seiten": "10–21",
+      "grammatik_titel": [
+        "Личные местоимения",
+        "Глаголы в настоящем времени — окончания",
+        "Глагол sein (быть) — неправильный",
+        "sprechen — смена гласной e → i",
+        "Вопросы с вопросительным словом",
+        "Утверждение и вопрос да/нет — место глагола",
+        "Алфавит и числа 0–20"
+      ],
+      "anzahl": {
+        "grammatik": 7,
+        "wortschatz": 28,
+        "dialoge": 2,
+        "voice_aufgaben": 14
+      }
+    },
+    {
+      "nummer": 2,
+      "datei": "a1_lektion_02.json",
+      "thema_de": "Meine Familie",
+      "thema_ru": "Моя семья",
+      "folge": "Folge 2: Pause ist super.",
+      "seiten": "22–33",
+      "grammatik_titel": [
+        "Притяжательные местоимения — именительный",
+        "Глагол haben (иметь) — неправильный",
+        "Множественное число существительных",
+        "Местоимения 3-го лица",
+        "Числа 20–100"
+      ],
+      "anzahl": {
+        "grammatik": 5,
+        "wortschatz": 24,
+        "dialoge": 2,
+        "voice_aufgaben": 12
+      }
+    },
+    {
+      "nummer": 3,
+      "datei": "a1_lektion_03.json",
+      "thema_de": "Einkaufen",
+      "thema_ru": "Покупки",
+      "folge": "Folge 3: Bananenpfannkuchen",
+      "seiten": "34–45",
+      "grammatik_titel": [
+        "Неопределённый артикль ein/eine и нулевой артикль",
+        "Отрицательный артикль kein/keine",
+        "Определённый артикль der/das/die (именительный)",
+        "Множественное число (продукты)",
+        "Количество и цена"
+      ],
+      "anzahl": {
+        "grammatik": 5,
+        "wortschatz": 25,
+        "dialoge": 2,
+        "voice_aufgaben": 11
+      }
+    },
+    {
+      "nummer": 4,
+      "datei": "a1_lektion_04.json",
+      "thema_de": "Meine Wohnung",
+      "thema_ru": "Моя квартира",
+      "folge": "Folge 4: Ach so!",
+      "seiten": "46–57",
+      "grammatik_titel": [
+        "Определённый артикль (повтор на комнатах)",
+        "Местоимения для предметов",
+        "Прилагательные после sein — БЕЗ окончаний",
+        "Прилагательные-противоположности",
+        "Нравится: gefällt mir / dir"
+      ],
+      "anzahl": {
+        "grammatik": 5,
+        "wortschatz": 28,
+        "dialoge": 2,
+        "voice_aufgaben": 10
+      }
+    },
+    {
+      "nummer": 5,
+      "datei": "a1_lektion_05.json",
+      "thema_de": "Mein Tag",
+      "thema_ru": "Мой день",
+      "folge": "Folge 5: Von früh bis spät",
+      "seiten": "58–69",
+      "grammatik_titel": [
+        "Время (который час)",
+        "Отделяемые глаголы — рамка предложения",
+        "Предлоги времени",
+        "Отрицание nicht"
+      ],
+      "anzahl": {
+        "grammatik": 4,
+        "wortschatz": 24,
+        "dialoge": 2,
+        "voice_aufgaben": 10
+      }
+    },
+    {
+      "nummer": 6,
+      "datei": "a1_lektion_06.json",
+      "thema_de": "Freizeit",
+      "thema_ru": "Свободное время",
+      "folge": "Folge 6: Der Käsemann",
+      "seiten": "70–81",
+      "grammatik_titel": [
+        "Винительный падеж (Akkusativ)",
+        "Модальный глагол können (мочь/уметь)",
+        "Модальный глагол wollen (хотеть)",
+        "Рамочная конструкция с модальным глаголом"
+      ],
+      "anzahl": {
+        "grammatik": 4,
+        "wortschatz": 18,
+        "dialoge": 2,
+        "voice_aufgaben": 10
+      }
+    },
+    {
+      "nummer": 7,
+      "datei": "a1_lektion_07.json",
+      "thema_de": "Kinder und Schule",
+      "thema_ru": "Дети и школа",
+      "folge": "Folge 7: Prima Team",
+      "seiten": "82–93",
+      "grammatik_titel": [
+        "Прошедшее время Perfekt с haben",
+        "Образование причастия Partizip II",
+        "Perfekt с sein (движение и смена состояния)",
+        "Perfekt в предложении — рамка"
+      ],
+      "anzahl": {
+        "grammatik": 4,
+        "wortschatz": 21,
+        "dialoge": 2,
+        "voice_aufgaben": 11
+      }
+    }
+  ]
+}
