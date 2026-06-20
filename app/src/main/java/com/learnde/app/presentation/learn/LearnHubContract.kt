@@ -30,31 +30,23 @@ data class LearnHubState(
     companion object {
         val DEFAULT_ITEMS: List<LearnHubItem> = listOf(
             LearnHubItem(
-                id = "a0a1_test",
-                title = "Тестирование A0–B2",
-                subtitle = "Определи свой текущий уровень",
-                badge = "A0–A1",
-                iconKey = "Quiz",
-                accentKey = "Accent",
-                detailStats = listOf(
-                    "20" to "вопросов",
-                    "7" to "балльная шкала",
-                    "≈15" to "минут",
-                ),
-                implemented = true,
-            ),
-            LearnHubItem(
                 id = "a1_learning",
-                title = "Обучение A1",
-                subtitle = "Лексика · грамматика · диалоги",
+                title = "A1 · Адаптивный курс",
+                subtitle = "Живые ситуации · интервальное повторение",
                 badge = "A1",
                 iconKey = "School",
                 accentKey = "Accent",
-                detailStats = listOf(
-                    "824" to "слов",
-                    "141" to "урок",
-                    "22" to "правила",
-                ),
+                detailStats = emptyList(),
+                implemented = true,
+            ),
+            LearnHubItem(
+                id = "a1_book",
+                title = "A1 · По учебнику",
+                subtitle = "Schritte A1.1 · уроки, правила, диалоги",
+                badge = "A1.1",
+                iconKey = "Book",
+                accentKey = "Accent",
+                detailStats = emptyList(),
                 implemented = true,
             ),
         )

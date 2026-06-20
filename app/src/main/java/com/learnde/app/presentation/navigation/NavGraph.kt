@@ -28,8 +28,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.learnde.app.learn.core.LearnCoreViewModel
-import com.learnde.app.learn.test.a0a1.A0a1TestScreen
-import com.learnde.app.presentation.functions.FunctionsTestScreen
 import com.learnde.app.presentation.learn.LearnHubScreen
 import com.learnde.app.presentation.levelselect.LevelSelectScreen
 import com.learnde.app.presentation.onboarding.OnboardingScreen
@@ -39,7 +37,6 @@ import com.learnde.app.presentation.learn.theme.learnColors
 object Routes {
     const val GATE          = "gate"            // решает: тест или выбор уровня
     const val ONBOARDING    = "onboarding"
-    const val A0A1_TEST     = "test/a0a1"
     const val LEVEL_SELECT  = "levels"
     const val SETTINGS      = "settings"
 
@@ -52,6 +49,7 @@ object Routes {
     const val LEARN_A1_SESSION_DETAILS = "learn/a1/session/{sessionId}"
     const val LEARN_A1_COURSE_MAP = "learn/a1/coursemap"
     const val LEARN_A1_GRAMMAR = "learn/a1/grammar"
+    const val LEARN_A1_BOOK = "learn/a1book"
     const val LEARN_STUDIO = "learn/studio"
     const val DEBUG_LOGS = "debug/logs"
 }
@@ -81,14 +79,12 @@ fun AppNavGraph(
             val userName by settingsVm.userName.collectAsStateWithLifecycle(initialValue = null)
             val testPassed by settingsVm.testPassed.collectAsStateWithLifecycle(initialValue = null)
             
-            LaunchedEffect(userName, testPassed) {
-                if (userName != null && testPassed != null) {
+            LaunchedEffect(userName) {
+                if (userName != null) {
                     if (userName!!.isBlank()) {
                         navController.navigate(Routes.ONBOARDING) { popUpTo(Routes.GATE) { inclusive = true } }
-                    } else if (testPassed == true) {
-                        navController.navigate(Routes.LEVEL_SELECT) { popUpTo(Routes.GATE) { inclusive = true } }
                     } else {
-                        navController.navigate(Routes.A0A1_TEST) { popUpTo(Routes.GATE) { inclusive = true } }
+                        navController.navigate(Routes.LEARN_GRAPH) { popUpTo(Routes.GATE) { inclusive = true } }
                     }
                 }
             }
@@ -102,27 +98,6 @@ fun AppNavGraph(
                         popUpTo(Routes.ONBOARDING) { inclusive = true }
                     }
                 }
-            )
-        }
-
-        composable(Routes.A0A1_TEST) {
-            val learnCoreViewModel: LearnCoreViewModel = hiltViewModel()
-            val goToLevels: () -> Unit = {
-                navController.navigate(Routes.LEVEL_SELECT) {
-                    popUpTo(Routes.A0A1_TEST) { inclusive = true }
-                }
-            }
-            A0a1TestScreen(
-                onBack = goToLevels,
-                onNavigateToStudy = { _ -> goToLevels() },
-                onNavigateToRoute = { route ->
-                    // Кладём LEVEL_SELECT в backstack, чтобы «Назад» из A1 не закрывал приложение
-                    navController.navigate(Routes.LEVEL_SELECT) {
-                        popUpTo(Routes.A0A1_TEST) { inclusive = true }
-                    }
-                    navController.navigate(route) { launchSingleTop = true }
-                },
-                learnCoreViewModel = learnCoreViewModel,
             )
         }
 
@@ -171,6 +146,9 @@ fun AppNavGraph(
                     },
                     onOpenStudio = {
                         navController.navigate(Routes.LEARN_STUDIO) { launchSingleTop = true }
+                    },
+                    onOpenA1Book = {
+                        navController.navigate(Routes.LEARN_A1_BOOK) { launchSingleTop = true }
                     },
                     onOpenDebugLogs = {
                         navController.navigate(Routes.DEBUG_LOGS) { launchSingleTop = true }
@@ -232,6 +210,14 @@ fun AppNavGraph(
                         launchSingleTop = true
                     }
                 }
+            }
+
+            composable(Routes.LEARN_A1_BOOK) { entry ->
+                val learnCoreVm = entry.sharedLearnCoreViewModel(navController)
+                com.learnde.app.learn.sessions.a1book.A1BookScreen(
+                    onBack = { navController.popBackStack() },
+                    learnCoreViewModel = learnCoreVm,
+                )
             }
 
             composable(Routes.LEARN_A1_HISTORY) {

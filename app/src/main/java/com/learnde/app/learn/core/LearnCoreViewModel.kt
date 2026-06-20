@@ -367,7 +367,7 @@ class LearnCoreViewModel @Inject constructor(
             voiceId = finalVoiceId,
             latencyProfile = profile,
             autoActivityDetection = cachedSettings.enableServerVad,
-            vadStartSensitivity = "START_SENSITIVITY_HIGH",
+            vadStartSensitivity = "START_SENSITIVITY_LOW",
             vadEndSensitivity = "END_SENSITIVITY_LOW",
             vadSilenceDurationMs = finalSilenceMs,
             vadPrefixPaddingMs = prefixMs,
@@ -571,7 +571,7 @@ class LearnCoreViewModel @Inject constructor(
                     // времени, поэтому lastAiAudioChunkAtMs «устаревает» раньше,
                     // чем динамик домолчал. Держим mic-gate закрытым, пока идет
                     // реальное проигрывание звука с запасом в 250 мс на эхоподавление.
-                    val stillPlaying = now < audioEngine.playbackAudibleUntilMs + 250L
+                    val stillPlaying = now < audioEngine.playbackAudibleUntilMs + 400L
                     val aiActuallyAudible =
                         stillPlaying ||
                         (lastAiAudioChunkAtMs > 0L && sinceLastAi < effectiveTailMs)
@@ -677,9 +677,9 @@ class LearnCoreViewModel @Inject constructor(
                     }
 
                     is GeminiEvent.Interrupted -> {
+                        audioEngine.flushPlayback()
                         transcriptChannel.trySend(TranscriptOp.UserTurnComplete)
                         transcriptChannel.trySend(TranscriptOp.ModelTurnComplete)
-                        viewModelScope.launch { audioEngine.flushPlayback() }
                         _state.update { it.copy(isAiSpeaking = false) }
                         speakingOffJob?.cancel()
                         modelStartedSpeakingThisTurn = false

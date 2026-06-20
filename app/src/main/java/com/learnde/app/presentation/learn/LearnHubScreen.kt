@@ -87,6 +87,7 @@ private fun iconFor(key: String): ImageVector = when (key) {
 fun LearnHubScreen(
     onBack: () -> Unit,
     onOpenA1Learning: () -> Unit,
+    onOpenA1Book: () -> Unit = {},
     onOpenGrammar: () -> Unit = {},
     onOpenStudio: () -> Unit = {},
     onOpenDebugLogs: () -> Unit = {},
@@ -107,6 +108,7 @@ fun LearnHubScreen(
                     "learn/a1" -> onOpenA1Learning()
                     "learn/a1/grammar" -> onOpenGrammar()
                     "learn/studio" -> onOpenStudio()
+                    "learn/a1book" -> onOpenA1Book()
                 }
             }
         }
@@ -251,18 +253,26 @@ private fun HeroHeader() {
             .padding(LearnTokens.PaddingLg),
     ) {
         Text(
-            "Изучение немецкого",
+            "Deutsch A1",
             fontSize = LearnTokens.FontSizeTitleLg,
             fontWeight = FontWeight.Bold,
             color = colors.textHi,
-            letterSpacing = (-0.3).sp,
+            letterSpacing = (-0.4).sp,
         )
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
-            "От нуля до уверенного A1",
+            "Два пути к одному уровню — выбери ритм",
             fontSize = LearnTokens.FontSizeBody,
             color = colors.textMid,
             fontWeight = FontWeight.Normal,
+        )
+        Spacer(Modifier.height(LearnTokens.PaddingMd))
+        Box(
+            modifier = Modifier
+                .width(36.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(LearnTokens.RadiusXs))
+                .background(colors.accent),
         )
     }
 }
@@ -292,16 +302,21 @@ private fun ModuleCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(LearnTokens.RadiusSm))
-                    .background(colors.accentSoft),
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(LearnTokens.RadiusMd))
+                    .background(colors.accentSoft)
+                    .border(
+                        LearnTokens.BorderThin,
+                        colors.accent.copy(alpha = 0.25f),
+                        RoundedCornerShape(LearnTokens.RadiusMd),
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     icon,
                     contentDescription = null,
                     tint = colors.accent,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(24.dp),
                 )
             }
 

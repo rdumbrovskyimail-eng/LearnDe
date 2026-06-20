@@ -52,7 +52,7 @@ class AndroidAudioEngine(
     @Volatile private var jitterTimeoutMs = 150L
 
     @Volatile private var playbackGain: Float = 0.9f
-    @Volatile private var micGain: Float = 2.0f  // максимум для дистанции 40см
+    @Volatile private var micGain: Float = 1.4f
     @Volatile private var forceSpeakerOutput: Boolean = true
 
     // ═══ FLOWS ═══
@@ -219,9 +219,9 @@ class AndroidAudioEngine(
             val targetPeak = 24000        // ~73% от Short.MAX, чуть ближе к пику
             val agcAttack = 0.4f          // быстрее реакция на изменение громкости
             val agcRelease = 0.015f       // ещё медленнее спад — стабильнее усиление
-            val agcMaxBoost = 4.0f        // ВДВОЕ больший boost для тихих фраз с 40см
+            val agcMaxBoost = 2.5f
             val agcMinBoost = 0.6f
-            val noiseFloor = 500          // вдвое ниже порог — захватываем тихую речь
+            val noiseFloor = 900
 
             try {
                 while (isActive && isCapturing) {
@@ -412,7 +412,8 @@ class AndroidAudioEngine(
         // 16-bit mono 24kHz -> 48 байт/мс. Рассчитываем точную физическую длительность чанка
         val durationMs = pcmData.size / 48L
         val now = System.currentTimeMillis()
-        audibleUntilMs = maxOf(audibleUntilMs, now) + durationMs
+        val preBufferLeadMs = if (isFirstBatch) jitterPreBufferChunks * jitterTimeoutMs else 0L
+        audibleUntilMs = maxOf(audibleUntilMs, now + preBufferLeadMs) + durationMs
 
         val durationLegacyMs = (pcmData.size / 2) * 1000L / SessionConfig.OUTPUT_SAMPLE_RATE
         estimatedPlaybackEndMs = maxOf(estimatedPlaybackEndMs, now) + durationLegacyMs

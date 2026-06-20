@@ -50,18 +50,10 @@ class LearnHubViewModel @Inject constructor(
     private fun observeSettings() {
         viewModelScope.launch {
             settingsStore.data.collect { settings ->
-                val passed = settings.testPassed
-                val items = LearnHubState.DEFAULT_ITEMS.map {
-                    if (it.id == "a0a1_test" && passed) it.copy(
-                        badge = "REPLAY",
-                        subtitle = "Пройти заново · переоценка уровня",
-                    ) else it
-                }
                 _state.update {
                     it.copy(
                         apiKeySet = settings.apiKey.isNotEmpty(),
-                        items = items,
-                        testWasPassed = passed,
+                        items = LearnHubState.DEFAULT_ITEMS,
                     )
                 }
             }
@@ -121,10 +113,8 @@ class LearnHubViewModel @Inject constructor(
                     return
                 }
                 val route = when (intent.itemId) {
-                    "a0a1_test" -> "learn/a0a1"
-                    "a1_learning" -> "learn/studio" // ИСПРАВЛЕНО: Теперь открывает Студию
-                    "translator" -> "learn/translator"
-                    "grammar_book" -> "learn/a1/grammar"
+                    "a1_learning" -> "learn/studio"
+                    "a1_book" -> "learn/a1book"
                     else -> return
                 }
                 viewModelScope.launch {

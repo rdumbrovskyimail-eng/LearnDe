@@ -7,11 +7,6 @@
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.core
 
-import com.learnde.app.learn.sessions.a0a1.A0LearnSession
-import com.learnde.app.learn.sessions.a0a1.A1LearnSession
-import com.learnde.app.learn.sessions.a0a1.A2LearnSession
-import com.learnde.app.learn.sessions.a0a1.B1LearnSession
-import com.learnde.app.learn.sessions.a0a1.B2LearnSession
 import com.learnde.app.learn.sessions.a1.A1ReviewSession
 import com.learnde.app.learn.sessions.a1.A1SituationSession
 import com.learnde.app.learn.sessions.a1.v2.A1AdaptiveSession
@@ -20,26 +15,16 @@ import javax.inject.Singleton
 
 @Singleton
 class LearnSessionRegistry @Inject constructor(
-    // Тестовые сессии (определяют уровень ученика)
-    a0: A0LearnSession,
-    a1Test: A1LearnSession,
-    a2: A2LearnSession,
-    b1: B1LearnSession,
-    b2: B2LearnSession,
-    // Учебные сессии A1
     a1Learning: A1SituationSession,
-    a1Review: A1ReviewSession,                // v3.2: NEW
+    a1Review: A1ReviewSession,
     a1Adaptive: A1AdaptiveSession,
+    a1Book: com.learnde.app.learn.sessions.a1book.A1BookSession,
 ) {
     private val sessions: Map<String, LearnSession> = mapOf(
-        a0.id         to a0,
-        a1Test.id     to a1Test,
-        a2.id         to a2,
-        b1.id         to b1,
-        b2.id         to b2,
         a1Learning.id to a1Learning,
-        a1Review.id   to a1Review,             // v3.2: NEW
+        a1Review.id   to a1Review,
         a1Adaptive.id to a1Adaptive,
+        a1Book.id     to a1Book,
     )
 
     fun get(id: String): LearnSession? = sessions[id]
