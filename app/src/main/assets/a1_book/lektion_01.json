@@ -1,1 +1,853 @@
-{}
+{
+  "schema_version": "1.0",
+  "kurs": "A1.1",
+  "lehrwerk_bezug": {
+    "titel": "Schritte plus Neu 1 — A1.1",
+    "lektion": 1,
+    "lektion_titel": "Guten Tag. Mein Name ist …",
+    "folge_titel_de": "Folge 1: Das bin ich",
+    "seiten_ca": "10–21",
+    "hinweis_ru": "Собственный тренировочный материал, привязанный к структуре и порядку тем урока. Грамматика — факты немецкого языка; диалоги и задания оригинальные, не из учебника."
+  },
+  "lektion": {
+    "nummer": 1,
+    "thema_de": "Guten Tag. Mein Name ist …",
+    "thema_ru": "Здравствуйте. Меня зовут …",
+    "folge_titel_de": "Folge 1: Das bin ich",
+    "lernziele_ru": [
+      "поздороваться и попрощаться",
+      "представить себя и другого человека",
+      "спросить и назвать имя",
+      "сказать, откуда ты и на каких языках говоришь",
+      "спросить и ответить, как дела",
+      "называть буквы (алфавит) и числа 0–20"
+    ],
+    "abschnitte": [
+      {
+        "id": "1A",
+        "titel_de": "Guten Tag. / Ich heiße …",
+        "titel_ru": "Приветствие и знакомство"
+      },
+      {
+        "id": "1B",
+        "titel_de": "Ich komme aus …",
+        "titel_ru": "Откуда ты. Языки"
+      },
+      {
+        "id": "1C",
+        "titel_de": "Wie geht’s? – Danke, gut.",
+        "titel_ru": "Как дела. Самочувствие"
+      }
+    ],
+    "wortschatz": [
+      {
+        "de": "Guten Morgen",
+        "ru": "доброе утро",
+        "wortart": "Phrase",
+        "abschnitt": "1A"
+      },
+      {
+        "de": "Guten Tag",
+        "ru": "добрый день / здравствуйте",
+        "wortart": "Phrase",
+        "abschnitt": "1A"
+      },
+      {
+        "de": "Guten Abend",
+        "ru": "добрый вечер",
+        "wortart": "Phrase",
+        "abschnitt": "1A"
+      },
+      {
+        "de": "Hallo",
+        "ru": "привет",
+        "wortart": "Phrase",
+        "abschnitt": "1A"
+      },
+      {
+        "de": "Tschüs",
+        "ru": "пока",
+        "wortart": "Phrase",
+        "abschnitt": "1A"
+      },
+      {
+        "de": "Auf Wiedersehen",
+        "ru": "до свидания",
+        "wortart": "Phrase",
+        "abschnitt": "1A"
+      },
+      {
+        "de": "der Name",
+        "ru": "имя",
+        "wortart": "Nomen",
+        "artikel": "der",
+        "plural": "die Namen",
+        "abschnitt": "1A"
+      },
+      {
+        "de": "heißen",
+        "ru": "зваться, называться",
+        "wortart": "Verb",
+        "beispiel_de": "Ich heiße Anna.",
+        "beispiel_ru": "Меня зовут Анна.",
+        "abschnitt": "1A"
+      },
+      {
+        "de": "wohnen",
+        "ru": "жить, проживать",
+        "wortart": "Verb",
+        "beispiel_de": "Ich wohne in Köln.",
+        "beispiel_ru": "Я живу в Кёльне.",
+        "abschnitt": "1A"
+      },
+      {
+        "de": "kommen",
+        "ru": "приходить; быть родом",
+        "wortart": "Verb",
+        "beispiel_de": "Ich komme aus der Ukraine.",
+        "beispiel_ru": "Я родом из Украины.",
+        "abschnitt": "1B"
+      },
+      {
+        "de": "das Land",
+        "ru": "страна",
+        "wortart": "Nomen",
+        "artikel": "das",
+        "plural": "die Länder",
+        "abschnitt": "1B"
+      },
+      {
+        "de": "die Sprache",
+        "ru": "язык",
+        "wortart": "Nomen",
+        "artikel": "die",
+        "plural": "die Sprachen",
+        "abschnitt": "1B"
+      },
+      {
+        "de": "sprechen",
+        "ru": "говорить (на языке)",
+        "wortart": "Verb",
+        "beispiel_de": "Ich spreche Russisch und Deutsch.",
+        "beispiel_ru": "Я говорю по-русски и по-немецки.",
+        "abschnitt": "1B"
+      },
+      {
+        "de": "Deutschland",
+        "ru": "Германия",
+        "wortart": "Land",
+        "sprache": "Deutsch",
+        "abschnitt": "1B"
+      },
+      {
+        "de": "Russland",
+        "ru": "Россия",
+        "wortart": "Land",
+        "sprache": "Russisch",
+        "abschnitt": "1B"
+      },
+      {
+        "de": "die Ukraine",
+        "ru": "Украина",
+        "wortart": "Land",
+        "sprache": "Ukrainisch",
+        "abschnitt": "1B"
+      },
+      {
+        "de": "Österreich",
+        "ru": "Австрия",
+        "wortart": "Land",
+        "sprache": "Deutsch",
+        "abschnitt": "1B"
+      },
+      {
+        "de": "die Schweiz",
+        "ru": "Швейцария",
+        "wortart": "Land",
+        "sprache": "Deutsch",
+        "abschnitt": "1B"
+      },
+      {
+        "de": "Wie geht’s?",
+        "ru": "как дела?",
+        "wortart": "Phrase",
+        "abschnitt": "1C"
+      },
+      {
+        "de": "gut",
+        "ru": "хорошо",
+        "wortart": "Adjektiv",
+        "abschnitt": "1C"
+      },
+      {
+        "de": "sehr gut",
+        "ru": "очень хорошо",
+        "wortart": "Phrase",
+        "abschnitt": "1C"
+      },
+      {
+        "de": "super",
+        "ru": "супер, отлично",
+        "wortart": "Adjektiv",
+        "abschnitt": "1C"
+      },
+      {
+        "de": "es geht",
+        "ru": "так себе, нормально",
+        "wortart": "Phrase",
+        "abschnitt": "1C"
+      },
+      {
+        "de": "nicht so gut",
+        "ru": "не очень хорошо",
+        "wortart": "Phrase",
+        "abschnitt": "1C"
+      },
+      {
+        "de": "schlecht",
+        "ru": "плохо",
+        "wortart": "Adjektiv",
+        "abschnitt": "1C"
+      },
+      {
+        "de": "müde",
+        "ru": "уставший",
+        "wortart": "Adjektiv",
+        "abschnitt": "1C"
+      },
+      {
+        "de": "danke",
+        "ru": "спасибо",
+        "wortart": "Phrase",
+        "abschnitt": "1C"
+      },
+      {
+        "de": "bitte",
+        "ru": "пожалуйста",
+        "wortart": "Phrase",
+        "abschnitt": "1C"
+      }
+    ],
+    "grammatik": [
+      {
+        "id": "G1.1",
+        "titel_de": "Personalpronomen",
+        "titel_ru": "Личные местоимения",
+        "erklaerung_ru": "В уроке 1 важны три: ich (я), du (ты, неформально), Sie (Вы, вежливо, всегда с большой буквы). Незнакомым взрослым и в учреждениях — Sie.",
+        "tabelle": {
+          "spalten": [
+            "Pronomen",
+            "Перевод",
+            "Anrede"
+          ],
+          "zeilen": [
+            [
+              "ich",
+              "я",
+              "—"
+            ],
+            [
+              "du",
+              "ты",
+              "неформально"
+            ],
+            [
+              "Sie",
+              "Вы",
+              "вежливо"
+            ]
+          ]
+        },
+        "merke_ru": "Sie (вежливое) пишется с большой буквы всегда, даже в середине предложения."
+      },
+      {
+        "id": "G1.2",
+        "titel_de": "Verben im Präsens (regelmäßig)",
+        "titel_ru": "Глаголы в настоящем времени — окончания",
+        "erklaerung_ru": "Берём основу глагола (kommen → komm-) и добавляем окончание по лицу. Это базовая модель для большинства глаголов.",
+        "tabelle": {
+          "spalten": [
+            "Pronomen",
+            "Endung",
+            "kommen",
+            "wohnen",
+            "heißen"
+          ],
+          "zeilen": [
+            [
+              "ich",
+              "-e",
+              "komme",
+              "wohne",
+              "heiße"
+            ],
+            [
+              "du",
+              "-st",
+              "kommst",
+              "wohnst",
+              "heißt"
+            ],
+            [
+              "er/sie/es",
+              "-t",
+              "kommt",
+              "wohnt",
+              "heißt"
+            ],
+            [
+              "wir",
+              "-en",
+              "kommen",
+              "wohnen",
+              "heißen"
+            ],
+            [
+              "ihr",
+              "-t",
+              "kommt",
+              "wohnt",
+              "heißt"
+            ],
+            [
+              "sie/Sie",
+              "-en",
+              "kommen",
+              "wohnen",
+              "heißen"
+            ]
+          ]
+        },
+        "merke_ru": "У heißen основа на -ß, поэтому du heißt и er heißt (без лишнего -s-)."
+      },
+      {
+        "id": "G1.3",
+        "titel_de": "Das Verb „sein“",
+        "titel_ru": "Глагол sein (быть) — неправильный",
+        "erklaerung_ru": "sein надо выучить наизусть, он не следует общему правилу.",
+        "tabelle": {
+          "spalten": [
+            "Pronomen",
+            "sein",
+            "Перевод"
+          ],
+          "zeilen": [
+            [
+              "ich",
+              "bin",
+              "я есть"
+            ],
+            [
+              "du",
+              "bist",
+              "ты есть"
+            ],
+            [
+              "er/sie/es",
+              "ist",
+              "он/она/оно есть"
+            ],
+            [
+              "wir",
+              "sind",
+              "мы есть"
+            ],
+            [
+              "ihr",
+              "seid",
+              "вы есть"
+            ],
+            [
+              "sie/Sie",
+              "sind",
+              "они/Вы есть"
+            ]
+          ]
+        },
+        "beispiele": [
+          {
+            "de": "Ich bin müde.",
+            "ru": "Я устал."
+          },
+          {
+            "de": "Das ist Herr Petrov.",
+            "ru": "Это господин Петров."
+          }
+        ]
+      },
+      {
+        "id": "G1.4",
+        "titel_de": "Verb „sprechen“ (Vokalwechsel)",
+        "titel_ru": "sprechen — смена гласной e → i",
+        "erklaerung_ru": "У некоторых глаголов во 2-м и 3-м лице ед. ч. меняется гласная в основе.",
+        "tabelle": {
+          "spalten": [
+            "Pronomen",
+            "sprechen"
+          ],
+          "zeilen": [
+            [
+              "ich",
+              "spreche"
+            ],
+            [
+              "du",
+              "sprichst"
+            ],
+            [
+              "er/sie/es",
+              "spricht"
+            ],
+            [
+              "wir",
+              "sprechen"
+            ],
+            [
+              "ihr",
+              "sprecht"
+            ],
+            [
+              "sie/Sie",
+              "sprechen"
+            ]
+          ]
+        },
+        "merke_ru": "Меняется только du и er/sie/es: e → i (sprichst, spricht)."
+      },
+      {
+        "id": "G1.5",
+        "titel_de": "W-Fragen",
+        "titel_ru": "Вопросы с вопросительным словом",
+        "erklaerung_ru": "Порядок: вопросительное слово + глагол + подлежащее. Глагол всегда на 2-м месте.",
+        "tabelle": {
+          "spalten": [
+            "W-Wort",
+            "Перевод",
+            "Beispiel"
+          ],
+          "zeilen": [
+            [
+              "Wie",
+              "как",
+              "Wie heißen Sie?"
+            ],
+            [
+              "Woher",
+              "откуда",
+              "Woher kommst du?"
+            ],
+            [
+              "Wo",
+              "где",
+              "Wo wohnst du?"
+            ],
+            [
+              "Was",
+              "что",
+              "Was sprichst du?"
+            ]
+          ]
+        },
+        "beispiele": [
+          {
+            "de": "Wie heißt du?",
+            "ru": "Как тебя зовут?"
+          },
+          {
+            "de": "Woher kommen Sie?",
+            "ru": "Откуда Вы?"
+          }
+        ]
+      },
+      {
+        "id": "G1.6",
+        "titel_de": "Aussagesatz & Ja/Nein-Frage",
+        "titel_ru": "Утверждение и вопрос да/нет — место глагола",
+        "erklaerung_ru": "В утверждении глагол на 2-м месте. В вопросе да/нет глагол выходит на 1-е место.",
+        "tabelle": {
+          "spalten": [
+            "Typ",
+            "Position 1",
+            "Position 2 (Verb)",
+            "Rest"
+          ],
+          "zeilen": [
+            [
+              "Aussage",
+              "Ich",
+              "komme",
+              "aus Russland."
+            ],
+            [
+              "Ja/Nein-Frage",
+              "Kommst",
+              "du",
+              "aus Russland?"
+            ],
+            [
+              "W-Frage",
+              "Woher",
+              "kommst",
+              "du?"
+            ]
+          ]
+        },
+        "merke_ru": "Da/нет-вопрос = просто переставь глагол вперёд: Du wohnst hier. → Wohnst du hier?"
+      },
+      {
+        "id": "G1.7",
+        "titel_de": "Alphabet & Zahlen 0–20",
+        "titel_ru": "Алфавит и числа 0–20",
+        "alphabet": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f",
+          "g",
+          "h",
+          "i",
+          "j",
+          "k",
+          "l",
+          "m",
+          "n",
+          "o",
+          "p",
+          "q",
+          "r",
+          "s",
+          "t",
+          "u",
+          "v",
+          "w",
+          "x",
+          "y",
+          "z",
+          "ä",
+          "ö",
+          "ü",
+          "ß"
+        ],
+        "zahlen": [
+          [
+            "0",
+            "null"
+          ],
+          [
+            "1",
+            "eins"
+          ],
+          [
+            "2",
+            "zwei"
+          ],
+          [
+            "3",
+            "drei"
+          ],
+          [
+            "4",
+            "vier"
+          ],
+          [
+            "5",
+            "fünf"
+          ],
+          [
+            "6",
+            "sechs"
+          ],
+          [
+            "7",
+            "sieben"
+          ],
+          [
+            "8",
+            "acht"
+          ],
+          [
+            "9",
+            "neun"
+          ],
+          [
+            "10",
+            "zehn"
+          ],
+          [
+            "11",
+            "elf"
+          ],
+          [
+            "12",
+            "zwölf"
+          ],
+          [
+            "13",
+            "dreizehn"
+          ],
+          [
+            "14",
+            "vierzehn"
+          ],
+          [
+            "15",
+            "fünfzehn"
+          ],
+          [
+            "16",
+            "sechzehn"
+          ],
+          [
+            "17",
+            "siebzehn"
+          ],
+          [
+            "18",
+            "achtzehn"
+          ],
+          [
+            "19",
+            "neunzehn"
+          ],
+          [
+            "20",
+            "zwanzig"
+          ]
+        ],
+        "merke_ru": "16 и 17 теряют звук: sech(s)zehn, sieb(en)zehn → sechzehn, siebzehn."
+      }
+    ],
+    "dialoge": [
+      {
+        "id": "D1.1",
+        "titel_de": "Im Integrationskurs",
+        "situation_ru": "Двое знакомятся в первый день курса (оригинальный диалог).",
+        "modus": "hoeren_nachsprechen",
+        "turns": [
+          {
+            "sprecher": "A",
+            "de": "Guten Tag! Ich heiße Marek. Und Sie?",
+            "ru": "Добрый день! Меня зовут Марек. А Вас?"
+          },
+          {
+            "sprecher": "B",
+            "de": "Guten Tag, Marek. Mein Name ist Olga.",
+            "ru": "Добрый день, Марек. Меня зовут Ольга."
+          },
+          {
+            "sprecher": "A",
+            "de": "Woher kommen Sie, Olga?",
+            "ru": "Откуда Вы, Ольга?"
+          },
+          {
+            "sprecher": "B",
+            "de": "Ich komme aus der Ukraine. Und Sie?",
+            "ru": "Я из Украины. А Вы?"
+          },
+          {
+            "sprecher": "A",
+            "de": "Aus Polen. Ich spreche Polnisch und ein bisschen Deutsch.",
+            "ru": "Из Польши. Я говорю по-польски и немного по-немецки."
+          }
+        ]
+      },
+      {
+        "id": "D1.2",
+        "titel_de": "Wie geht’s?",
+        "situation_ru": "Двое знакомых встречаются (оригинальный диалог).",
+        "modus": "hoeren_nachsprechen",
+        "turns": [
+          {
+            "sprecher": "A",
+            "de": "Hallo Tom, wie geht’s?",
+            "ru": "Привет, Том, как дела?"
+          },
+          {
+            "sprecher": "B",
+            "de": "Danke, gut. Und dir?",
+            "ru": "Спасибо, хорошо. А тебе?"
+          },
+          {
+            "sprecher": "A",
+            "de": "Nicht so gut, ich bin müde.",
+            "ru": "Не очень, я устал."
+          },
+          {
+            "sprecher": "B",
+            "de": "Oh. Bis später, Tschüs!",
+            "ru": "О. До скорого, пока!"
+          }
+        ]
+      }
+    ],
+    "voice_aufgaben": [
+      {
+        "id": "V1.1",
+        "typ": "frage_antwort",
+        "abschnitt": "1A",
+        "anweisung_ru": "Ответь, как тебя зовут.",
+        "prompt_de": "Wie heißen Sie?",
+        "erwartet_de": "Ich heiße …",
+        "akzeptiert": [
+          "Mein Name ist …",
+          "Ich bin …"
+        ],
+        "hinweis_ru": "Глагол heißen: ich heiße."
+      },
+      {
+        "id": "V1.2",
+        "typ": "frage_antwort",
+        "abschnitt": "1B",
+        "anweisung_ru": "Скажи, откуда ты.",
+        "prompt_de": "Woher kommen Sie?",
+        "erwartet_de": "Ich komme aus …",
+        "akzeptiert": [
+          "Ich komme aus der Ukraine",
+          "Ich komme aus Russland",
+          "Ich bin aus …"
+        ],
+        "hinweis_ru": "kommen aus + страна. Перед die Ukraine / die Schweiz нужен артикль: aus der Ukraine."
+      },
+      {
+        "id": "V1.3",
+        "typ": "frage_antwort",
+        "abschnitt": "1B",
+        "anweisung_ru": "Скажи, на каких языках ты говоришь.",
+        "prompt_de": "Welche Sprachen sprechen Sie?",
+        "erwartet_de": "Ich spreche Russisch und Deutsch.",
+        "akzeptiert": [
+          "Ich spreche Russisch",
+          "Ich spreche Ukrainisch und ein bisschen Deutsch"
+        ],
+        "hinweis_ru": "sprechen: ich spreche."
+      },
+      {
+        "id": "V1.4",
+        "typ": "frage_antwort",
+        "abschnitt": "1C",
+        "anweisung_ru": "Ответь на вопрос о самочувствии.",
+        "prompt_de": "Wie geht’s?",
+        "erwartet_de": "Danke, gut. Und dir?",
+        "akzeptiert": [
+          "Danke, sehr gut",
+          "Es geht",
+          "Nicht so gut",
+          "Danke, gut"
+        ],
+        "hinweis_ru": "Стандартный ответ: Danke, gut."
+      },
+      {
+        "id": "V1.5",
+        "typ": "uebersetzung_ru_de",
+        "abschnitt": "1A",
+        "anweisung_ru": "Переведи на немецкий.",
+        "prompt_ru": "Меня зовут Олег.",
+        "erwartet_de": "Ich heiße Oleg.",
+        "akzeptiert": [
+          "Mein Name ist Oleg."
+        ],
+        "hinweis_ru": "ich heiße / mein Name ist"
+      },
+      {
+        "id": "V1.6",
+        "typ": "uebersetzung_ru_de",
+        "abschnitt": "1B",
+        "anweisung_ru": "Переведи на немецкий.",
+        "prompt_ru": "Я живу в Эйторфе.",
+        "erwartet_de": "Ich wohne in Eitorf.",
+        "akzeptiert": [],
+        "hinweis_ru": "wohnen in + город"
+      },
+      {
+        "id": "V1.7",
+        "typ": "luecke",
+        "abschnitt": "G1.3",
+        "anweisung_ru": "Вставь правильную форму sein.",
+        "prompt_de": "Ich ___ müde.",
+        "erwartet_de": "bin",
+        "akzeptiert": [],
+        "hinweis_ru": "ich bin"
+      },
+      {
+        "id": "V1.8",
+        "typ": "luecke",
+        "abschnitt": "G1.2",
+        "anweisung_ru": "Вставь окончание глагола: du wohn___",
+        "prompt_de": "Wo wohn___ du?",
+        "erwartet_de": "wohnst",
+        "akzeptiert": [
+          "st"
+        ],
+        "hinweis_ru": "du → -st"
+      },
+      {
+        "id": "V1.9",
+        "typ": "reaktion",
+        "abschnitt": "1A",
+        "anweisung_ru": "Поздоровайся вежливо утром.",
+        "prompt_ru": "Утро, ты заходишь в класс. Поздоровайся.",
+        "erwartet_de": "Guten Morgen!",
+        "akzeptiert": [
+          "Guten Tag!",
+          "Hallo!"
+        ],
+        "hinweis_ru": "До ~11:00 — Guten Morgen."
+      },
+      {
+        "id": "V1.10",
+        "typ": "reaktion",
+        "abschnitt": "1A",
+        "anweisung_ru": "Попрощайся неформально.",
+        "prompt_ru": "Уходишь с курса, попрощайся с однокурсником.",
+        "erwartet_de": "Tschüs!",
+        "akzeptiert": [
+          "Auf Wiedersehen!",
+          "Bis später!"
+        ],
+        "hinweis_ru": "Неформально — Tschüs."
+      },
+      {
+        "id": "V1.11",
+        "typ": "frage_bilden",
+        "abschnitt": "G1.5",
+        "anweisung_ru": "Задай вопрос «Откуда ты?» неформально.",
+        "prompt_ru": "Спроси у друга, откуда он.",
+        "erwartet_de": "Woher kommst du?",
+        "akzeptiert": [],
+        "hinweis_ru": "Woher + kommst + du"
+      },
+      {
+        "id": "V1.12",
+        "typ": "buchstabieren",
+        "abschnitt": "G1.7",
+        "anweisung_ru": "Назови по буквам своё имя (пример с именем Anna).",
+        "prompt_de": "Buchstabieren Sie bitte: Anna.",
+        "erwartet_de": "A – N – N – A",
+        "akzeptiert": [],
+        "hinweis_ru": "По-немецки: A, N, N, A."
+      },
+      {
+        "id": "V1.13",
+        "typ": "zahlen",
+        "abschnitt": "G1.7",
+        "anweisung_ru": "Назови число по-немецки.",
+        "prompt_ru": "12",
+        "erwartet_de": "zwölf",
+        "akzeptiert": [],
+        "hinweis_ru": "12 = zwölf"
+      },
+      {
+        "id": "V1.14",
+        "typ": "zahlen",
+        "abschnitt": "G1.7",
+        "anweisung_ru": "Назови число по-немецки.",
+        "prompt_ru": "16",
+        "erwartet_de": "sechzehn",
+        "akzeptiert": [],
+        "hinweis_ru": "Не sechszehn, а sechzehn."
+      }
+    ]
+  }
+}
