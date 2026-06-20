@@ -15,6 +15,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug a1book files
+        run: |
+          echo "=== Текущий коммит ==="
+          git rev-parse HEAD
+          echo "=== Содержимое папки a1book ==="
+          find app/src/main/java/com/learnde/app/learn/sessions/a1book -type f 2>&1 || echo "ПАПКА НЕ НАЙДЕНА"
+          echo "=== Полный текст A1BookSession.kt ==="
+          cat app/src/main/java/com/learnde/app/learn/sessions/a1book/A1BookSession.kt 2>&1 || echo "ФАЙЛ НЕ НАЙДЕН"
+          echo "=== Полный текст LearnSessionRegistry.kt ==="
+          cat app/src/main/java/com/learnde/app/learn/core/LearnSessionRegistry.kt 2>&1 || echo "ФАЙЛ НЕ НАЙДЕН"
+
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
