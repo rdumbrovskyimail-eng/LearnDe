@@ -10,7 +10,7 @@ package com.learnde.app.learn.core
 import com.learnde.app.learn.sessions.a1.A1ReviewSession
 import com.learnde.app.learn.sessions.a1.A1SituationSession
 import com.learnde.app.learn.sessions.a1.v2.A1AdaptiveSession
-import com.learnde.app.learn.sessions.a1book.A1BookSession
+// import com.learnde.app.learn.sessions.a1book.A1BookSession
 import javax.inject.Inject
 import javax.inject.Singleton
 
