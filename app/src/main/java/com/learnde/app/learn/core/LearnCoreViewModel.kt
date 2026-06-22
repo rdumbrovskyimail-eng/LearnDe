@@ -915,40 +915,7 @@ class LearnCoreViewModel @Inject constructor(
     private fun handleToolCalls(event: GeminiEvent.ToolCall) {
         val session = activeSession
 
-        // 1. МГНОВЕННЫЙ ОТВЕТ — до любых suspend-операций.
-        val acks = event.calls.map { call ->
-            ToolResponse(call.name, call.id, """{"status":"ok"}""")
-        }
-        if (liveClient.isReady) {
-            runCatching { liveClient.sendToolResponse(acks) }
-                .onFailure { logger.e("Learn: instant toolResponse failed: ${it.message}") }
-        }
-
-        // 2. ФОНОВАЯ обработка (Room, шины, прогресс) — голос уже свободен.
-        for (call in event.calls) {
-            statusBus.onDetected(call.name, call.id)
-            val job = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                var success = true
-                try {
-                    statusBus.onExecuting(call.name, call.id)
-                    val result = try {
-                        session?.handleToolCall(call) ?: """{"error":"no active session"}"""
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        logger.e("Learn.toolCall threw: ${e.message}", e)
-                        success = false
-                        """{"error":"${e.message?.replace("\"", "'")}"}"""
-                    }
-                    if (result.contains("\"error\"")) success = false
-                } finally {
-                    statusBus.onCompleted(call.name, call.id, success = success)
-                    toolCallJobs.remove(call.id)
-                }
-            }
-            toolCallJobs[call.id] = job
-        }
-
-        // 3. finish_session: грейс и остановка — как раньше.
+        // 1. finish_session: грейс и остановка
         if (event.calls.any { it.name == "finish_session" || it.name == "finish_test" }) {
             sessionFinished = true
             silenceTimerJob?.cancel()
@@ -960,6 +927,34 @@ class LearnCoreViewModel @Inject constructor(
                 if (activeSession != null && sessionFinished) {
                     stopInternal()
                 }
+            }
+        }
+
+        // 2. Обработка функций и отправка РЕАЛЬНОГО ответа.
+        // ФИКС: Убран мгновенный фейковый ответ {"status":"ok"}. Теперь мы ждем реального результата
+        // от сессии (например, next_step или intervention) и отправляем его модели.
+        // Это предотвращает "проглатывание" фраз и спешку Gemini.
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val responses = event.calls.map { call ->
+                statusBus.onDetected(call.name, call.id)
+                statusBus.onExecuting(call.name, call.id)
+                var success = true
+                val result = try {
+                    session?.handleToolCall(call) ?: """{"error":"no active session"}"""
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    logger.e("Learn.toolCall threw: ${e.message}", e)
+                    success = false
+                    """{"error":"${e.message?.replace("\"", "'")}"}"""
+                }
+                if (result.contains("\"error\"")) success = false
+                statusBus.onCompleted(call.name, call.id, success = success)
+                ToolResponse(call.name, call.id, result)
+            }
+            
+            if (liveClient.isReady) {
+                runCatching { liveClient.sendToolResponse(responses) }
+                    .onFailure { logger.e("Learn: toolResponse failed: ${it.message}") }
             }
         }
     }
