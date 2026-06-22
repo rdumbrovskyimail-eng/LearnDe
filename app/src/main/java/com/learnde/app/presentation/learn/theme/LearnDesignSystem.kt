@@ -64,89 +64,130 @@ class LearnColors(
     val voiceEnd: Color      get() = textSecondary
 }
 
-// ── Тёмная тема в стиле ChatGPT ──
-val StudioDark = LearnColors(
-    background     = Color(0xFF212121),
-    surface        = Color(0xFF2F2F2F),
-    surfaceRaised  = Color(0xFF333333),
-    surfaceSunken  = Color(0xFF171717),
-    textPrimary    = Color(0xFFECECEC),
-    textSecondary  = Color(0xFFB4B4B4),
-    textTertiary   = Color(0xFF8E8EA0),
-    divider        = Color(0xFF3D3D3D),
-    outline        = Color(0xFF4D4D4D),
-    accent         = Color(0xFFECECEC),   // светлый primary на тёмном (как кнопка отправки в GPT)
-    onAccent       = Color(0xFF0D0D0D),
-    accentSoft     = Color(0xFF3A3A3A),
-    success        = Color(0xFF19C37D),
-    successSoft    = Color(0x2619C37D),
-    danger         = Color(0xFFF97066),
-    dangerSoft     = Color(0x26F97066),
-    warning        = Color(0xFFF0A23B),
-    warningSoft    = Color(0x26F0A23B),
-    bubbleTutor    = Color(0xFF333333),
-    bubbleUser     = Color(0xFF3A3A3A),
+object GeminiTokens {
+    val Blue700 = Color(0xFF0D0D0D)
+    val Blue600 = Color(0xFF2D2D2D)
+    val Blue500 = Color(0xFF444444)
+    val Blue400 = Color(0xFF6E6E80)
+    val Blue300 = Color(0xFF8E8EA0)
+    val Blue100 = Color(0xFFD9D9E3)
+    val Blue050 = Color(0xFFF0F0F2)
+
+    val White = Color(0xFFFFFFFF)
+    val Surface1 = Color(0xFFFFFFFF)
+    val Surface2 = Color(0xFFF7F7F8)
+    val Sunken = Color(0xFFF0F0F2)
+
+    val Ink900 = Color(0xFF212121)
+    val Ink800 = Color(0xFF2F2F2F)
+    val Ink700 = Color(0xFF333333)
+    val Ink600 = Color(0xFF3D3D3D)
+
+    val TextHiL = Color(0xFF0D0D0D)
+    val TextMidL = Color(0xFF565869)
+    val TextLowL = Color(0xFF8E8EA0)
+
+    val TextHiD = Color(0xFFECECEC)
+    val TextMidD = Color(0xFFB4B4B4)
+    val TextLowD = Color(0xFF8E8EA0)
+
+    val GreenL = Color(0xFF10A37F)
+    val GreenSoftL = Color(0x1A10A37F)
+    val GreenD = Color(0xFF19C37D)
+    val GreenSoftD = Color(0x2619C37D)
+
+    val RedL = Color(0xFFD92D20)
+    val RedSoftL = Color(0x14D92D20)
+    val RedD = Color(0xFFF97066)
+    val RedSoftD = Color(0x26F97066)
+
+    val AmberL = Color(0xFFB26B00)
+    val AmberSoftL = Color(0x18B26B00)
+    val AmberD = Color(0xFFF0A23B)
+    val AmberSoftD = Color(0x26F0A23B)
+}
+
+val GeminiLight = LearnColors(
+    background     = GeminiTokens.White,
+    surface        = GeminiTokens.Surface1,
+    surfaceRaised  = GeminiTokens.White,
+    surfaceSunken  = GeminiTokens.Sunken,
+    textPrimary    = GeminiTokens.TextHiL,
+    textSecondary  = GeminiTokens.TextMidL,
+    textTertiary   = GeminiTokens.TextLowL,
+    divider        = Color(0xFFE5E5E5),
+    outline        = Color(0xFFD9D9E3),
+    accent         = GeminiTokens.Blue600,
+    onAccent       = GeminiTokens.White,
+    accentSoft     = GeminiTokens.Blue050,
+    success        = GeminiTokens.GreenL,
+    successSoft    = GeminiTokens.GreenSoftL,
+    danger         = GeminiTokens.RedL,
+    dangerSoft     = GeminiTokens.RedSoftL,
+    warning        = GeminiTokens.AmberL,
+    warningSoft    = GeminiTokens.AmberSoftL,
+    bubbleTutor    = GeminiTokens.Surface2,
+    bubbleUser     = Color(0xFFECECEC),
     bubbleSystem   = Color(0x00000000),
 )
 
-// ── Светлая тема в стиле ChatGPT ──
-val StudioLight = LearnColors(
-    background     = Color(0xFFFFFFFF),
-    surface        = Color(0xFFFFFFFF),
-    surfaceRaised  = Color(0xFFFFFFFF),
-    surfaceSunken  = Color(0xFFF7F7F8),
-    textPrimary    = Color(0xFF0D0D0D),
-    textSecondary  = Color(0xFF565869),
-    textTertiary   = Color(0xFF8E8EA0),
-    divider        = Color(0xFFE5E5E5),
-    outline        = Color(0xFFD9D9E3),
-    accent         = Color(0xFF0D0D0D),   // чёрный primary (как кнопка отправки в GPT)
-    onAccent       = Color(0xFFFFFFFF),
-    accentSoft     = Color(0xFFF0F0F2),
-    success        = Color(0xFF10A37F),
-    successSoft    = Color(0x1A10A37F),
-    danger         = Color(0xFFD92D20),
-    dangerSoft     = Color(0x14D92D20),
-    warning        = Color(0xFFB26B00),
-    warningSoft    = Color(0x18B26B00),
-    bubbleTutor    = Color(0xFFF7F7F8),
-    bubbleUser     = Color(0xFFECECEC),
+val GeminiDark = LearnColors(
+    background     = GeminiTokens.Ink900,
+    surface        = GeminiTokens.Ink800,
+    surfaceRaised  = GeminiTokens.Ink700,
+    surfaceSunken  = GeminiTokens.Ink900,
+    textPrimary    = GeminiTokens.TextHiD,
+    textSecondary  = GeminiTokens.TextMidD,
+    textTertiary   = GeminiTokens.TextLowD,
+    divider        = Color(0xFF3D3D3D),
+    outline        = Color(0xFF4D4D4D),
+    accent         = Color(0xFFECECEC),
+    onAccent       = Color(0xFF0D0D0D),
+    accentSoft     = Color(0xFF3A3A3A),
+    success        = GeminiTokens.GreenD,
+    successSoft    = GeminiTokens.GreenSoftD,
+    danger         = GeminiTokens.RedD,
+    dangerSoft     = GeminiTokens.RedSoftD,
+    warning        = GeminiTokens.AmberD,
+    warningSoft    = GeminiTokens.AmberSoftD,
+    bubbleTutor    = GeminiTokens.Ink700,
+    bubbleUser     = Color(0xFF3A3A3A),
     bubbleSystem   = Color(0x00000000),
 )
 
 @Composable
 @ReadOnlyComposable
 fun learnColors(): LearnColors =
-    if (isSystemInDarkTheme()) StudioDark else StudioLight
+    if (isSystemInDarkTheme()) GeminiDark else GeminiLight
 
 object LearnPalette {
-    val BgLight        = StudioLight.background
-    val BgDark         = StudioDark.background
-    val SurfaceLight   = StudioLight.surface
-    val SurfaceDark    = StudioDark.surface
-    val SurfaceVarL    = StudioLight.surfaceRaised
-    val SurfaceVarD    = StudioDark.surfaceRaised
-    val TextHi_L       = StudioLight.textPrimary
-    val TextMid_L      = StudioLight.textSecondary
-    val TextLow_L      = StudioLight.textTertiary
-    val TextHi_D       = StudioDark.textPrimary
-    val TextMid_D      = StudioDark.textSecondary
-    val TextLow_D      = StudioDark.textTertiary
-    val Accent         = StudioDark.accent
-    val AccentSoft_L   = StudioLight.accentSoft
-    val AccentSoft_D   = StudioDark.accentSoft
-    val VoiceStart     = StudioDark.accent
-    val VoiceEnd       = StudioDark.textSecondary
-    val Success        = StudioDark.success
-    val SuccessSoft    = StudioDark.successSoft
-    val Warn           = StudioDark.warning
-    val WarnSoft       = StudioDark.warningSoft
-    val Error          = StudioDark.danger
-    val ErrorSoft      = StudioDark.dangerSoft
-    val Stroke_L       = StudioLight.divider
-    val Stroke_D       = StudioDark.divider
-    val StrokeStrong_L = StudioLight.outline
-    val StrokeStrong_D = StudioDark.outline
+    val BgLight        = GeminiLight.background
+    val BgDark         = GeminiDark.background
+    val SurfaceLight   = GeminiLight.surface
+    val SurfaceDark    = GeminiDark.surface
+    val SurfaceVarL    = GeminiLight.surfaceRaised
+    val SurfaceVarD    = GeminiDark.surfaceRaised
+    val TextHi_L       = GeminiLight.textPrimary
+    val TextMid_L      = GeminiLight.textSecondary
+    val TextLow_L      = GeminiLight.textTertiary
+    val TextHi_D       = GeminiDark.textPrimary
+    val TextMid_D      = GeminiDark.textSecondary
+    val TextLow_D      = GeminiDark.textTertiary
+    val Accent         = GeminiDark.accent
+    val AccentSoft_L   = GeminiLight.accentSoft
+    val AccentSoft_D   = GeminiDark.accentSoft
+    val VoiceStart     = GeminiDark.accent
+    val VoiceEnd       = GeminiDark.textSecondary
+    val Success        = GeminiDark.success
+    val SuccessSoft    = GeminiDark.successSoft
+    val Warn           = GeminiDark.warning
+    val WarnSoft       = GeminiDark.warningSoft
+    val Error          = GeminiDark.danger
+    val ErrorSoft      = GeminiDark.dangerSoft
+    val Stroke_L       = GeminiLight.divider
+    val Stroke_D       = GeminiDark.divider
+    val StrokeStrong_L = GeminiLight.outline
+    val StrokeStrong_D = GeminiDark.outline
 }
 
 // ────────────────────────────────────────────────────────────
