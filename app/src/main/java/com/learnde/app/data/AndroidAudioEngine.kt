@@ -439,7 +439,9 @@ class AndroidAudioEngine(
         runCatching {
             val padMs = 120
             val silence = ByteArray((SessionConfig.OUTPUT_SAMPLE_RATE * 2 * padMs) / 1000)
-            audioTrack?.write(silence, 0, silence.size)
+            // ФИКС КРАША: Отправляем тишину в очередь (channel), а не пишем напрямую в AudioTrack!
+            // Прямая запись из разных потоков вызывала фатальный краш (SIGSEGV) в libaudioclient.so
+            enqueuePlayback(silence)
         }
     }
 
