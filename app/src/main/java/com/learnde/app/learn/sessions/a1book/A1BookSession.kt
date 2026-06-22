@@ -43,8 +43,8 @@ class A1BookSession @Inject constructor(
             repo.buildPrompt(repo.loadLesson(n))
         }.getOrElse { e ->
             logger.e("A1BookSession: load lesson $n failed: ${e.message}")
-            "Ты — репетитор немецкого A1. Урок не загрузился. " +
-                "Скажи по-русски, что урок временно недоступен, и предложи выбрать другой."
+            """Ты — репетитор немецкого A1. Урок не загрузился.
+            Скажи по-русски, что урок временно недоступен, и предложи выбрать другой.""".trimIndent()
         }
         logger.d("A1BookSession.onEnter: lesson=$n, promptLen=${prompt.length}")
     }
