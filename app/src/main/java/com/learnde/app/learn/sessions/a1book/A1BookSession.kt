@@ -1,7 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
-// Путь: app/src/main/java/com/learnde/app/learn/sessions/a1book/A1BookSession.kt
-// ═══════════════════════════════════════════════════════════
 package com.learnde.app.learn.sessions.a1book
 
 import com.learnde.app.domain.model.FunctionCall
@@ -11,13 +7,10 @@ import com.learnde.app.util.AppLogger
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Книжный курс A1.1 (Schritte-структура). Один голосовой урок = один Lektion.
- * Контент берётся из assets/a1_book/*.json через A1BookRepository.
- *
- * Без function-calling — чистый разговорный режим. Меньше движущихся частей =
- * меньше шансов на сбой/глюк. Завершение урока — кнопкой "Завершить" на экране.
- */
+// Книжный курс A1.1 (Schritte-структура). Один голосовой урок = один Lektion.
+// Контент берётся из assets/a1_book/*.json через A1BookRepository.
+// Без function-calling — чистый разговорный режим. Меньше движущихся частей =
+// меньше шансов на сбой/глюк. Завершение урока — кнопкой "Завершить" на экране.
 @Singleton
 class A1BookSession @Inject constructor(
     private val repo: A1BookRepository,
@@ -43,8 +36,8 @@ class A1BookSession @Inject constructor(
             repo.buildPrompt(repo.loadLesson(n))
         }.getOrElse { e ->
             logger.e("A1BookSession: load lesson $n failed: ${e.message}")
-            """Ты — репетитор немецкого A1. Урок не загрузился.
-            Скажи по-русски, что урок временно недоступен, и предложи выбрать другой.""".trimIndent()
+            "Ты — репетитор немецкого A1. Урок не загрузился. " +
+                "Скажи по-русски, что урок временно недоступен, и предложи выбрать другой."
         }
         logger.d("A1BookSession.onEnter: lesson=$n, promptLen=${prompt.length}")
     }
