@@ -25,6 +25,10 @@ jobs:
           cat app/src/main/java/com/learnde/app/learn/sessions/a1book/A1BookSession.kt 2>&1 || echo "ФАЙЛ НЕ НАЙДЕН"
           echo "=== Полный текст LearnSessionRegistry.kt ==="
           cat app/src/main/java/com/learnde/app/learn/core/LearnSessionRegistry.kt 2>&1 || echo "ФАЙЛ НЕ НАЙДЕН"
+          echo "=== Полный текст A1BookRepository.kt ==="
+          cat app/src/main/java/com/learnde/app/learn/sessions/a1book/A1BookRepository.kt 2>&1 || echo "ФАЙЛ НЕ НАЙДЕН"
+          echo "=== Полный текст A1BookViewModel.kt ==="
+          cat app/src/main/java/com/learnde/app/learn/sessions/a1book/A1BookViewModel.kt 2>&1 || echo "ФАЙЛ НЕ НАЙДЕН"
 
       - uses: actions/setup-java@v4
         with:
