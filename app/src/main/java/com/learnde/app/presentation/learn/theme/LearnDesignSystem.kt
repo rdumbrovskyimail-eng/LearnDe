@@ -1,11 +1,15 @@
-// ═══════════════════════════════════════════════════════════
-// КОНЕЧНАЯ ВЕРСИЯ v8.2 — ПОЛНАЯ ЗАМЕНА ФАЙЛА
 // Путь: app/src/main/java/com/learnde/app/presentation/learn/theme/LearnDesignSystem.kt
 //
-// ЧТО ИЗМЕНЕНО относительно v8.1:
-//   Фикс Platform declaration clash в LearnType:
-//   добавлены @get:JvmName к строчным свойствам display/title/body/caption/micro
-//   чтобы их JVM-сигнатуры не совпадали с заглавными алиасами Display/Title/Body/Caption/Micro.
+// РЕДИЗАЙН: монохромная палитра в стиле ChatGPT (серый + белый).
+//   • Светлая тема: белый фон, почти-чёрный текст, тонкие серые границы.
+//   • Тёмная тема: #212121 фон, #2F2F2F поверхности, светлый текст.
+//   • Единственный цветовой акцент — зелёный (success) для «верно» и красный
+//     (danger) для ошибок: в языковом тренажёре без них нельзя.
+//   • Все имена свойств сохранены — экраны менять не нужно, цвета берутся
+//     через learnColors() / LearnPalette.
+//
+// СОХРАНЁН фикс Platform declaration clash в LearnType (@get:JvmName на
+// строчных свойствах display/title/body/caption/micro).
 // ═══════════════════════════════════════════════════════════
 package com.learnde.app.presentation.learn.theme
 
@@ -57,54 +61,56 @@ class LearnColors(
     val error: Color         get() = danger
     val errorSoft: Color     get() = dangerSoft
     val voiceStart: Color    get() = accent
-    val voiceEnd: Color      get() = warning
+    val voiceEnd: Color      get() = textSecondary
 }
 
+// ── Тёмная тема в стиле ChatGPT ──
 val StudioDark = LearnColors(
-    background     = Color(0xFF0E1014),
-    surface        = Color(0xFF161A21),
-    surfaceRaised  = Color(0xFF1D222B),
-    surfaceSunken  = Color(0xFF0A0C0F),
-    textPrimary    = Color(0xFFEDEFF3),
-    textSecondary  = Color(0xFF9AA3B2),
-    textTertiary   = Color(0xFF5C6470),
-    divider        = Color(0xFF232934),
-    outline        = Color(0xFF323A48),
-    accent         = Color(0xFFFFB454),
-    onAccent       = Color(0xFF231503),
-    accentSoft     = Color(0x1FFFB454),
-    success        = Color(0xFF4ADE80),
-    successSoft    = Color(0x1F4ADE80),
-    danger         = Color(0xFFF87171),
-    dangerSoft     = Color(0x1FF87171),
-    warning        = Color(0xFFFBBF24),
-    warningSoft    = Color(0x24FBBF24),
-    bubbleTutor    = Color(0xFF1A1F28),
-    bubbleUser     = Color(0xFF2B2415),
+    background     = Color(0xFF212121),
+    surface        = Color(0xFF2F2F2F),
+    surfaceRaised  = Color(0xFF333333),
+    surfaceSunken  = Color(0xFF171717),
+    textPrimary    = Color(0xFFECECEC),
+    textSecondary  = Color(0xFFB4B4B4),
+    textTertiary   = Color(0xFF8E8EA0),
+    divider        = Color(0xFF3D3D3D),
+    outline        = Color(0xFF4D4D4D),
+    accent         = Color(0xFFECECEC),   // светлый primary на тёмном (как кнопка отправки в GPT)
+    onAccent       = Color(0xFF0D0D0D),
+    accentSoft     = Color(0xFF3A3A3A),
+    success        = Color(0xFF19C37D),
+    successSoft    = Color(0x2619C37D),
+    danger         = Color(0xFFF97066),
+    dangerSoft     = Color(0x26F97066),
+    warning        = Color(0xFFF0A23B),
+    warningSoft    = Color(0x26F0A23B),
+    bubbleTutor    = Color(0xFF333333),
+    bubbleUser     = Color(0xFF3A3A3A),
     bubbleSystem   = Color(0x00000000),
 )
 
+// ── Светлая тема в стиле ChatGPT ──
 val StudioLight = LearnColors(
-    background     = Color(0xFFF7F6F3),
+    background     = Color(0xFFFFFFFF),
     surface        = Color(0xFFFFFFFF),
     surfaceRaised  = Color(0xFFFFFFFF),
-    surfaceSunken  = Color(0xFFEFEDE8),
-    textPrimary    = Color(0xFF1A1D23),
-    textSecondary  = Color(0xFF5B6470),
-    textTertiary   = Color(0xFF9AA1AC),
-    divider        = Color(0xFFE5E2DB),
-    outline        = Color(0xFFCBC7BE),
-    accent         = Color(0xFFE08700),
+    surfaceSunken  = Color(0xFFF7F7F8),
+    textPrimary    = Color(0xFF0D0D0D),
+    textSecondary  = Color(0xFF565869),
+    textTertiary   = Color(0xFF8E8EA0),
+    divider        = Color(0xFFE5E5E5),
+    outline        = Color(0xFFD9D9E3),
+    accent         = Color(0xFF0D0D0D),   // чёрный primary (как кнопка отправки в GPT)
     onAccent       = Color(0xFFFFFFFF),
-    accentSoft     = Color(0x1AE08700),
-    success        = Color(0xFF15803D),
-    successSoft    = Color(0x1A15803D),
-    danger         = Color(0xFFDC2626),
-    dangerSoft     = Color(0x14DC2626),
-    warning        = Color(0xFFD97706),
-    warningSoft    = Color(0x1FD97706),
-    bubbleTutor    = Color(0xFFFFFFFF),
-    bubbleUser     = Color(0xFFFFF3E0),
+    accentSoft     = Color(0xFFF0F0F2),
+    success        = Color(0xFF10A37F),
+    successSoft    = Color(0x1A10A37F),
+    danger         = Color(0xFFD92D20),
+    dangerSoft     = Color(0x14D92D20),
+    warning        = Color(0xFFB26B00),
+    warningSoft    = Color(0x18B26B00),
+    bubbleTutor    = Color(0xFFF7F7F8),
+    bubbleUser     = Color(0xFFECECEC),
     bubbleSystem   = Color(0x00000000),
 )
 
@@ -130,7 +136,7 @@ object LearnPalette {
     val AccentSoft_L   = StudioLight.accentSoft
     val AccentSoft_D   = StudioDark.accentSoft
     val VoiceStart     = StudioDark.accent
-    val VoiceEnd       = StudioDark.warning
+    val VoiceEnd       = StudioDark.textSecondary
     val Success        = StudioDark.success
     val SuccessSoft    = StudioDark.successSoft
     val Warn           = StudioDark.warning
@@ -216,8 +222,7 @@ object Plural {
 
 // ────────────────────────────────────────────────────────────
 //  4. LearnType
-//     ФИКС v8.2: @get:JvmName на строчных свойствах,
-//     конфликтующих с заглавными алиасами.
+//     @get:JvmName на строчных свойствах, конфликтующих с заглавными алиасами.
 // ────────────────────────────────────────────────────────────
 
 object LearnType {
@@ -314,8 +319,8 @@ fun linkColor(stateName: String): Color {
     return when (stateName) {
         "READY"      -> c.success
         "ROTATING"   -> c.success
-        "CONNECTING" -> c.warning
-        "RECOVERING" -> c.warning
+        "CONNECTING" -> c.textSecondary
+        "RECOVERING" -> c.textSecondary
         "FAILED"     -> c.danger
         else         -> c.textTertiary
     }
