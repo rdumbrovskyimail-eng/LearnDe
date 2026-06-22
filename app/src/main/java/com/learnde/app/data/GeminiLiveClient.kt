@@ -603,16 +603,19 @@ class GeminiLiveClient(
 
             root["sessionResumptionUpdate"]?.jsonObject?.let { update ->
                 val resumable = update["resumable"]?.jsonPrimitive?.booleanOrNull ?: false
-                val token = update["token"]?.jsonPrimitive?.content
+                // Официальное поле — newHandle. token оставлен как фолбэк на случай
+                // расхождения версий API.
+                val newHandle = (update["newHandle"] ?: update["token"])
+                    ?.jsonPrimitive?.content
                 val lastConsumed = update["lastConsumedClientMessageIndex"]
                     ?.jsonPrimitive?.longOrNull
 
-                if (token != null && resumable) {
-                    sessionHandle = token
+                if (newHandle != null && resumable) {
+                    sessionHandle = newHandle
                     logger.d("SESSION_RESUMPTION: handle updated (resumable=$resumable)")
                     _events.tryEmit(
                         GeminiEvent.SessionHandleUpdate(
-                            handle = token,
+                            handle = newHandle,
                             resumable = resumable,
                             lastConsumedIndex = lastConsumed
                         )
