@@ -32,7 +32,7 @@ fun AppNavGraph(
 
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                onBack = { navController.popBackStack() }
+                onStartSession = { navController.popBackStack() }
             )
         }
     }
