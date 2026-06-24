@@ -1,7 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// НОВЫЙ ФАЙЛ
-// Путь: app/src/main/java/com/codeextractor/app/di/DatabaseModule.kt
-// ═══════════════════════════════════════════════════════════
 package com.learnde.app.di
 
 import android.content.Context
@@ -21,19 +17,12 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideAppDatabase(
-        @ApplicationContext context: Context
-    ): AppDatabase =
-        Room.databaseBuilder(
-            context,
-            AppDatabase::class.java,
-            AppDatabase.DATABASE_NAME
-        )
+    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
+        Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.DATABASE_NAME)
             .fallbackToDestructiveMigration()
             .build()
 
     @Provides
     @Singleton
-    fun provideConversationDao(db: AppDatabase): ConversationDao =
-        db.conversationDao()
+    fun provideConversationDao(db: AppDatabase): ConversationDao = db.conversationDao()
 }
