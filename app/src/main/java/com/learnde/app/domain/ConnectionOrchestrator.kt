@@ -1,13 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// ПОЛНАЯ ЗАМЕНА
-// Путь: app/src/main/java/com/learnde/app/domain/ConnectionOrchestrator.kt
-//
-// ФИКС:
-//   [1] connect() теперь получает logRaw из настроек. Раньше параметр
-//       никогда не передавался → переключатель «Логировать WebSocket-
-//       фреймы» не работал, и при close 1007 в логе было
-//       "No frames tracked" вместо диагностики.
-// ═══════════════════════════════════════════════════════════
 package com.learnde.app.domain
 
 import com.learnde.app.data.NetworkMonitor
@@ -29,15 +19,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
 
-/** Честный статус соединения для UI. */
-enum class LinkState {
-    IDLE,
-    CONNECTING,
-    READY,
-    ROTATING,
-    RECOVERING,
-    FAILED,
-}
+enum class LinkState { IDLE, CONNECTING, READY, ROTATING, RECOVERING, FAILED }
 
 @Singleton
 class ConnectionOrchestrator @Inject constructor(
@@ -45,13 +27,11 @@ class ConnectionOrchestrator @Inject constructor(
     private val networkMonitor: NetworkMonitor,
     private val logger: AppLogger,
 ) {
-
     companion object {
         private const val STUCK_SOFT_MS = 12_000L
         private const val STUCK_HARD_MS = 25_000L
         private const val NETWORK_WAIT_MS = 30_000L
-        private const val NUDGE_TEXT =
-            "[СИСТЕМА]: Пауза затянулась. Продолжи урок: повтори вопрос короче или дай подсказку."
+        private const val NUDGE_TEXT = "[СИСТЕМА]: Пауза затянулась. Продолжи диалог."
     }
 
     private val _state = MutableStateFlow(LinkState.IDLE)
@@ -68,8 +48,6 @@ class ConnectionOrchestrator @Inject constructor(
     private var maxAttempts: Int = 5
     private var baseDelayMs: Long = 2_000L
     private var maxDelayMs: Long = 30_000L
-
-    /** [1] Прокидывается во ВСЕ connect() (start / rotate / recover). */
     private var logRaw: Boolean = false
 
     private var stuckJob: Job? = null
@@ -120,24 +98,20 @@ class ConnectionOrchestrator @Inject constructor(
                 transition(LinkState.READY, "setupComplete")
                 scope?.launch { onResumeAudio?.invoke() }
             }
-
             is GeminiEvent.GoAway -> {
                 logger.d("Link: GoAway(timeLeft=${event.timeLeft}) → planned rotation")
                 scope?.launch { rotate(reason = "goAway") }
             }
-
             is GeminiEvent.ConnectionError -> {
                 if (_state.value == LinkState.READY) {
                     scope?.launch { recover(reason = event.message) }
                 }
             }
-
             is GeminiEvent.Disconnected -> {
                 if (_state.value == LinkState.READY) {
                     scope?.launch { recover(reason = "ws closed ${event.code}") }
                 }
             }
-
             else -> Unit
         }
     }
@@ -236,9 +210,7 @@ class ConnectionOrchestrator @Inject constructor(
         }
 
         transition(LinkState.FAILED, "attempts exhausted")
-        onPermanentFailure?.invoke(
-            "Связь потеряна. Проверьте интернет и нажмите «Продолжить» — прогресс сохранён."
-        )
+        onPermanentFailure?.invoke("Связь потеряна. Проверьте интернет.")
     }
 
     private suspend fun awaitReady(timeoutMs: Long): Boolean =
