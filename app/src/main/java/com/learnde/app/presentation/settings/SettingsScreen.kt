@@ -126,7 +126,7 @@ private val THEME_MODES = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onStartSession: () -> Unit,
+    onNavigateBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     androidx.compose.runtime.DisposableEffect(Unit) {
@@ -437,7 +437,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = onStartSession,
+                onClick = onNavigateBack,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(26.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = accent)
