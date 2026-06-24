@@ -95,18 +95,10 @@ data class SessionConfig(
     val setupTimeoutMs: Long = 10_000L
 ) {
     companion object {
-
-        /**
-         * Model ID для WebSocket BidiGenerateContent.
-         * БЕЗ префикса "models/"!
-         */
         const val DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
-
-        const val DEFAULT_SYSTEM_INSTRUCTION = "Ты — полезный голосовой ассистент."
-
+        const val DEFAULT_SYSTEM_INSTRUCTION = "Ты — полезный голосовой ассистент. Отвечай кратко и по делу."
         const val INPUT_SAMPLE_RATE = 16_000
         const val OUTPUT_SAMPLE_RATE = 24_000
-
         const val WS_HOST = "generativelanguage.googleapis.com"
         const val WS_PATH = "ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
     }
