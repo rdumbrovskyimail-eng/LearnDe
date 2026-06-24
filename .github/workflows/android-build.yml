@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # 👈 Добавлено разрешение, необходимое для удаления кэша
 
 jobs:
   build-and-release:
@@ -14,6 +15,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # 👈 ВОТ НОВЫЙ ШАГ: Принудительно удаляет весь кэш перед сборкой
+      - name: Clear GitHub Actions Cache
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== Удаление старого кэша ==="
+          gh cache delete --all || echo "Кэш уже пуст или не найден"
 
       - name: Debug a1book files
         run: |
